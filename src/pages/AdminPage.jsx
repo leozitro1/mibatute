@@ -87,6 +87,11 @@ export default function AdminPage() {
   const [ownerFlags, setOwnerFlags] = useState({});
   const [ownerNames, setOwnerNames] = useState({});
 
+  // -------- bloqueados / sancionados (lista) --------
+  const [blockedLoading, setBlockedLoading] = useState(false);
+  const [blockedError, setBlockedError] = useState("");
+  const [blockedUsers, setBlockedUsers] = useState([]);
+
   const [cityFilter, setCityFilter] = useState("Todas");
   const [localityFilter, setLocalityFilter] = useState("Todas");
 
@@ -212,6 +217,65 @@ export default function AdminPage() {
     return { flagsMap: {}, namesMap: {} };
   }, []);
 
+  // ---------------- load blocked users ----------------
+  const loadBlockedUsers = useCallback(async () => {
+    setBlockedLoading(true);
+    setBlockedError("");
+
+    const candidates = [
+      { nameCol: "nombre", select: "id,is_blocked,ban_until,nombre,foto_url,email" },
+      { nameCol: "username", select: "id,is_blocked,ban_until,username,foto_url,email" },
+      { nameCol: "display_name", select: "id,is_blocked,ban_until,display_name,foto_url,email" },
+      { nameCol: "email", select: "id,is_blocked,ban_until,email,foto_url" },
+      { nameCol: null, select: "id,is_blocked,ban_until,foto_url,email" },
+    ];
+
+    try {
+      for (const c of candidates) {
+        const { data, error } = await supabase
+          .from("usuarios")
+          .select(c.select)
+          .eq("is_blocked", true)
+          .order("id", { ascending: true })
+          .limit(300);
+
+        if (error) {
+          if (String(error.code) === "42703") continue;
+          throw error;
+        }
+
+        const arr = Array.isArray(data) ? data : [];
+        const mapped = arr.map((u) => {
+          const id = String(u.id);
+          const name =
+            (c.nameCol ? String(u?.[c.nameCol] || "").trim() : "") ||
+            String(u?.email || "").trim() ||
+            `ID: ${id.slice(0, 8)}…`;
+          return {
+            id,
+            name,
+            email: u?.email || null,
+            foto_url: u?.foto_url || null,
+            is_blocked: !!u?.is_blocked,
+            ban_until: u?.ban_until || null,
+          };
+        });
+
+        setBlockedUsers(mapped);
+        setBlockedLoading(false);
+        return;
+      }
+
+      setBlockedUsers([]);
+      setBlockedLoading(false);
+    } catch (e) {
+      console.error("loadBlockedUsers error:", e);
+      setBlockedUsers([]);
+      setBlockedError(e?.message || "No se pudieron cargar bloqueados (RLS/permisos).");
+      setBlockedLoading(false);
+    }
+  }, []);
+
   // ---------------- load reports ----------------
   const loadReports = useCallback(
     async ({ force = false } = {}) => {
@@ -289,7 +353,8 @@ export default function AdminPage() {
   useEffect(() => {
     if (!authUser?.id) return;
     loadReports({ force: true });
-  }, [authUser?.id, loadReports]);
+    loadBlockedUsers();
+  }, [authUser?.id, loadReports, loadBlockedUsers]);
 
   // ---------------- grouping ----------------
   const groups = useMemo(() => {
@@ -352,7 +417,6 @@ export default function AdminPage() {
     if (!ids.length) return { ok: true };
 
     try {
-      // ✅ FIX: NO tocamos handled_by_user_id para evitar FK reports_handled_by_user_id_fkey
       const mergedPatch = {
         ...patch,
         handled_at: new Date().toISOString(),
@@ -447,6 +511,7 @@ export default function AdminPage() {
 
         notifyModerationUpdated();
         await loadReports({ force: true });
+        await loadBlockedUsers();
         alert(`✅ Usuario sancionado por ${days} día(s).`);
         return true;
       } catch (e) {
@@ -455,7 +520,7 @@ export default function AdminPage() {
         return false;
       }
     },
-    [loadReports]
+    [loadReports, loadBlockedUsers]
   );
 
   const clearBan = useCallback(
@@ -470,6 +535,7 @@ export default function AdminPage() {
 
         notifyModerationUpdated();
         await loadReports({ force: true });
+        await loadBlockedUsers();
         alert("✅ Sanción retirada.");
         return true;
       } catch (e) {
@@ -478,7 +544,7 @@ export default function AdminPage() {
         return false;
       }
     },
-    [loadReports]
+    [loadReports, loadBlockedUsers]
   );
 
   const setBlocked = useCallback(
@@ -499,6 +565,7 @@ export default function AdminPage() {
 
         notifyModerationUpdated();
         await loadReports({ force: true });
+        await loadBlockedUsers();
         alert(next ? "✅ Usuario bloqueado." : "✅ Usuario desbloqueado.");
         return true;
       } catch (e) {
@@ -507,7 +574,7 @@ export default function AdminPage() {
         return false;
       }
     },
-    [loadReports]
+    [loadReports, loadBlockedUsers]
   );
 
   // ---------------- UI ----------------
@@ -680,6 +747,97 @@ export default function AdminPage() {
                 <p className="text-xs text-red-700 mt-1">{rowsError}</p>
               </div>
             ) : null}
+          </div>
+
+          {/* ---------------- Usuarios bloqueados ---------------- */}
+          <div className="mt-6 bg-white border border-gray-100 rounded-3xl p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Usuarios</p>
+                <h2 className="text-lg font-black text-gray-900 mt-1">Bloqueados</h2>
+                <p className="text-xs text-gray-500 font-bold mt-1">
+                  Lista directa desde <span className="font-black">usuarios.is_blocked = true</span>
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={loadBlockedUsers}
+                className="px-4 py-2 rounded-2xl bg-gray-100 text-gray-900 font-black text-sm border border-gray-200 hover:border-gray-900"
+                disabled={blockedLoading}
+              >
+                Refrescar bloqueados
+              </button>
+            </div>
+
+            <div className="mt-4">
+              {blockedLoading ? (
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                  <p className="text-sm font-black text-gray-700">Cargando bloqueados…</p>
+                </div>
+              ) : blockedError ? (
+                <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
+                  <p className="text-sm font-black text-red-700">Error cargando bloqueados</p>
+                  <p className="text-xs text-red-700 mt-1">{blockedError}</p>
+                </div>
+              ) : blockedUsers.length === 0 ? (
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                  <p className="text-sm font-black text-gray-700">No hay usuarios bloqueados.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {blockedUsers.map((u) => (
+                    <div key={u.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-1 rounded-full bg-red-100 text-red-800 border border-red-200 text-[10px] font-black">
+                              BLOQUEADO
+                            </span>
+
+                            <span className="text-sm font-black text-gray-900 truncate">{u.name}</span>
+
+                            <span className="text-xs text-gray-500 font-bold">{u.email ? u.email : `ID: ${u.id}`}</span>
+
+                            {u.ban_until ? (
+                              <span className="text-xs font-black text-orange-900 bg-orange-100 border border-orange-200 px-2 py-1 rounded-full">
+                                Sanción hasta: {fmtDate(u.ban_until)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setBlocked(u.id, false)}
+                            className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-black text-xs border border-gray-200 hover:border-gray-900"
+                          >
+                            Desbloquear
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => clearBan(u.id)}
+                            className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-black text-xs border border-gray-200 hover:border-gray-900"
+                          >
+                            Quitar sanción
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setBlocked(u.id, true)}
+                            className="px-4 py-2 rounded-2xl bg-red-100 text-red-800 font-black text-xs border border-red-200 hover:border-red-800"
+                          >
+                            Mantener bloqueado
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="mt-6 space-y-3">
@@ -951,9 +1109,7 @@ export default function AdminPage() {
 
                               <p className="mt-3 text-xs text-gray-600 font-bold">
                                 Sanción hasta:{" "}
-                                <span className="font-black text-gray-900">
-                                  {flags?.ban_until ? fmtDate(flags.ban_until) : "—"}
-                                </span>
+                                <span className="font-black text-gray-900">{flags?.ban_until ? fmtDate(flags.ban_until) : "—"}</span>
                               </p>
                             </div>
                           ) : null}
@@ -971,9 +1127,7 @@ export default function AdminPage() {
                             onError={(e) => (e.currentTarget.style.display = "none")}
                           />
                         ) : (
-                          <div className="h-40 flex items-center justify-center text-xs font-black text-gray-400">
-                            Sin imagen
-                          </div>
+                          <div className="h-40 flex items-center justify-center text-xs font-black text-gray-400">Sin imagen</div>
                         )}
                       </div>
                     </div>
@@ -1030,9 +1184,7 @@ export default function AdminPage() {
                 <div className="space-y-4">
                   <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
                     <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Estado</p>
-                    <p className="text-sm font-black text-gray-900 mt-1">
-                      {String(previewArticle?.estado || previewArticle?.status || "—")}
-                    </p>
+                    <p className="text-sm font-black text-gray-900 mt-1">{String(previewArticle?.estado || previewArticle?.status || "—")}</p>
                   </div>
 
                   <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
@@ -1066,9 +1218,7 @@ export default function AdminPage() {
                         className="w-full h-64 object-cover"
                         onError={(e) => (e.currentTarget.style.display = "none")}
                       />
-                      <div className="p-3 text-xs text-gray-500 font-bold">
-                        Si no aparece imagen, puede ser ruta privada o vacía.
-                      </div>
+                      <div className="p-3 text-xs text-gray-500 font-bold">Si no aparece imagen, puede ser ruta privada o vacía.</div>
                     </div>
                   </div>
 

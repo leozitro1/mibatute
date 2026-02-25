@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 
 const BUCKET = "perfiles";
 
+// Solo estas columnas se pueden escribir en DB
 const sanitizeProfilePayload = (profile) => {
   const allowed = ["nombre", "movil", "ciudad", "localidad", "direccion", "foto_url"];
   const payload = {};
@@ -13,6 +14,7 @@ const sanitizeProfilePayload = (profile) => {
   return payload;
 };
 
+// timeout helper
 function withTimeout(promise, ms = 12000, label = "timeout") {
   let t;
   const timeoutPromise = new Promise((_, reject) => {
@@ -28,7 +30,13 @@ function fail(error, data = null, details = null) {
   return { success: false, error, data, details };
 }
 
-async function getAuthMetaForUserId(userId) {
+/**
+ * ✅ IMPORTANTÍSIMO (para tu problema de anonimización):
+ * - NO usamos auth.user_metadata para rellenar nombre/movil/ciudad/etc
+ * - Si lo usas, "revive" datos reales aunque DB ya esté anonimizad@.
+ * - Solo permitimos usar auth metadata como fallback de foto_url (opcional).
+ */
+async function getAuthPhotoForUserId(userId) {
   try {
     const { data, error } = await supabase.auth.getUser();
     if (error) return null;
@@ -37,17 +45,21 @@ async function getAuthMetaForUserId(userId) {
     if (!u?.id || String(u.id) !== String(userId)) return null;
 
     const m = u.user_metadata || {};
-    return {
-      nombre: m.nombre ?? m.full_name ?? m.name ?? m.display_name ?? "",
-      movil: m.movil ?? m.phone ?? "",
-      ciudad: m.ciudad ?? m.city ?? "",
-      localidad: m.localidad ?? m.localidad_es ?? m.locality ?? m.location ?? "",
-      direccion: m.direccion ?? m.address ?? "",
-      foto_url: m.foto_url ?? m.avatar_url ?? m.photo_url ?? "",
-    };
+    const foto_url = m.foto_url ?? m.avatar_url ?? m.photo_url ?? "";
+    return { foto_url: String(foto_url || "").trim() };
   } catch {
     return null;
   }
+}
+
+/**
+ * Detecta un perfil anonimizad@ según tu regla:
+ * - nombre o movil en "0000" (puedes ajustar si tu RPC usa otro marcador)
+ */
+function isAnonymizedRow(row) {
+  const nombre = String(row?.nombre ?? "").trim();
+  const movil = String(row?.movil ?? "").trim();
+  return nombre === "0000" || movil === "0000";
 }
 
 async function tryFetchProfile(userId) {
@@ -60,6 +72,7 @@ async function tryFetchProfile(userId) {
     { table: "users", col: "user_id" },
   ];
 
+  // ✅ Importante: solo leemos lo que realmente usamos en UI
   const selectCols = "id,nombre,movil,ciudad,localidad,direccion,foto_url";
 
   for (const a of attempts) {
@@ -76,11 +89,16 @@ async function tryFetchProfile(userId) {
       }
 
       if (data) {
-        // ✅ si DB no trae foto_url, intenta completar desde auth metadata
-        if (!data.foto_url) {
-          const meta = await getAuthMetaForUserId(userId);
-          if (meta?.foto_url) data.foto_url = meta.foto_url;
+        // ✅ Si está anonimizad@, NO intentamos completar nada desde auth
+        // (ni foto_url) para evitar re-hidratar info.
+        if (!isAnonymizedRow(data)) {
+          // ✅ Solo completamos foto_url si falta (y solo desde auth metadata)
+          if (!data.foto_url) {
+            const meta = await getAuthPhotoForUserId(userId);
+            if (meta?.foto_url) data.foto_url = meta.foto_url;
+          }
         }
+
         return ok(data);
       }
     } catch (e) {
@@ -88,32 +106,24 @@ async function tryFetchProfile(userId) {
     }
   }
 
-  const meta = await getAuthMetaForUserId(userId);
-
+  // ✅ Si no hay fila en DB:
+  // - NO rellenamos desde auth metadata (evita “revivir” datos)
+  // - devolvemos un perfil vacío
   const empty = {
     id: userId,
-    nombre: meta?.nombre || "",
-    movil: meta?.movil || "",
-    ciudad: meta?.ciudad || "",
-    localidad: meta?.localidad || "",
-    direccion: meta?.direccion || "",
-    foto_url: meta?.foto_url || "",
+    nombre: "",
+    movil: "",
+    ciudad: "",
+    localidad: "",
+    direccion: "",
+    foto_url: "",
   };
 
-  // intento crear fila (si RLS lo permite)
-  try {
-    const payload = sanitizeProfilePayload(empty);
-    const { data: insData, error: insErr } = await supabase
-      .from("usuarios")
-      .insert([{ id: userId, ...payload }])
-      .select(selectCols)
-      .maybeSingle();
-
-    if (!insErr && insData) return ok(insData);
-    if (insErr) console.log("[getProfile] insert auto usuarios warn:", insErr);
-  } catch (e) {
-    console.log("[getProfile] insert auto usuarios catch:", e);
-  }
+  // ⚠️ Antes intentabas auto-crear fila con datos desde auth metadata.
+  // Eso también puede romper tu anonimización si la fila se borró o no existía.
+  // Para tu caso, lo dejamos SIN auto insert por defecto.
+  //
+  // Si tú DE VERDAD necesitas auto-crear, dilo y lo reactivamos pero SIN metadata.
 
   return ok(empty);
 }
@@ -196,22 +206,15 @@ export const updateProfile = async (userId, profile, file = null) => {
       });
     }
 
-    // ✅ 3) CLAVE: guardar también en auth metadata (fallback al re-login)
-    try {
-      await supabase.auth.updateUser({
-        data: {
-          nombre: payload.nombre ?? undefined,
-          movil: payload.movil ?? undefined,
-          ciudad: payload.ciudad ?? undefined,
-          localidad: payload.localidad ?? undefined,
-          direccion: payload.direccion ?? undefined,
-          foto_url: payload.foto_url ?? undefined,
-        },
-      });
-    } catch (e) {
-      console.log("[updateProfile] auth.updateUser warn:", e?.message || e);
-      // no rompemos el flujo: usuarios ya quedó guardado
-    }
+    /**
+     * ✅ CAMBIO CLAVE:
+     * Antes guardabas PII en auth.user_metadata (nombre/movil/ciudad/etc).
+     * Eso es EXACTAMENTE lo que hace que, después de anonimizar en DB,
+     * vuelvas a ver el nombre/teléfono reales al re-login.
+     *
+     * Para tu caso (privacidad/anonimización), NO sincronizamos PII a Auth.
+     * Si quieres, luego podemos guardar SOLO foto_url (pero por ahora lo dejamos limpio).
+     */
 
     const data = res?.data || null;
     return { success: true, data, foto_url: data?.foto_url || foto_url };
