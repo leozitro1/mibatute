@@ -1031,6 +1031,14 @@ export default function UserProfile({
     foto_url: "",
   });
 
+  // Evita "parpadeo" del avatar por errores de carga o re-renders
+  const [avatarBroken, setAvatarBroken] = useState(false);
+
+  useEffect(() => {
+    // Si cambia la URL (p. ej. subiste nueva foto), reintenta cargarla
+    setAvatarBroken(false);
+  }, [profile?.foto_url]);
+
   const emailReadonly = String(authEmail || user?.email || "").trim();
 
   const SAFE_LOCATIONS = useMemo(() => {
@@ -2011,16 +2019,26 @@ export default function UserProfile({
     return <div className="p-10 text-center font-black uppercase">Cargando perfil...</div>;
   }
 
-  const fallbackAvatar =
-    "data:image/svg+xml;utf8," +
-    encodeURIComponent(
-      `<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'>
-        <rect width='100%' height='100%' fill='#f3f4f6'/>
-        <text x='50%' y='54%' font-size='72' text-anchor='middle' fill='#111827' font-family='Arial' font-weight='700'>
-          ${(profile.nombre?.[0] || "U").toUpperCase()}
-        </text>
-      </svg>`
+  const fallbackAvatar = useMemo(() => {
+    const initial = (profile?.nombre?.[0] || "U").toUpperCase();
+    return (
+      "data:image/svg+xml;utf8," +
+      encodeURIComponent(
+        `<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'>
+          <rect width='100%' height='100%' fill='#f3f4f6'/>
+          <text x='50%' y='54%' font-size='72' text-anchor='middle' fill='#111827' font-family='Arial' font-weight='700'>
+            ${initial}
+          </text>
+        </svg>`
+      )
     );
+  }, [profile?.nombre]);
+
+  const avatarSrc = useMemo(() => {
+    const url = String(profile?.foto_url || "").trim();
+    if (avatarBroken) return fallbackAvatar;
+    return url ? url : fallbackAvatar;
+  }, [profile?.foto_url, avatarBroken, fallbackAvatar]);
 
   return (
     <div className="max-w-5xl mx-auto p-4 animate-in slide-in-from-bottom-4 duration-300">
@@ -2053,17 +2071,14 @@ export default function UserProfile({
         <div className="relative -mt-12 mb-4 flex justify-center">
           <div className="relative group">
             <img
-              key={profile.foto_url || "no-photo"}
-              src={profile.foto_url || fallbackAvatar}
+              src={avatarSrc}
               alt="Foto de perfil"
               className="w-28 h-28 rounded-full border-4 border-white object-cover shadow-lg"
               onError={(e) => {
                 if (e.currentTarget.dataset.fallbackApplied) return;
                 e.currentTarget.dataset.fallbackApplied = "1";
+                setAvatarBroken(true);
                 e.currentTarget.src = fallbackAvatar;
-
-                // opcional pero recomendado: evita que quede una URL rota en estado
-                setProfile((p) => ({ ...p, foto_url: "" }));
               }}
             />
 
