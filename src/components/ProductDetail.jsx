@@ -105,7 +105,20 @@ function getCategory(item) {
 function getSubcategory(item) {
   return String(item?.subcategory ?? item?.subcategoria ?? "").trim();
 }
-
+function formatCOP(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "";
+  try {
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      maximumFractionDigits: 0,
+    }).format(n);
+  } catch {
+    // fallback si el navegador no soporta Intl
+    return `$ ${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+  }
+}
 export default function ProductDetail({
   item,
   isOpen,
@@ -149,6 +162,9 @@ export default function ProductDetail({
 
   const tipoNorm = normalizeTipo(item?.tipo ?? item?.mode ?? "donacion");
   const estadoNorm = normalizeEstado(item?.estado ?? item?.status ?? "disponible");
+  const priceRaw = item?.price ?? item?.precio ?? item?.valor ?? 0;
+const priceCOP = formatCOP(priceRaw);
+const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
 
   const isUnderReview = estadoNorm === "en_revision";
 
@@ -605,7 +621,21 @@ export default function ProductDetail({
             <MapPin size={16} className="text-forest-green" />
             <span className="font-bold">{locationText}</span>
           </div>
-
+{showPrice && (
+  <div className="mb-6">
+    <div className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-forest-green/10 border border-forest-green/20">
+      <span className="text-[10px] font-black uppercase tracking-widest text-forest-green">
+        Precio
+      </span>
+      <span className="text-lg font-black text-gray-900">
+        {priceCOP}
+      </span>
+    </div>
+    <p className="mt-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+      Pago se coordina con el vendedor
+    </p>
+  </div>
+)}
           <div className="bg-smoke-white p-4 rounded-2xl mb-6">
             <h3 className="text-xs font-black text-gray-400 uppercase mb-2">Descripción del tesoro</h3>
             <p className="text-gray-600 text-sm leading-relaxed italic">
