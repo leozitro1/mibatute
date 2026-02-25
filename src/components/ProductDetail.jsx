@@ -207,6 +207,10 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
     setCheckingApplied(true);
 
     setOwnerNameResolved("");
+
+    // ✅ Reset de foto por cambio de publicación (evita que quede la del vendedor anterior)
+    setOwnerPhotoResolved("");
+    setStableOwnerPhoto("");
     // ✅ Evita parpadeo del avatar: no limpies a vacío antes de resolver
     // setOwnerPhotoResolved("");
 
@@ -256,7 +260,7 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
 
         setOwnerNameResolved((prev) => prev || nombreDb);
         setOwnerPhotoResolved((prev) => prev || fotoDbResolved);
-        if (fotoDbResolved) setStableOwnerPhoto((prev) => prev || fotoDbResolved);
+        if (fotoDbResolved) setStableOwnerPhoto(fotoDbResolved);
       } catch {}
     })();
 
