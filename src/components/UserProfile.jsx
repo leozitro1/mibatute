@@ -2738,31 +2738,22 @@ export default function UserProfile({
     alert("El correo no coincide.");
     return;
   }
-const { data: sessionData } = await supabase.auth.getSession();
-const token = sessionData?.session?.access_token;
-
-if (!token) {
-  alert("No hay sesión activa. Cierra sesión y vuelve a entrar, e intenta de nuevo.");
-  return;
-}
-  const { data, error } = await supabase.functions.invoke("delete-account", {
-  body: { email_confirm: emailTyped },
-  headers: {
-    Authorization: `Bearer ${token}`,
-  },
+  // ✅ Método simple: RPC en DB (sin Edge Function)
+const { data, error } = await supabase.rpc("self_delete_and_block", {
+  email_confirm: emailTyped,
 });
 
-  console.log("delete-account:", { data, error });
+console.log("self_delete_and_block:", { data, error });
 
-  if (error) {
-    alert("No se pudo eliminar/bloquear. Revisa consola.");
-    return;
-  }
+if (error) {
+  alert(error.message || "No se pudo eliminar/bloquear. Revisa consola.");
+  return;
+}
 
-  if (!data?.ok) {
-    alert("No se pudo eliminar: " + (data?.error || "Error desconocido"));
-    return;
-  }
+if (!data?.ok) {
+  alert("No se pudo eliminar: " + (data?.error || "Error desconocido"));
+  return;
+}
 
   alert("Cuenta eliminada y BLOQUEADA.");
   await supabase.auth.signOut();
