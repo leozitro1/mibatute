@@ -2723,47 +2723,47 @@ export default function UserProfile({
                 <button
   type="button"
   onClick={async () => {
-    try {
-      setDeletingAccount(true);
+      try {
+  setDeletingAccount(true);
 
-      const emailTyped = String(deleteEmailInput || "").trim().toLowerCase();
-      const emailReal = String(emailReadonly || "").trim().toLowerCase();
+  const emailTyped = String(deleteEmailInput || "").trim().toLowerCase();
+  const emailReal = String(emailReadonly || "").trim().toLowerCase();
 
-      if (!emailTyped) {
-        alert("Escribe tu correo para confirmar.");
-        return;
-      }
+  if (!emailTyped) {
+    alert("Escribe tu correo para confirmar.");
+    return;
+  }
 
-      if (emailTyped !== emailReal) {
-        alert("El correo no coincide.");
-        return;
-      }
+  if (emailTyped !== emailReal) {
+    alert("El correo no coincide.");
+    return;
+  }
 
-      const { data, error } = await supabase.rpc("anonymize_my_account", {
-        email_confirm: emailTyped,
-      });
+  const { data, error } = await supabase.functions.invoke("delete-account", {
+    body: { email_confirm: emailTyped },
+  });
 
-      console.log("anonymize_my_account:", { data, error });
+  console.log("delete-account:", { data, error });
 
-      if (error) {
-        alert("No se pudo eliminar. Revisa consola.");
-        return;
-      }
+  if (error) {
+    alert("No se pudo eliminar/bloquear. Revisa consola.");
+    return;
+  }
 
-      if (!data?.ok) {
-        alert("No se pudo eliminar: " + (data?.error || "Error desconocido"));
-        return;
-      }
+  if (!data?.ok) {
+    alert("No se pudo eliminar: " + (data?.error || "Error desconocido"));
+    return;
+  }
 
-      alert("Cuenta eliminada (datos anonimizados).");
-      await supabase.auth.signOut();
-      window.location.href = "/";
-    } catch (e) {
-      console.error(e);
-      alert("Error inesperado.");
-    } finally {
-      setDeletingAccount(false);
-    }
+  alert("Cuenta eliminada y BLOQUEADA.");
+  await supabase.auth.signOut();
+  window.location.href = "/";
+} catch (e) {
+  console.error(e);
+  alert("Error inesperado.");
+} finally {
+  setDeletingAccount(false);
+}
   }}
   disabled={
     deletingAccount ||
