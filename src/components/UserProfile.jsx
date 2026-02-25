@@ -2738,10 +2738,19 @@ export default function UserProfile({
     alert("El correo no coincide.");
     return;
   }
+const { data: sessionData } = await supabase.auth.getSession();
+const token = sessionData?.session?.access_token;
 
+if (!token) {
+  alert("No hay sesión activa. Cierra sesión y vuelve a entrar, e intenta de nuevo.");
+  return;
+}
   const { data, error } = await supabase.functions.invoke("delete-account", {
-    body: { email_confirm: emailTyped },
-  });
+  body: { email_confirm: emailTyped },
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
 
   console.log("delete-account:", { data, error });
 
