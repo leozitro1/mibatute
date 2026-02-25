@@ -14,6 +14,16 @@ const FALLBACK_IMAGE =
   </svg>
 `);
 
+// ✅ NUEVO: Formatear nombre público (Primer nombre + inicial del apellido)
+function formatPublicName(fullName) {
+  if (!fullName) return "Usuario";
+  const parts = String(fullName).trim().split(/\s+/);
+  const firstName = parts[0] || "Usuario";
+  if (parts.length === 1) return firstName;
+  const lastInitial = (parts[1] || "").slice(0, 1).toUpperCase();
+  return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+}
+
 function buildImages(item) {
   const out = [];
 
@@ -128,6 +138,8 @@ export default function ProductDetail({
   onCategoryClick,
   onSubcategoryClick,
 }) {
+  const publicName = formatPublicName(item?.owner_name || item?.owner?.name || item?.anunciante || item?.usuario_nombre);
+
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
@@ -484,7 +496,7 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
   const titulo = item?.titulo ?? item?.title ?? "Sin título";
   const descripcion = item?.descripcion ?? item?.description ?? "";
 
-  const ownerName = ownerNameResolved || "Vendedor";
+  const ownerName = ownerNameResolved ? formatPublicName(ownerNameResolved) : "Vendedor";
   const ownerPhoto = stableOwnerPhoto || ownerPhotoResolved || "";
 
   const tipoBadgeStyles = tipoNorm === "donacion" ? "bg-blue-100 text-blue-700" : "bg-gray-800 text-white";
