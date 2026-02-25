@@ -138,7 +138,9 @@ export default function ProductDetail({
   const [ownerNameResolved, setOwnerNameResolved] = useState("");
   const [ownerPhotoResolved, setOwnerPhotoResolved] = useState("");
 
-  // Report modal
+  
+  const [stableOwnerPhoto, setStableOwnerPhoto] = useState("");
+// Report modal
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("Contenido prohibido");
   const [reportDetails, setReportDetails] = useState("");
@@ -205,7 +207,8 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
     setCheckingApplied(true);
 
     setOwnerNameResolved("");
-    setOwnerPhotoResolved("");
+    // ✅ Evita parpadeo del avatar: no limpies a vacío antes de resolver
+    // setOwnerPhotoResolved("");
 
     setReportOpen(false);
     setReportReason("Contenido prohibido");
@@ -229,6 +232,7 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
       if (nameFromItem || photoResolvedFromItem) {
         setOwnerNameResolved(nameFromItem);
         setOwnerPhotoResolved(photoResolvedFromItem);
+        if (photoResolvedFromItem) setStableOwnerPhoto(photoResolvedFromItem);
       }
 
       if (!ownerId) return;
@@ -252,6 +256,7 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
 
         setOwnerNameResolved((prev) => prev || nombreDb);
         setOwnerPhotoResolved((prev) => prev || fotoDbResolved);
+        if (fotoDbResolved) setStableOwnerPhoto((prev) => prev || fotoDbResolved);
       } catch {}
     })();
 
@@ -476,7 +481,7 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
   const descripcion = item?.descripcion ?? item?.description ?? "";
 
   const ownerName = ownerNameResolved || "Vendedor";
-  const ownerPhoto = ownerPhotoResolved || "";
+  const ownerPhoto = stableOwnerPhoto || ownerPhotoResolved || "";
 
   const tipoBadgeStyles = tipoNorm === "donacion" ? "bg-blue-100 text-blue-700" : "bg-gray-800 text-white";
 
