@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
 import AdminPage from "./pages/AdminPage";
 import AuthCallback from "./pages/AuthCallback";
+import ResetPassword from "./pages/ResetPassword";
 import Navbar from "./components/Navbar";
 import ProductCard from "./components/ProductCard";
 import PublishModal from "./components/PublishModal";
@@ -1386,6 +1387,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   return (
     <Routes>
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/"
         element={
