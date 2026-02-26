@@ -1734,6 +1734,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       image={resolvedImage}
       isFeatured={item.isFeatured || false}
       status={item.estado || item.status || "disponible"}
+      estadoProducto={typeof item?.estado_producto === "number" ? item.estado_producto : (item?.estado_producto ? Number(item.estado_producto) : null)}
       interestedCount={interestedCount}
       interestedMax={interestedMax}
       notifTotal={notif?.total || 0}

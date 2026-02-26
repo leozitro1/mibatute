@@ -291,6 +291,22 @@ export async function publishArticle({ formData, files, user }) {
   const category = formData?.categoria ?? formData?.category ?? null;
   const subcategory = formData?.subcategoria ?? formData?.subcategory ?? null;
 
+  // ✅ Estado del producto (1-10). Acepta varias llaves por compatibilidad.
+  const estadoRaw =
+    formData?.estado_producto ??
+    formData?.estadoProducto ??
+    formData?.conditionScore ??
+    formData?.condition ??
+    null;
+
+  const estado_producto = (() => {
+    if (estadoRaw === null || estadoRaw === undefined || String(estadoRaw).trim() === "") return null;
+    const n = Number(estadoRaw);
+    if (!Number.isFinite(n)) return null;
+    const rounded = Math.round(n);
+    return Math.max(1, Math.min(10, rounded));
+  })();
+
   const payload = {
     owner_id: user.id,
     owner_name: user.user_metadata?.nombre || user.email || "Usuario",
@@ -303,6 +319,7 @@ export async function publishArticle({ formData, files, user }) {
     city: formData?.ciudad ?? formData?.city ?? null,
     locality: formData?.localidad_es ?? formData?.locality ?? null,
     description: String(formData?.descripcion ?? formData?.description ?? "").trim(),
+    estado_producto,
     status: "disponible",
     applicants: [],
   };

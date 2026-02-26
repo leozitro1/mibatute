@@ -129,6 +129,52 @@ function formatCOP(value) {
     return `$ ${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
   }
 }
+
+function clampInt(v, min, max) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return null;
+  return Math.min(max, Math.max(min, n));
+}
+
+function getConditionScore(item) {
+  // soporta varias formas por compatibilidad
+  const raw =
+    item?.estado_producto ??
+    item?.estadoProducto ??
+    item?.conditionScore ??
+    item?.condition_score ??
+    item?.estado_condicion ??
+    item?.estado; // ⚠️ ojo: en tu DB "estado" suele ser status (disponible/reservado); úsalo solo si lo reutilizas
+  const n = clampInt(raw, 1, 10);
+  return n;
+}
+
+function conditionMeta(score) {
+  const s = clampInt(score, 1, 10);
+  if (!s) return null;
+
+  // 1–3 rojo, 4–6 amarillo, 7–8 verde, 9–10 verde fuerte
+  if (s <= 3)
+    return {
+      label: "Muy deteriorado",
+      cls: "bg-red-100 text-red-800 border-red-200",
+    };
+  if (s <= 6)
+    return {
+      label: "Uso medio",
+      cls: "bg-yellow-100 text-yellow-900 border-yellow-200",
+    };
+  if (s <= 8)
+    return {
+      label: "Buen estado",
+      cls: "bg-emerald-100 text-emerald-900 border-emerald-200",
+    };
+  return {
+    label: "Casi nuevo",
+    cls: "bg-green-100 text-green-900 border-green-200",
+  };
+}
+
 export default function ProductDetail({
   item,
   isOpen,
@@ -496,6 +542,9 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
   const titulo = item?.titulo ?? item?.title ?? "Sin título";
   const descripcion = item?.descripcion ?? item?.description ?? "";
 
+  const conditionScore = getConditionScore(item);
+  const condition = conditionMeta(conditionScore);
+
   const ownerName = ownerNameResolved ? formatPublicName(ownerNameResolved) : "Vendedor";
   const ownerPhoto = stableOwnerPhoto || ownerPhotoResolved || "";
 
@@ -637,6 +686,18 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
           )}
 
           <h1 className="text-2xl font-black text-gray-800 mb-2 leading-tight">{titulo}</h1>
+
+          {condition ? (
+            <div className="mb-3">
+              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${condition.cls}`}>
+                <span className="text-xs font-black">⭐</span>
+                <span className="text-xs font-black">{conditionScore}/10</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                  {condition.label}
+                </span>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex items-center gap-2 text-gray-500 text-sm mb-6">
             <MapPin size={16} className="text-forest-green" />

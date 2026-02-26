@@ -64,6 +64,14 @@ const FALLBACK_CATEGORY_TREE = [
 // ✅ regla social: tope máximo para ventas
 const MAX_VENTA_COP = 500000;
 
+function conditionMeta(raw) {
+  const v = Math.max(1, Math.min(10, Number(raw) || 1));
+  if (v <= 3) return { label: "Muy deteriorado", cls: "bg-red-50 text-red-700 border-red-200" };
+  if (v <= 6) return { label: "Uso medio", cls: "bg-yellow-50 text-yellow-800 border-yellow-200" };
+  if (v <= 8) return { label: "Buen estado", cls: "bg-green-50 text-green-700 border-green-200" };
+  return { label: "Casi nuevo", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+}
+
 // ====== ESTÁNDAR IMÁGENES (cliente) ======
 const MAX_FILES = 4;
 const MAX_ORIGINAL_MB = 8; // rechazar originales exagerados
@@ -202,6 +210,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     city: currentCity || "",
     locality: "",
     description: "",
+    conditionScore: 8, // 1-10
   });
 
   // ✅ Múltiples fotos
@@ -286,6 +295,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       city: currentCity || "",
       locality: "",
       description: "",
+      conditionScore: 8,
     });
 
     cleanupPreviews(previews);
@@ -381,6 +391,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         ciudad: formData.city,
         localidad_es: formData.locality,
         descripcion: formData.description,
+        estado_producto: Number(formData.conditionScore) || 8,
       };
 
       const formDataEN = {
@@ -392,6 +403,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         city: formData.city,
         locality: formData.locality,
         description: formData.description,
+        estado_producto: Number(formData.conditionScore) || 8,
       };
 
       const res = await publishArticle({
@@ -632,6 +644,44 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
 
           {/* Descripción */}
           <div>
+          {/* Estado del producto */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label className="block text-[10px] font-black text-gray-400 uppercase">
+                  Estado del producto
+                </label>
+                <div
+                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-black ${conditionMeta(formData.conditionScore).cls}`}
+                  title="1 = muy mal estado, 10 = casi nuevo"
+                >
+                  <span aria-hidden>⭐</span>
+                  <span>{(Number(formData.conditionScore) || 8)}/10</span>
+                  <span className="font-extrabold opacity-80">
+                    {conditionMeta(formData.conditionScore).label}
+                  </span>
+                </div>
+              </div>
+
+              <input
+                type="range"
+                min="1"
+                max="10"
+                step="1"
+                value={Number(formData.conditionScore) || 8}
+                onChange={(e) =>
+                  setFormData({ ...formData, conditionScore: Number(e.target.value) })
+                }
+                className="w-full"
+                disabled={isSubmitting}
+              />
+
+              <div className="flex justify-between text-[10px] font-black text-gray-400 mt-1 select-none">
+                <span>1</span>
+                <span>5</span>
+                <span>10</span>
+              </div>
+            </div>
+
             <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Descripción (opcional)</label>
             <textarea
               value={formData.description}
