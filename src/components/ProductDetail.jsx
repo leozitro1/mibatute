@@ -565,17 +565,38 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
       >
         {/* IZQUIERDA */}
         <div className="md:w-1/2 bg-gray-100 relative flex flex-col">
-          <div className="relative w-full aspect-square">
+          <div className="relative flex-1 min-h-[260px]">
+            <>
+            {/* Fondo blur para evitar espacio vacío */}
             <img
               src={mainImage}
-              alt={titulo}
-              className="w-full h-full object-cover"
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-60"
               onError={(e) => {
                 if (e.currentTarget.dataset.fallbackApplied) return;
                 e.currentTarget.dataset.fallbackApplied = "1";
                 e.currentTarget.src = FALLBACK_IMAGE;
               }}
             />
+            <div className="absolute inset-0 bg-black/20" />
+
+            {/* Imagen principal (cuadrada) */}
+            <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
+              <div className="w-full max-w-[560px] aspect-square rounded-3xl overflow-hidden bg-gray-200 shadow-xl">
+                <img
+                  src={mainImage}
+                  alt={titulo}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    if (e.currentTarget.dataset.fallbackApplied) return;
+                    e.currentTarget.dataset.fallbackApplied = "1";
+                    e.currentTarget.src = FALLBACK_IMAGE;
+                  }}
+                />
+              </div>
+            </div>
+          </>
 
             <button
               onClick={safeClose}
