@@ -1,6 +1,5 @@
 // src/components/ChatMessenger.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Flag, X } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
 
 const FALLBACK_SVG =
@@ -306,11 +305,11 @@ export default function ChatMessenger({
   const [uiError, setUiError] = useState("");
   const [text, setText] = useState("");
 
-  // 🚩 denuncia de chat
+  // 🚩 Reporte de chat (simple)
   const [showReport, setShowReport] = useState(false);
   const [reportReason, setReportReason] = useState("acoso");
   const [reportDetails, setReportDetails] = useState("");
-  const [reportSending, setReportSending] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
 
   // ✅ bloqueo
   const [meBlocked, setMeBlocked] = useState(false);
@@ -337,62 +336,7 @@ export default function ChatMessenger({
   const title = useMemo(() => article?.titulo || article?.title || "Chat", [article]);
 
   const sellerIdFromArticle = useMemo(() => {
-  
-  const sendChatReport = async () => {
-    try {
-      setUiError("");
-      if (!userId) {
-        setUiError("Debes iniciar sesión para denunciar.");
-        return;
-      }
-      const details = String(reportDetails || "").trim();
-      if (details.length < 10) {
-        setUiError("Escribe un poco más de detalle (mínimo 10 caracteres).");
-        return;
-      }
-
-      setReportSending(true);
-
-      // Adjuntamos contexto: últimos 20 mensajes
-      const ctx = (messages || [])
-        .slice(-20)
-        .map((m) => ({
-          id: m?.id || null,
-          created_at: m?.created_at || m?.createdAt || null,
-          sender_id: m?.sender_id || m?.senderId || null,
-          text: m?.text || m?.mensaje || m?.content || "",
-        }));
-
-      const payload = {
-        reporter_id: userId,
-        reported_user_id: otherUserId || otherUser?.id || null,
-        chat_id: chatRow?.id || chat?.id || null,
-        articulo_id: articuloId,
-        reason: reportReason,
-        details,
-        context: ctx,
-        status: "open",
-      };
-
-      const { error } = await supabase.from("chat_reports").insert(payload);
-      if (error) {
-        console.error("sendChatReport error:", error);
-        setUiError("No se pudo enviar la denuncia. Revisa la tabla/policies en Supabase.");
-        return;
-      }
-
-      setShowReport(false);
-      setReportDetails("");
-      setReportReason("acoso");
-      alert("Denuncia enviada. Gracias por reportar.");
-    } catch (err) {
-      console.error(err);
-      setUiError("Error inesperado enviando la denuncia.");
-    } finally {
-      setReportSending(false);
-    }
-  };
-  return (
+    return (
       article?.owner_id ||
       article?.usuario_id ||
       article?.user_id ||
@@ -801,6 +745,60 @@ export default function ChatMessenger({
     }
   };
 
+
+  const sendChatReport = async () => {
+    try {
+      if (!userId || !otherUserId) {
+        alert("No se pudo identificar al usuario.");
+        return;
+      }
+      const details = String(reportDetails || "").trim();
+      if (details.length < 5) {
+        alert("Escribe un poco más de detalle (mínimo 5 caracteres).");
+        return;
+      }
+      setSendingReport(true);
+
+      const context = (Array.isArray(messages) ? messages : [])
+        .slice(-20)
+        .map((m) => ({
+          id: m?.id,
+          created_at: m?.created_at,
+          sender_id: m?.sender_id,
+          body: m?.bodyText ?? m?.message ?? m?.content ?? m?.text ?? m?.mensaje ?? "",
+        }));
+
+      const payload = {
+        reporter_id: userId,
+        reported_user_id: otherUserId,
+        chat_id: chat?.id || null,
+        articulo_id: article?.id || null,
+        reason: reportReason,
+        details,
+        context,
+      };
+
+      const { error } = await supabase.from("chat_reports").insert(payload);
+
+      if (error) {
+        console.log("sendChatReport error:", error);
+        alert("No se pudo enviar la denuncia. Revisa consola.");
+        return;
+      }
+
+      alert("Denuncia enviada. Gracias por reportar.");
+      setShowReport(false);
+      setReportDetails("");
+      setReportReason("acoso");
+    } catch (e) {
+      console.log(e);
+      alert("No se pudo enviar la denuncia.");
+    } finally {
+      setSendingReport(false);
+    }
+  };
+
+
   if (!isOpen) return null;
 
   return (
@@ -840,21 +838,24 @@ export default function ChatMessenger({
             </p>
           </div>
 
-          
-          <button
-            type="button"
-            onClick={() => setShowReport(true)}
-            className="h-10 w-10 rounded-2xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-            title="Denunciar"
-            aria-label="Denunciar usuario"
-          >
-            <Flag size={18} />
-          </button>
-{readOnly ? (
+          {readOnly ? (
             <span className="text-[10px] font-black uppercase px-3 py-2 rounded-2xl bg-gray-100 text-gray-600">
               {meBlocked ? "Bloqueado" : "Solo lectura"}
             </span>
           ) : null}
+          <button
+            type="button"
+            className="ml-2 px-3 py-2 rounded-2xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 text-sm font-black"
+            title="Denunciar usuario"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowReport(true);
+            }}
+          >
+            🚩
+          </button>
+
         </div>
 
         {/* CARD ARTÍCULO */}
@@ -1041,37 +1042,31 @@ export default function ChatMessenger({
             </div>
           )}
         </div>
-
-      {/* 🚩 Modal denuncia */}
+      </div>
+      {/* MODAL DENUNCIA CHAT */}
       {showReport && (
-        <div className="fixed inset-0 z-[320] flex items-center justify-center p-4">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setShowReport(false)}
-            aria-label="Cerrar denuncia"
-          />
-          <div className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-xs font-black uppercase tracking-widest text-gray-800">Denunciar</div>
-                <div className="text-[11px] text-gray-500 truncate">Chat con {otherName}</div>
+        <div className="fixed inset-0 z-[500] bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between">
+              <div>
+                <div className="text-xs font-black uppercase text-gray-500">Denunciar usuario</div>
+                <div className="font-black text-gray-900 text-sm mt-1">¿Qué pasó en el chat?</div>
               </div>
               <button
                 type="button"
+                className="p-2 rounded-xl hover:bg-gray-100"
                 onClick={() => setShowReport(false)}
-                className="h-9 w-9 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-                aria-label="Cerrar"
+                title="Cerrar"
               >
-                <X size={16} />
+                ✕
               </button>
             </div>
 
             <div className="p-4 space-y-3">
-              <label className="block">
-                <span className="text-[11px] font-black uppercase tracking-widest text-gray-500">Motivo</span>
+              <div>
+                <label className="text-[11px] font-black uppercase text-gray-500">Motivo</label>
                 <select
-                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+                  className="mt-1 w-full border border-gray-200 rounded-2xl px-3 py-2 text-sm"
                   value={reportReason}
                   onChange={(e) => setReportReason(e.target.value)}
                 >
@@ -1081,48 +1076,41 @@ export default function ChatMessenger({
                   <option value="spam">Spam</option>
                   <option value="otro">Otro</option>
                 </select>
-              </label>
+              </div>
 
-              <label className="block">
-                <span className="text-[11px] font-black uppercase tracking-widest text-gray-500">Descripción</span>
+              <div>
+                <label className="text-[11px] font-black uppercase text-gray-500">Descripción</label>
                 <textarea
-                  className="mt-1 w-full min-h-[96px] rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
-                  placeholder="Cuéntanos qué pasó (incluimos automáticamente los últimos mensajes del chat)."
+                  className="mt-1 w-full border border-gray-200 rounded-2xl px-3 py-2 text-sm min-h-[90px]"
                   value={reportDetails}
                   onChange={(e) => setReportDetails(e.target.value)}
+                  placeholder="Cuéntanos qué pasó (se adjuntan los últimos 20 mensajes automáticamente)."
                 />
-              </label>
-
-              {uiError ? <div className="text-xs text-red-600 font-bold">{uiError}</div> : null}
+              </div>
 
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-black uppercase tracking-widest text-xs hover:bg-gray-50"
+                  className="flex-1 py-2 rounded-2xl border border-gray-200 font-black text-sm hover:bg-gray-50"
                   onClick={() => setShowReport(false)}
-                  disabled={reportSending}
+                  disabled={sendingReport}
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-black uppercase tracking-widest text-xs hover:opacity-90 disabled:opacity-60"
+                  className="flex-1 py-2 rounded-2xl bg-red-600 text-white font-black text-sm hover:opacity-90 disabled:opacity-50"
                   onClick={sendChatReport}
-                  disabled={reportSending}
+                  disabled={sendingReport}
                 >
-                  {reportSending ? "Enviando..." : "Enviar"}
+                  {sendingReport ? "Enviando..." : "Enviar"}
                 </button>
-              </div>
-
-              <div className="text-[10px] text-gray-400">
-                Adjuntamos automáticamente los últimos 20 mensajes como contexto.
               </div>
             </div>
           </div>
         </div>
       )}
 
-      </div>
     </div>
   );
 }
