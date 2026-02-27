@@ -1,6 +1,7 @@
 // src/components/PublishModal.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { X, Trash2 } from "lucide-react";
+import Cropper from "react-easy-crop";
 import { LOCATIONS } from "../data/locations";
 import { publishArticle } from "../supabase/articleService";
 
@@ -9,60 +10,31 @@ import { publishArticle } from "../supabase/articleService";
  * (pero en tu App.jsx ya lo estamos pasando)
  */
 const FALLBACK_CATEGORY_TREE = [
-  {
-    key: "Hogar & Muebles",
-    icon: "🌿",
-    subs: ["Muebles", "Decoración", "Electrodomésticos", "Colchones", "Cocina"],
-  },
-  {
-    key: "Electrónica & Tecnología",
-    icon: "⚡",
-    subs: ["Celulares", "Computadores", "Televisores", "Repuestos", "Chatarra electrónica"],
-  },
-  {
-    key: "Construcción & Herramientas",
-    icon: "🧱",
-    subs: ["Materiales", "Herramientas", "Oficios", "Madera", "Metales"],
-  },
-  {
-    key: "Ropa & Textiles",
-    icon: "👕",
-    subs: ["Ropa", "Retazos", "Telas", "Uniformes"],
-  },
-  {
-    key: "Reciclaje & Reutilización",
-    icon: "🔄",
-    subs: ["Plásticos", "Vidrio", "Cartón", "Materias primas"],
-  },
-  {
-    key: "Infantil & Juguetes",
-    icon: "🧸",
-    subs: ["Juguetes", "Ropa infantil", "Coches y sillas", "Lactancia", "Escolar"],
-  },
-  {
-    key: "Deportes & Movilidad",
-    icon: "🚲",
-    subs: ["Bicicletas", "Patines", "Gimnasio", "Autopartes", "Motos"],
-  },
-  {
-    key: "Libros & Educación",
-    icon: "📚",
-    subs: ["Libros", "Cuadernos y útiles", "Cursos y material", "Tecnología educativa", "Instrumentos"],
-  },
-  {
-    key: "Mascotas",
-    icon: "🐶",
-    subs: ["Accesorios", "Alimento", "Camas y casas", "Salud", "Juguetes"],
-  },
-  {
-    key: "Antigüedades & Coleccionables",
-    icon: "🕰",
-    subs: ["Monedas", "Relojes", "Arte", "Coleccionables", "Vintage"],
-  },
+  { key: "Hogar & Muebles", icon: "🌿", subs: ["Muebles", "Decoración", "Electrodomésticos", "Colchones", "Cocina"] },
+  { key: "Electrónica & Tecnología", icon: "⚡", subs: ["Celulares", "Computadores", "Televisores", "Repuestos", "Chatarra electrónica"] },
+  { key: "Construcción & Herramientas", icon: "🧱", subs: ["Materiales", "Herramientas", "Oficios", "Madera", "Metales"] },
+  { key: "Ropa & Textiles", icon: "👕", subs: ["Ropa", "Retazos", "Telas", "Uniformes"] },
+  { key: "Reciclaje & Reutilización", icon: "🔄", subs: ["Plásticos", "Vidrio", "Cartón", "Materias primas"] },
+  { key: "Infantil & Juguetes", icon: "🧸", subs: ["Juguetes", "Ropa infantil", "Coches y sillas", "Lactancia", "Escolar"] },
+  { key: "Deportes & Movilidad", icon: "🚲", subs: ["Bicicletas", "Patines", "Gimnasio", "Autopartes", "Motos"] },
+  { key: "Libros & Educación", icon: "📚", subs: ["Libros", "Cuadernos y útiles", "Cursos y material", "Tecnología educativa", "Instrumentos"] },
+  { key: "Mascotas", icon: "🐶", subs: ["Accesorios", "Alimento", "Camas y casas", "Salud", "Juguetes"] },
+  { key: "Antigüedades & Coleccionables", icon: "🕰", subs: ["Monedas", "Relojes", "Arte", "Coleccionables", "Vintage"] },
 ];
 
 // ✅ regla social: tope máximo para ventas
 const MAX_VENTA_COP = 500000;
+
+// ====== ESTÁNDAR FINAL (cuadrada) ======
+const MAX_FILES = 4;
+const MAX_ORIGINAL_MB = 8; // rechazo de originales gigantes
+const OUT_SIZE = 800; // 800x800 final
+const OUT_FORMAT = "image/webp";
+const OUT_QUALITY = 0.82;
+
+function bytesToMB(b) {
+  return Math.round((b / (1024 * 1024)) * 100) / 100;
+}
 
 function conditionMeta(raw) {
   const v = Math.max(1, Math.min(10, Number(raw) || 1));
@@ -72,111 +44,13 @@ function conditionMeta(raw) {
   return { label: "Casi nuevo", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
 }
 
-// ====== ESTÁNDAR IMÁGENES (cliente) ======
-const MAX_FILES = 4;
-const MAX_ORIGINAL_MB = 8; // rechazar originales exagerados
-const MAX_SIDE = 1600; // lado mayor
-const OUT_FORMAT = "image/webp"; // o "image/jpeg"
-const OUT_QUALITY = 0.82; // 0.75–0.85 suele quedar muy bien
-
-function bytesToMB(b) {
-  return Math.round((b / (1024 * 1024)) * 100) / 100;
-}
-
-async function fileToImageBitmap(file) {
-  // Respeta orientación EXIF en navegadores modernos
-  if ("createImageBitmap" in window) {
-    try {
-      return await createImageBitmap(file, { imageOrientation: "from-image" });
-    } catch {}
-    return await createImageBitmap(file);
-  }
-
-  // Fallback
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image();
-    img.decoding = "async";
-    img.src = url;
-    await new Promise((res, rej) => {
-      img.onload = res;
-      img.onerror = rej;
-    });
-    return img;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
-async function compressAndResizeImage(file) {
-  // 1) Rechazo por peso original
-  if (file.size > MAX_ORIGINAL_MB * 1024 * 1024) {
-    throw new Error(`La imagen pesa ${bytesToMB(file.size)}MB. Máximo permitido: ${MAX_ORIGINAL_MB}MB.`);
-  }
-
-  // 2) Cargar imagen
-  const src = await fileToImageBitmap(file);
-  const w = src.width;
-  const h = src.height;
-
-  // 3) Calcular escala (mantiene proporción)
-  const maxDim = Math.max(w, h);
-  const scale = maxDim > MAX_SIDE ? MAX_SIDE / maxDim : 1;
-
-  const outW = Math.max(1, Math.round(w * scale));
-  const outH = Math.max(1, Math.round(h * scale));
-
-  // 4) Dibujar en canvas
-  const canvas = document.createElement("canvas");
-  canvas.width = outW;
-  canvas.height = outH;
-
-  const ctx = canvas.getContext("2d", { alpha: false });
-  if (!ctx) throw new Error("No se pudo preparar el canvas para procesar la imagen.");
-
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(src, 0, 0, outW, outH);
-
-  // 5) Exportar a WebP/JPEG
-  const blob = await new Promise((resolve) => {
-    canvas.toBlob((b) => resolve(b), OUT_FORMAT, OUT_QUALITY);
-  });
-
-  if (!blob) throw new Error("No se pudo procesar la imagen.");
-
-  // 6) Crear nuevo File (con extensión coherente)
-  const ext = OUT_FORMAT === "image/webp" ? "webp" : "jpg";
-  const baseName = (file.name || "foto").replace(/\.[^.]+$/, "");
-  const newName = `${baseName}.${ext}`;
-
-  return new File([blob], newName, { type: OUT_FORMAT });
-}
-
-async function preprocessSelectedFiles(selectedFiles) {
-  const out = [];
-  for (const f of selectedFiles) {
-    if (!f?.type?.startsWith("image/")) throw new Error("Solo se permiten imágenes.");
-    const optimized = await compressAndResizeImage(f);
-    out.push(optimized);
-  }
-  return out;
-}
-
 function normalizeMode(v) {
   const s = String(v || "").toLowerCase().trim();
-
   if (!s) return "donacion";
-
-  // ✅ alias viejos -> unificado
   if (s === "regalo") return "donacion";
   if (s.includes("regal")) return "donacion";
-
-  // ✅ soporta "donación", "donacion", "donación / regalo", etc.
   if (s.includes("don")) return "donacion";
-
   if (s.includes("venta")) return "venta";
-
   return "donacion";
 }
 
@@ -185,22 +59,64 @@ function getSubsForCategory(categoryTree, category) {
   return Array.isArray(found?.subs) ? found.subs : [];
 }
 
-function getCategoryLabel(categoryTree, category) {
-  const found = (categoryTree || []).find((c) => String(c.key) === String(category));
-  if (!found) return String(category || "");
-  const icon = found.icon ? `${found.icon} ` : "";
-  return `${icon}${found.key}`;
+async function createImageFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function blobToFile(blob, originalName = "foto") {
+  const ext = OUT_FORMAT === "image/webp" ? "webp" : "jpg";
+  const base = String(originalName || "foto").replace(/\.[^.]+$/, "");
+  return new File([blob], `${base}_sq.${ext}`, { type: OUT_FORMAT });
+}
+
+async function getCroppedSquareFile({ imageSrc, cropPixels, originalName }) {
+  const image = await createImageFromUrl(imageSrc);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = OUT_SIZE;
+  canvas.height = OUT_SIZE;
+
+  const ctx = canvas.getContext("2d", { alpha: false });
+  if (!ctx) throw new Error("No se pudo procesar la imagen (canvas).");
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  // drawImage(source, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+  ctx.drawImage(
+    image,
+    cropPixels.x,
+    cropPixels.y,
+    cropPixels.width,
+    cropPixels.height,
+    0,
+    0,
+    OUT_SIZE,
+    OUT_SIZE
+  );
+
+  const blob = await new Promise((resolve) => {
+    canvas.toBlob((b) => resolve(b), OUT_FORMAT, OUT_QUALITY);
+  });
+
+  if (!blob) throw new Error("No se pudo generar la imagen recortada.");
+  return blobToFile(blob, originalName);
 }
 
 export default function PublishModal({ isOpen, onClose, onPublish, currentCity, user, categories }) {
   const CATEGORY_TREE = Array.isArray(categories) && categories.length ? categories : FALLBACK_CATEGORY_TREE;
   const CATEGORY_OPTIONS = useMemo(() => CATEGORY_TREE.map((c) => c.key), [CATEGORY_TREE]);
 
-  // ✅ defaults
   const defaultCategory = CATEGORY_OPTIONS[0] || "Hogar & Muebles";
   const defaultSub = getSubsForCategory(CATEGORY_TREE, defaultCategory)[0] || "";
 
-  // ✅ Unificado: donacion/regalo => "donacion"
   const [formData, setFormData] = useState({
     title: "",
     category: defaultCategory,
@@ -213,19 +129,50 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     conditionScore: 8, // 1-10
   });
 
-  // ✅ Múltiples fotos
+  // ✅ Fotos finales (YA recortadas 800x800 webp)
   const [files, setFiles] = useState([]); // File[]
   const [previews, setPreviews] = useState([]); // string[]
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ✅ validar tope venta (UI)
+  // ====== Crop Queue ======
+  const [cropQueue, setCropQueue] = useState([]); // File[]
+  const [cropIndex, setCropIndex] = useState(0);
+
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropSrc, setCropSrc] = useState("");
+  const prevCropSrcRef = useRef(null);
+
+  // ✅ Revocar el blob anterior SOLO después de que React haya cambiado de src.
+  // Esto evita el spam: GET blob:... ERR_FILE_NOT_FOUND
+  useEffect(() => {
+    const prev = prevCropSrcRef.current;
+    if (prev && prev !== cropSrc) {
+      // siguiente tick para que el DOM ya no lo esté usando
+      setTimeout(() => {
+        try { URL.revokeObjectURL(prev); } catch {}
+      }, 0);
+    }
+    prevCropSrcRef.current = cropSrc || null;
+
+    return () => {
+      // al desmontar, revoca el actual también
+      if (cropSrc) {
+        try { URL.revokeObjectURL(cropSrc); } catch {}
+      }
+    };
+  }, [cropSrc]);
+  const [cropSrcName, setCropSrcName] = useState("foto");
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [isCropping, setIsCropping] = useState(false);
+
   const modeNorm = normalizeMode(formData.mode);
   const priceNumber = Number(formData.price);
   const isVenta = modeNorm === "venta";
   const isPriceNumberValid = Number.isFinite(priceNumber) && priceNumber > 0;
   const exceedsMaxVenta = isVenta && isPriceNumberValid && priceNumber > MAX_VENTA_COP;
 
-  // ✅ limpiar previews (objectURL)
   const cleanupPreviews = (urls = []) => {
     (urls || []).forEach((u) => {
       try {
@@ -234,13 +181,30 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     });
   };
 
+  const openCropForFile = useCallback((file) => {
+    // ⚠️ No revocar aquí: si revocas antes de que React deje de usar el src anterior,
+    // el navegador spamea ERR_FILE_NOT_FOUND (blob inexistente).
+    const url = URL.createObjectURL(file);
+    setCropSrc(url);
+    setCropSrcName(file?.name || "foto");
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
+    setCropOpen(true);
+  }, []);
+
+  // Cuando cambie la cola/índice, abre el crop del archivo actual
+  useEffect(() => {
+    if (!cropQueue.length) return;
+    if (cropIndex < 0 || cropIndex >= cropQueue.length) return;
+    openCropForFile(cropQueue[cropIndex]);
+  }, [cropQueue, cropIndex, openCropForFile]);
+
   useEffect(() => {
     if (!isOpen) return;
 
     setFormData((prev) => {
       const modeNorm2 = normalizeMode(prev.mode);
-
-      // ✅ asegurar category/subcategory válidas
       const safeCategory = CATEGORY_OPTIONS.includes(prev.category) ? prev.category : defaultCategory;
       const subs = getSubsForCategory(CATEGORY_TREE, safeCategory);
       const safeSub = subs.includes(prev.subcategory) ? prev.subcategory : subs[0] || "";
@@ -252,7 +216,6 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         mode: modeNorm2,
         category: safeCategory,
         subcategory: safeSub,
-        // ✅ si no es venta, limpia price para evitar "precio pegado"
         price: modeNorm2 === "venta" ? prev.price : "",
       };
     });
@@ -269,7 +232,6 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     return getSubsForCategory(CATEGORY_TREE, formData.category);
   }, [CATEGORY_TREE, formData.category]);
 
-  // ✅ Si cambia categoría, ajustar subcategory automáticamente
   useEffect(() => {
     if (!isOpen) return;
     setFormData((prev) => {
@@ -280,7 +242,6 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     });
   }, [isOpen, formData.category, CATEGORY_TREE]);
 
-  if (!isOpen) return null;
 
   const resetForm = () => {
     const cat = defaultCategory;
@@ -301,41 +262,103 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     cleanupPreviews(previews);
     setPreviews([]);
     setFiles([]);
+
+    // crop
+    setCropQueue([]);
+    setCropIndex(0);
+    setCropOpen(false);
+    setCropSrc("");
+    setCroppedAreaPixels(null);
+    setIsCropping(false);
   };
 
   const handleClose = () => {
-    if (isSubmitting) return;
+    if (isSubmitting || isCropping) return;
     resetForm();
     onClose?.();
   };
 
-  // ✅ seleccionar múltiples + máx 4 + NORMALIZAR IMÁGENES (resize+compress)
-  const handleFileChange = async (e) => {
-    const selectedFiles = Array.from(e.target.files || []).filter(Boolean);
+  const onCropComplete = useCallback((_, croppedPixels) => {
+    setCroppedAreaPixels(croppedPixels);
+  }, []);
 
-    if (selectedFiles.length + files.length > MAX_FILES) {
-      alert(`Solo puedes subir un máximo de ${MAX_FILES} fotos por publicación.`);
-      e.target.value = "";
+  const finalizeCurrentCrop = async () => {
+    if (!cropSrc || !croppedAreaPixels) {
+      alert("No se pudo obtener el recorte. Intenta de nuevo.");
       return;
     }
 
     try {
-      setIsSubmitting(true); // bloquea UI mientras procesa
-      const optimizedFiles = await preprocessSelectedFiles(selectedFiles);
+      setIsCropping(true);
 
-      setFiles((prev) => [...prev, ...optimizedFiles]);
+      const outFile = await getCroppedSquareFile({
+        imageSrc: cropSrc,
+        cropPixels: croppedAreaPixels,
+        originalName: cropSrcName,
+      });
 
-      const newPreviews = optimizedFiles.map((file) => URL.createObjectURL(file));
-      setPreviews((prev) => [...prev, ...newPreviews]);
+      // Agregar al listado final
+      setFiles((prev) => [...prev, outFile]);
+      const prevUrl = URL.createObjectURL(outFile);
+      setPreviews((prev) => [...prev, prevUrl]);
+
+      // siguiente en cola
+      const next = cropIndex + 1;
+      if (next < cropQueue.length) {
+        setCropIndex(next);
+      } else {
+        // terminar
+        setCropOpen(false);
+            setCropSrc("");
+        setCropQueue([]);
+        setCropIndex(0);
+      }
     } catch (err) {
-      alert(err?.message || "No se pudo procesar la imagen.");
+      alert(err?.message || "No se pudo recortar la imagen.");
     } finally {
-      setIsSubmitting(false);
-      e.target.value = "";
+      setIsCropping(false);
     }
   };
 
-  // ✅ quitar una foto antes de publicar (mejora UX)
+  const cancelCropAll = () => {
+    if (isCropping) return;
+    // Cancelar cola actual sin agregar nada más
+    setCropOpen(false);
+    setCropSrc("");
+    setCropQueue([]);
+    setCropIndex(0);
+    setCroppedAreaPixels(null);
+  };
+
+  // ✅ seleccionar múltiples + máx 4 -> abrir crop por cada una
+  const handleFileChange = async (e) => {
+    const selectedFiles = Array.from(e.target.files || []).filter(Boolean);
+    e.target.value = "";
+
+    if (!selectedFiles.length) return;
+
+    if (selectedFiles.length + files.length > MAX_FILES) {
+      alert(`Solo puedes subir un máximo de ${MAX_FILES} fotos por publicación.`);
+      return;
+    }
+
+    // Validaciones rápidas
+    for (const f of selectedFiles) {
+      if (!f?.type?.startsWith("image/")) {
+        alert("Solo se permiten imágenes.");
+        return;
+      }
+      if (f.size > MAX_ORIGINAL_MB * 1024 * 1024) {
+        alert(`La imagen "${f.name}" pesa ${bytesToMB(f.size)}MB. Máximo permitido: ${MAX_ORIGINAL_MB}MB.`);
+        return;
+      }
+    }
+
+    // Encolar para recorte individual
+    setCropQueue(selectedFiles);
+    setCropIndex(0);
+  };
+
   const removePhoto = (index) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
     setPreviews((prev) => {
@@ -348,7 +371,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || isCropping || cropOpen) return;
 
     if (!user) return alert("Debes iniciar sesión para publicar.");
     if (!files.length) return alert("Sube al menos 1 foto del artículo.");
@@ -360,7 +383,6 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
 
     const modeNorm3 = normalizeMode(formData.mode);
 
-    // ✅ si es venta, exigir precio + tope social
     if (modeNorm3 === "venta") {
       const p = Number(formData.price);
 
@@ -381,7 +403,6 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     setIsSubmitting(true);
 
     try {
-      // ✅ Payload ES + EN
       const formDataES = {
         titulo: formData.title,
         categoria: formData.category,
@@ -408,7 +429,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
 
       const res = await publishArticle({
         formData: { ...formDataEN, ...formDataES },
-        files, // ✅ ya van normalizadas (webp + max 1600px)
+        files, // ✅ ya van recortadas 800x800 webp
         user,
       });
 
@@ -429,288 +450,321 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-        <div className="p-4 border-b flex justify-between items-center bg-smoke-white">
-          <h2 className="font-black text-gray-800 uppercase text-sm tracking-widest">Subir nuevo artículo</h2>
-          <button
-            onClick={handleClose}
-            className="p-1 hover:bg-gray-200 rounded-full transition"
-            disabled={isSubmitting}
-            type="button"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <form className="p-8 space-y-4 max-h-[80vh] overflow-y-auto" onSubmit={handleSubmit}>
-          {/* FOTOS */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-gray-400">
-              Fotos (Máx {MAX_FILES}) — se optimizan automáticamente (max {MAX_SIDE}px, {OUT_FORMAT})
-            </label>
-
-            <div className="grid grid-cols-4 gap-2">
-              {previews.map((src, index) => (
-                <div key={index} className="relative h-20 w-full bg-gray-100 rounded-xl overflow-hidden shadow-inner group">
-                  <img src={src} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
-
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(index)}
-                    disabled={isSubmitting}
-                    className="absolute top-1 right-1 p-1 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition disabled:opacity-40"
-                    title="Quitar foto"
-                    aria-label="Quitar foto"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
-
-              {files.length < MAX_FILES && (
-                <label className="h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition">
-                  <span className="text-xl text-gray-400">+</span>
-                  <input
-                    type="file"
-                    multiple
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="image/*"
-                    disabled={isSubmitting}
-                  />
-                </label>
-              )}
-            </div>
+    <>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+          <div className="p-4 border-b flex justify-between items-center bg-smoke-white">
+            <h2 className="font-black text-gray-800 uppercase text-sm tracking-widest">Subir nuevo artículo</h2>
+            <button
+              onClick={handleClose}
+              className="p-1 hover:bg-gray-200 rounded-full transition"
+              disabled={isSubmitting || isCropping}
+              type="button"
+            >
+              <X size={20} />
+            </button>
           </div>
 
-          {/* Título */}
-          <div>
-            <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">¿Qué quieres publicar?</label>
-            <input
-              required
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              type="text"
-              placeholder="Ej: Licuadora funcionando / repuestos..."
-              className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none focus:border-forest-green"
-              disabled={isSubmitting}
-            />
-          </div>
+          <form className="p-8 space-y-4 max-h-[80vh] overflow-y-auto" onSubmit={handleSubmit}>
+            {/* FOTOS */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-gray-400">
+                Fotos (Máx {MAX_FILES}) — se recortan a cuadrado {OUT_SIZE}x{OUT_SIZE} ({OUT_FORMAT})
+              </label>
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Categoría (macro) */}
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Categoría</label>
-              <select
-                value={formData.category}
-                onChange={(e) => {
-                  const nextCategory = e.target.value;
-                  const subs = getSubsForCategory(CATEGORY_TREE, nextCategory);
-                  setFormData((prev) => ({
-                    ...prev,
-                    category: nextCategory,
-                    subcategory: subs[0] || "",
-                  }));
-                }}
-                className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
-                disabled={isSubmitting}
-              >
-                {CATEGORY_OPTIONS.map((c) => (
-                  <option key={c} value={c}>
-                    {getCategoryLabel(CATEGORY_TREE, c)}
-                  </option>
+              <div className="grid grid-cols-4 gap-2">
+                {previews.map((src, index) => (
+                  <div key={index} className="relative h-20 w-full bg-gray-100 rounded-xl overflow-hidden shadow-inner group">
+                    <img src={src} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
+
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(index)}
+                      disabled={isSubmitting || isCropping}
+                      className="absolute top-1 right-1 p-1 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition disabled:opacity-40"
+                      title="Quitar foto"
+                      aria-label="Quitar foto"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 ))}
-              </select>
-            </div>
 
-            {/* Subcategoría */}
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Subcategoría</label>
-              <select
-                value={formData.subcategory}
-                onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
-                className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none disabled:bg-gray-100 disabled:text-gray-400"
-                disabled={!formData.category || isSubmitting}
-              >
-                {subOptions.length ? null : (
-                  <option value="" disabled>
-                    Sin subcategorías
-                  </option>
+                {files.length < MAX_FILES && (
+                  <label className="h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition">
+                    <span className="text-xl text-gray-400">+</span>
+                    <input
+                      type="file"
+                      multiple
+                      onChange={handleFileChange}
+                      className="hidden"
+                      accept="image/*"
+                      disabled={isSubmitting || isCropping}
+                    />
+                  </label>
                 )}
-                {subOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+              </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Tipo */}
+            {/* Título */}
             <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Tipo</label>
-              <select
-                value={normalizeMode(formData.mode)}
-                onChange={(e) => {
-                  const next = normalizeMode(e.target.value);
-                  setFormData((prev) => ({
-                    ...prev,
-                    mode: next,
-                    price: next === "venta" ? prev.price : "",
-                  }));
-                }}
-                className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
-                disabled={isSubmitting}
-              >
-                <option value="donacion">Donación / Regalo</option>
-                <option value="venta">Venta</option>
-              </select>
-            </div>
-
-            {/* Precio (solo venta) */}
-            <div className="min-h-[1px]">
-              {normalizeMode(formData.mode) === "venta" ? (
-                <>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Precio (COP)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max={MAX_VENTA_COP}
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    placeholder="0"
-                    className={`w-full border-2 rounded-xl p-3 outline-none focus:border-forest-green ${
-                      exceedsMaxVenta ? "border-red-300" : "border-gray-100"
-                    }`}
-                    disabled={isSubmitting}
-                  />
-
-                  <p className={`mt-2 text-[11px] font-bold ${exceedsMaxVenta ? "text-red-600" : "text-gray-400"}`}>
-                    Tope de venta: ${MAX_VENTA_COP.toLocaleString("es-CO")} COP. Si es más costoso, usa Marketplace o
-                    Mercado Libre.
-                  </p>
-                </>
-              ) : (
-                <div className="h-full" />
-              )}
-            </div>
-          </div>
-
-          {/* Ubicación */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Ciudad</label>
-              <select
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value, locality: "" })}
-                className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
-                disabled={isSubmitting}
+              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">¿Qué quieres publicar?</label>
+              <input
                 required
-              >
-                <option value="" disabled>
-                  Selecciona una...
-                </option>
-                {Object.keys(LOCATIONS).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                type="text"
+                placeholder="Ej: Licuadora funcionando / repuestos..."
+                className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none focus:border-forest-green"
+                disabled={isSubmitting || isCropping || cropOpen}
+              />
             </div>
 
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Localidad</label>
-              <select
-                required
-                value={formData.locality}
-                onChange={(e) => setFormData({ ...formData, locality: e.target.value })}
-                className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none disabled:bg-gray-100 disabled:text-gray-400"
-                disabled={!formData.city || isSubmitting}
-              >
-                <option value="" disabled>
-                  Selecciona una...
-                </option>
-                {localities.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {loc}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Descripción */}
-          <div>
-          {/* Estado del producto */}
-            <div className="mb-3">
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <label className="block text-[10px] font-black text-gray-400 uppercase">
-                  Estado del producto
-                </label>
-                <div
-                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-black ${conditionMeta(formData.conditionScore).cls}`}
-                  title="1 = muy mal estado, 10 = casi nuevo"
+            <div className="grid grid-cols-2 gap-4">
+              {/* Categoría (macro) */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Categoría</label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => {
+                    const nextCategory = e.target.value;
+                    const subs = getSubsForCategory(CATEGORY_TREE, nextCategory);
+                    setFormData((prev) => ({
+                      ...prev,
+                      category: nextCategory,
+                      subcategory: subs[0] || "",
+                    }));
+                  }}
+                  className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
+                  disabled={isSubmitting || isCropping || cropOpen}
                 >
-                  <span aria-hidden>⭐</span>
-                  <span>{(Number(formData.conditionScore) || 8)}/10</span>
-                  <span className="font-extrabold opacity-80">
-                    {conditionMeta(formData.conditionScore).label}
-                  </span>
-                </div>
+                  {CATEGORY_OPTIONS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               </div>
 
+              {/* Subcategoría */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Subcategoría</label>
+                <select
+                  value={formData.subcategory}
+                  onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                  className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
+                  disabled={isSubmitting || isCropping || cropOpen}
+                >
+                  {subOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Modo + precio */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Tipo</label>
+                <select
+                  value={formData.mode}
+                  onChange={(e) => {
+                    const m = normalizeMode(e.target.value);
+                    setFormData((prev) => ({ ...prev, mode: m, price: m === "venta" ? prev.price : "" }));
+                  }}
+                  className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
+                  disabled={isSubmitting || isCropping || cropOpen}
+                >
+                  <option value="donacion">Donación</option>
+                  <option value="venta">Venta</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">
+                  Precio (solo si es venta)
+                </label>
+                <input
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  type="number"
+                  placeholder="Ej: 20000"
+                  className={`w-full border-2 rounded-xl p-3 outline-none ${
+                    exceedsMaxVenta ? "border-red-300" : "border-gray-100"
+                  }`}
+                  disabled={isSubmitting || isCropping || cropOpen || normalizeMode(formData.mode) !== "venta"}
+                />
+                {exceedsMaxVenta && (
+                  <p className="text-[11px] mt-1 text-red-600">
+                    Tope: ${MAX_VENTA_COP.toLocaleString("es-CO")} COP
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Ciudad / localidad */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Ciudad</label>
+                <select
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value, locality: "" })}
+                  className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
+                  disabled={isSubmitting || isCropping || cropOpen}
+                >
+                  <option value="">Selecciona...</option>
+                  {Object.keys(LOCATIONS).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Localidad</label>
+                <select
+                  value={formData.locality}
+                  onChange={(e) => setFormData({ ...formData, locality: e.target.value })}
+                  className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
+                  disabled={isSubmitting || isCropping || cropOpen || !formData.city}
+                >
+                  <option value="">Selecciona...</option>
+                  {localities.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Condición */}
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Estado del producto (1-10)</label>
               <input
                 type="range"
                 min="1"
                 max="10"
-                step="1"
-                value={Number(formData.conditionScore) || 8}
-                onChange={(e) =>
-                  setFormData({ ...formData, conditionScore: Number(e.target.value) })
-                }
+                value={formData.conditionScore}
+                onChange={(e) => setFormData({ ...formData, conditionScore: Number(e.target.value) })}
                 className="w-full"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isCropping || cropOpen}
               />
-
-              <div className="flex justify-between text-[10px] font-black text-gray-400 mt-1 select-none">
-                <span>1</span>
-                <span>5</span>
-                <span>10</span>
-              </div>
+              {(() => {
+                const meta = conditionMeta(formData.conditionScore);
+                return (
+                  <div className={`inline-flex items-center px-2 py-1 border rounded-lg text-xs ${meta.cls}`}>
+                    {meta.label} ({formData.conditionScore}/10)
+                  </div>
+                );
+              })()}
             </div>
 
-            <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Descripción (opcional)</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={3}
-              placeholder="Agrega un detalle útil: estado, medidas, condiciones..."
-              className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none focus:border-forest-green resize-none"
-              disabled={isSubmitting}
-            />
-          </div>
+            {/* Descripción */}
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Descripción</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Describe el artículo, estado, detalles..."
+                className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none min-h-[110px]"
+                disabled={isSubmitting || isCropping || cropOpen}
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={isSubmitting || exceedsMaxVenta}
-            className={`w-full py-4 rounded-2xl font-black uppercase text-sm transition mt-4 ${
-              isSubmitting || exceedsMaxVenta
-                ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                : "bg-forest-green text-white hover:shadow-lg"
-            }`}
-            title={
-              exceedsMaxVenta
-                ? `El precio supera el tope de $${MAX_VENTA_COP.toLocaleString("es-CO")} COP`
-                : "Publicar"
-            }
-          >
-            {isSubmitting ? "Publicando..." : exceedsMaxVenta ? "Precio supera el tope" : "Publicar Artículo"}
-          </button>
-        </form>
+            {/* Botón publicar */}
+            <button
+              type="submit"
+              disabled={isSubmitting || isCropping || cropOpen}
+              className="w-full py-3 rounded-xl font-black uppercase tracking-widest bg-forest-green text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {isSubmitting ? "Publicando..." : "Publicar"}
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
+
+      {/* ===== Crop Modal ===== */}
+      {cropOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-xl rounded-3xl overflow-hidden shadow-2xl">
+            <div className="p-4 border-b flex items-center justify-between">
+              <div>
+                <div className="font-black text-gray-800 uppercase text-sm tracking-widest">Recorta tu foto</div>
+                <div className="text-xs text-gray-500">Cuadrado 1:1 • mueve la foto y usa zoom</div>
+              </div>
+              <button
+                type="button"
+                onClick={cancelCropAll}
+                disabled={isCropping}
+                className="p-1 hover:bg-gray-200 rounded-full transition disabled:opacity-40"
+                title="Cancelar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="relative w-full h-[420px] bg-black">
+              <Cropper
+                image={cropSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+                objectFit="horizontal-cover"
+              />
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Zoom</label>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.01}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="w-full"
+                  disabled={isCropping}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={cancelCropAll}
+                  disabled={isCropping}
+                  className="flex-1 py-3 rounded-xl font-black uppercase tracking-widest border-2 border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={finalizeCurrentCrop}
+                  disabled={isCropping}
+                  className="flex-1 py-3 rounded-xl font-black uppercase tracking-widest bg-forest-green text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {isCropping ? "Procesando..." : "Usar recorte"}
+                </button>
+              </div>
+
+              <div className="text-[11px] text-gray-500">
+                Foto {Math.min(cropIndex + 1, cropQueue.length)} de {cropQueue.length}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
