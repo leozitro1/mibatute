@@ -15,6 +15,8 @@ import {
   Repeat2,
   Bell,
   AlertTriangle,
+  Eye,
+  X,
 } from "lucide-react";
 import { LOCATIONS } from "../data/locations";
 import ManageArticleModal from "./ManageArticleModal";
@@ -1003,6 +1005,10 @@ export default function UserProfile({
 
   const [rescates, setRescates] = useState([]);
   const [cargandoRescates, setCargandoRescates] = useState(false);
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewArt, setPreviewArt] = useState(null);
+
 
   const [cancelandoId, setCancelandoId] = useState(null);
 
@@ -2076,7 +2082,7 @@ return (
             <img
               src={avatarSrc}
               alt="Foto de perfil"
-              className="w-28 h-28 rounded-full border-4 border-white object-cover shadow-lg"
+              className="w-28 h-20 rounded-full border-4 border-white object-cover shadow-lg"
               onError={(e) => {
                 if (e.currentTarget.dataset.fallbackApplied) return;
                 e.currentTarget.dataset.fallbackApplied = "1";
@@ -2628,6 +2634,19 @@ return (
                             <button
                               type="button"
                               onClick={() => {
+                                setPreviewArt(art);
+                                setPreviewOpen(true);
+                              }}
+                              className="bg-gray-100 text-gray-700 p-3 rounded-2xl hover:bg-gray-200 transition"
+                              aria-label="Ver publicación"
+                              title="Ver publicación"
+                            >
+                              <Eye size={16} />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
                                 if (isUserBlocked) return alert(blockedUserMsg());
                                 if (isReview) return alert(revisionBlockMsg(titulo));
                                 eliminarRescate(r);
@@ -2797,6 +2816,84 @@ if (!data?.ok) {
           </div>
         </div>
       ) : null}
+      {/* Modal previsualización rescate */}
+      {previewOpen && previewArt ? (
+        <div
+          className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => {
+            setPreviewOpen(false);
+            setPreviewArt(null);
+          }}
+        >
+          <div
+            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="font-black text-gray-800 truncate pr-3">Previsualización</div>
+              <button
+                type="button"
+                className="p-2 rounded-xl hover:bg-gray-100 transition"
+                onClick={() => {
+                  setPreviewOpen(false);
+                  setPreviewArt(null);
+                }}
+                aria-label="Cerrar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 grid md:grid-cols-2 gap-4">
+              <div className="rounded-3xl overflow-hidden bg-black relative aspect-square">
+                <img
+                  src={getThumb(previewArt)}
+                  alt={previewArt?.titulo || previewArt?.title || "publicación"}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => {
+                    if (e.currentTarget.dataset.fallbackApplied) return;
+                    e.currentTarget.dataset.fallbackApplied = "1";
+                    e.currentTarget.src = FALLBACK_SVG;
+                  }}
+                />
+              </div>
+
+              <div className="min-w-0">
+                <div className="text-xs font-black uppercase tracking-widest text-gray-500">
+                  {getTipoPublicacion(previewArt)}
+                </div>
+                <div className="text-xl font-black text-gray-900 mt-1 break-words">
+                  {previewArt?.titulo || previewArt?.title || "Sin título"}
+                </div>
+
+                <div className="mt-2 text-sm text-gray-600">
+                  {(previewArt?.ciudad || previewArt?.city || "") +
+                    (previewArt?.localidad || previewArt?.locality ? `, ${previewArt?.localidad || previewArt?.locality}` : "")}
+                </div>
+
+                {isVentaArticulo(previewArt) && (previewArt?.precio || previewArt?.price) ? (
+                  <div className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-emerald-50 border border-emerald-100">
+                    <span className="text-xs font-black uppercase text-emerald-800">Precio</span>
+                    <span className="text-base font-black text-emerald-900">
+                      {formatMoney(previewArt?.precio ?? previewArt?.price)}
+                    </span>
+                  </div>
+                ) : null}
+
+                <div className="mt-3">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                    Descripción
+                  </div>
+                  <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
+                    {previewArt?.descripcion || previewArt?.description || "Sin descripción"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
     </div>
   );
 }
