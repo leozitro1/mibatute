@@ -565,7 +565,7 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
       >
         {/* IZQUIERDA */}
         <div className="md:w-1/2 bg-gray-100 relative flex flex-col">
-          <div className="relative flex-1 min-h-[260px]">
+          <div className="relative w-full aspect-square">
             <img
               src={mainImage}
               alt={titulo}
