@@ -448,12 +448,33 @@ export default function AdminPage() {
 
   const deleteArticleDeep = useCallback(async (articleId) => {
     try {
+      // 1) Buscar paths de imágenes (antes de borrar DB)
+      const { data: imgs, error: imgErr } = await supabase
+        .from("articulo_imagenes")
+        .select("path")
+        .eq("articulo_id", articleId);
+
+      if (imgErr) throw imgErr;
+
+      const paths = (imgs || [])
+        .map((r) => (typeof r?.path === "string" ? r.path : ""))
+        .filter(Boolean);
+
+      // 2) Borrar archivos del Storage (bucket: articulos)
+      //    Si no hay policies de delete para admin, esto fallará con "not authorized".
+      if (paths.length) {
+        const { error: storageErr } = await supabase.storage.from("articulos").remove(paths);
+        if (storageErr) throw storageErr;
+      }
+
+      // 3) Borrar DB (chats/postulaciones/imagenes/articulo) vía RPC
       const { error } = await supabase.rpc("delete_article_deep", { p_articulo_id: articleId });
       if (error) throw error;
+
       return { ok: true };
     } catch (e) {
       console.error("deleteArticleDeep error:", e);
-      showSupabaseError("No se pudo eliminar el artículo (RPC/RLS/relaciones).", e);
+      showSupabaseError("No se pudo eliminar el artículo (RPC/RLS/Storage/relaciones).", e);
       return { ok: false };
     }
   }, []);

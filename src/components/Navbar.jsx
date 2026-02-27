@@ -228,6 +228,7 @@ export default function Navbar({
   const [banUntil, setBanUntil] = useState(null);
   const [isBlocked, setIsBlocked] = useState(false);
   const [remainingMs, setRemainingMs] = useState(0);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const isBanned = useMemo(() => {
     if (!banUntil) return false;
@@ -447,7 +448,8 @@ export default function Navbar({
     : "Publicar";
 
   return (
-    <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+    <>
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
         <button
           type="button"
@@ -652,7 +654,7 @@ export default function Navbar({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onLogout?.();
+                  setShowLogoutConfirm(true);
                 }}
                 className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition"
                 title="Salir"
@@ -675,5 +677,38 @@ export default function Navbar({
         </div>
       </div>
     </nav>
+
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden animate-in zoom-in duration-150">
+            <div className="p-5 border-b">
+              <div className="font-black text-gray-800 uppercase tracking-widest text-sm">Confirmar salida</div>
+              <div className="text-sm text-gray-600 mt-1">¿Seguro que quieres salir?</div>
+            </div>
+
+            <div className="p-5 flex gap-3">
+              <button
+                type="button"
+                className="flex-1 py-3 rounded-2xl font-black uppercase tracking-widest border-2 border-gray-200 text-gray-700 hover:bg-gray-50 transition"
+                onClick={() => setShowLogoutConfirm(false)}
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                className="flex-1 py-3 rounded-2xl font-black uppercase tracking-widest bg-forest-green text-white hover:opacity-90 transition"
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  onLogout?.();
+                }}
+              >
+                Salir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
