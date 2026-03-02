@@ -95,6 +95,9 @@ export default function AdminPage() {
   const [cityFilter, setCityFilter] = useState("Todas");
   const [localityFilter, setLocalityFilter] = useState("Todas");
 
+  // modo de denuncias
+  const [viewMode, setViewMode] = useState("articulos"); // "articulos" | "chat"
+
   // preview
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewArticle, setPreviewArticle] = useState(null);
@@ -323,6 +326,7 @@ export default function AdminPage() {
               "last_report_at",
             ].join(",")
           )
+          .eq("target_type", viewMode === "chat" ? "chat" : "articulo")
           .order("last_report_at", { ascending: false })
           .limit(800);
 
@@ -375,19 +379,21 @@ export default function AdminPage() {
       return db - da;
     });
     return out;
-  }, [rows]);
+  }, [rows, viewMode]);
 
   // ---------------- city/locality options ----------------
   const cities = useMemo(() => {
+    if (viewMode === "chat") return ["Todas"];
     const set = new Set();
     for (const r of rows) {
       const c = String(r?.city || "").trim();
       if (c) set.add(c);
     }
     return ["Todas", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
-  }, [rows]);
+  }, [rows, viewMode]);
 
   const localities = useMemo(() => {
+    if (viewMode === "chat") return ["Todas"];
     const set = new Set();
     for (const r of rows) {
       const c = String(r?.city || "").trim();
@@ -401,6 +407,7 @@ export default function AdminPage() {
 
   const filteredGroups = useMemo(() => {
     const passCityLocality = (g) => {
+      if (viewMode === "chat") return true;
       const r0 = g.rows?.[0] || {};
       const c = String(r0?.city || "").trim();
       const l = String(r0?.locality || "").trim();
@@ -409,7 +416,7 @@ export default function AdminPage() {
       return true;
     };
     return groups.filter((g) => passCityLocality(g));
-  }, [groups, cityFilter, localityFilter]);
+  }, [groups, cityFilter, localityFilter, viewMode]);
 
   // ---------------- actions ----------------
   const bulkUpdateReports = useCallback(async ({ reportIds, patch }) => {
@@ -691,10 +698,49 @@ export default function AdminPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-2xl font-black text-gray-800">Panel de Moderación</h1>
-              <p className="text-sm text-gray-500 font-bold mt-1">Sin filtros rápidos (solo Ciudad / Localidad)</p>
+              <p className="text-sm text-gray-500 font-bold mt-1">{viewMode === "chat" ? "Denuncias de chat (sin filtros por ciudad)" : "Denuncias de publicaciones (filtro Ciudad / Localidad)"}</p>
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode("articulos");
+                  setCityFilter("Todas");
+                  setLocalityFilter("Todas");
+                  loadReports({ force: true });
+                }}
+                className={
+                  "px-4 py-2 rounded-2xl font-black text-sm border " +
+                  (viewMode === "articulos"
+                    ? "bg-gray-900 text-white border-gray-900"
+                    : "bg-white text-gray-900 border-gray-200 hover:border-gray-900")
+                }
+                disabled={rowsLoading}
+                title="Ver denuncias relacionadas con publicaciones"
+              >
+                Publicaciones
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode("chat");
+                  setCityFilter("Todas");
+                  setLocalityFilter("Todas");
+                  loadReports({ force: true });
+                }}
+                className={
+                  "px-4 py-2 rounded-2xl font-black text-sm border " +
+                  (viewMode === "chat"
+                    ? "bg-gray-900 text-white border-gray-900"
+                    : "bg-white text-gray-900 border-gray-200 hover:border-gray-900")
+                }
+                disabled={rowsLoading}
+                title="Ver denuncias hechas desde el chat"
+              >
+                Chat
+              </button>
               <button
                 type="button"
                 onClick={() => loadReports({ force: true })}
@@ -718,7 +764,8 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="mt-6 bg-gray-50 border border-gray-100 rounded-3xl p-5">
+          {viewMode !== "chat" && (
+            <div className="mt-6 bg-gray-50 border border-gray-100 rounded-3xl p-5">
             <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Filtros</p>
 
             <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -755,9 +802,11 @@ export default function AdminPage() {
                 </select>
               </div>
             </div>
-          </div>
+            </div>
+          )}
 
           <div className="mt-6">
+
             {rowsLoading ? (
               <div className="bg-white border border-gray-100 rounded-2xl p-4">
                 <p className="text-sm font-black text-gray-700">Cargando reportes…</p>
@@ -872,7 +921,18 @@ export default function AdminPage() {
               const repList = g.rows || [];
               const head = repList[0] || {};
 
-              const artTitle = String(head?.articulo_titulo || "Artículo").trim();
+              const targetType = String(head?.target_type || "articulo").toLowerCase().trim();
+              const isChat = targetType === "chat";
+
+              const artTitle = !isChat
+                ? String(head?.articulo_titulo || "Artículo").trim()
+                : (() => {
+                    const a = String(head?.buyer_nombre || head?.buyer_name || "").trim();
+                    const b = String(head?.seller_nombre || head?.seller_name || "").trim();
+                    const pair = [a, b].filter(Boolean).join(" ↔ ");
+                    const id = String(head?.target_id || "").trim();
+                    return pair || (id ? `Chat ${id}` : "Chat");
+                  })();
               const artEstado = normalizeEstadoArticulo(head?.articulo_estado);
               const artEstadoP = articuloEstadoPill(artEstado);
 
@@ -910,9 +970,16 @@ export default function AdminPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`px-3 py-1 rounded-full text-xs font-black border ${pill.cls}`}>{pill.txt}</span>
                         <span className="text-sm font-black text-gray-900">{artTitle}</span>
-                        <span className="text-xs text-gray-500 font-bold">
-                          {head?.city ? `${head.city}${head.locality ? `, ${head.locality}` : ""}` : ""}
-                        </span>
+                        {!isChat && (
+                          <span className="text-xs text-gray-500 font-bold">
+                            {head?.city ? `${head.city}${head.locality ? `, ${head.locality}` : ""}` : ""}
+                          </span>
+                        )}
+                        {isChat && (
+                          <span className="text-xs text-gray-500 font-bold">
+                            {head?.target_id ? `Chat ID: ${head.target_id}` : "Chat"}
+                          </span>
+                        )}
                         <span className="text-xs text-gray-400 font-bold">Último: {fmtDate(head?.last_report_at)}</span>
                         <span className="ml-1 text-xs font-black text-green-700">{greenTxt}</span>
                       </div>
@@ -959,7 +1026,7 @@ export default function AdminPage() {
                           </div>
 
                           <div className="mt-3 flex items-center gap-2">
-                            <span className="text-xs text-gray-600 font-bold">Estado artículo:</span>
+                            <span className="text-xs text-gray-600 font-bold">{isChat ? "Estado chat" : "Estado artículo"}:</span>
                             <span className={`px-3 py-1 rounded-full text-[11px] font-black border ${artEstadoP.cls}`}>
                               {artEstadoP.txt}
                             </span>
@@ -970,13 +1037,15 @@ export default function AdminPage() {
                           <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Acciones rápidas</p>
 
                           <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openPreview(head?.articulo_id)}
-                              className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-black text-xs border border-gray-200 hover:border-gray-900"
-                            >
-                              Ver artículo (preview)
-                            </button>
+                            {!isChat && (
+                              <button
+                                type="button"
+                                onClick={() => openPreview(head?.articulo_id)}
+                                className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-black text-xs border border-gray-200 hover:border-gray-900"
+                              >
+                                Ver artículo (preview)
+                              </button>
+                            )}
 
                             <button
                               type="button"
@@ -997,7 +1066,7 @@ export default function AdminPage() {
                                 });
                                 if (!okR.ok) return;
 
-                                await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "en_revision" });
+                                if (!isChat) await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "en_revision" });
                                 await loadReports({ force: true });
                               }}
                               className="px-4 py-2 rounded-2xl bg-yellow-100 text-yellow-900 font-black text-xs border border-yellow-200 hover:border-yellow-900"
@@ -1018,7 +1087,7 @@ export default function AdminPage() {
                                 if (!okR.ok) return;
 
                                 if (normalizeEstadoArticulo(head?.articulo_estado) === "en_revision") {
-                                  await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "disponible" });
+                                  if (!isChat) await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "disponible" });
                                 }
 
                                 await loadReports({ force: true });
@@ -1037,7 +1106,7 @@ export default function AdminPage() {
                                 if (!ok) return;
 
                                 if (normalizeEstadoArticulo(head?.articulo_estado) === "en_revision") {
-                                  await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "disponible" });
+                                  if (!isChat) await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "disponible" });
                                 }
 
                                 const del = await deleteReportsByIds(reportIds);

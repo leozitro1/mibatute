@@ -843,18 +843,6 @@ export default function ChatMessenger({
               {meBlocked ? "Bloqueado" : "Solo lectura"}
             </span>
           ) : null}
-          <button
-            type="button"
-            className="ml-2 px-3 py-2 rounded-2xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 text-sm font-black"
-            title="Denunciar usuario"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setShowReport(true);
-            }}
-          >
-            🚩
-          </button>
 
         </div>
 

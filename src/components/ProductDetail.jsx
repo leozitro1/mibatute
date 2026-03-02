@@ -222,6 +222,7 @@ export default function ProductDetail({
 
   const tipoNorm = normalizeTipo(item?.tipo ?? item?.mode ?? "donacion");
   const estadoNorm = normalizeEstado(item?.estado ?? item?.status ?? "disponible");
+  const isReviewing = estadoNorm === "en_revision";
   const priceRaw = item?.price ?? item?.precio ?? item?.valor ?? 0;
 const priceCOP = formatCOP(priceRaw);
 const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
@@ -579,11 +580,20 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
                 e.currentTarget.src = FALLBACK_IMAGE;
               }}
             />
-            <div className="absolute inset-0 bg-black/20" />
+                {isReviewing && (
+                  <div className="absolute inset-0 flex items-center justify-center z-20">
+                    <div className="px-6 py-3 rounded-2xl border border-white/40 bg-black/45 backdrop-blur-sm shadow-2xl">
+                      <span className="text-white font-black tracking-widest text-xl md:text-2xl uppercase">
+                        En revisión
+                      </span>
+                    </div>
+                  </div>
+                )}
+            <div className="absolute inset-0 bg-black/20 z-10" />
 
             {/* Imagen principal (cuadrada) */}
             <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
-              <div className="w-full max-w-[560px] aspect-square rounded-3xl overflow-hidden bg-gray-200 shadow-xl">
+              <div className="w-full max-w-[560px] aspect-square rounded-3xl overflow-hidden bg-gray-200 shadow-xl relative">
                 <img
                   src={mainImage}
                   alt={titulo}
