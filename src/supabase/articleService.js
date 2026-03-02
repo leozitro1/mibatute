@@ -118,8 +118,17 @@ function normalizeMode(v) {
  * Intenta escribir subcategory/subcategoria solo si existen.
  */
 async function safeInsertArticulos(payload) {
+  // ✅ Probamos en cascada para compatibilidad con esquemas viejos/nuevos:
+  // 1) subcategory + subcategoria
+  // 2) solo subcategory
+  // 3) sin subcategory/subcategoria
   const candidates = [
     payload,
+    (() => {
+      const p = { ...payload };
+      delete p.subcategoria;
+      return p;
+    })(),
     (() => {
       const p = { ...payload };
       delete p.subcategory;

@@ -22,17 +22,20 @@ import { supabase } from "./supabase/supabaseClient";
 /**
  * ✅ Árbol categorías + subcategorías
  */
+// ⚠️ IMPORTANTE:
+// Este árbol DEBE coincidir con el que usas al publicar (PublishModal.jsx).
+// Si no coincide, el filtro por subcategoría “no sirve” porque compara textos distintos.
 const CATEGORY_TREE = [
   { key: "Hogar & Muebles", label: "🌿 Hogar & Muebles", subs: ["Muebles", "Decoración", "Electrodomésticos", "Colchones", "Cocina"] },
   { key: "Electrónica & Tecnología", label: "⚡ Electrónica & Tecnología", subs: ["Celulares", "Computadores", "Televisores", "Repuestos", "Chatarra electrónica"] },
   { key: "Construcción & Herramientas", label: "🧱 Construcción & Herramientas", subs: ["Materiales", "Herramientas", "Oficios", "Madera", "Metales"] },
   { key: "Ropa & Textiles", label: "👕 Ropa & Textiles", subs: ["Ropa", "Retazos", "Telas", "Uniformes"] },
   { key: "Reciclaje & Reutilización", label: "🔄 Reciclaje & Reutilización", subs: ["Plásticos", "Vidrio", "Cartón", "Materias primas"] },
-  { key: "Infantil & Juguetes", label: "🧸 Infantil & Juguetes", subs: ["Juguetes", "Ropa infantil", "Coche/Accesorios", "Libros infantiles", "Otros"] },
+  { key: "Infantil & Juguetes", label: "🧸 Infantil & Juguetes", subs: ["Juguetes", "Ropa infantil", "Coches y sillas", "Lactancia", "Escolar"] },
   { key: "Deportes & Movilidad", label: "🚲 Deportes & Movilidad", subs: ["Bicicletas", "Patines", "Gimnasio", "Autopartes", "Motos"] },
-  { key: "Libros & Educación", label: "📚 Libros & Educación", subs: ["Libros", "Cuadernos", "Útiles", "Cursos/Material", "Otros"] },
-  { key: "Mascotas", label: "🐶 Mascotas", subs: ["Accesorios", "Alimento", "Camas", "Juguetes", "Otros"] },
-  { key: "Antigüedades & Coleccionables", label: "🕰 Antigüedades & Coleccionables", subs: ["Monedas", "Figuras", "Vinilos", "Decoración vintage", "Otros"] },
+  { key: "Libros & Educación", label: "📚 Libros & Educación", subs: ["Libros", "Cuadernos y útiles", "Cursos y material", "Tecnología educativa", "Instrumentos"] },
+  { key: "Mascotas", label: "🐶 Mascotas", subs: ["Accesorios", "Alimento", "Camas y casas", "Salud", "Juguetes"] },
+  { key: "Antigüedades & Coleccionables", label: "🕰 Antigüedades & Coleccionables", subs: ["Monedas", "Relojes", "Arte", "Coleccionables", "Vintage"] },
 ];
 
 // ✅ helper: id robusto
@@ -57,6 +60,33 @@ function normTipo(v) {
   if (s.includes("regal")) return "donacion";
   if (s.includes("venta")) return "venta";
   return s;
+}
+
+// ✅ Normaliza strings para comparar (evita fallos por mayúsculas/espacios)
+function normStr(v) {
+  return String(v ?? "").trim().toLowerCase();
+}
+
+// ✅ Lee categoría/subcategoría aunque cambie el nombre de la columna
+function getCategoria(item) {
+  return (
+    item?.category ??
+    item?.categoria ??
+    item?.categoria_es ??
+    item?.category_name ??
+    ""
+  );
+}
+
+function getSubcategoria(item) {
+  return (
+    item?.subcategory ??
+    item?.subcategoria ??
+    item?.sub_category ??
+    item?.subcategoria_es ??
+    item?.subcategory_name ??
+    ""
+  );
 }
 
 // ✅ BLOQUEO REVISIÓN: detecta "en revisión" (soporta varios nombres/campos)
@@ -1337,16 +1367,16 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       }
 
       const title = (item.title || item.titulo || "").toLowerCase();
-      const categoryText = String(item.category || item.categoria || "").toLowerCase();
-      const subcategoryText = String(item.subcategory || item.subcategoria || "").toLowerCase();
+      const categoryText = normStr(getCategoria(item));
+      const subcategoryText = normStr(getSubcategoria(item));
 
       const matchesSearch = !term || title.includes(term) || categoryText.includes(term) || subcategoryText.includes(term);
 
       const matchesCategory =
-        selectedCategory === "Todo" || String(item.category || item.categoria || "") === String(selectedCategory);
+        selectedCategory === "Todo" || normStr(getCategoria(item)) === normStr(selectedCategory);
 
       const matchesSub =
-        !selectedSubcategory || String(item.subcategory || item.subcategoria || "") === String(selectedSubcategory);
+        !selectedSubcategory || normStr(getSubcategoria(item)) === normStr(selectedSubcategory);
 
       const matchesCity = (item.city || item.ciudad) === selectedCity;
       const matchesLocality = selectedLocality === "Todas" || (item.locality || item.localidad_es) === selectedLocality;
@@ -1480,7 +1510,12 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
             <main className="max-w-7xl mx-auto px-4 py-8">
               {currentView === "home" && (
                 <div className="animate-in fade-in duration-500">
-                  <HeroBanner onLearnMore={() => setCurrentView("how-it-works")} />
+                  {/* Mostrar banner solo cuando NO hay búsqueda (evita que se atraviese entre la barra y resultados) */}
+                  {searchTerm.trim() === "" && (
+                    <div className="rounded-3xl">
+                      <HeroBanner onLearnMore={() => setCurrentView("how-it-works")} />
+                    </div>
+                  )}
 
                   <div className="flex flex-col lg:flex-row gap-8">
                     <aside className="lg:w-1/4 space-y-6">
