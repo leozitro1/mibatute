@@ -1,6 +1,6 @@
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Search, MapPin, User, ChevronDown, LogOut, MessageCircle } from "lucide-react";
+import { Search, MapPin, User, ChevronDown, LogOut, MessageCircle, X } from "lucide-react";
 import { COLOMBIA_DATA } from "../data/locations";
 import { supabase } from "../supabase/supabaseClient";
 
@@ -224,6 +224,11 @@ export default function Navbar({
 }) {
   const displayName = user?.nombre?.trim() || user?.displayName?.trim() || user?.email?.trim() || "";
   const avatarLetter = (displayName?.[0] || "U").toUpperCase();
+
+  // Search UI state (for clear "X" and mobile layout)
+  const [searchValue, setSearchValue] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchInputRef = useRef(null);
 
   const [banUntil, setBanUntil] = useState(null);
   const [isBlocked, setIsBlocked] = useState(false);
@@ -486,19 +491,49 @@ export default function Navbar({
           </div>
         </button>
 
-        <div className="flex-1 max-w-3xl relative flex items-center">
+        <div className="flex-1 max-w-3xl relative">
+          {/* Search */}
           <div className="relative w-full">
             <input
+              ref={searchInputRef}
               type="text"
-              onChange={(e) => onSearch?.(e.target.value)}
+              value={searchValue}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setSearchValue(v);
+                onSearch?.(v);
+              }}
               placeholder="Busca artículos, materiales, repuestos..."
-              className="w-full bg-gray-100 border-none rounded-full py-2.5 px-10 focus:ring-2 focus:ring-forest-green outline-none text-sm"
+              className="w-full bg-gray-100 border-none rounded-full py-2.5 pl-10 pr-14 sm:pr-[170px] lg:pr-[320px] focus:ring-2 focus:ring-forest-green outline-none text-sm"
               aria-label="Buscar"
             />
-            <Search className="absolute left-3 top-3 text-gray-400" size={18} />
 
+            {/* left icon */}
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+
+            {/* clear X */}
+            {searchValue?.trim()?.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchValue("");
+                  onSearch?.("");
+                  // keep focus so user can type again
+                  requestAnimationFrame(() => searchInputRef.current?.focus());
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-8 w-8 rounded-full bg-white/90 border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-forest-green transition z-10"
+                aria-label="Borrar búsqueda"
+                title="Borrar"
+              >
+                <X size={16} />
+              </button>
+            ) : null}
+
+            {/* Category selector (desktop only) */}
             {categoriesNormalized.length > 0 ? (
-              <div className="hidden lg:flex absolute right-[150px] top-1.5 items-center gap-2">
+              <div className="hidden lg:flex absolute right-[170px] top-1.5 items-center gap-2">
                 <div className="relative flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group">
                   <span className="text-[10px] font-black uppercase text-gray-400">Cat</span>
                   <select
@@ -506,16 +541,15 @@ export default function Navbar({
                     onChange={(e) => {
                       const v = e.target.value;
                       onCategoryChange?.(v);
-                      if (onSubcategoryChange) onSubcategoryChange("");
+                      // If category changes, optionally reset subcategory (keeps existing behavior if parent handles it)
                     }}
                     className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6"
-                    aria-label="Seleccionar categoría"
-                    title="Categoría"
+                    aria-label="Filtrar por categoría"
                   >
                     <option value="">Todas</option>
                     {categoriesNormalized.map((c) => (
-                      <option key={c.key} value={c.key}>
-                        {c.label}
+                      <option key={c} value={c}>
+                        {c}
                       </option>
                     ))}
                   </select>
@@ -525,44 +559,39 @@ export default function Navbar({
                   />
                 </div>
 
-                <div
-                  className={`relative flex items-center gap-1 bg-white border rounded-full px-3 py-1 shadow-sm transition-colors ${
-                    selectedCategory && subOptions.length
-                      ? "border-gray-200 hover:border-forest-green cursor-pointer group"
-                      : "border-gray-100 opacity-60"
-                  }`}
-                  title={selectedCategory ? "Subcategoría" : "Elige una categoría"}
-                >
-                  <span className="text-[10px] font-black uppercase text-gray-400">Sub</span>
-                  <select
-                    value={selectedSubcategory || ""}
-                    onChange={(e) => onSubcategoryChange?.(e.target.value)}
-                    className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6 disabled:cursor-not-allowed"
-                    aria-label="Seleccionar subcategoría"
-                    disabled={!selectedCategory || subOptions.length === 0}
-                  >
-                    <option value="">Todas</option>
-                    {subOptions.map((s) => (
-                      <option key={s.key} value={s.key}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <ChevronDown
-                    size={12}
-                    className={`absolute right-2 pointer-events-none ${
-                      selectedCategory && subOptions.length
-                        ? "text-gray-400 group-hover:text-forest-green"
-                        : "text-gray-300"
-                    }`}
-                  />
-                </div>
+                {/* Subcategory selector (desktop only) */}
+                {subcategoriesNormalized.length > 0 ? (
+                  <div className="relative flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group">
+                    <span className="text-[10px] font-black uppercase text-gray-400">Sub</span>
+                    <select
+                      value={selectedSubcategory || ""}
+                      onChange={(e) => onSubcategoryChange?.(e.target.value)}
+                      className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6"
+                      aria-label="Filtrar por subcategoría"
+                    >
+                      <option value="">Todas</option>
+                      {subcategoriesNormalized.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={12}
+                      className="absolute right-2 text-gray-400 group-hover:text-forest-green pointer-events-none"
+                    />
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
-            <div className="absolute right-3 top-1.5 flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group">
-              <MapPin size={14} className="text-forest-green" />
+            {/* City selector (desktop). Hidden while typing/focused to avoid covering the input */}
+            <div
+              className={`hidden sm:flex absolute right-3 top-1.5 items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group ${
+                searchFocused || (searchValue?.trim()?.length > 0) ? "opacity-0 pointer-events-none" : "opacity-100"
+              }`}
+            >
+              <MapPin size={14} className="hidden sm:block text-forest-green" />
               <select
                 value={currentCity}
                 onChange={(e) => onCityChange?.(e.target.value)}
@@ -579,6 +608,25 @@ export default function Navbar({
                 size={12}
                 className="absolute right-2 text-gray-400 group-hover:text-forest-green pointer-events-none"
               />
+            </div>
+          </div>
+
+          {/* City selector (mobile). Shown below search; hidden while typing */}
+          <div className={`${searchFocused || (searchValue?.trim()?.length > 0) ? "hidden" : "flex"} sm:hidden mt-2`}>
+            <div className="w-full flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-2 shadow-sm">
+              <select
+                value={currentCity}
+                onChange={(e) => onCityChange?.(e.target.value)}
+                className="w-full bg-transparent text-[12px] font-bold text-gray-700 outline-none appearance-none cursor-pointer pr-6"
+                aria-label="Seleccionar ciudad"
+              >
+                {COLOMBIA_DATA.map((c) => (
+                  <option key={c.city} value={c.city}>
+                    {c.city}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="text-gray-400 pointer-events-none" />
             </div>
           </div>
         </div>
