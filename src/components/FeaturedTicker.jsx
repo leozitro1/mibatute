@@ -3,8 +3,12 @@ import { useEffect, useMemo, useRef } from "react";
 /**
  * Barra de destacados (carrusel):
  * - Auto-scroll suave (seamless) usando scrollLeft
- * - Se puede arrastrar con mouse (click + drag) o con touch
- * - Se pausa al pasar el mouse o mientras se arrastra
+ * - Arrastre con mouse/touch (drag) para mover rápido
+ * - Click en tarjeta abre detalle (si NO fue drag)
+ *
+ * Nota importante:
+ * En desktop, usar Pointer Capture en el scroller suele "comerse" el click.
+ * Por eso el drag se maneja con listeners en window solo cuando es necesario.
  */
 export default function FeaturedTicker({ items = [], onItemClick }) {
   const list = Array.isArray(items) ? items.filter(Boolean) : [];
@@ -16,14 +20,20 @@ export default function FeaturedTicker({ items = [], onItemClick }) {
   }, [list]);
 
   const scrollerRef = useRef(null);
+
+  // Auto-scroll control
   const pausedRef = useRef(false);
-  const draggingRef = useRef(false);
-  const dragStartXRef = useRef(0);
-  const dragStartScrollLeftRef = useRef(0);
+
+  // Drag state
+  const isPointerDownRef = useRef(false);
+  const isDraggingRef = useRef(false);
+  const suppressClickRef = useRef(false);
+  const startXRef = useRef(0);
+  const startScrollLeftRef = useRef(0);
 
   if (!list.length) return null;
 
-  // Auto-scroll continuo (permite interacción manual)
+  // Auto-scroll continuo (seamless)
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
@@ -35,12 +45,12 @@ export default function FeaturedTicker({ items = [], onItemClick }) {
       const dt = Math.min(50, now - last);
       last = now;
 
-      if (!pausedRef.current && !draggingRef.current) {
-        // velocidad: px por segundo
-        const speed = 55;
+      // No mover si está pausado o en drag
+      if (!pausedRef.current && !isDraggingRef.current) {
+        const speed = 55; // px/seg
         el.scrollLeft += (speed * dt) / 1000;
 
-        // Loop: como duplicamos la lista, reiniciamos en la mitad
+        // Loop: como duplicamos, reiniciamos en la mitad
         const half = el.scrollWidth / 2;
         if (half > 0 && el.scrollLeft >= half) el.scrollLeft -= half;
       }
@@ -52,53 +62,96 @@ export default function FeaturedTicker({ items = [], onItemClick }) {
     return () => cancelAnimationFrame(raf);
   }, [doubled.length]);
 
-  const onPointerDown = (e) => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    draggingRef.current = true;
-    pausedRef.current = true;
-    dragStartXRef.current = e.clientX;
-    dragStartScrollLeftRef.current = el.scrollLeft;
-    try {
-      el.setPointerCapture?.(e.pointerId);
-    } catch {}
-  };
+  // Helpers de drag
+  const endDrag = () => {
+    isPointerDownRef.current = false;
+    isDraggingRef.current = false;
 
-  const onPointerMove = (e) => {
-    const el = scrollerRef.current;
-    if (!el || !draggingRef.current) return;
-    const dx = e.clientX - dragStartXRef.current;
-    el.scrollLeft = dragStartScrollLeftRef.current - dx;
-  };
+    // Si hubo drag, evitamos el click fantasma al soltar
+    if (suppressClickRef.current) {
+      setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    }
 
-  const onPointerUp = (e) => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    draggingRef.current = false;
-    try {
-      el.releasePointerCapture?.(e.pointerId);
-    } catch {}
-    // mini delay para evitar “salto” al soltar
+    // reanudar auto-scroll
     setTimeout(() => {
       pausedRef.current = false;
     }, 120);
+
+    // quitar listeners
+    window.removeEventListener("pointermove", onWindowPointerMove, { passive: false });
+    window.removeEventListener("pointerup", onWindowPointerUp, { passive: false });
+    window.removeEventListener("pointercancel", onWindowPointerUp, { passive: false });
+  };
+
+  const onWindowPointerMove = (e) => {
+    const el = scrollerRef.current;
+    if (!el || !isPointerDownRef.current) return;
+
+    const dx = e.clientX - startXRef.current;
+
+    // Umbral: para que click normal NO se convierta en drag
+    if (!isDraggingRef.current && Math.abs(dx) > 6) {
+      isDraggingRef.current = true;
+      suppressClickRef.current = true;
+    }
+
+    if (isDraggingRef.current) {
+      // evitar seleccionar texto / gestos raros en desktop
+      e.preventDefault?.();
+      el.scrollLeft = startScrollLeftRef.current - dx;
+
+      // Mantener loop "seamless" también en drag
+      const half = el.scrollWidth / 2;
+      if (half > 0) {
+        if (el.scrollLeft >= half) el.scrollLeft -= half;
+        if (el.scrollLeft < 0) el.scrollLeft += half;
+      }
+    }
+  };
+
+  const onWindowPointerUp = (e) => {
+    // Si hubo drag, cortamos propagación para evitar click fantasma
+    if (suppressClickRef.current) {
+      e.preventDefault?.();
+      e.stopPropagation?.();
+    }
+    endDrag();
+  };
+
+  const onPointerDown = (e) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    // Solo botón principal
+    if (e.button != null && e.button !== 0) return;
+
+    isPointerDownRef.current = true;
+    isDraggingRef.current = false;
+    suppressClickRef.current = false;
+
+    pausedRef.current = true;
+    startXRef.current = e.clientX;
+    startScrollLeftRef.current = el.scrollLeft;
+
+    // listeners en window (clave para que el click en desktop no se rompa)
+    window.addEventListener("pointermove", onWindowPointerMove, { passive: false });
+    window.addEventListener("pointerup", onWindowPointerUp, { passive: false });
+    window.addEventListener("pointercancel", onWindowPointerUp, { passive: false });
   };
 
   return (
     <div className="mt-2">
       <div className="w-full bg-forest-green rounded-3xl shadow-sm overflow-hidden border border-white/10">
         <div className="relative">
-          {/* Scroller */}
           <div
             ref={scrollerRef}
             className="ticker-scroller"
             onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
             onMouseEnter={() => (pausedRef.current = true)}
             onMouseLeave={() => {
-              if (!draggingRef.current) pausedRef.current = false;
+              if (!isPointerDownRef.current && !isDraggingRef.current) pausedRef.current = false;
             }}
             role="region"
             aria-label="Artículos destacados"
@@ -114,14 +167,26 @@ export default function FeaturedTicker({ items = [], onItemClick }) {
                 const img =
                   it?.imagen_url_principal ||
                   it?.imagenUrlPrincipal ||
+                  it?.image_url ||
+                  it?.imagen_url ||
                   (Array.isArray(it?.imagenes) ? it.imagenes[0] : "") ||
+                  (Array.isArray(it?.imagenes_db) ? it.imagenes_db[0] : "") ||
+                  (Array.isArray(it?.articulo_imagenes) ? it.articulo_imagenes?.[0]?.url : "") ||
                   "";
 
                 return (
                   <button
                     key={`${it?.id || "x"}-${idx}`}
                     type="button"
-                    onClick={() => onItemClick?.(it)}
+                    // ✅ Importantísimo: cortar el click si fue drag
+                    onClick={(e) => {
+                      if (suppressClickRef.current || isDraggingRef.current) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      onItemClick?.(it);
+                    }}
                     className="ticker-card"
                     title={title}
                     aria-label={`Destacado: ${title}`}
@@ -132,6 +197,7 @@ export default function FeaturedTicker({ items = [], onItemClick }) {
                           src={img}
                           alt=""
                           className="w-full h-full object-cover"
+                          draggable={false}
                           onError={(e) => {
                             e.currentTarget.style.display = "none";
                           }}
