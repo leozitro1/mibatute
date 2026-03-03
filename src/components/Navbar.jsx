@@ -686,20 +686,7 @@ export default function Navbar({
                   </span>
                 </button>
 
-            {/* ✅ TyC siempre visible (abre en nueva pestaña) */}
-            <a
-              href="/terminos"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition inline-flex items-center justify-center"
-              title="Términos y condiciones"
-              aria-label="Términos y condiciones"
-            >
-              <span className="text-[11px] font-black text-gray-600 leading-none">TC</span>
-            </a>
-
-
-                <button
+            <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
