@@ -127,6 +127,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     locality: "",
     description: "",
     conditionScore: 8, // 1-10
+    isFeatured: false, // ✅ destacado (por ahora libre)
   });
 
   // ✅ Fotos finales (YA recortadas 800x800 webp)
@@ -149,7 +150,9 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     if (prev && prev !== cropSrc) {
       // siguiente tick para que el DOM ya no lo esté usando
       setTimeout(() => {
-        try { URL.revokeObjectURL(prev); } catch {}
+        try {
+          URL.revokeObjectURL(prev);
+        } catch {}
       }, 0);
     }
     prevCropSrcRef.current = cropSrc || null;
@@ -157,10 +160,13 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     return () => {
       // al desmontar, revoca el actual también
       if (cropSrc) {
-        try { URL.revokeObjectURL(cropSrc); } catch {}
+        try {
+          URL.revokeObjectURL(cropSrc);
+        } catch {}
       }
     };
   }, [cropSrc]);
+
   const [cropSrcName, setCropSrcName] = useState("foto");
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -217,6 +223,8 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         category: safeCategory,
         subcategory: safeSub,
         price: modeNorm2 === "venta" ? prev.price : "",
+        // 👇 por si cambiaste defaults o abres/cierra modal
+        isFeatured: !!prev.isFeatured,
       };
     });
 
@@ -242,7 +250,6 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     });
   }, [isOpen, formData.category, CATEGORY_TREE]);
 
-
   const resetForm = () => {
     const cat = defaultCategory;
     const sub = getSubsForCategory(CATEGORY_TREE, cat)[0] || "";
@@ -257,6 +264,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       locality: "",
       description: "",
       conditionScore: 8,
+      isFeatured: false,
     });
 
     cleanupPreviews(previews);
@@ -309,7 +317,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       } else {
         // terminar
         setCropOpen(false);
-            setCropSrc("");
+        setCropSrc("");
         setCropQueue([]);
         setCropIndex(0);
       }
@@ -403,6 +411,8 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     setIsSubmitting(true);
 
     try {
+      const featured = !!formData.isFeatured;
+
       const formDataES = {
         titulo: formData.title,
         categoria: formData.category,
@@ -413,6 +423,10 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         localidad_es: formData.locality,
         descripcion: formData.description,
         estado_producto: Number(formData.conditionScore) || 8,
+        // ✅ Destacado / Featured (compatibilidad de columnas)
+        destacado: featured,
+        is_featured: featured,
+        isFeatured: featured,
       };
 
       const formDataEN = {
@@ -425,6 +439,10 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         locality: formData.locality,
         description: formData.description,
         estado_producto: Number(formData.conditionScore) || 8,
+        // ✅ Destacado / Featured (compatibilidad de columnas)
+        destacado: featured,
+        is_featured: featured,
+        isFeatured: featured,
       };
 
       const res = await publishArticle({
@@ -586,9 +604,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">
-                  Precio (solo si es venta)
-                </label>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Precio (solo si es venta)</label>
                 <input
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
@@ -600,10 +616,33 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
                   disabled={isSubmitting || isCropping || cropOpen || normalizeMode(formData.mode) !== "venta"}
                 />
                 {exceedsMaxVenta && (
-                  <p className="text-[11px] mt-1 text-red-600">
-                    Tope: ${MAX_VENTA_COP.toLocaleString("es-CO")} COP
-                  </p>
+                  <p className="text-[11px] mt-1 text-red-600">Tope: ${MAX_VENTA_COP.toLocaleString("es-CO")} COP</p>
                 )}
+              </div>
+            </div>
+
+            {/* ✅ NUEVO: Destacado */}
+            <div className="border-2 border-gray-100 rounded-2xl p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Destacado</p>
+                  <p className="mt-1 text-sm font-black text-gray-900">Mostrar en “Artículos destacados”</p>
+                  <p className="mt-1 text-[12px] text-gray-600 font-medium">
+                    Por ahora es gratis. Luego aquí conectamos el pago.
+                  </p>
+                </div>
+
+                <label className="shrink-0 inline-flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!formData.isFeatured}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, isFeatured: !!e.target.checked }))}
+                    className="h-5 w-5 accent-forest-green"
+                    disabled={isSubmitting || isCropping || cropOpen}
+                    aria-label="Marcar como destacado"
+                  />
+                  <span className="text-[12px] font-black text-gray-700">Destacar</span>
+                </label>
               </div>
             </div>
 

@@ -118,41 +118,32 @@ function normalizeMode(v) {
  * Intenta escribir subcategory/subcategoria solo si existen.
  */
 async function safeInsertArticulos(payload) {
-  // ✅ Probamos en cascada para compatibilidad con esquemas viejos/nuevos:
-  // 1) subcategory + subcategoria
-  // 2) solo subcategory
-  // 3) sin subcategory/subcategoria
-  const candidates = [
-    payload,
-    (() => {
-      const p = { ...payload };
-      delete p.subcategoria;
-      return p;
-    })(),
-    (() => {
-      const p = { ...payload };
-      delete p.subcategory;
-      delete p.subcategoria;
-      return p;
-    })(),
-  ];
+  // ✅ Inserta soportando columnas que pueden NO existir (compatibilidad)
+  // Si Supabase devuelve: Could not find the '<col>' column, se elimina y reintenta.
+  let p = { ...(payload || {}) };
 
-  let lastError = null;
+  for (let i = 0; i < 8; i++) {
+    const res = await supabase.from("articulos").insert(p).select("*").single();
 
-  for (const p of candidates) {
-    const { data, error } = await supabase.from("articulos").insert([p]).select("*").single();
-    if (!error) return { data, error: null };
+    if (!res?.error) return { data: res.data, error: null };
 
-    lastError = error;
+    const msg = res?.error?.message || "";
+    const m = msg.match(/Could not find the '(.+?)' column/i);
 
-    if (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
+    if (m?.[1] && Object.prototype.hasOwnProperty.call(p, m[1])) {
+      const missing = m[1];
+      const next = { ...p };
+      delete next[missing];
+      p = next;
       continue;
     }
-    break;
+
+    return { data: null, error: res.error };
   }
 
-  return { data: null, error: lastError || { message: "No se pudo insertar en articulos." } };
+  return { data: null, error: { message: "No se pudo insertar en articulos (compatibilidad columnas)." } };
 }
+
 
 /**
  * ✅ RPC: Actualiza SOLO campos permitidos del artículo (sin moderación).
@@ -316,6 +307,16 @@ export async function publishArticle({ formData, files, user }) {
     return Math.max(1, Math.min(10, rounded));
   })();
 
+  // ✅ Destacado (por ahora libre). Lo mandamos en varios nombres por compatibilidad.
+  const featuredVal = !!(
+    formData?.destacado ??
+    formData?.is_featured ??
+    formData?.isFeatured ??
+    formData?.isfeatured ??
+    formData?.featured ??
+    false
+  );
+
   const payload = {
     owner_id: user.id,
     owner_name: user.user_metadata?.nombre || user.email || "Usuario",
@@ -327,6 +328,10 @@ export async function publishArticle({ formData, files, user }) {
     price: mode === "venta" ? Number(formData?.precio ?? formData?.price ?? 0) : 0,
     city: formData?.ciudad ?? formData?.city ?? null,
     locality: formData?.localidad_es ?? formData?.locality ?? null,
+    // ✅ Destacado (compatibilidad de columnas)
+    is_featured: featuredVal,
+    destacado: featuredVal,
+    isFeatured: featuredVal,
     description: String(formData?.descripcion ?? formData?.description ?? "").trim(),
     estado_producto,
     status: "disponible",
