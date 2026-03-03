@@ -652,11 +652,62 @@ export async function updateArticle(articleId, formData = {}, file = null) {
       price: null,
       // image_url: lo dejamos null; se setea con syncArticleImagesArray al final
       image_url: null,
+      // ✅ Destacado (editar)
+      destacado: formData?.destacado ?? formData?.is_featured ?? formData?.isFeatured ?? formData?.featured ?? null,
+      is_featured: formData?.is_featured ?? formData?.destacado ?? formData?.isFeatured ?? formData?.featured ?? null,
+      isFeatured: formData?.isFeatured ?? formData?.is_featured ?? formData?.destacado ?? formData?.featured ?? null,
+      featured: formData?.featured ?? formData?.isFeatured ?? formData?.is_featured ?? formData?.destacado ?? null,
+
     };
 
+
+
+    // ✅ helper: update directo tolerante a columnas faltantes (para destacado)
+    const safeDirectUpdate = async (patch) => {
+      let p = { ...(patch || {}) };
+      const run = async () => {
+        return await supabase.from("articulos").update(p).eq("id", articleId).select("*").maybeSingle();
+      };
+
+      let { data, error } = await run();
+
+      while (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
+        const mm = error.message.match(/Could not find the '(.+?)' column/i);
+        const missing = mm?.[1];
+        if (missing && Object.prototype.hasOwnProperty.call(p, missing)) {
+          delete p[missing];
+          ({ data, error } = await run());
+        } else {
+          break;
+        }
+      }
+
+      return { data, error };
+    };
     // ✅ Actualización segura por RPC
     const r = await rpcOwnerUpdateArticulo(articleId, updates);
     if (!r.success) return { success: false, error: r.error };
+
+
+    // ✅ Si el caller envió destacado, actualízalo por update directo (RPC legacy no lo soporta)
+    const wantFeatured =
+      updates?.destacado !== null ||
+      updates?.is_featured !== null ||
+      updates?.isFeatured !== null ||
+      updates?.featured !== null;
+
+    if (wantFeatured) {
+      const featuredBool = !!(updates?.isFeatured ?? updates?.is_featured ?? updates?.destacado ?? updates?.featured);
+      const { error: featErr } = await safeDirectUpdate({
+        destacado: featuredBool,
+        is_featured: featuredBool,
+        isFeatured: featuredBool,
+        featured: featuredBool,
+      });
+      if (featErr) {
+        console.log("updateArticle: featured update warn:", featErr?.message || featErr);
+      }
+    }
 
     // ✅ Si viene nueva imagen, la agregamos (esto toca articulo_imagenes, no articulos)
     if (file) {

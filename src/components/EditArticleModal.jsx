@@ -33,6 +33,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
     localidad_es: "", // ✅ antes estaba "localidad" (esa columna NO existe)
     categoria: "",
     imagen_url_principal: "",
+    isFeatured: false, // ✅ destacado
   });
 
   // imágenes (gestión)
@@ -100,6 +101,14 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
       localidad_es,
       categoria,
       imagen_url_principal: imagenUrl,
+      // ✅ Destacado / Featured (compat)
+      isFeatured: !!(
+        article?.isFeatured ??
+        article?.is_featured ??
+        article?.destacado ??
+        article?.featured ??
+        false
+      ),
     });
 
     // traer artículo completo con imágenes
@@ -134,6 +143,12 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
       locality: formData.localidad_es || "",
       category: formData.categoria || "",
       image_url: formData.imagen_url_principal || "",
+
+      // ✅ Destacado / Featured (compatibilidad de columnas)
+      destacado: !!formData.isFeatured,
+      is_featured: !!formData.isFeatured,
+      isFeatured: !!formData.isFeatured,
+      featured: !!formData.isFeatured,
     };
 
     const result = await updateArticle(article.id, payload, null);
@@ -337,6 +352,31 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
             <p className="text-[10px] text-gray-400 mt-2">
               Puedes <b>eliminar</b>, <b>cambiar</b> o <b>agregar</b> fotos hasta completar 4.
             </p>
+          </div>
+
+
+          {/* ✅ Destacado */}
+          <div className="border-2 border-orange-400/80 bg-orange-50/60 rounded-3xl p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-black uppercase tracking-widest text-[11px] text-orange-900">
+                  Destacar publicación
+                </p>
+                <p className="text-[12px] text-orange-900/80 mt-1">
+                  Actívalo para que tu artículo aparezca en la barra de destacados (por ahora es gratis).
+                </p>
+              </div>
+
+              <label className="flex items-center gap-2 shrink-0 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!!formData.isFeatured}
+                  onChange={(e) => setFormData((p) => ({ ...p, isFeatured: e.target.checked }))}
+                  className="h-5 w-5 accent-orange-500"
+                />
+                <span className="font-black uppercase text-[11px] text-orange-900">Destacar</span>
+              </label>
+            </div>
           </div>
 
           {/* Título */}
