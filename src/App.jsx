@@ -19,6 +19,8 @@ import ChatMessenger from "./components/ChatMessenger";
 import { COLOMBIA_DATA } from "./data/locations";
 import { supabase } from "./supabase/supabaseClient";
 
+
+import { crearPostulacionConLimite } from "./supabase/solicitudesService";
 /**
  * ✅ Árbol categorías + subcategorías
  */
@@ -1117,20 +1119,18 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         return;
       }
 
-      const { error } = await supabase.from("postulaciones").insert({
-        articulo_id: productId,
-        usuario_id: uid,
-        justificacion: message || "",
-      });
-
-      if (error) throw error;
+      const res = await crearPostulacionConLimite(productId, uid, message || "");
+      if (res && res.success === false) {
+        // res.error ya viene listo (bloqueo/filtro/límite)
+        throw new Error(res.error || "No se pudo enviar tu solicitud.");
+      }
 
       alert("¡Solicitud enviada! El vendedor decidirá a quién entregárselo.");
       await load();
       await loadNotifications();
     } catch (err) {
       console.error("Error enviando postulación:", err);
-      alert("Error enviando la solicitud. Intenta de nuevo.");
+      alert(String(err?.message || "Error enviando la solicitud. Intenta de nuevo."));
     }
   };
 

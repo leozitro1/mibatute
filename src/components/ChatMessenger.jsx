@@ -1,6 +1,7 @@
 // src/components/ChatMessenger.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "../supabase/supabaseClient";
+import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -707,6 +708,22 @@ export default function ChatMessenger({
     const bodyText = String(text || "").trim();
     if (!bodyText) return;
 
+    // ✅ SOLO filtro de insultos/ofensivo (SE PERMITEN teléfonos/WhatsApp/correos/links)
+    const v = detectarContenidoNoPermitido(bodyText);
+
+    // intentamos detectar “ofensivo” de forma robusta (por si cambian nombres de flags)
+    const hasOffensive =
+      !!(v?.hasBadWords ?? v?.hasOffensive ?? v?.hasInsult ?? v?.hasProfanity) ||
+      (!!v?.hasViolation && !v?.hasContact); // fallback: si la violación NO es contacto, asumimos ofensivo
+
+    if (hasOffensive) {
+      try {
+        setText(enmascararContenido(bodyText));
+      } catch {}
+      alert("🚫 Tu mensaje contiene lenguaje ofensivo. Por favor ajústalo para poder enviarlo.");
+      return;
+    }
+
     try {
       setSending(true);
 
@@ -744,7 +761,6 @@ export default function ChatMessenger({
       if (!sending) sendMessage();
     }
   };
-
 
   const sendChatReport = async () => {
     try {
@@ -798,7 +814,6 @@ export default function ChatMessenger({
     }
   };
 
-
   if (!isOpen) return null;
 
   return (
@@ -843,7 +858,6 @@ export default function ChatMessenger({
               {meBlocked ? "Bloqueado" : "Solo lectura"}
             </span>
           ) : null}
-
         </div>
 
         {/* CARD ARTÍCULO */}
@@ -1031,6 +1045,7 @@ export default function ChatMessenger({
           )}
         </div>
       </div>
+
       {/* MODAL DENUNCIA CHAT */}
       {showReport && (
         <div className="fixed inset-0 z-[500] bg-black/40 flex items-center justify-center p-4">
@@ -1098,7 +1113,6 @@ export default function ChatMessenger({
           </div>
         </div>
       )}
-
     </div>
   );
 }

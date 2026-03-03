@@ -2631,18 +2631,20 @@ return (
                               {cargandoSolicitudes ? <Loader2 className="animate-spin" size={16} /> : <MessageCircle size={16} />}
                             </button>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPreviewArt(art);
-                                setPreviewOpen(true);
-                              }}
-                              className="bg-gray-100 text-gray-700 p-3 rounded-2xl hover:bg-gray-200 transition"
-                              aria-label="Ver publicación"
-                              title="Ver publicación"
-                            >
-                              <Eye size={16} />
-                            </button>
+                            {!isVenta ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPreviewArt(art);
+                                  setPreviewOpen(true);
+                                }}
+                                className="bg-gray-100 text-gray-700 p-3 rounded-2xl hover:bg-gray-200 transition"
+                                aria-label="Ver publicación"
+                                title="Ver publicación"
+                              >
+                                <Eye size={16} />
+                              </button>
+                            ) : null}
 
                             <button
                               type="button"

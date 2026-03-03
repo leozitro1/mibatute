@@ -1,6 +1,141 @@
 // src/supabase/solicitudesService.js
 import { supabase } from "./supabaseClient";
 
+// ===================== Anti-spam / Anti-contacto (postulaciones + chat) =====================
+// Nota: esto es una capa "cliente". Para blindarlo al 100%, lo ideal es mover la creación de
+// postulaciones/mensajes a una Edge Function y aplicar el mismo filtro ahí.
+
+function _norm(s = "") {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, ""); // quita tildes
+}
+
+// Teléfonos (flexible: +57, espacios, guiones, paréntesis)
+const _PHONE_REGEX = /(\+?\d{1,3}[\s\-\.]?)?(\(?\d{2,3}\)?[\s\-\.]?)?\d{3}[\s\-\.]?\d{2}[\s\-\.]?\d{2,4}/g;
+
+// Email
+const _EMAIL_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+
+// Links básicos
+const _URL_REGEX = /\b(?:https?:\/\/|www\.)\S+/gi;
+
+// Palabras típicas de “contacto externo”
+const _CONTACT_WORDS = [
+  "whatsapp",
+  "wpp",
+  "wa",
+  "wasap",
+  "whatssap",
+  "llamame",
+  "llámame",
+  "escribeme",
+  "escríbeme",
+  "telegram",
+  "t.me",
+  "instagram",
+  "ig",
+  "facebook",
+  "fb",
+  "correo",
+  "email",
+  "gmail",
+  "hotm",
+  "outlook",
+  "@",
+];
+
+// Lista mínima (ajústala a tu gusto). Ideal: mover a tabla/config en BD.
+const _BAD_WORDS = [
+  "hp",
+  "hpta",
+  "hijueputa",
+  "marica",
+  "maricon",
+  "maricón",
+  "gonorrea",
+  "pirobo",
+  "perra",
+  "puta",
+  "mierda",
+  "verga",
+  "hijo de puta",
+  "vaya coma",
+  "hdputa",
+  "pendejo",
+  "sapo",
+];
+
+export function detectarContenidoNoPermitido(texto = "", opts = {}) {
+  const raw = String(texto || "");
+  const norm = _norm(raw);
+
+  const phones = (raw.match(_PHONE_REGEX) || [])
+    .map((x) => String(x || "").trim())
+    .filter(Boolean)
+    // evita falsos positivos muy cortos
+    .filter((m) => (m.replace(/\D/g, "").length >= 7));
+
+  const emails = (raw.match(_EMAIL_REGEX) || []).map((x) => String(x || "").trim()).filter(Boolean);
+  const urls = (raw.match(_URL_REGEX) || []).map((x) => String(x || "").trim()).filter(Boolean);
+
+  const extraBadWords = Array.isArray(opts?.badWords) ? opts.badWords : [];
+  const badWords = Array.from(new Set([..._BAD_WORDS, ...extraBadWords])).filter(Boolean);
+
+  const contactHits = _CONTACT_WORDS.filter((w) => norm.includes(_norm(w)));
+  const badHits = badWords.filter((w) => norm.includes(_norm(w)));
+
+  const hasContact =
+    phones.length > 0 || emails.length > 0 || urls.length > 0 || contactHits.length > 0;
+
+  const hasAbuse = badHits.length > 0;
+
+  return {
+    hasViolation: hasContact || hasAbuse,
+    hasContact,
+    hasAbuse,
+    phones,
+    emails,
+    urls,
+    contactHits,
+    badHits,
+  };
+}
+
+export function enmascararContenido(texto = "") {
+  let out = String(texto || "");
+
+  out = out.replace(_EMAIL_REGEX, (m) => {
+    const parts = String(m || "").split("@");
+    const u = parts[0] || "";
+    const maskedU = u.length <= 1 ? "*" : u[0] + "***";
+    return `${maskedU}@***.***`;
+  });
+
+  out = out.replace(_URL_REGEX, "***");
+
+  out = out.replace(_PHONE_REGEX, (m) => {
+    const digits = String(m || "").replace(/\D/g, "");
+    if (digits.length < 7) return m;
+    return String(m || "").replace(/\d/g, "*");
+  });
+
+  return out;
+}
+
+function _buildViolationMessage(v) {
+  if (!v?.hasViolation) return null;
+
+  if (v.hasContact) {
+    return "🚫 Por seguridad, no permitimos compartir teléfonos, WhatsApp, correos ni links. Usa el chat de Mi Batute.";
+  }
+  if (v.hasAbuse) {
+    return "🚫 Tu mensaje contiene lenguaje ofensivo. Por favor ajústalo para poder enviarlo.";
+  }
+  return "🚫 Tu mensaje contiene contenido no permitido.";
+}
+
 export const MAX_POSTULACIONES_POR_ARTICULO = 10;
 
 export const obtenerPostulaciones = async (articuloId) => {
@@ -163,6 +298,25 @@ export const crearPostulacionConLimite = async ({ articuloId, usuarioId, justifi
 
     if (!aid || !uid) {
       return { success: false, error: "articuloId y usuarioId son requeridos" };
+    }
+
+    // ✅ filtro anti-contacto / malas palabras en la justificación
+    const just = String(justificacion || "").trim();
+    const v = detectarContenidoNoPermitido(just);
+    if (v?.hasViolation) {
+      return {
+        success: false,
+        error: _buildViolationMessage(v),
+        code: v.hasContact ? "CONTACT_INFO_NOT_ALLOWED" : "ABUSIVE_CONTENT_NOT_ALLOWED",
+        meta: {
+          phones: v.phones,
+          emails: v.emails,
+          urls: v.urls,
+          contactHits: v.contactHits,
+          badHits: v.badHits,
+          masked: enmascararContenido(just),
+        },
+      };
     }
 
     // 1) si ya existe postulación, no creamos otra

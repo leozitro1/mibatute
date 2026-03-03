@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X, MapPin, ShieldCheck, Lock, Flag } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
 
+
+import { detectarContenidoNoPermitido, buildViolationMessage } from "../utils/contentFilter";
 const FALLBACK_IMAGE =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
@@ -423,6 +425,14 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
       return;
     }
 
+    // ✅ filtro anti-contacto / malas palabras (evita WhatsApp/teléfonos/correos/links)
+    const v = detectarContenidoNoPermitido(text);
+    if (v?.hasViolation) {
+      alert(buildViolationMessage(v) || "Contenido no permitido.");
+      submitLock.current = false;
+      return;
+    }
+
     if (text.length < 10) {
       submitLock.current = false;
       return;
@@ -430,7 +440,11 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
 
     try {
       setIsSubmitting(true);
-      await onSolicitar?.(item, text);
+      const res = await onSolicitar?.(item, text);
+      // Si el handler devuelve un objeto { success:false }, no lo marcamos como aplicado
+      if (res && res.success === false) {
+        throw new Error(res.error || "No se pudo enviar tu solicitud.");
+      }
 
       setHasApplied(true);
       setMessage("");
