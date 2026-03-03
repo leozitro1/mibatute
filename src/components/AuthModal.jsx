@@ -81,6 +81,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
   const [movil, setMovil] = useState("");
   const [ciudad, setCiudad] = useState(""); // obligar selección
   const [localidad, setLocalidad] = useState(""); // obligar selección
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -89,6 +90,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
     setMovil("");
     setCiudad("");
     setLocalidad("");
+    setAcceptTerms(false);
     setEmail("");
     setPassword("");
     setIsSubmitting(false);
@@ -154,6 +156,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
     setMovil("");
     setCiudad("");
     setLocalidad("");
+    setAcceptTerms(false);
     setPassword("");
     setIsSubmitting(false);
     setResendCooldown(0);
@@ -170,6 +173,11 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    if (!acceptTerms) {
+      alert("Debes aceptar los Términos y Condiciones para registrarte.");
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -473,6 +481,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
                         onChange={(e) => {
                           setCiudad(e.target.value);
                           setLocalidad("");
+    setAcceptTerms(false);
                         }}
                         className="border rounded-xl p-3 outline-none focus:ring-2 focus:ring-forest-green bg-white"
                         required
@@ -539,13 +548,39 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
                   />
                 </div>
 
+
+                {isRegister && (
+                  <label className="flex items-start gap-3 text-sm text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={acceptTerms}
+                      onChange={(e) => setAcceptTerms(e.target.checked)}
+                      disabled={isSubmitting}
+                      className="mt-1 h-4 w-4 accent-forest-green"
+                    />
+                    <span className="leading-snug">
+                      Acepto los{" "}
+                      <a
+                        href="/terminos"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-black text-forest-green hover:underline"
+                      >
+                        Términos y Condiciones
+                      </a>
+                      .
+                    </span>
+                  </label>
+                )}
+
                 <button
                   className={`w-full py-3 rounded-xl font-bold transition ${
-                    isSubmitting
+                    isSubmitting || (isRegister && !acceptTerms)
                       ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                       : "bg-forest-green text-white hover:bg-opacity-90"
                   }`}
-                  disabled={isSubmitting}
+                  title={isRegister && !acceptTerms ? "Debes aceptar TyC para registrarte" : undefined}
+                  disabled={isSubmitting || (isRegister && !acceptTerms)}
                   type="submit"
                 >
                   {isSubmitting ? "Procesando..." : isRegister ? "Registrarme" : "Entrar"}

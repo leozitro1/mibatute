@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X, MapPin, ShieldCheck, Lock, Flag } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
 
-
 import { detectarContenidoNoPermitido, buildViolationMessage } from "../utils/contentFilter";
+
 const FALLBACK_IMAGE =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
@@ -127,7 +127,6 @@ function formatCOP(value) {
       maximumFractionDigits: 0,
     }).format(n);
   } catch {
-    // fallback si el navegador no soporta Intl
     return `$ ${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
   }
 }
@@ -139,14 +138,13 @@ function clampInt(v, min, max) {
 }
 
 function getConditionScore(item) {
-  // soporta varias formas por compatibilidad
   const raw =
     item?.estado_producto ??
     item?.estadoProducto ??
     item?.conditionScore ??
     item?.condition_score ??
     item?.estado_condicion ??
-    item?.estado; // ⚠️ ojo: en tu DB "estado" suele ser status (disponible/reservado); úsalo solo si lo reutilizas
+    item?.estado;
   const n = clampInt(raw, 1, 10);
   return n;
 }
@@ -155,26 +153,13 @@ function conditionMeta(score) {
   const s = clampInt(score, 1, 10);
   if (!s) return null;
 
-  // 1–3 rojo, 4–6 amarillo, 7–8 verde, 9–10 verde fuerte
   if (s <= 3)
-    return {
-      label: "Muy deteriorado",
-      cls: "bg-red-100 text-red-800 border-red-200",
-    };
+    return { label: "Muy deteriorado", cls: "bg-red-100 text-red-800 border-red-200" };
   if (s <= 6)
-    return {
-      label: "Uso medio",
-      cls: "bg-yellow-100 text-yellow-900 border-yellow-200",
-    };
+    return { label: "Uso medio", cls: "bg-yellow-100 text-yellow-900 border-yellow-200" };
   if (s <= 8)
-    return {
-      label: "Buen estado",
-      cls: "bg-emerald-100 text-emerald-900 border-emerald-200",
-    };
-  return {
-    label: "Casi nuevo",
-    cls: "bg-green-100 text-green-900 border-green-200",
-  };
+    return { label: "Buen estado", cls: "bg-emerald-100 text-emerald-900 border-emerald-200" };
+  return { label: "Casi nuevo", cls: "bg-green-100 text-green-900 border-green-200" };
 }
 
 export default function ProductDetail({
@@ -198,9 +183,9 @@ export default function ProductDetail({
   const [ownerNameResolved, setOwnerNameResolved] = useState("");
   const [ownerPhotoResolved, setOwnerPhotoResolved] = useState("");
 
-  
   const [stableOwnerPhoto, setStableOwnerPhoto] = useState("");
-// Report modal
+
+  // Report modal
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("Contenido prohibido");
   const [reportDetails, setReportDetails] = useState("");
@@ -225,9 +210,10 @@ export default function ProductDetail({
   const tipoNorm = normalizeTipo(item?.tipo ?? item?.mode ?? "donacion");
   const estadoNorm = normalizeEstado(item?.estado ?? item?.status ?? "disponible");
   const isReviewing = estadoNorm === "en_revision";
+
   const priceRaw = item?.price ?? item?.precio ?? item?.valor ?? 0;
-const priceCOP = formatCOP(priceRaw);
-const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
+  const priceCOP = formatCOP(priceRaw);
+  const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
 
   const isUnderReview = estadoNorm === "en_revision";
 
@@ -269,11 +255,8 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
 
     setOwnerNameResolved("");
 
-    // ✅ Reset de foto por cambio de publicación (evita que quede la del vendedor anterior)
     setOwnerPhotoResolved("");
     setStableOwnerPhoto("");
-    // ✅ Evita parpadeo del avatar: no limpies a vacío antes de resolver
-    // setOwnerPhotoResolved("");
 
     setReportOpen(false);
     setReportReason("Contenido prohibido");
@@ -334,7 +317,6 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
     if (!isOpen) return;
     if (!item) return;
 
-    // ✅ si está en revisión, no hacemos verificación de solicitud, porque NO se puede solicitar
     if (isUnderReview) {
       setCheckingApplied(false);
       setHasApplied(false);
@@ -425,7 +407,6 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
       return;
     }
 
-    // ✅ filtro anti-contacto / malas palabras (evita WhatsApp/teléfonos/correos/links)
     const v = detectarContenidoNoPermitido(text);
     if (v?.hasViolation) {
       alert(buildViolationMessage(v) || "Contenido no permitido.");
@@ -441,7 +422,6 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
     try {
       setIsSubmitting(true);
       const res = await onSolicitar?.(item, text);
-      // Si el handler devuelve un objeto { success:false }, no lo marcamos como aplicado
       if (res && res.success === false) {
         throw new Error(res.error || "No se pudo enviar tu solicitud.");
       }
@@ -522,8 +502,6 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
     try {
       setReportSending(true);
 
-      // ✅ NUEVO: asegura que exista usuarios.id = user.id (evita FK 23503)
-      // Requiere en Supabase: public.ensure_usuario_row(p_uid uuid)
       const { error: ensureErr } = await supabase.rpc("ensure_usuario_row", { p_uid: user.id });
       if (ensureErr) {
         console.error("ensure_usuario_row error:", ensureErr);
@@ -582,45 +560,38 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
         <div className="md:w-1/2 bg-gray-100 relative flex flex-col">
           <div className="relative flex-1 min-h-[260px]">
             <>
-            {/* Fondo blur para evitar espacio vacío */}
-            <img
-              src={mainImage}
-              alt=""
-              aria-hidden="true"
-              className="absolute inset-0 w-full h-full object-cover blur-2xl scale-110 opacity-60"
-              onError={(e) => {
-                if (e.currentTarget.dataset.fallbackApplied) return;
-                e.currentTarget.dataset.fallbackApplied = "1";
-                e.currentTarget.src = FALLBACK_IMAGE;
-              }}
-            />
-                {isReviewing && (
-                  <div className="absolute inset-0 flex items-center justify-center z-20">
-                    <div className="px-6 py-3 rounded-2xl border border-white/40 bg-black/45 backdrop-blur-sm shadow-2xl">
-                      <span className="text-white font-black tracking-widest text-xl md:text-2xl uppercase">
-                        En revisión
-                      </span>
-                    </div>
-                  </div>
-                )}
-            <div className="absolute inset-0 bg-black/20 z-10" />
+              {/* ✅ SIN BLUR: fondo gris suave limpio */}
+              <div className="absolute inset-0 bg-gray-100" aria-hidden="true" />
 
-            {/* Imagen principal (cuadrada) */}
-            <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
-              <div className="w-full max-w-[560px] aspect-square rounded-3xl overflow-hidden bg-gray-200 shadow-xl relative">
-                <img
-                  src={mainImage}
-                  alt={titulo}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    if (e.currentTarget.dataset.fallbackApplied) return;
-                    e.currentTarget.dataset.fallbackApplied = "1";
-                    e.currentTarget.src = FALLBACK_IMAGE;
-                  }}
-                />
+              {isReviewing && (
+                <div className="absolute inset-0 flex items-center justify-center z-20">
+                  <div className="px-6 py-3 rounded-2xl border border-white/40 bg-black/45 backdrop-blur-sm shadow-2xl">
+                    <span className="text-white font-black tracking-widest text-xl md:text-2xl uppercase">
+                      En revisión
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* (opcional) sombra suave para separar la imagen del fondo */}
+              <div className="absolute inset-0 bg-black/10 z-10" />
+
+              {/* Imagen principal (cuadrada) */}
+              <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
+                <div className="w-full max-w-[560px] aspect-square rounded-3xl overflow-hidden bg-gray-200 shadow-xl relative">
+                  <img
+                    src={mainImage}
+                    alt={titulo}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      if (e.currentTarget.dataset.fallbackApplied) return;
+                      e.currentTarget.dataset.fallbackApplied = "1";
+                      e.currentTarget.src = FALLBACK_IMAGE;
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-          </>
+            </>
 
             <button
               onClick={safeClose}
@@ -737,9 +708,7 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
               <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${condition.cls}`}>
                 <span className="text-xs font-black">⭐</span>
                 <span className="text-xs font-black">{conditionScore}/10</span>
-                <span className="text-[10px] font-black uppercase tracking-widest">
-                  {condition.label}
-                </span>
+                <span className="text-[10px] font-black uppercase tracking-widest">{condition.label}</span>
               </div>
             </div>
           ) : null}
@@ -748,21 +717,19 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
             <MapPin size={16} className="text-forest-green" />
             <span className="font-bold">{locationText}</span>
           </div>
-{showPrice && (
-  <div className="mb-6">
-    <div className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-forest-green/10 border border-forest-green/20">
-      <span className="text-[10px] font-black uppercase tracking-widest text-forest-green">
-        Precio
-      </span>
-      <span className="text-lg font-black text-gray-900">
-        {priceCOP}
-      </span>
-    </div>
-    <p className="mt-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-      Pago se coordina con el vendedor
-    </p>
-  </div>
-)}
+
+          {showPrice && (
+            <div className="mb-6">
+              <div className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-forest-green/10 border border-forest-green/20">
+                <span className="text-[10px] font-black uppercase tracking-widest text-forest-green">Precio</span>
+                <span className="text-lg font-black text-gray-900">{priceCOP}</span>
+              </div>
+              <p className="mt-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                Pago se coordina con el vendedor
+              </p>
+            </div>
+          )}
+
           <div className="bg-smoke-white p-4 rounded-2xl mb-6">
             <h3 className="text-xs font-black text-gray-400 uppercase mb-2">Descripción del tesoro</h3>
             <p className="text-gray-600 text-sm leading-relaxed italic">
@@ -818,7 +785,6 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
             </div>
           )}
 
-          {/* Si no disponible (incluye reservado/entregado), mostramos bloque */}
           {!isAvailable && !isUnderReview && (
             <div className="mt-4 bg-gray-50 border border-gray-100 rounded-2xl p-4">
               <p className="text-sm text-gray-600 font-bold">
@@ -832,7 +798,6 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
             </div>
           )}
 
-          {/* DONACIÓN / SOLICITUD (bloqueado si en revisión) */}
           {isGift && isAvailable && !isOwner && !isUnderReview && (
             <div className="mt-6 space-y-4 border-t pt-6">
               {checkingApplied ? (
@@ -887,7 +852,6 @@ const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
             </div>
           )}
 
-          {/* VENTA / RESERVA (bloqueado si en revisión) */}
           {!isGift && isAvailable && !isOwner && !isUnderReview && (
             <div className="mt-auto space-y-3 pt-6 border-t">
               <button

@@ -4,6 +4,7 @@ import { Routes, Route } from "react-router-dom";
 import AdminPage from "./pages/AdminPage";
 import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
+import Terms from "./pages/Terms";
 import Navbar from "./components/Navbar";
 import ProductCard from "./components/ProductCard";
 import PublishModal from "./components/PublishModal";
@@ -1418,7 +1419,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     <Routes>
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route
+        <Route path="/terminos" element={<Terms />} />
+<Route
         path="/"
         element={
           <div className="min-h-screen bg-[#F5F5F5]">

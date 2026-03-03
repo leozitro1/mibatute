@@ -225,7 +225,6 @@ export default function Navbar({
   const displayName = user?.nombre?.trim() || user?.displayName?.trim() || user?.email?.trim() || "";
   const avatarLetter = (displayName?.[0] || "U").toUpperCase();
 
-  // Search UI state (for clear "X" and mobile layout)
   const [searchValue, setSearchValue] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const searchInputRef = useRef(null);
@@ -272,12 +271,10 @@ export default function Navbar({
     }
   }, [user?.id]);
 
-  // 1) carga inicial
   useEffect(() => {
     loadModerationState();
   }, [loadModerationState]);
 
-  // 2) contador en vivo
   useEffect(() => {
     if (!banUntil) {
       setRemainingMs(0);
@@ -296,11 +293,9 @@ export default function Navbar({
     return () => clearInterval(id);
   }, [banUntil]);
 
-  // 3) ✅ Realtime: se actualiza INMEDIATO cuando el admin cambia usuarios
   useEffect(() => {
     if (!user?.id) return;
 
-    // Creamos un canal único por usuario para evitar duplicados
     const channel = supabase
       .channel(`usuarios-moderation-${user.id}`)
       .on(
@@ -321,11 +316,7 @@ export default function Navbar({
           setRemainingMs(Math.max(0, t - Date.now()));
         }
       )
-      .subscribe((status) => {
-        // Si no está habilitado realtime/replication, esto no va a “live”, por eso dejamos polling abajo.
-        // status puede ser 'SUBSCRIBED', 'CHANNEL_ERROR', etc.
-        // console.log("Realtime usuarios status:", status);
-      });
+      .subscribe(() => {});
 
     return () => {
       try {
@@ -334,7 +325,6 @@ export default function Navbar({
     };
   }, [user?.id]);
 
-  // 4) ✅ Polling backup (por si Realtime no está habilitado): cada 5s
   useEffect(() => {
     if (!user?.id) return;
     const id = setInterval(() => {
@@ -369,6 +359,10 @@ export default function Navbar({
 
   const selectedCatObj = categoriesNormalized.find((c) => String(c.key) === String(selectedCategory)) || null;
   const subOptions = selectedCatObj?.subs || [];
+
+  const subcategoriesNormalized = useMemo(() => {
+    return (subOptions || []).map((s) => (typeof s === "string" ? s : s?.key || s?.label || "")).filter(Boolean);
+  }, [subOptions]);
 
   const msgBtnRef = useRef(null);
   const [openNotifs, setOpenNotifs] = useState(false);
@@ -455,124 +449,98 @@ export default function Navbar({
   return (
     <>
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        <button
-          type="button"
-          className="flex items-center gap-3 cursor-pointer"
-          onClick={handleLogoClick}
-          aria-label="Ir al inicio"
-          title="Ir al inicio"
-        >
-          <img
-            src={logoMiBatute}
-            alt="MiBatute"
-            className="h-14 w-14 md:h-16 md:w-16 rounded-xl object-contain"
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-            }}
-          />
-
-          <div className="flex flex-col leading-none">
-            <span className="text-[22px] md:text-[28px] font-extrabold tracking-tight text-gray-900">
-              Mi<span className="text-forest-green">Batute</span>
-            </span>
-            <span className="text-[12px] md:text-[13px] font-semibold text-gray-500 mt-1">
-              mi basura, tu tesoro
-            </span>
-
-            {user && isBlocked ? (
-              <span className="mt-1 text-[11px] font-black text-red-700">Cuenta BLOQUEADA</span>
-            ) : null}
-            {user && !isBlocked && isBanned ? (
-              <span className="mt-1 text-[11px] font-black text-orange-700">
-                Sanción: {formatRemaining(remainingMs)}
-              </span>
-            ) : null}
-          </div>
-        </button>
-
-        <div className="flex-1 max-w-3xl relative">
-          {/* Search */}
-          <div className="relative w-full">
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchValue}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              onChange={(e) => {
-                const v = e.target.value;
-                setSearchValue(v);
-                onSearch?.(v);
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+          <button
+            type="button"
+            className="flex items-center gap-3 cursor-pointer"
+            onClick={handleLogoClick}
+            aria-label="Ir al inicio"
+            title="Ir al inicio"
+          >
+            <img
+              src={logoMiBatute}
+              alt="MiBatute"
+              className="h-14 w-14 md:h-16 md:w-16 rounded-xl object-contain"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
               }}
-              placeholder="Busca artículos, materiales, repuestos..."
-              className="w-full bg-gray-100 border-none rounded-full py-2.5 pl-10 pr-14 sm:pr-[170px] lg:pr-[320px] focus:ring-2 focus:ring-forest-green outline-none text-sm"
-              aria-label="Buscar"
             />
 
-            {/* left icon */}
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <div className="flex flex-col leading-none">
+              <span className="text-[22px] md:text-[28px] font-extrabold tracking-tight text-gray-900">
+                Mi<span className="text-forest-green">Batute</span>
+              </span>
+              <span className="text-[12px] md:text-[13px] font-semibold text-gray-500 mt-1">
+                mi basura, tu tesoro
+              </span>
 
-            {/* clear X */}
-            {searchValue?.trim()?.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchValue("");
-                  onSearch?.("");
-                  // keep focus so user can type again
-                  requestAnimationFrame(() => searchInputRef.current?.focus());
+              {user && isBlocked ? (
+                <span className="mt-1 text-[11px] font-black text-red-700">Cuenta BLOQUEADA</span>
+              ) : null}
+              {user && !isBlocked && isBanned ? (
+                <span className="mt-1 text-[11px] font-black text-orange-700">
+                  Sanción: {formatRemaining(remainingMs)}
+                </span>
+              ) : null}
+            </div>
+          </button>
+
+          <div className="flex-1 max-w-3xl relative">
+            <div className="relative w-full">
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchValue}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSearchValue(v);
+                  onSearch?.(v);
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-8 w-8 rounded-full bg-white/90 border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-forest-green transition z-10"
-                aria-label="Borrar búsqueda"
-                title="Borrar"
-              >
-                <X size={16} />
-              </button>
-            ) : null}
+                placeholder="Busca artículos, materiales, repuestos..."
+                className="w-full bg-gray-100 border-none rounded-full py-2.5 pl-10 pr-14 sm:pr-[170px] lg:pr-[320px] focus:ring-2 focus:ring-forest-green outline-none text-sm"
+                aria-label="Buscar"
+              />
 
-            {/* Category selector (desktop only) */}
-            {categoriesNormalized.length > 0 ? (
-              <div className="hidden lg:flex absolute right-[170px] top-1.5 items-center gap-2">
-                <div className="relative flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group">
-                  <span className="text-[10px] font-black uppercase text-gray-400">Cat</span>
-                  <select
-                    value={selectedCategory || ""}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      onCategoryChange?.(v);
-                      // If category changes, optionally reset subcategory (keeps existing behavior if parent handles it)
-                    }}
-                    className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6"
-                    aria-label="Filtrar por categoría"
-                  >
-                    <option value="">Todas</option>
-                    {categoriesNormalized.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={12}
-                    className="absolute right-2 text-gray-400 group-hover:text-forest-green pointer-events-none"
-                  />
-                </div>
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={18}
+              />
 
-                {/* Subcategory selector (desktop only) */}
-                {subcategoriesNormalized.length > 0 ? (
+              {searchValue?.trim()?.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchValue("");
+                    onSearch?.("");
+                    requestAnimationFrame(() => searchInputRef.current?.focus());
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-8 w-8 rounded-full bg-white/90 border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-forest-green transition z-10"
+                  aria-label="Borrar búsqueda"
+                  title="Borrar"
+                >
+                  <X size={16} />
+                </button>
+              ) : null}
+
+              {categoriesNormalized.length > 0 ? (
+                <div className="hidden lg:flex absolute right-[170px] top-1.5 items-center gap-2">
                   <div className="relative flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group">
-                    <span className="text-[10px] font-black uppercase text-gray-400">Sub</span>
+                    <span className="text-[10px] font-black uppercase text-gray-400">Cat</span>
                     <select
-                      value={selectedSubcategory || ""}
-                      onChange={(e) => onSubcategoryChange?.(e.target.value)}
+                      value={selectedCategory || ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        onCategoryChange?.(v);
+                      }}
                       className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6"
-                      aria-label="Filtrar por subcategoría"
+                      aria-label="Filtrar por categoría"
                     >
                       <option value="">Todas</option>
-                      {subcategoriesNormalized.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
+                      {categoriesNormalized.map((c) => (
+                        <option key={c.key} value={c.key}>
+                          {c.label}
                         </option>
                       ))}
                     </select>
@@ -581,150 +549,198 @@ export default function Navbar({
                       className="absolute right-2 text-gray-400 group-hover:text-forest-green pointer-events-none"
                     />
                   </div>
-                ) : null}
+
+                  {subcategoriesNormalized.length > 0 ? (
+                    <div className="relative flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group">
+                      <span className="text-[10px] font-black uppercase text-gray-400">Sub</span>
+                      <select
+                        value={selectedSubcategory || ""}
+                        onChange={(e) => onSubcategoryChange?.(e.target.value)}
+                        className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6"
+                        aria-label="Filtrar por subcategoría"
+                      >
+                        <option value="">Todas</option>
+                        {subcategoriesNormalized.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={12}
+                        className="absolute right-2 text-gray-400 group-hover:text-forest-green pointer-events-none"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div
+                className={`hidden sm:flex absolute right-3 top-1.5 items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group ${
+                  searchFocused || (searchValue?.trim()?.length > 0) ? "opacity-0 pointer-events-none" : "opacity-100"
+                }`}
+              >
+                <MapPin size={14} className="hidden sm:block text-forest-green" />
+                <select
+                  value={currentCity}
+                  onChange={(e) => onCityChange?.(e.target.value)}
+                  className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6"
+                  aria-label="Seleccionar ciudad"
+                >
+                  {COLOMBIA_DATA.map((c) => (
+                    <option key={c.city} value={c.city}>
+                      {c.city}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={12}
+                  className="absolute right-2 text-gray-400 group-hover:text-forest-green pointer-events-none"
+                />
+              </div>
+            </div>
+
+            <div className={`${searchFocused || (searchValue?.trim()?.length > 0) ? "hidden" : "flex"} sm:hidden mt-2`}>
+              <div className="w-full flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-2 shadow-sm">
+                <select
+                  value={currentCity}
+                  onChange={(e) => onCityChange?.(e.target.value)}
+                  className="w-full bg-transparent text-[12px] font-bold text-gray-700 outline-none appearance-none cursor-pointer pr-6"
+                  aria-label="Seleccionar ciudad"
+                >
+                  {COLOMBIA_DATA.map((c) => (
+                    <option key={c.city} value={c.city}>
+                      {c.city}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="text-gray-400 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handlePublish}
+              disabled={publishDisabled}
+              title={publishTitle}
+              className={`px-5 py-2 rounded-xl text-sm font-black transition shadow-md ${
+                publishDisabled
+                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  : "bg-forest-green text-white hover:bg-opacity-90"
+              }`}
+            >
+              {user && isBlocked
+                ? "Publicar (bloqueado)"
+                : user && isBanned
+                ? `Publicar (${formatRemaining(remainingMs)})`
+                : "Publicar"}
+            </button>
+
+            {user ? (
+              <div className="relative">
+                <button
+                  ref={msgBtnRef}
+                  type="button"
+                  onClick={handleMessagesButton}
+                  disabled={isBlocked}
+                  className={`relative p-2 rounded-xl transition ${
+                    isBlocked ? "bg-gray-200 cursor-not-allowed" : "bg-gray-100 hover:bg-gray-200"
+                  }`}
+                  title={isBlocked ? "Bloqueado: no puedes usar chats" : "Mensajes"}
+                  aria-label="Mensajes"
+                >
+                  <MessageCircle size={18} className={isBlocked ? "text-gray-400" : "text-gray-700"} />
+                  {!isBlocked ? <Badge count={dropdownCount} /> : null}
+                </button>
+
+                <NotificationsDropdown
+                  isOpen={openNotifs && !isBlocked}
+                  anchorRef={msgBtnRef}
+                  onClose={() => setOpenNotifs(false)}
+                  items={visibleNotifs}
+                  onItemClick={handleNotifClick}
+                  emptyText="No tienes notificaciones"
+                />
               </div>
             ) : null}
 
-            {/* City selector (desktop). Hidden while typing/focused to avoid covering the input */}
-            <div
-              className={`hidden sm:flex absolute right-3 top-1.5 items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group ${
-                searchFocused || (searchValue?.trim()?.length > 0) ? "opacity-0 pointer-events-none" : "opacity-100"
-              }`}
-            >
-              <MapPin size={14} className="hidden sm:block text-forest-green" />
-              <select
-                value={currentCity}
-                onChange={(e) => onCityChange?.(e.target.value)}
-                className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6"
-                aria-label="Seleccionar ciudad"
-              >
-                {COLOMBIA_DATA.map((c) => (
-                  <option key={c.city} value={c.city}>
-                    {c.city}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={12}
-                className="absolute right-2 text-gray-400 group-hover:text-forest-green pointer-events-none"
-              />
-            </div>
-          </div>
-
-          {/* City selector (mobile). Shown below search; hidden while typing */}
-          <div className={`${searchFocused || (searchValue?.trim()?.length > 0) ? "hidden" : "flex"} sm:hidden mt-2`}>
-            <div className="w-full flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-2 shadow-sm">
-              <select
-                value={currentCity}
-                onChange={(e) => onCityChange?.(e.target.value)}
-                className="w-full bg-transparent text-[12px] font-bold text-gray-700 outline-none appearance-none cursor-pointer pr-6"
-                aria-label="Seleccionar ciudad"
-              >
-                {COLOMBIA_DATA.map((c) => (
-                  <option key={c.city} value={c.city}>
-                    {c.city}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="text-gray-400 pointer-events-none" />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handlePublish}
-            disabled={publishDisabled}
-            title={publishTitle}
-            className={`px-5 py-2 rounded-xl text-sm font-black transition shadow-md ${
-              publishDisabled
-                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                : "bg-forest-green text-white hover:bg-opacity-90"
-            }`}
-          >
-            {user && isBlocked
-              ? "Publicar (bloqueado)"
-              : user && isBanned
-              ? `Publicar (${formatRemaining(remainingMs)})`
-              : "Publicar"}
-          </button>
-
-          {user ? (
-            <div className="relative">
-              <button
-                ref={msgBtnRef}
-                type="button"
-                onClick={handleMessagesButton}
-                disabled={isBlocked}
-                className={`relative p-2 rounded-xl transition ${
-                  isBlocked ? "bg-gray-200 cursor-not-allowed" : "bg-gray-100 hover:bg-gray-200"
-                }`}
-                title={isBlocked ? "Bloqueado: no puedes usar chats" : "Mensajes"}
-                aria-label="Mensajes"
-              >
-                <MessageCircle size={18} className={isBlocked ? "text-gray-400" : "text-gray-700"} />
-                {!isBlocked ? <Badge count={dropdownCount} /> : null}
-              </button>
-
-              <NotificationsDropdown
-                isOpen={openNotifs && !isBlocked}
-                anchorRef={msgBtnRef}
-                onClose={() => setOpenNotifs(false)}
-                items={visibleNotifs}
-                onItemClick={handleNotifClick}
-                emptyText="No tienes notificaciones"
-              />
-            </div>
-          ) : null}
-
-          {user ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onProfileClick}
-                className="relative flex items-center gap-2 cursor-pointer bg-gray-50 p-1 rounded-full pr-3 border border-gray-100 hover:border-forest-green transition"
-                title="Ver perfil"
-                aria-label="Ver perfil"
-              >
-                <div className="relative w-8 h-8">
-                  <div className="w-8 h-8 bg-forest-green text-white rounded-full flex items-center justify-center font-black text-xs">
-                    {avatarLetter}
+            {user ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onProfileClick}
+                  className="relative flex items-center gap-2 cursor-pointer bg-gray-50 p-1 rounded-full pr-3 border border-gray-100 hover:border-forest-green transition"
+                  title="Ver perfil"
+                  aria-label="Ver perfil"
+                >
+                  <div className="relative w-8 h-8">
+                    <div className="w-8 h-8 bg-forest-green text-white rounded-full flex items-center justify-center font-black text-xs">
+                      {avatarLetter}
+                    </div>
                   </div>
-                </div>
 
-                <span className="text-xs font-bold text-gray-700 hidden sm:block max-w-[140px] truncate">
-                  {displayName}
-                </span>
-              </button>
+                  <span className="text-xs font-bold text-gray-700 hidden sm:block max-w-[140px] truncate">
+                    {displayName}
+                  </span>
+                </button>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowLogoutConfirm(true);
-                }}
-                className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition"
-                title="Salir"
-                aria-label="Salir"
-              >
-                <LogOut size={16} className="text-gray-600" />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={onLoginClick}
-              className="p-2 rounded-xl hover:bg-gray-100 transition"
-              aria-label="Ingresar"
-              title="Ingresar"
+            {/* ✅ TyC siempre visible (abre en nueva pestaña) */}
+            <a
+              href="/terminos"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition inline-flex items-center justify-center"
+              title="Términos y condiciones"
+              aria-label="Términos y condiciones"
             >
-              <User className="text-gray-400 hover:text-forest-green transition" />
-            </button>
-          )}
+              <span className="text-[11px] font-black text-gray-600 leading-none">TC</span>
+            </a>
+
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowLogoutConfirm(true);
+                  }}
+                  className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition"
+                  title="Salir"
+                  aria-label="Salir"
+                >
+                  <LogOut size={16} className="text-gray-600" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+            {/* ✅ TyC siempre visible (abre en nueva pestaña) */}
+           
+
+                <button
+                  type="button"
+                  onClick={onLoginClick}
+                  className="p-2 rounded-xl hover:bg-gray-100 transition"
+                  aria-label="Ingresar"
+                  title="Ingresar"
+                >
+                  <User className="text-gray-400 hover:text-forest-green transition" />
+                </button>
+                 <a
+              href="/terminos"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-xl bg-gray-100 hover:bg-gray-200 transition inline-flex items-center justify-center"
+              title="Términos y condiciones"
+              aria-label="Términos y condiciones"
+            >
+              <span className="text-[11px] font-black text-gray-400 leading-none">TC</span>
+            </a>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
 
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">

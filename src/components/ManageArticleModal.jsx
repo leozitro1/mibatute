@@ -107,10 +107,6 @@ export default function ManageArticleModal({
   const [savingWinner, setSavingWinner] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // ✅ VENTA (comprador)
-  const [buyerLoading, setBuyerLoading] = useState(false);
-  const [buyerPublic, setBuyerPublic] = useState(null);
-
   // ✅ DONACIÓN (ganador)
   const [winnerLoading, setWinnerLoading] = useState(false);
   const [winnerPublic, setWinnerPublic] = useState(null);
@@ -183,39 +179,6 @@ export default function ManageArticleModal({
       alive = false;
     };
   }, [articuloId, isOpen, isVenta]);
-
-  // ===========================
-  // ✅ VENTA: cargar comprador (usuarios_publicos)
-  // ===========================
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!isVenta) return;
-    if (!buyerId) return;
-
-    let alive = true;
-
-    const fetchBuyer = async () => {
-      setBuyerLoading(true);
-      setBuyerPublic(null);
-
-      const { data, error } = await supabase
-        .from("usuarios_publicos")
-        .select("id,nombre,foto_url")
-        .eq("id", buyerId)
-        .maybeSingle();
-
-      if (!alive) return;
-
-      if (!error && data) setBuyerPublic(data);
-      setBuyerLoading(false);
-    };
-
-    fetchBuyer();
-
-    return () => {
-      alive = false;
-    };
-  }, [isOpen, isVenta, buyerId]);
 
   // ===========================
   // ✅ DONACIÓN: cargar ganador (usuarios_publicos) + fallback
@@ -386,10 +349,6 @@ export default function ManageArticleModal({
 
       if (upErr) throw upErr;
 
-      // ✅ CAMBIO CLAVE:
-      // NO cerramos el chat acá. El historial debe seguir abriendo.
-      // La "solo lectura" se controla en ChatMessenger cuando estado/status === entregado.
-
       alert("✅ Marcado como ENTREGADO. El chat queda disponible para ver historial (solo lectura).");
 
       if (typeof onCancelSaleSuccess === "function") {
@@ -467,7 +426,6 @@ export default function ManageArticleModal({
         article: {
           ...article,
           ganador_id: winnerId,
-          // si está entregado lo pasamos como entregado; si no, reservado.
           estado: isEntregado ? "entregado" : "reservado",
           status: isEntregado ? "entregado" : "reservado",
         },
@@ -494,10 +452,6 @@ export default function ManageArticleModal({
       });
 
       if (err1) throw err1;
-
-      // ✅ Igual que arriba: NO “cerramos” chats aquí forzado (opcional).
-      // Si tú quieres borrar chats al cancelar venta, lo hacemos en App.jsx o en un servicio,
-      // pero no lo cierro acá para no romper historial por columnas/policies.
 
       alert("Venta cancelada. El artículo volvió a estar disponible ✅");
 
@@ -535,7 +489,8 @@ export default function ManageArticleModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-2xl overflow-hidden">
+      {/* ✅ Modal más angosto */}
+      <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden">
         {/* HEADER */}
         <div className="p-8 pb-6">
           <div className="flex items-start justify-between gap-4">
@@ -599,41 +554,6 @@ export default function ManageArticleModal({
                     </p>
                   </div>
 
-                  {buyerId ? (
-                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                      <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Comprador</p>
-
-                      {buyerLoading ? (
-                        <p className="text-xs text-gray-400 font-bold">Cargando comprador...</p>
-                      ) : (
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-gray-200 shrink-0 flex items-center justify-center">
-                            {buyerPublic?.foto_url ? (
-                              <img
-                                src={buyerPublic.foto_url}
-                                alt={buyerPublic?.nombre || "Comprador"}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                }}
-                              />
-                            ) : (
-                              <span className="font-black text-gray-500">
-                                {(buyerPublic?.nombre?.[0] || "C").toUpperCase()}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="text-sm font-black text-gray-800 truncate">
-                              {buyerPublic?.nombre || "Comprador"}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-
                   <button
                     onClick={handleOpenChatVenta}
                     className="w-full bg-forest-green text-white text-[11px] font-black py-3 rounded-2xl uppercase"
@@ -654,41 +574,8 @@ export default function ManageArticleModal({
                   <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
                     <p className="text-sm font-black text-green-800 uppercase">Reserva activa ✅</p>
                     <p className="text-xs text-green-700 mt-1">
-                      Ya hay un comprador. Puedes chatear, marcar como entregado o cancelar si no hubo acuerdo.
+                      Ya hay una reserva. Puedes chatear, marcar como entregado o cancelar si no hubo acuerdo.
                     </p>
-                  </div>
-
-                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                    <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Comprador</p>
-
-                    {buyerLoading ? (
-                      <p className="text-xs text-gray-400 font-bold">Cargando comprador...</p>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-gray-200 shrink-0 flex items-center justify-center">
-                          {buyerPublic?.foto_url ? (
-                            <img
-                              src={buyerPublic.foto_url}
-                              alt={buyerPublic?.nombre || "Comprador"}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                          ) : (
-                            <span className="font-black text-gray-500">
-                              {(buyerPublic?.nombre?.[0] || "C").toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="min-w-0">
-                          <p className="text-sm font-black text-gray-800 truncate">
-                            {buyerPublic?.nombre || "Comprador"}
-                          </p>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   <button
@@ -696,7 +583,7 @@ export default function ManageArticleModal({
                     className="w-full bg-forest-green text-white text-[11px] font-black py-3 rounded-2xl uppercase"
                     type="button"
                   >
-                    Abrir chat con comprador
+                    Abrir chat
                   </button>
 
                   <button
