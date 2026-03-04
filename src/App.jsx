@@ -4,6 +4,8 @@ import { Routes, Route } from "react-router-dom";
 import AdminPage from "./pages/AdminPage";
 import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
+import Terms from "./pages/Terms";
+import MasterPage from "./pages/MasterPage";
 import Navbar from "./components/Navbar";
 import ProductCard from "./components/ProductCard";
 import PublishModal from "./components/PublishModal";
@@ -186,7 +188,7 @@ export default function App() {
   const [selectedCity, setSelectedCity] = useState("Bogotá");
   const [selectedLocality, setSelectedLocality] = useState("Todas");
 
-  const [quickTipo, setQuickTipo] = useState("todo"); // todo | donacion | venta
+  const [quickTipo, setQuickTipo] = useState("todo"); // todo | donacion | venta | destacado
   const [onlyActive, setOnlyActive] = useState(true);
   const [sortOrder, setSortOrder] = useState("newest"); // newest | oldest
 
@@ -1365,7 +1367,11 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
       if (onlyActive && estadoActual === "reservado") return !!(isOwner || isBuyer || isWinner);
 
-      if (quickTipo !== "todo") {
+      if (quickTipo === "destacado") {
+        // ✅ Muestra SOLO los artículos marcados como destacados
+        if (!item?.isFeatured) return false;
+      } else if (quickTipo !== "todo") {
+        // Donación o Venta
         if (tipo !== quickTipo) return false;
       }
 
@@ -1596,17 +1602,18 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                                 </button>
 
                                 {isActive ? (
-                                  <div className="mt-2 ml-2 space-y-1">
+                                  <div className="mt-2 ml-3 space-y-1 bg-gray-50/70 p-2 rounded-2xl border border-gray-100">
                                     <button
                                       type="button"
                                       onClick={() => setSelectedSubcategory("")}
-                                      className={`w-full text-left text-[13px] py-2 px-3 rounded-2xl transition border ${
+                                      className={`w-full text-left text-[13px] py-2 px-3 rounded-2xl transition border flex items-center gap-2 ${
                                         !selectedSubcategory
                                           ? "bg-forest-green text-white font-bold border-forest-green"
                                           : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
                                       }`}
                                     >
-                                      Todas
+                                      <span className={`text-[10px] ${!selectedSubcategory ? "text-white/90" : "text-gray-400"}`}>•</span>
+                                      <span className="truncate">Todas</span>
                                     </button>
 
                                     {cat.subs.map((sub) => (
@@ -1614,13 +1621,14 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                                         key={sub}
                                         type="button"
                                         onClick={() => setSelectedSubcategory(sub)}
-                                        className={`w-full text-left text-[13px] py-2 px-3 rounded-2xl transition border ${
+                                        className={`w-full text-left text-[13px] py-2 px-3 rounded-2xl transition border flex items-center gap-2 ${
                                           selectedSubcategory === sub
                                             ? "bg-forest-green text-white font-bold border-forest-green"
                                             : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
                                         }`}
                                       >
-                                        {sub}
+                                        <span className={`text-[10px] ${selectedSubcategory === sub ? "text-white/90" : "text-gray-400"}`}>•</span>
+                                        <span className="truncate">{sub}</span>
                                       </button>
                                     ))}
                                   </div>
@@ -1674,6 +1682,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                                 { key: "todo", label: "Todo" },
                                 { key: "donacion", label: "Donación / Regalo" },
                                 { key: "venta", label: "Venta" },
+                                { key: "destacado", label: "Destacado" },
                               ].map((t) => (
                                 <button
                                   key={t.key}
@@ -1975,6 +1984,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       />
 
       <Route path="/admin" element={<AdminPage />} />
-    </Routes>
+      <Route path="/master" element={<MasterPage />} />
+      <Route path="/terminos" element={<Terms />} />
+      </Routes>
   );
 }

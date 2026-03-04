@@ -608,9 +608,9 @@ export default function AdminPage() {
   // ---------------- UI ----------------
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center" style={{ fontFamily: 'Arial, "DIN Alternate", "DIN", system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm px-6 py-4">
-          <p className="font-black text-gray-800">Cargando panel…</p>
+          <p className="font-semibold text-gray-800">Cargando panel…</p>
         </div>
       </div>
     );
@@ -619,13 +619,13 @@ export default function AdminPage() {
   // Primero: requiere sesión (tu control actual)
   if (!authUser?.id) {
     return (
-      <div className="min-h-screen bg-[#F5F5F5]">
+      <div className="min-h-screen bg-[#F5F5F5]" style={{ fontFamily: 'Arial, "DIN Alternate", "DIN", system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
         <div className="max-w-6xl mx-auto px-4 py-10">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
-            <h1 className="text-2xl font-black text-gray-800">Panel de Moderación</h1>
-            <p className="text-sm text-gray-500 font-bold mt-1">Debes iniciar sesión para entrar.</p>
+            <h1 className="text-2xl font-semibold text-gray-800">Panel de Moderación</h1>
+            <p className="text-sm text-gray-500 font-medium mt-1">Debes iniciar sesión para entrar.</p>
             <div className="mt-6 flex gap-3">
-              <Link to="/" className="px-4 py-2 rounded-2xl bg-gray-900 text-white font-black text-sm">
+              <Link to="/" className="px-4 py-2 rounded-2xl bg-gray-900 text-white font-semibold text-sm">
                 Volver al Home
               </Link>
             </div>
@@ -638,31 +638,31 @@ export default function AdminPage() {
   // Segundo: Gate adicional usuario/clave (NO BD)
   if (!gateOk) {
     return (
-      <div className="min-h-screen bg-[#F5F5F5]">
+      <div className="min-h-screen bg-[#F5F5F5]" style={{ fontFamily: 'Arial, "DIN Alternate", "DIN", system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
         <div className="max-w-md mx-auto px-4 py-10">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
-            <h1 className="text-2xl font-black text-gray-800">Acceso restringido</h1>
-            <p className="text-sm text-gray-500 font-bold mt-1">Ingresa usuario y contraseña para ver el panel.</p>
+            <h1 className="text-2xl font-semibold text-gray-800">Acceso restringido</h1>
+            <p className="text-sm text-gray-500 font-medium mt-1">Ingresa usuario y contraseña para ver el panel.</p>
 
             <form onSubmit={handleGateSubmit} className="mt-6 space-y-3">
               <div>
-                <label className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Usuario</label>
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Usuario</label>
                 <input
                   value={gateUser}
                   onChange={(e) => setGateUser(e.target.value)}
-                  className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-bold text-sm"
+                  className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-medium text-sm"
                   placeholder="Usuario"
                   autoComplete="username"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Contraseña</label>
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Contraseña</label>
                 <input
                   value={gatePass}
                   onChange={(e) => setGatePass(e.target.value)}
                   type="password"
-                  className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-bold text-sm"
+                  className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-medium text-sm"
                   placeholder="Contraseña"
                   autoComplete="current-password"
                 />
@@ -670,17 +670,17 @@ export default function AdminPage() {
 
               {gateErr ? (
                 <div className="bg-red-50 border border-red-100 rounded-2xl p-3">
-                  <p className="text-xs font-black text-red-700">{gateErr}</p>
+                  <p className="text-xs font-semibold text-red-700">{gateErr}</p>
                 </div>
               ) : null}
 
-              <button type="submit" className="w-full px-4 py-3 rounded-2xl bg-gray-900 text-white font-black text-sm">
+              <button type="submit" className="w-full px-4 py-3 rounded-2xl bg-gray-900 text-white font-semibold text-sm">
                 Entrar
               </button>
 
               <Link
                 to="/"
-                className="block text-center px-4 py-3 rounded-2xl bg-gray-100 text-gray-900 font-black text-sm border border-gray-200"
+                className="block text-center px-4 py-3 rounded-2xl bg-gray-100 text-gray-900 font-semibold text-sm border border-gray-200"
               >
                 Volver al Home
               </Link>
@@ -692,13 +692,13 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5]">
+    <div className="min-h-screen bg-[#F5F5F5]" style={{ fontFamily: 'Arial, "DIN Alternate", "DIN", system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
       <div className="max-w-6xl mx-auto px-4 py-10">
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-black text-gray-800">Panel de Moderación</h1>
-              <p className="text-sm text-gray-500 font-bold mt-1">{viewMode === "chat" ? "Denuncias de chat (sin filtros por ciudad)" : "Denuncias de publicaciones (filtro Ciudad / Localidad)"}</p>
+              <h1 className="text-2xl font-semibold text-gray-800">Panel de Moderación</h1>
+              <p className="text-sm text-gray-500 font-medium mt-1">{viewMode === "chat" ? "Denuncias de chat (sin filtros por ciudad)" : "Denuncias de publicaciones (filtro Ciudad / Localidad)"}</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -711,7 +711,7 @@ export default function AdminPage() {
                   loadReports({ force: true });
                 }}
                 className={
-                  "px-4 py-2 rounded-2xl font-black text-sm border " +
+                  "px-4 py-2 rounded-2xl font-semibold text-sm border " +
                   (viewMode === "articulos"
                     ? "bg-gray-900 text-white border-gray-900"
                     : "bg-white text-gray-900 border-gray-200 hover:border-gray-900")
@@ -721,30 +721,10 @@ export default function AdminPage() {
               >
                 Publicaciones
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setViewMode("chat");
-                  setCityFilter("Todas");
-                  setLocalityFilter("Todas");
-                  loadReports({ force: true });
-                }}
-                className={
-                  "px-4 py-2 rounded-2xl font-black text-sm border " +
-                  (viewMode === "chat"
-                    ? "bg-gray-900 text-white border-gray-900"
-                    : "bg-white text-gray-900 border-gray-200 hover:border-gray-900")
-                }
-                disabled={rowsLoading}
-                title="Ver denuncias hechas desde el chat"
-              >
-                Chat
-              </button>
-              <button
+<button
                 type="button"
                 onClick={() => loadReports({ force: true })}
-                className="px-4 py-2 rounded-2xl bg-gray-100 text-gray-900 font-black text-sm border border-gray-200 hover:border-gray-900"
+                className="px-4 py-2 rounded-2xl bg-gray-100 text-gray-900 font-semibold text-sm border border-gray-200 hover:border-gray-900"
                 disabled={rowsLoading}
               >
                 Refrescar
@@ -753,12 +733,12 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={handleGateLogout}
-                className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-black text-sm border border-gray-200 hover:border-gray-900"
+                className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-sm border border-gray-200 hover:border-gray-900"
               >
                 Salir
               </button>
 
-              <Link to="/" className="px-4 py-2 rounded-2xl bg-gray-900 text-white font-black text-sm">
+              <Link to="/" className="px-4 py-2 rounded-2xl bg-gray-900 text-white font-semibold text-sm">
                 Volver al Home
               </Link>
             </div>
@@ -766,18 +746,18 @@ export default function AdminPage() {
 
           {viewMode !== "chat" && (
             <div className="mt-6 bg-gray-50 border border-gray-100 rounded-3xl p-5">
-            <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Filtros</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Filtros</p>
 
             <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-white border border-gray-100 rounded-2xl p-4">
-                <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Ciudad</p>
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Ciudad</p>
                 <select
                   value={cityFilter}
                   onChange={(e) => {
                     setCityFilter(e.target.value);
                     setLocalityFilter("Todas");
                   }}
-                  className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-bold text-sm"
+                  className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-medium text-sm"
                 >
                   {cities.map((c) => (
                     <option key={c} value={c}>
@@ -788,11 +768,11 @@ export default function AdminPage() {
               </div>
 
               <div className="bg-white border border-gray-100 rounded-2xl p-4">
-                <p className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Localidad / Barrio</p>
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Localidad / Barrio</p>
                 <select
                   value={localityFilter}
                   onChange={(e) => setLocalityFilter(e.target.value)}
-                  className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-bold text-sm"
+                  className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-medium text-sm"
                 >
                   {localities.map((l) => (
                     <option key={l} value={l}>
@@ -809,111 +789,20 @@ export default function AdminPage() {
 
             {rowsLoading ? (
               <div className="bg-white border border-gray-100 rounded-2xl p-4">
-                <p className="text-sm font-black text-gray-700">Cargando reportes…</p>
+                <p className="text-sm font-semibold text-gray-700">Cargando reportes…</p>
               </div>
             ) : rowsError ? (
               <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
-                <p className="text-sm font-black text-red-700">Error cargando reportes</p>
+                <p className="text-sm font-semibold text-red-700">Error cargando reportes</p>
                 <p className="text-xs text-red-700 mt-1">{rowsError}</p>
               </div>
             ) : null}
           </div>
 
-          {/* ---------------- Usuarios bloqueados ---------------- */}
-          <div className="mt-6 bg-white border border-gray-100 rounded-3xl p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Usuarios</p>
-                <h2 className="text-lg font-black text-gray-900 mt-1">Bloqueados</h2>
-                <p className="text-xs text-gray-500 font-bold mt-1">
-                  Lista directa desde <span className="font-black">usuarios.is_blocked = true</span>
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={loadBlockedUsers}
-                className="px-4 py-2 rounded-2xl bg-gray-100 text-gray-900 font-black text-sm border border-gray-200 hover:border-gray-900"
-                disabled={blockedLoading}
-              >
-                Refrescar bloqueados
-              </button>
-            </div>
-
-            <div className="mt-4">
-              {blockedLoading ? (
-                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                  <p className="text-sm font-black text-gray-700">Cargando bloqueados…</p>
-                </div>
-              ) : blockedError ? (
-                <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
-                  <p className="text-sm font-black text-red-700">Error cargando bloqueados</p>
-                  <p className="text-xs text-red-700 mt-1">{blockedError}</p>
-                </div>
-              ) : blockedUsers.length === 0 ? (
-                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                  <p className="text-sm font-black text-gray-700">No hay usuarios bloqueados.</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {blockedUsers.map((u) => (
-                    <div key={u.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2 py-1 rounded-full bg-red-100 text-red-800 border border-red-200 text-[10px] font-black">
-                              BLOQUEADO
-                            </span>
-
-                            <span className="text-sm font-black text-gray-900 truncate">{u.name}</span>
-
-                            <span className="text-xs text-gray-500 font-bold">{u.email ? u.email : `ID: ${u.id}`}</span>
-
-                            {u.ban_until ? (
-                              <span className="text-xs font-black text-orange-900 bg-orange-100 border border-orange-200 px-2 py-1 rounded-full">
-                                Sanción hasta: {fmtDate(u.ban_until)}
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setBlocked(u.id, false)}
-                            className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-black text-xs border border-gray-200 hover:border-gray-900"
-                          >
-                            Desbloquear
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => clearBan(u.id)}
-                            className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-black text-xs border border-gray-200 hover:border-gray-900"
-                          >
-                            Quitar sanción
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setBlocked(u.id, true)}
-                            className="px-4 py-2 rounded-2xl bg-red-100 text-red-800 font-black text-xs border border-red-200 hover:border-red-800"
-                          >
-                            Mantener bloqueado
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
           <div className="mt-6 space-y-3">
             {!rowsLoading && !rowsError && filteredGroups.length === 0 ? (
               <div className="bg-white border border-gray-100 rounded-2xl p-4">
-                <p className="text-sm font-black text-gray-700">No hay reportes con esos filtros.</p>
+                <p className="text-sm font-semibold text-gray-700">No hay reportes con esos filtros.</p>
               </div>
             ) : null}
 
@@ -968,80 +857,80 @@ export default function AdminPage() {
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`px-3 py-1 rounded-full text-xs font-black border ${pill.cls}`}>{pill.txt}</span>
-                        <span className="text-sm font-black text-gray-900">{artTitle}</span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${pill.cls}`}>{pill.txt}</span>
+                        <span className="text-sm font-semibold text-gray-900">{artTitle}</span>
                         {!isChat && (
-                          <span className="text-xs text-gray-500 font-bold">
+                          <span className="text-xs text-gray-500 font-medium">
                             {head?.city ? `${head.city}${head.locality ? `, ${head.locality}` : ""}` : ""}
                           </span>
                         )}
                         {isChat && (
-                          <span className="text-xs text-gray-500 font-bold">
+                          <span className="text-xs text-gray-500 font-medium">
                             {head?.target_id ? `Chat ID: ${head.target_id}` : "Chat"}
                           </span>
                         )}
-                        <span className="text-xs text-gray-400 font-bold">Último: {fmtDate(head?.last_report_at)}</span>
-                        <span className="ml-1 text-xs font-black text-green-700">{greenTxt}</span>
+                        <span className="text-xs text-gray-400 font-medium">Último: {fmtDate(head?.last_report_at)}</span>
+                        <span className="ml-1 text-xs font-semibold text-green-700">{greenTxt}</span>
                       </div>
 
-                      <div className="mt-2 text-[12px] font-bold text-gray-600">
-                        <span className="font-black text-gray-900">{total}</span> reportes —{" "}
-                        <span className="text-blue-700 font-black">{openCount}</span> nuevos,{" "}
-                        <span className="text-yellow-800 font-black">{reviewingCount}</span> en revisión,{" "}
-                        <span className="text-green-800 font-black">{resolvedCount}</span> resueltos,{" "}
-                        <span className="text-gray-700 font-black">{dismissedCount}</span> descartados.
+                      <div className="mt-2 text-[12px] font-medium text-gray-600">
+                        <span className="font-semibold text-gray-900">{total}</span> reportes —{" "}
+                        <span className="text-blue-700 font-semibold">{openCount}</span> nuevos,{" "}
+                        <span className="text-yellow-800 font-semibold">{reviewingCount}</span> en revisión,{" "}
+                        <span className="text-green-800 font-semibold">{resolvedCount}</span> resueltos,{" "}
+                        <span className="text-gray-700 font-semibold">{dismissedCount}</span> descartados.
                       </div>
 
                       <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                          <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Motivos (top)</p>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Motivos (top)</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {reasons.length ? (
                               reasons.map(([k, c]) => (
                                 <span
                                   key={`${k}-${c}`}
-                                  className="px-3 py-1 rounded-full text-[11px] font-black border border-gray-200 bg-white text-gray-800"
+                                  className="px-3 py-1 rounded-full text-[11px] font-semibold border border-gray-200 bg-white text-gray-800"
                                   title={k}
                                 >
                                   {k} ({c})
                                 </span>
                               ))
                             ) : (
-                              <span className="text-xs text-gray-500 font-bold">—</span>
+                              <span className="text-xs text-gray-500 font-medium">—</span>
                             )}
                           </div>
 
-                          <div className="mt-3 text-xs text-gray-600 font-bold">
-                            Usuario: <span className="font-black text-gray-900">{ownerNameReal}</span>{" "}
+                          <div className="mt-3 text-xs text-gray-600 font-medium">
+                            Usuario: <span className="font-semibold text-gray-900">{ownerNameReal}</span>{" "}
                             {isBlocked ? (
-                              <span className="ml-2 px-2 py-1 rounded-full bg-red-100 text-red-800 border border-red-200 text-[10px] font-black">
+                              <span className="ml-2 px-2 py-1 rounded-full bg-red-100 text-red-800 border border-red-200 text-[10px] font-semibold">
                                 BLOQUEADO
                               </span>
                             ) : null}
                             {isBannedNow ? (
-                              <span className="ml-2 px-2 py-1 rounded-full bg-orange-100 text-orange-900 border border-orange-200 text-[10px] font-black">
+                              <span className="ml-2 px-2 py-1 rounded-full bg-orange-100 text-orange-900 border border-orange-200 text-[10px] font-semibold">
                                 SANCIONADO
                               </span>
                             ) : null}
                           </div>
 
                           <div className="mt-3 flex items-center gap-2">
-                            <span className="text-xs text-gray-600 font-bold">{isChat ? "Estado chat" : "Estado artículo"}:</span>
-                            <span className={`px-3 py-1 rounded-full text-[11px] font-black border ${artEstadoP.cls}`}>
+                            <span className="text-xs text-gray-600 font-medium">{isChat ? "Estado chat" : "Estado artículo"}:</span>
+                            <span className={`px-3 py-1 rounded-full text-[11px] font-semibold border ${artEstadoP.cls}`}>
                               {artEstadoP.txt}
                             </span>
                           </div>
                         </div>
 
                         <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                          <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Acciones rápidas</p>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Acciones rápidas</p>
 
                           <div className="mt-3 flex flex-wrap gap-2">
                             {!isChat && (
                               <button
                                 type="button"
                                 onClick={() => openPreview(head?.articulo_id)}
-                                className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-black text-xs border border-gray-200 hover:border-gray-900"
+                                className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-xs border border-gray-200 hover:border-gray-900"
                               >
                                 Ver artículo (preview)
                               </button>
@@ -1069,7 +958,7 @@ export default function AdminPage() {
                                 if (!isChat) await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "en_revision" });
                                 await loadReports({ force: true });
                               }}
-                              className="px-4 py-2 rounded-2xl bg-yellow-100 text-yellow-900 font-black text-xs border border-yellow-200 hover:border-yellow-900"
+                              className="px-4 py-2 rounded-2xl bg-yellow-100 text-yellow-900 font-semibold text-xs border border-yellow-200 hover:border-yellow-900"
                             >
                               En revisión (bloquear)
                             </button>
@@ -1092,7 +981,7 @@ export default function AdminPage() {
 
                                 await loadReports({ force: true });
                               }}
-                              className="px-4 py-2 rounded-2xl bg-gray-200 text-gray-900 font-black text-xs border border-gray-300 hover:border-gray-900"
+                              className="px-4 py-2 rounded-2xl bg-gray-200 text-gray-900 font-semibold text-xs border border-gray-300 hover:border-gray-900"
                             >
                               Descartar (desbloquear)
                             </button>
@@ -1114,7 +1003,7 @@ export default function AdminPage() {
 
                                 await loadReports({ force: true });
                               }}
-                              className="px-4 py-2 rounded-2xl bg-green-100 text-green-800 font-black text-xs border border-green-200 hover:border-green-800"
+                              className="px-4 py-2 rounded-2xl bg-green-100 text-green-800 font-semibold text-xs border border-green-200 hover:border-green-800"
                             >
                               Resuelto (borrar denuncia)
                             </button>
@@ -1135,7 +1024,7 @@ export default function AdminPage() {
 
                                 await loadReports({ force: true });
                               }}
-                              className="px-4 py-2 rounded-2xl bg-red-100 text-red-800 font-black text-xs border border-red-200 hover:border-red-800"
+                              className="px-4 py-2 rounded-2xl bg-red-100 text-red-800 font-semibold text-xs border border-red-200 hover:border-red-800"
                             >
                               Eliminar artículo
                             </button>
@@ -1143,7 +1032,7 @@ export default function AdminPage() {
 
                           {ownerId ? (
                             <div className="mt-4 pt-4 border-t border-gray-200">
-                              <p className="text-xs font-black text-gray-500 uppercase tracking-widest">
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
                                 Usuario (sanción / bloqueo)
                               </p>
 
@@ -1151,7 +1040,7 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => applyBanDays(ownerId, 1)}
-                                  className="px-4 py-2 rounded-2xl bg-orange-50 text-orange-900 font-black text-xs border border-orange-200 hover:border-orange-900"
+                                  className="px-4 py-2 rounded-2xl bg-orange-50 text-orange-900 font-semibold text-xs border border-orange-200 hover:border-orange-900"
                                 >
                                   Sancionar 1 día
                                 </button>
@@ -1159,7 +1048,7 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => applyBanDays(ownerId, 3)}
-                                  className="px-4 py-2 rounded-2xl bg-orange-50 text-orange-900 font-black text-xs border border-orange-200 hover:border-orange-900"
+                                  className="px-4 py-2 rounded-2xl bg-orange-50 text-orange-900 font-semibold text-xs border border-orange-200 hover:border-orange-900"
                                 >
                                   3 días
                                 </button>
@@ -1167,7 +1056,7 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => applyBanDays(ownerId, 7)}
-                                  className="px-4 py-2 rounded-2xl bg-orange-50 text-orange-900 font-black text-xs border border-orange-200 hover:border-orange-900"
+                                  className="px-4 py-2 rounded-2xl bg-orange-50 text-orange-900 font-semibold text-xs border border-orange-200 hover:border-orange-900"
                                 >
                                   7 días
                                 </button>
@@ -1175,7 +1064,7 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => clearBan(ownerId)}
-                                  className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-black text-xs border border-gray-200 hover:border-gray-900"
+                                  className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-xs border border-gray-200 hover:border-gray-900"
                                 >
                                   Quitar sanción
                                 </button>
@@ -1183,7 +1072,7 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => setBlocked(ownerId, true)}
-                                  className="px-4 py-2 rounded-2xl bg-red-100 text-red-800 font-black text-xs border border-red-200 hover:border-red-800"
+                                  className="px-4 py-2 rounded-2xl bg-red-100 text-red-800 font-semibold text-xs border border-red-200 hover:border-red-800"
                                 >
                                   Bloquear usuario
                                 </button>
@@ -1191,15 +1080,15 @@ export default function AdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => setBlocked(ownerId, false)}
-                                  className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-black text-xs border border-gray-200 hover:border-gray-900"
+                                  className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-xs border border-gray-200 hover:border-gray-900"
                                 >
                                   Desbloquear
                                 </button>
                               </div>
 
-                              <p className="mt-3 text-xs text-gray-600 font-bold">
+                              <p className="mt-3 text-xs text-gray-600 font-medium">
                                 Sanción hasta:{" "}
-                                <span className="font-black text-gray-900">{flags?.ban_until ? fmtDate(flags.ban_until) : "—"}</span>
+                                <span className="font-semibold text-gray-900">{flags?.ban_until ? fmtDate(flags.ban_until) : "—"}</span>
                               </p>
                             </div>
                           ) : null}
@@ -1217,7 +1106,7 @@ export default function AdminPage() {
                             onError={(e) => (e.currentTarget.style.display = "none")}
                           />
                         ) : (
-                          <div className="h-40 flex items-center justify-center text-xs font-black text-gray-400">Sin imagen</div>
+                          <div className="h-40 flex items-center justify-center text-xs font-semibold text-gray-400">Sin imagen</div>
                         )}
                       </div>
                     </div>
@@ -1226,6 +1115,98 @@ export default function AdminPage() {
               );
             })}
           </div>
+          {/* ---------------- Usuarios bloqueados ---------------- */}
+          <div className="mt-6 bg-white border border-gray-100 rounded-3xl p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Usuarios</p>
+                <h2 className="text-lg font-semibold text-gray-900 mt-1">Bloqueados</h2>
+                <p className="text-xs text-gray-500 font-medium mt-1">
+                  Lista directa desde <span className="font-semibold">usuarios.is_blocked = true</span>
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={loadBlockedUsers}
+                className="px-4 py-2 rounded-2xl bg-gray-100 text-gray-900 font-semibold text-sm border border-gray-200 hover:border-gray-900"
+                disabled={blockedLoading}
+              >
+                Refrescar bloqueados
+              </button>
+            </div>
+
+            <div className="mt-4">
+              {blockedLoading ? (
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                  <p className="text-sm font-semibold text-gray-700">Cargando bloqueados…</p>
+                </div>
+              ) : blockedError ? (
+                <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
+                  <p className="text-sm font-semibold text-red-700">Error cargando bloqueados</p>
+                  <p className="text-xs text-red-700 mt-1">{blockedError}</p>
+                </div>
+              ) : blockedUsers.length === 0 ? (
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                  <p className="text-sm font-semibold text-gray-700">No hay usuarios bloqueados.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {blockedUsers.map((u) => (
+                    <div key={u.id} className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-1 rounded-full bg-red-100 text-red-800 border border-red-200 text-[10px] font-semibold">
+                              BLOQUEADO
+                            </span>
+
+                            <span className="text-sm font-semibold text-gray-900 truncate">{u.name}</span>
+
+                            <span className="text-xs text-gray-500 font-medium">{u.email ? u.email : `ID: ${u.id}`}</span>
+
+                            {u.ban_until ? (
+                              <span className="text-xs font-semibold text-orange-900 bg-orange-100 border border-orange-200 px-2 py-1 rounded-full">
+                                Sanción hasta: {fmtDate(u.ban_until)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setBlocked(u.id, false)}
+                            className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-xs border border-gray-200 hover:border-gray-900"
+                          >
+                            Desbloquear
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => clearBan(u.id)}
+                            className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-xs border border-gray-200 hover:border-gray-900"
+                          >
+                            Quitar sanción
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setBlocked(u.id, true)}
+                            className="px-4 py-2 rounded-2xl bg-red-100 text-red-800 font-semibold text-xs border border-red-200 hover:border-red-800"
+                          >
+                            Mantener bloqueado
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+
         </div>
       </div>
 
@@ -1241,8 +1222,8 @@ export default function AdminPage() {
           <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Preview artículo</p>
-                <h3 className="text-lg font-black text-gray-900 mt-1 leading-tight">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Preview artículo</p>
+                <h3 className="text-lg font-semibold text-gray-900 mt-1 leading-tight">
                   {previewArticle?.titulo || previewArticle?.title || "Artículo"}
                 </h3>
               </div>
@@ -1254,7 +1235,7 @@ export default function AdminPage() {
                   setPreviewArticle(null);
                   setPreviewError("");
                 }}
-                className="px-4 py-2 rounded-2xl bg-gray-900 text-white font-black text-sm"
+                className="px-4 py-2 rounded-2xl bg-gray-900 text-white font-semibold text-sm"
               >
                 Cerrar
               </button>
@@ -1263,30 +1244,30 @@ export default function AdminPage() {
             <div className="mt-4">
               {previewLoading ? (
                 <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                  <p className="text-sm font-black text-gray-700">Cargando…</p>
+                  <p className="text-sm font-semibold text-gray-700">Cargando…</p>
                 </div>
               ) : previewError ? (
                 <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
-                  <p className="text-sm font-black text-red-700">Error</p>
+                  <p className="text-sm font-semibold text-red-700">Error</p>
                   <p className="text-xs text-red-700 mt-1">{previewError}</p>
                 </div>
               ) : previewArticle ? (
                 <div className="space-y-4">
                   <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                    <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Estado</p>
-                    <p className="text-sm font-black text-gray-900 mt-1">{String(previewArticle?.estado || previewArticle?.status || "—")}</p>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Estado</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-1">{String(previewArticle?.estado || previewArticle?.status || "—")}</p>
                   </div>
 
                   <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                    <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Descripción</p>
-                    <p className="text-sm text-gray-700 font-bold mt-1 whitespace-pre-wrap">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Descripción</p>
+                    <p className="text-sm text-gray-700 font-medium mt-1 whitespace-pre-wrap">
                       {previewArticle?.descripcion || previewArticle?.description || "—"}
                     </p>
                   </div>
 
                   <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                    <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Ubicación</p>
-                    <p className="text-sm font-bold text-gray-700 mt-1">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Ubicación</p>
+                    <p className="text-sm font-medium text-gray-700 mt-1">
                       {previewArticle?.localidad_es || previewArticle?.locality || ""}{" "}
                       {previewArticle?.ciudad || previewArticle?.city
                         ? `, ${previewArticle?.ciudad || previewArticle?.city}`
@@ -1295,7 +1276,7 @@ export default function AdminPage() {
                   </div>
 
                   <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                    <p className="text-xs font-black text-gray-500 uppercase tracking-widest">Imagen</p>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Imagen</p>
                     <div className="mt-2 rounded-2xl overflow-hidden bg-white border border-gray-100">
                       <img
                         src={
@@ -1308,13 +1289,13 @@ export default function AdminPage() {
                         className="w-full h-64 object-cover"
                         onError={(e) => (e.currentTarget.style.display = "none")}
                       />
-                      <div className="p-3 text-xs text-gray-500 font-bold">Si no aparece imagen, puede ser ruta privada o vacía.</div>
+                      <div className="p-3 text-xs text-gray-500 font-medium">Si no aparece imagen, puede ser ruta privada o vacía.</div>
                     </div>
                   </div>
 
                   <div className="bg-white border border-gray-100 rounded-2xl p-4">
-                    <p className="text-xs text-gray-500 font-bold">
-                      ID: <span className="font-black">{String(previewArticle?.id || "")}</span>
+                    <p className="text-xs text-gray-500 font-medium">
+                      ID: <span className="font-semibold">{String(previewArticle?.id || "")}</span>
                     </p>
                   </div>
                 </div>
