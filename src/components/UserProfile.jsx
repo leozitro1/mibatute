@@ -1882,10 +1882,8 @@ export default function UserProfile({
   ]);
 
   const inboxUnreadCount = useMemo(() => {
-    const chatUnread = (Array.isArray(inboxItems) ? inboxItems : []).filter((it) => it?.hasUnread).length;
-    const sysUnread  = (Array.isArray(sysMsgs)    ? sysMsgs    : []).filter((m)  => !m?.read_at).length;
-    return chatUnread + sysUnread;
-  }, [inboxItems, sysMsgs]);
+    return (Array.isArray(sysMsgs) ? sysMsgs : []).filter((m) => !m?.read_at).length;
+  }, [sysMsgs]);
 
   const formatDate = (item) => {
     try {
@@ -2605,127 +2603,13 @@ export default function UserProfile({
                     </div>
                   )}
 
-                  {/* ── Chats de artículos ─────────────────────────────────── */}
-                  {inboxItems.length === 0 && sysMsgs.length === 0 ? (
+                  {/* ── Buzón vacío ────────────────────────────────────────── */}
+                  {sysMsgs.length === 0 && !sysMsgsLoading && (
                     <div className="text-center py-12">
                       <p className="text-gray-400 font-bold">
-                        Tu buzón está vacío. Aquí verás mensajes y notificaciones.
+                        Tu buzón está vacío. Aquí verás notificaciones del sistema.
                       </p>
                     </div>
-                  ) : inboxItems.length === 0 ? null : (
-                    inboxItems.map((it) => {
-                      const art = it.art || {};
-                      const titulo = art?.titulo || art?.title || "Sin título";
-                      const estado = normEstado(art?.estado || art?.status || "disponible");
-                      const isReview = estado === "en_revision";
-                      const tipo = getTipoPublicacion(art);
-
-                      const statusUI = badgeUIByStatus(estado);
-                      const tipoUI = badgeUIByTipo(tipo);
-
-                      const notifCount = it.notifCount || 0;
-
-                      return (
-                        <div
-                          key={`inbox-${it.articuloId}`}
-                          className={`relative flex items-center gap-4 p-4 mb-3 bg-white rounded-3xl shadow-sm border border-gray-100 transition ${
-                            isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
-                          }`}
-                        >
-                          <img
-                            src={getThumb(art)}
-                            onError={(e) => {
-                              if (e.currentTarget.dataset.fallbackApplied) return;
-                              e.currentTarget.dataset.fallbackApplied = "1";
-                              e.currentTarget.src = FALLBACK_SVG;
-                            }}
-                            className="w-16 h-16 rounded-2xl object-cover"
-                            alt="miniatura"
-                          />
-
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-gray-800 truncate">{titulo}</h4>
-
-                            <div className="flex flex-wrap items-center gap-2 mt-1">
-                              <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-xl ${statusUI.cls}`}>
-                                <statusUI.Icon size={12} />
-                                {statusUI.label}
-                              </span>
-
-                              <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-xl ${tipoUI.cls}`}>
-                                <tipoUI.Icon size={12} />
-                                {tipoUI.label}
-                              </span>
-
-                              <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
-                                {formatDate(art)}
-                              </span>
-
-                              {notifCount > 0 ? (
-                                <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 ring-1 ring-gray-200 px-2 py-1 rounded-xl text-[10px] font-black uppercase">
-                                  <Bell size={12} />
-                                  {notifCount} NUEVO
-                                </span>
-                              ) : null}
-                            </div>
-
-                            {isUserBlocked ? (
-                              <p className="mt-2 text-xs font-black text-red-700 bg-red-50 border border-red-100 rounded-2xl px-3 py-2 inline-flex items-center gap-2">
-                                <AlertTriangle size={14} />
-                                Cuenta bloqueada: buzón bloqueado
-                              </p>
-                            ) : isReview ? (
-                              <p className="mt-2 text-xs font-black text-yellow-900 bg-yellow-50 border border-yellow-100 rounded-2xl px-3 py-2 inline-flex items-center gap-2">
-                                <AlertTriangle size={14} />
-                                En revisión: chat bloqueado
-                              </p>
-                            ) : null}
-                          </div>
-
-                          <div className="shrink-0 flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (isUserBlocked) return alert(blockedUserMsg());
-                                if (isReview) return alert(revisionBlockMsg(titulo));
-
-                                // si viene desde "rescates", usamos verMensajesRescate (respeta ganador/venta)
-                                if (it.source === "res") {
-                                  const r = (rescates || []).find((x) => String(x?.articulo_id || getArticuloId(x?.articulo)) === String(it.articuloId));
-                                  if (r) await verMensajesRescate(r);
-                                  else await verMensajes(art);
-                                  return;
-                                }
-
-                                await verMensajes(art);
-                              }}
-                              className="relative bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
-                              disabled={isUserBlocked || isReview}
-                              aria-label="Abrir chat"
-                              title="Abrir chat"
-                            >
-                              {it.hasUnread ? (
-                                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
-                              ) : null}
-                              <MessageCircle size={16} />
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPreviewArt(art);
-                                setPreviewOpen(true);
-                              }}
-                              className="bg-gray-100 text-gray-700 p-3 rounded-2xl hover:bg-gray-200 transition"
-                              aria-label="Ver publicación"
-                              title="Ver publicación"
-                            >
-                              <Eye size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
                   )}
                 </>
               )}
