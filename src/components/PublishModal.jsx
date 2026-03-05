@@ -54,6 +54,55 @@ function normalizeMode(v) {
   return "donacion";
 }
 
+// ✅ Detecta datos de contacto prohibidos en la descripción
+const PALABRAS_CLAVE_CONTACTO = [
+  "comunicate", "comunicate", "comuniquese",
+  "llamame", "llamame", "llama al", "llamar al",
+  "whatsapp", "whats app", "wsp", "wasap",
+  "facebook", "instagram", "telegram", "tiktok",
+  " fb ", "fb.", "fb:", "/fb",
+  "correo", "email", "e-mail", "gmail", "hotmail", "yahoo",
+  "escribeme", "escribe al", "contactame", "contactame",
+  "mi numero", "mi cel", "mi celular", "al cel",
+];
+
+const NUMERO_PALABRAS = [
+  "cero","uno","dos","tres","cuatro","cinco",
+  "seis","siete","ocho","nueve","diez",
+];
+
+function detectContactoProhibido(texto = "") {
+  const t = (texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // 1) Email con @
+  if (/@/.test(t)) {
+    return "No puedes incluir correos electrónicos en la descripción.";
+  }
+
+  // 2) Palabras clave de contacto
+  for (const kw of PALABRAS_CLAVE_CONTACTO) {
+    if (t.includes(kw)) {
+      return `No puedes incluir formas de contacto externo en la descripción (detectado: "${kw}").`;
+    }
+  }
+
+  // 3) Número de teléfono en dígitos: 7+ dígitos con separadores opcionales
+  if (/\d[\d\s.\-]{5,}\d/.test(t)) {
+    return "No puedes incluir números de teléfono en la descripción.";
+  }
+
+  // 4) Número escrito en letras: 4+ palabras numéricas consecutivas
+  const regexPalabrasNum = new RegExp(
+    "(" + NUMERO_PALABRAS.join("|") + ")(\\s+(" + NUMERO_PALABRAS.join("|") + ")){3,}",
+    "i"
+  );
+  if (regexPalabrasNum.test(t)) {
+    return "No puedes escribir números de teléfono con letras en la descripción.";
+  }
+
+  return null;
+}
+
 function getSubsForCategory(categoryTree, category) {
   const found = (categoryTree || []).find((c) => String(c.key) === String(category));
   return Array.isArray(found?.subs) ? found.subs : [];
@@ -134,6 +183,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
   const [files, setFiles] = useState([]); // File[]
   const [previews, setPreviews] = useState([]); // string[]
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [descError, setDescError] = useState(null); // ✅ validación contacto
 
   // ====== Crop Queue ======
   const [cropQueue, setCropQueue] = useState([]); // File[]
@@ -408,6 +458,13 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       }
     }
 
+    // ✅ Validar que la descripción no tenga datos de contacto
+    const contactError = detectContactoProhibido(formData.description);
+    if (contactError) {
+      setDescError(contactError);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -622,7 +679,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
             </div>
 
             {/* ✅ NUEVO: Destacado */}
-            <div className="border-2 border-gray-100 rounded-2xl p-4">
+            <div className="border-2 border-orange-400 rounded-2xl p-4 bg-orange-50/40">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Destacado</p>
@@ -708,13 +765,28 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
             {/* Descripción */}
             <div>
               <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Descripción</label>
+              <p className="mb-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 font-medium leading-snug">
+                🔒 <strong>No incluyas datos de contacto</strong> (teléfonos, correos, redes sociales). Esto es por tu seguridad y la de la comunidad. Tu cuenta podría ser bloqueada.
+              </p>
               <textarea
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData({ ...formData, description: val });
+                  setDescError(detectContactoProhibido(val));
+                }}
                 placeholder="Describe el artículo, estado, detalles..."
-                className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none min-h-[110px]"
+                className={`w-full border-2 rounded-xl p-3 outline-none min-h-[110px] ${
+                  descError ? "border-red-400 focus:ring-2 focus:ring-red-300" : "border-gray-100"
+                }`}
                 disabled={isSubmitting || isCropping || cropOpen}
               />
+              {descError && (
+                <p className="mt-1 text-xs font-bold text-red-600 flex items-start gap-1">
+                  <span>⛔</span>
+                  <span>{descError}</span>
+                </p>
+              )}
             </div>
 
             {/* Botón publicar */}

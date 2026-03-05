@@ -174,6 +174,8 @@ export default function ProductDetail({
   const publicName = formatPublicName(item?.owner_name || item?.owner?.name || item?.anunciante || item?.usuario_nombre);
 
   const [message, setMessage] = useState("");
+  const [msgContactError, setMsgContactError] = useState(null); // ✅ validación contacto en vivo
+  const [reserveConfirmOpen, setReserveConfirmOpen] = useState(false); // ✅ modal confirmación reserva
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
 
@@ -548,6 +550,7 @@ export default function ProductDetail({
   const hasCatTrail = !!(cat || sub);
 
   return (
+    <>
     <div
       className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[120] flex items-center justify-center p-4"
       onClick={safeClose}
@@ -824,11 +827,29 @@ export default function ProductDetail({
                   <textarea
                     maxLength={140}
                     value={message}
-                    onChange={(e) => setMessage(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMessage(val);
+                      const v = detectarContenidoNoPermitido(val.trim());
+                      setMsgContactError(v?.hasViolation ? (buildViolationMessage(v) || "Contenido no permitido.") : null);
+                    }}
                     placeholder="Ej: Soy artesano y me sirve para una escultura..."
-                    className="w-full border-2 border-gray-100 rounded-2xl p-4 text-sm outline-none focus:border-forest-green h-24 resize-none"
+                    className={`w-full border-2 rounded-2xl p-4 text-sm outline-none h-24 resize-none ${
+                      msgContactError ? "border-red-400 focus:border-red-400" : "border-gray-100 focus:border-forest-green"
+                    }`}
                     disabled={isSubmitting}
                   />
+
+                  {msgContactError ? (
+                    <p className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                      <span>⛔</span>
+                      <span>{msgContactError}</span>
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-amber-700 font-medium">
+                      🔒 No incluyas datos de contacto
+                    </p>
+                  )}
 
                   <div className="flex justify-between items-center text-[10px] font-bold text-gray-400">
                     <span>Mínimo 10 caracteres</span>
@@ -836,7 +857,7 @@ export default function ProductDetail({
                   </div>
 
                   <button
-                    disabled={isSubmitting || message.trim().length < 10}
+                    disabled={isSubmitting || message.trim().length < 10 || !!msgContactError}
                     onClick={handleSendRequest}
                     className="w-full bg-forest-green text-white py-4 rounded-2xl font-black disabled:opacity-50 disabled:cursor-not-allowed"
                     type="button"
@@ -855,7 +876,7 @@ export default function ProductDetail({
           {!isGift && isAvailable && !isOwner && !isUnderReview && (
             <div className="mt-auto space-y-3 pt-6 border-t">
               <button
-                onClick={handleReserve}
+                onClick={() => setReserveConfirmOpen(true)}
                 disabled={isSubmitting}
                 className="w-full bg-forest-green text-white py-4 rounded-2xl font-black text-lg hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-50"
                 type="button"
@@ -980,5 +1001,58 @@ export default function ProductDetail({
         )}
       </div>
     </div>
+
+    {/* ✅ Modal confirmación de reserva */}
+    {reserveConfirmOpen && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={() => { if (!isSubmitting) setReserveConfirmOpen(false); }}
+        />
+        <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden">
+
+          <div className="bg-forest-green px-6 pt-6 pb-5 text-white">
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-75">Confirmación</p>
+            <h3 className="text-lg font-black mt-1 leading-snug">¿Confirmas la reserva?</h3>
+          </div>
+
+          <div className="px-6 py-5 space-y-3">
+            <p className="text-sm text-gray-700 font-medium leading-relaxed">
+              Al reservar este producto te comprometes a seguir la negociación cumpliendo con los términos de mibatute.com.
+            </p>
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+              <span className="text-base mt-0.5">⚠️</span>
+              <p className="text-xs text-amber-800 font-bold leading-snug">
+                El artículo ya no se mostrará en la página una vez reservado para la compra.
+              </p>
+            </div>
+          </div>
+
+          <div className="px-6 pb-6 flex gap-3">
+            <button
+              type="button"
+              onClick={() => setReserveConfirmOpen(false)}
+              disabled={isSubmitting}
+              className="flex-1 py-3 rounded-2xl border-2 border-gray-200 text-gray-700 text-sm font-black uppercase tracking-wide hover:bg-gray-50 transition disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => {
+                setReserveConfirmOpen(false);
+                handleReserve();
+              }}
+              className="flex-1 py-3 rounded-2xl bg-forest-green text-white text-sm font-black uppercase tracking-wide hover:opacity-90 transition disabled:opacity-50"
+            >
+              {isSubmitting ? "Reservando..." : "Sí, comprar"}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    )}
+    </>
   );
 }
