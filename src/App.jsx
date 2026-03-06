@@ -1918,6 +1918,17 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     if (!id) return alert("Este artículo no tiene id válido.");
                     await deleteArticle(id);
                   }}
+                  onArticuloReservado={(articuloActualizado) => {
+                    const id = getArticuloId(articuloActualizado);
+                    if (!id) return;
+                    setProducts((prev) =>
+                      prev.map((p) =>
+                        String(getArticuloId(p)) === String(id)
+                          ? { ...p, ...articuloActualizado }
+                          : p
+                      )
+                    );
+                  }}
                 />
               )}
 

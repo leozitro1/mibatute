@@ -995,6 +995,7 @@ export default function UserProfile({
   onOpenGestion,
   onOpenChat,
   onDelete,
+  onArticuloReservado,
 }) {
   const [activeTab, setActiveTab] = useState("publicaciones"); // ✅ ahora inicia en Buzón
   const [authEmail, setAuthEmail] = useState("");
@@ -3149,6 +3150,7 @@ export default function UserProfile({
             });
           }
           setArticuloSeleccionado(nuevoArticulo);
+          onArticuloReservado?.(nuevoArticulo);
         }}
         onAfterDecision={refreshSolicitudesArticuloSeleccionado}
       />
