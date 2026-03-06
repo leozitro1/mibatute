@@ -636,10 +636,12 @@ export default function ChatMessenger({
           if (!row) return;
 
           setMessages((prev) => {
-            const exists = prev.some((m) => String(m.id) === String(row.id));
-            if (exists) return prev;
-
-            const next = [...prev, row];
+            if (prev.some((m) => !m._optimistic && String(m.id) === String(row.id))) return prev;
+            // Reemplazar optimista del mismo sender sin parpadeo
+            const hasOptimistic = prev.some((m) => m._optimistic && String(m.sender_id) === String(row.sender_id));
+            const next = hasOptimistic
+              ? prev.map((m) => (m._optimistic && String(m.sender_id) === String(row.sender_id)) ? row : m)
+              : [...prev, row];
             markSeenUpToLatest(next);
             return next;
           });
@@ -727,6 +729,20 @@ export default function ChatMessenger({
     try {
       setSending(true);
 
+      // Optimista: aparece inmediatamente
+      const optimisticId = `optimistic-${Date.now()}`;
+      const optimisticMsg = {
+        id: optimisticId,
+        chat_id: chatId,
+        sender_id: userId,
+        body: bodyText, message: bodyText, content: bodyText, text: bodyText, mensaje: bodyText,
+        created_at: new Date().toISOString(),
+        _optimistic: true,
+      };
+      setMessages((prev) => [...prev, optimisticMsg]);
+      setText("");
+      setTimeout(() => scrollToBottom(true), 0);
+
       const { error } = await safeInsertChatMessage({
         chat_id: chatId,
         sender_id: userId,
@@ -734,8 +750,10 @@ export default function ChatMessenger({
       });
 
       if (error) {
+        // Revertir si falló
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setText(bodyText);
         console.log("Error insert chat_messages:", error);
-
         const msg = String(error?.message || "");
         if (/row level security/i.test(msg) || /permission/i.test(msg)) {
           alert("🚫 No tienes permiso para enviar mensajes (RLS).");
@@ -744,9 +762,7 @@ export default function ChatMessenger({
         }
         return;
       }
-
-      setText("");
-      setTimeout(() => scrollToBottom(true), 0);
+      // El realtime reemplazará el optimista directamente (sin parpadeo)
     } catch (e) {
       console.log(e);
       alert("No se pudo enviar el mensaje.");

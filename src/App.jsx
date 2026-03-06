@@ -607,6 +607,36 @@ export default function App() {
       }
     } catch {}
 
+    // 4) Elegido como ganador de donación/rescate
+    try {
+      const lsKeyGanador = `mb_seen_ganador_${uid}`;
+      const seenGanador = readSeenMap(lsKeyGanador);
+      const allProducts = Array.isArray(products) ? products : [];
+      for (const p of allProducts) {
+        const ganadorId = p?.ganador_id || p?.winner_id || p?.winnerUid || p?.recipient_id || null;
+        if (!ganadorId || String(ganadorId) !== String(uid)) continue;
+        const tipo = normTipo(p?.mode || p?.tipo || "");
+        if (tipo === "venta") continue; // ventas ya se manejan arriba
+        const estado = normEstado(p?.estado || p?.status || "");
+        if (estado !== "reservado" && estado !== "entregado") continue;
+        const artId = getArticuloId(p);
+        if (!artId) continue;
+        const updatedAt = p?.updated_at || p?.reserved_at || p?.created_at || new Date().toISOString();
+        const updatedMs = new Date(updatedAt).getTime();
+        const seenMs = seenGanador[String(artId)] ? new Date(seenGanador[String(artId)]).getTime() : 0;
+        if (updatedMs <= seenMs) continue;
+        dropdownItems.push({
+          id: `ganador-${String(artId)}`,
+          type: "ganador",
+          articulo_id: artId,
+          created_at: updatedAt,
+          title: "¡Fuiste elegido! 🎉",
+          subtitle: `${p?.titulo || p?.title || "Artículo"} — Abre el chat para coordinar la entrega.`,
+          thumb: buildArticleThumb(p),
+        });
+      }
+    } catch {}
+
     const sortedDropdown = [...dropdownItems].sort((a, b) => {
       const ta = a?.created_at ? new Date(a.created_at).getTime() : 0;
       const tb = b?.created_at ? new Date(b.created_at).getTime() : 0;
@@ -1452,6 +1482,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               onGoHome={() => setCurrentView("home")}
               notifProfileCount={notifProfileCount}
               notifChatCount={notifChatCount}
+              isProfile={currentView === "profile"}
               notifications={notifications}
               onNotificationClick={async (item) => {
                 const uid = getActiveUid();
@@ -1481,6 +1512,20 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
                 if (item?.type === "postulacion") {
                   await openManageFromNotif(item?.articulo_id);
+                  return;
+                }
+
+                if (item?.type === "ganador") {
+                  const uid2 = getActiveUid();
+                  if (uid2 && item?.articulo_id) {
+                    try {
+                      const lsKeyGanador = `mb_seen_ganador_${uid2}`;
+                      const m = readSeenMap(lsKeyGanador);
+                      m[String(item.articulo_id)] = new Date().toISOString();
+                      writeSeenMap(lsKeyGanador, m);
+                    } catch {}
+                  }
+                  setCurrentView("profile");
                   return;
                 }
 
@@ -1836,6 +1881,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   user={currentUser}
                   myProducts={myProducts}
                   notifByArticulo={notifByArticulo}
+                  onArticuloSeen={(articuloId) => {
+                    if (articuloId) markSolicitudesSeenForArticulo(articuloId);
+                    loadNotifications();
+                  }}
                   onBack={() => setCurrentView("home")}
                   onOpenEdit={(art) => {
                     setEditArticle(art);

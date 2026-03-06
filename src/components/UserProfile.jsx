@@ -989,6 +989,7 @@ export default function UserProfile({
   user,
   myProducts = [],
   notifByArticulo = {},
+  onArticuloSeen,
   onBack,
   onOpenEdit,
   onOpenGestion,
@@ -1007,6 +1008,7 @@ export default function UserProfile({
 
   const [isEditing, setIsEditing] = useState(false);
   const originalProfileRef = useRef(null);
+  const loadUnreadRef = useRef(null);
 
   const [managingProduct, setManagingProduct] = useState(null);
 
@@ -1014,6 +1016,7 @@ export default function UserProfile({
   const [solicitudesDelArticulo, setSolicitudesDelArticulo] = useState([]);
   const [articuloSeleccionado, setArticuloSeleccionado] = useState(null);
   const [cargandoSolicitudes, setCargandoSolicitudes] = useState(false);
+  const [cargandoChatRescate, setCargandoChatRescate] = useState(null); // articuloId del rescate abriendo
 
   const [rescates, setRescates] = useState([]);
   const [cargandoRescates, setCargandoRescates] = useState(false);
@@ -1220,6 +1223,7 @@ export default function UserProfile({
     },
     [user?.id]
   );
+  loadUnreadRef.current = loadUnreadForArticuloIds;
 
   const markChatAsRead = useCallback(
     async ({ articuloId, buyerId }) => {
@@ -1350,7 +1354,7 @@ export default function UserProfile({
     };
   }, [user?.id]);
 
-  // ✅ Carga rescates — al montar, igual que publicaciones
+  // ✅ Carga rescates — recarga al hacer clic en la pestaña
   useEffect(() => {
     if (!user?.id) return;
 
@@ -1479,7 +1483,7 @@ export default function UserProfile({
           .map((r) => r?.articulo_id || r?.articuloId || getArticuloId(r?.articulo))
           .filter(Boolean);
 
-        await loadUnreadForArticuloIds(rescateIds);
+        await loadUnreadRef.current?.(rescateIds);
       } catch (e) {
         console.error("Error cargando rescates (merge):", e);
         if (alive) setRescates([]);
@@ -1491,7 +1495,7 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [user?.id, loadUnreadForArticuloIds]);
+  }, [user?.id]);
 
   const handleToggleEdit = () => {
     if (saving) return;
@@ -1695,7 +1699,7 @@ export default function UserProfile({
   // ✅ maps rescates + unread (buyer)
   useEffect(() => {
     if (!user?.id) return;
-    if (activeTab !== "rescates" && activeTab !== "buzon") return;
+    if (activeTab === "publicaciones") return; // solo corre en rescates o buzon
 
     const ids = (rescates || [])
       .map((r) => r?.articulo_id || r?.articuloId || getArticuloId(r?.articulo))
@@ -1740,24 +1744,67 @@ export default function UserProfile({
     };
   }, [activeTab, user?.id, rescates, loadUnreadForArticuloIds]);
 
-  // ✅ REALTIME: cuando cambie last_message_at en chats => refresca unread del artículo afectado
+  // ✅ REALTIME: mensajes + solicitudes en vivo
   useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
-      .channel("realtime-userprofile-chats")
+      .channel("realtime-userprofile-v3-" + user.id)
+
+      // Mensaje nuevo en chat → refrescar unread del artículo
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
+        const chatId = payload?.new?.chat_id;
+        if (!chatId) return;
+        if (String(payload?.new?.sender_id || "") === String(user.id)) return;
+        supabase.from("chats").select("articulo_id").eq("id", chatId).maybeSingle()
+          .then(({ data }) => {
+            if (data?.articulo_id) {
+              // Incremento optimista inmediato
+              setUnreadByArticulo((prev) => {
+                const next = new Map(prev);
+                const aid = String(data.articulo_id);
+                next.set(aid, true);
+                return next;
+              });
+              loadUnreadForArticuloIds([data.articulo_id]);
+            }
+          });
+      })
+
+      // Chat actualizado → refrescar unread
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chats" }, (payload) => {
-        const row = payload?.new || {};
-        const articuloId = row?.articulo_id;
+        const articuloId = payload?.new?.articulo_id;
+        if (articuloId) loadUnreadForArticuloIds([articuloId]);
+      })
+
+      // Nueva solicitud/postulación → el padre maneja notifByArticulo vía su propio realtime
+      // pero hacemos un evento personalizado para forzar re-render del badge
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "postulaciones" }, (payload) => {
+        const articuloId = payload?.new?.articulo_id;
         if (!articuloId) return;
+        // Forzar re-check de publicaciones del usuario (el padre actualizará notifByArticulo)
         loadUnreadForArticuloIds([articuloId]);
       })
+
+
+      // DELETE en postulaciones → quitar rescate inmediatamente sin F5
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "postulaciones" }, () => {
+        supabase
+          .from("postulaciones")
+          .select("articulo_id")
+          .eq("usuario_id", user.id)
+          .then(({ data }) => {
+            const activos = new Set((data || []).map((p) => String(p.articulo_id)));
+            setRescates((prev) =>
+              prev.filter((r) => activos.has(String(r?.articulo_id || r?.articuloId || "")))
+            );
+          });
+      })
+
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id, loadUnreadForArticuloIds]);
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
 
   // ── Cargar mensajes del sistema ──────────────────────────────────────────
   const loadSysMsgs = useCallback(async () => {
@@ -1880,6 +1927,28 @@ export default function UserProfile({
   const inboxUnreadCount = useMemo(() => {
     return (Array.isArray(sysMsgs) ? sysMsgs : []).filter((m) => !m?.read_at).length;
   }, [sysMsgs]);
+
+  // Badge de Mis Publicaciones: mensajes sin leer + solicitudes nuevas
+  const pubNotifCount = useMemo(() => {
+    let n = 0;
+    (publications || []).forEach((art0) => {
+      const id = String(getArticuloId(getArtEffective(art0)) || "");
+      if (!id) return;
+      if (unreadByArticulo.get(id) === true) n++;
+      n += Number(notifByArticulo?.[id]?.total || 0);
+    });
+    return n;
+  }, [publications, unreadByArticulo, notifByArticulo, articuloOverridesById]);
+
+  // Badge de Mis Rescates: mensajes sin leer
+  const rescNotifCount = useMemo(() => {
+    let n = 0;
+    (rescates || []).forEach((r) => {
+      const id = String(r?.articulo_id || r?.articuloId || getArticuloId(r?.articulo) || "");
+      if (id && unreadByArticulo.get(id) === true) n++;
+    });
+    return n;
+  }, [rescates, unreadByArticulo]);
 
   const formatDate = (item) => {
     try {
@@ -2019,21 +2088,29 @@ export default function UserProfile({
     const isVenta = isVentaArticulo(art);
 
     if (isVenta) {
+      onArticuloSeen?.(articuloId);
       await markChatAsRead({ articuloId, buyerId: user.id });
       onOpenChat({ article: art, buyerId: user.id });
       return;
     }
 
+    // Usar hasChatBuyerByArticulo ya cargado en memoria (evita re-query con posibles RLS)
+    const hasChatActivo = hasChatBuyerByArticulo.get(String(articuloId)) === true;
     const ganadorId = art?.ganador_id || art?.winner_id || art?.winnerUid || art?.recipient_id || null;
     const estado = normEstado(art?.estado || art?.status || "disponible");
+    const isGanador = String(ganadorId || "") === String(user.id) &&
+      (estado === "reservado" || estado === "entregado");
 
-    const canOpen =
-      String(ganadorId || "") === String(user.id) && (estado === "reservado" || estado === "entregado");
+    if (!hasChatActivo && !isGanador) return;
 
-    if (!canOpen) return;
-
-    await markChatAsRead({ articuloId, buyerId: user.id });
-    onOpenChat({ article: art, buyerId: user.id });
+    try {
+      setCargandoChatRescate(articuloId);
+      onArticuloSeen?.(articuloId);
+      await markChatAsRead({ articuloId, buyerId: user.id });
+      onOpenChat({ article: art, buyerId: user.id });
+    } finally {
+      setCargandoChatRescate(null);
+    }
   };
 
   const refreshSolicitudesArticuloSeleccionado = async () => {
@@ -2416,6 +2493,11 @@ export default function UserProfile({
                 type="button"
               >
                 Mis Publicaciones
+                {pubNotifCount > 0 ? (
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-black">
+                    {pubNotifCount}
+                  </span>
+                ) : null}
               </button>
 
               <button
@@ -2428,6 +2510,11 @@ export default function UserProfile({
                 type="button"
               >
                 Mis Rescates
+                {rescNotifCount > 0 ? (
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-black">
+                    {rescNotifCount}
+                  </span>
+                ) : null}
               </button>
 
               <button
@@ -2676,7 +2763,11 @@ export default function UserProfile({
                       return (
                         <div
                           key={currentId ? `art-${currentId}` : `art-idx-${idx}`}
-                          className={`relative flex items-center gap-4 p-4 mb-3 bg-white rounded-3xl shadow-sm border border-gray-100 transition ${
+                          className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition ${
+                            notif?.total
+                              ? "bg-orange-50 border-orange-200 ring-1 ring-orange-200"
+                              : "bg-white border-gray-100"
+                          } ${
                             isReview || isUserBlocked
                               ? "opacity-70 cursor-not-allowed"
                               : "hover:shadow-md cursor-pointer"
@@ -2756,7 +2847,7 @@ export default function UserProfile({
                               disabled={isLoadingThis || !canOpenMsgs}
                               aria-label="Ver mensajes"
                             >
-                              {hasUnread ? (
+                              {(hasUnread || (notif?.unreadChats > 0)) ? (
                                 <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
                               ) : null}
                               {isLoadingThis ? (
@@ -2857,8 +2948,9 @@ export default function UserProfile({
                         !isUserBlocked &&
                         (isVenta
                           ? hasChatBuyer || isBuyer
-                          : String(ganadorId || "") === String(user.id) &&
-                            (estado === "reservado" || estado === "entregado"));
+                          : hasChatBuyer ||
+                            (String(ganadorId || "") === String(user.id) &&
+                             (estado === "reservado" || estado === "entregado")));
 
                       const statusUI = badgeUIByStatus(estado);
                       const tipoUI = badgeUIByTipo(tipo);
@@ -2870,7 +2962,11 @@ export default function UserProfile({
                       return (
                         <div
                           key={r?.id || `${r?.articulo_id}-${r?.created_at}`}
-                          className={`relative flex items-center gap-4 p-4 mb-3 bg-white rounded-3xl shadow-sm border border-gray-100 transition ${
+                          className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition ${
+                            hasUnread
+                              ? "bg-green-50 border-green-200 ring-1 ring-green-200"
+                              : "bg-white border-gray-100"
+                          } ${
                             isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
                           }`}
                         >
@@ -2920,14 +3016,14 @@ export default function UserProfile({
                                 if (isReview) return alert(revisionBlockMsg(titulo));
                                 verMensajesRescate(r);
                               }}
-                              disabled={cargandoSolicitudes || isDeletingMine || !canOpenMsgsRescate}
+                              disabled={cargandoChatRescate === articuloId || isDeletingMine || !canOpenMsgsRescate}
                               className="relative bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
                               aria-label="Ver mensajes"
                             >
                               {hasUnread ? (
                                 <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
                               ) : null}
-                              {cargandoSolicitudes ? (
+                              {cargandoChatRescate === articuloId ? (
                                 <Loader2 className="animate-spin" size={16} />
                               ) : (
                                 <MessageCircle size={16} />

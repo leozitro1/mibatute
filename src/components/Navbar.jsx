@@ -221,6 +221,7 @@ export default function Navbar({
   notifications = [],
   onNotificationClick,
   onNotificationSeen,
+  isProfile = false,
 }) {
   const displayName = user?.nombre?.trim() || user?.displayName?.trim() || user?.email?.trim() || "";
   const avatarLetter = (displayName?.[0] || "U").toUpperCase();
@@ -373,16 +374,21 @@ export default function Navbar({
     setHiddenNotifIds(new Set());
   }, [user?.id]);
 
+  // Siempre mostrar las últimas 6, nunca se borran — estilo Facebook
   const visibleNotifs = useMemo(() => {
     const list = Array.isArray(notifications) ? notifications : [];
-    if (!hiddenNotifIds.size) return list;
-    return list.filter((n) => !hiddenNotifIds.has(String(n?.id || "")));
-  }, [notifications, hiddenNotifIds]);
+    return [...list]
+      .sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0))
+      .slice(0, 6);
+  }, [notifications]);
 
+  // Badge: solo las que no están en hiddenNotifIds (ocultas localmente)
   const dropdownCount = useMemo(() => {
-    if (Array.isArray(notifications) && notifications.length) return visibleNotifs.length;
+    if (Array.isArray(notifications) && notifications.length) {
+      return notifications.filter((n) => !hiddenNotifIds.has(String(n?.id || ""))).length;
+    }
     return Number(notifChatCount || 0);
-  }, [notifications, visibleNotifs.length, notifChatCount]);
+  }, [notifications, hiddenNotifIds, notifChatCount]);
 
   const handleMessagesButton = () => {
     if (user && isBlocked) {
@@ -396,6 +402,12 @@ export default function Navbar({
       return;
     }
     setOpenNotifs((v) => !v);
+    // Al abrir: bajar globo a 0 solo localmente, sin llamar onNotificationSeen
+    // (llamarlo marcaría todo como visto en DB y borraría la lista)
+    if (!openNotifs) {
+      const list = Array.isArray(notifications) ? notifications : [];
+      setHiddenNotifIds(new Set(list.map((n) => String(n?.id || "")).filter(Boolean)));
+    }
   };
 
   const handleNotifClick = async (item) => {
@@ -485,7 +497,7 @@ export default function Navbar({
             </div>
           </button>
 
-          <div className="flex-1 max-w-3xl relative">
+          <div className={`flex-1 max-w-3xl relative${isProfile ? " opacity-40 pointer-events-none select-none" : ""}`}>
             <div className="relative w-full">
               <input
                 ref={searchInputRef}
