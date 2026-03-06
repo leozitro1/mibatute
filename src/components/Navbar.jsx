@@ -4,7 +4,7 @@ import { Search, MapPin, User, ChevronDown, LogOut, MessageCircle, X } from "luc
 import { COLOMBIA_DATA } from "../data/locations";
 import { supabase } from "../supabase/supabaseClient";
 
-const logoMiBatute = "/mi%20batute%20logo.svg";
+const logoMiBatute = "/logo.png";
 
 function Badge({ count = 0 }) {
   const n = Number(count || 0);
@@ -180,11 +180,7 @@ function NotificationsDropdown({
                       <p className="mt-1 text-[12px] text-gray-600 font-medium line-clamp-2">{subtitle}</p>
                     ) : null}
 
-                    <div className="mt-2">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full bg-forest-green/10 text-forest-green text-[10px] font-black uppercase">
-                        {pillText}
-                      </span>
-                    </div>
+
                   </div>
                 </button>
               );
@@ -472,7 +468,7 @@ export default function Navbar({
             <img
               src={logoMiBatute}
               alt="MiBatute"
-              className="h-14 w-14 md:h-16 md:w-16 rounded-xl object-contain"
+              className="h-11 w-11 md:h-10 md:w-10 rounded-xl object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
               }}

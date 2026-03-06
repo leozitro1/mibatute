@@ -696,6 +696,7 @@ export default function MasterPage() {
     if (userQuickFilter === "blocked") list = list.filter((u) => !!u?.is_blocked);
     if (userQuickFilter === "banned")
       list = list.filter((u) => (u?.ban_until ? new Date(u.ban_until).getTime() > Date.now() : false));
+    if (userQuickFilter === "hide_blocked") list = list.filter((u) => !u?.is_blocked);
 
     if (qNorm) {
       list = list.filter((u) => {
@@ -877,7 +878,7 @@ export default function MasterPage() {
 
               <button
                 type="button"
-                onClick={() => setTab("usuarios")}
+                onClick={() => { setTab("usuarios"); loadUsuarios(); loadActiveCounts(); }}
                 className={
                   "px-4 py-2 rounded-2xl font-semibold text-sm border " +
                   (tab === "usuarios"
@@ -919,12 +920,7 @@ export default function MasterPage() {
                 Refrescar
               </button>
 
-              <Link
-                to="/"
-                className="px-4 py-2 rounded-2xl bg-gray-900 text-white font-semibold text-sm transition hover:shadow-sm active:scale-[0.99]"
-              >
-                Home
-              </Link>
+
             </div>
           </div>
 
@@ -1024,6 +1020,18 @@ export default function MasterPage() {
                         }
                       >
                         Sancionados
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUserQuickFilter("hide_blocked")}
+                        className={
+                          "px-3 py-2 rounded-2xl text-xs font-semibold " +
+                          (userQuickFilter === "hide_blocked"
+                            ? "bg-gray-500 text-white"
+                            : "text-gray-700 hover:bg-gray-50")
+                        }
+                      >
+                        Ocultar bloqueados
                       </button>
                     </div>
 
@@ -1482,6 +1490,20 @@ export default function MasterPage() {
                           </div>
 
                           <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMsgMode("one");
+                                setMsgSelectedOne(u.id);
+                                setMsgUserQuery(u.name || "");
+                                setTab("mensajes");
+                                loadCanSendFlag();
+                              }}
+                              className="px-4 py-2 rounded-2xl bg-indigo-50 text-indigo-800 font-semibold text-xs border border-indigo-200 hover:border-indigo-800"
+                            >
+                              ✉ Mensaje
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => setBlocked(u.id, !u.is_blocked)}

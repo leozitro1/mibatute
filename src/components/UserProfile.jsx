@@ -2602,7 +2602,7 @@ export default function UserProfile({
                               <button
                                 type="button"
                                 title="Borrar mensaje"
-                                onClick={() => markReceipt(m.receipt_id, "delete")}
+                                onClick={() => { if (window.confirm("¿Borrar este mensaje? No se puede deshacer.")) markReceipt(m.receipt_id, "delete"); }}
                                 className="p-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-600 transition"
                               >
                                 <Trash2 size={14} />
@@ -2674,6 +2674,7 @@ export default function UserProfile({
                           <button
                             type="button"
                             onClick={() => {
+                              if (!window.confirm("¿Borrar este mensaje? No se puede deshacer.")) return;
                               markReceipt(sysMsgModal.receipt_id, "delete");
                               setSysMsgModal(null);
                             }}

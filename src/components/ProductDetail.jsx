@@ -567,14 +567,19 @@ export default function ProductDetail({
               <div className="absolute inset-0 bg-gray-100" aria-hidden="true" />
 
               {isReviewing && (
-                <div className="absolute inset-0 flex items-center justify-center z-20">
-                  <div className="px-6 py-3 rounded-2xl border border-white/40 bg-black/45 backdrop-blur-sm shadow-2xl">
-                    <span className="text-white font-black tracking-widest text-xl md:text-2xl uppercase">
-                      En revisión
-                    </span>
-                  </div>
-                </div>
-              )}
+  <div className="absolute inset-0 flex items-center justify-center z-20">
+    <div className="flex items-center gap-3 px-6 py-4 rounded-2xl border border-white/30 bg-black/50 backdrop-blur-sm shadow-2xl">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 3L22 21H2L12 3Z" stroke="#FACC15" strokeWidth="1.5" strokeLinejoin="round"/>
+        <line x1="12" y1="10" x2="12" y2="15" stroke="#FACC15" strokeWidth="1.5" strokeLinecap="round"/>
+        <circle cx="12" cy="18" r="1" fill="#FACC15"/>
+      </svg>
+      <span style={{letterSpacing: "0.18em", fontWeight: 400}} className="text-white text-xl uppercase">
+        En revisión
+      </span>
+    </div>
+  </div>
+)}
 
               {/* (opcional) sombra suave para separar la imagen del fondo */}
               <div className="absolute inset-0 bg-black/10 z-10" />
@@ -606,11 +611,27 @@ export default function ProductDetail({
 
             {/* overlay si no disponible o si en revisión */}
             {(!isAvailable || isUnderReview) && (
-              <div className="absolute inset-0 bg-black/45 flex items-center justify-center p-4">
-                <div className="bg-white/95 rounded-2xl px-4 py-3 flex items-center gap-2 font-black text-gray-800 text-center">
-                  <Lock size={18} className="text-forest-green" />
-                  {isUnderReview ? "Este artículo está EN REVISIÓN" : `Este artículo está ${estadoNorm}`}
-                </div>
+              <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4">
+                {isUnderReview ? (
+                  <div className="flex flex-col items-center gap-3 select-none">
+                    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M26 6L48 44H4L26 6Z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
+                      <line x1="26" y1="22" x2="26" y2="33" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                      <circle cx="26" cy="38.5" r="1.8" fill="white"/>
+                    </svg>
+                    <div className="text-center">
+                      <p style={{letterSpacing:"0.22em", fontWeight:300}} className="text-white/70 text-[10px] uppercase">artículo</p>
+                      <p style={{letterSpacing:"0.28em", fontWeight:300}} className="text-white text-[15px] uppercase mt-1">en revisión</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 bg-white/15 border border-white/30 rounded-2xl px-4 py-2 backdrop-blur-sm">
+                    <Lock size={14} className="text-white/80" />
+                    <span style={{letterSpacing:"0.2em", fontWeight:300}} className="text-white text-xs uppercase">
+                      {String(estadoNorm).replace("_"," ")}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>

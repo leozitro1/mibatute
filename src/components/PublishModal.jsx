@@ -56,14 +56,27 @@ function normalizeMode(v) {
 
 // ✅ Detecta datos de contacto prohibidos en la descripción
 const PALABRAS_CLAVE_CONTACTO = [
-  "comunicate", "comunicate", "comuniquese",
-  "llamame", "llamame", "llama al", "llamar al",
-  "whatsapp", "whats app", "wsp", "wasap",
-  "facebook", "instagram", "telegram", "tiktok",
-  " fb ", "fb.", "fb:", "/fb",
-  "correo", "email", "e-mail", "gmail", "hotmail", "yahoo",
-  "escribeme", "escribe al", "contactame", "contactame",
-  "mi numero", "mi cel", "mi celular", "al cel",
+  // WhatsApp y variantes
+  "whatsapp", "whats app", "wsp", "wasap", "whatsap", "wassap", "wasp",
+  // Llamadas
+  "llamame", "llamame", "llama al", "llamar al", "llame al", "comunicate",
+  "comuniquese", "comunicarse", "contactame", "contactame", "contactarse",
+  // Redes sociales
+  "facebook", "instagram", "telegram", "tiktok", "twitter", "snapchat",
+  "youtube", "linkedin", "discord", " fb ", "fb.", "fb:", "/fb", "@fb",
+  // Email
+  "correo", "email", "e-mail", "gmail", "hotmail", "yahoo", "outlook",
+  "correo electronico", "mi correo", "mi email",
+  // Celular / número
+  "mi numero", "mi cel", "mi celular", "al cel", "al celular",
+  "mi telefono", "al telefono", "numero de cel", "numero de telefono",
+  "cel:", "tel:", "celular:", "telefono:", "contacto:",
+  // Escribir / mensajear
+  "escribeme", "escribe al", "manda mensaje", "mandame mensaje",
+  "enviame mensaje", "mensaje al", "mensaje por",
+  // URLs y links
+  "http://", "https://", "www.", ".com", ".net", ".co/", "bit.ly",
+  "tinyurl", "goo.gl", "t.me/", "wa.me/", "wa.link",
 ];
 
 const NUMERO_PALABRAS = [
@@ -75,19 +88,20 @@ function detectContactoProhibido(texto = "") {
   const t = (texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
   // 1) Email con @
-  if (/@/.test(t)) {
+  if (/@[a-z0-9]/i.test(t)) {
     return "No puedes incluir correos electrónicos en la descripción.";
   }
 
   // 2) Palabras clave de contacto
   for (const kw of PALABRAS_CLAVE_CONTACTO) {
     if (t.includes(kw)) {
-      return `No puedes incluir formas de contacto externo en la descripción (detectado: "${kw}").`;
+      return `No puedes incluir formas de contacto externo (detectado: "${kw}"). Usa el chat de la plataforma.`;
     }
   }
 
-  // 3) Número de teléfono en dígitos: 7+ dígitos con separadores opcionales
-  if (/\d[\d\s.\-]{5,}\d/.test(t)) {
+  // 3) Número de teléfono: 7+ dígitos seguidos (con separadores opcionales)
+  // Excluye años (4 dígitos solos) y precios cortos
+  if (/(?<![\d])\d[\d\s.\-]{5,}\d(?![\d])/.test(t)) {
     return "No puedes incluir números de teléfono en la descripción.";
   }
 

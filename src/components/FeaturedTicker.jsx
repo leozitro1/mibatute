@@ -13,11 +13,16 @@ import { useEffect, useMemo, useRef } from "react";
 export default function FeaturedTicker({ items = [], onItemClick }) {
   const list = Array.isArray(items) ? items.filter(Boolean) : [];
 
-  // Duplicamos para loop continuo
+  // Orden aleatorio estable por sesión + duplicado para loop continuo
   const doubled = useMemo(() => {
     if (!list.length) return [];
-    return [...list, ...list];
-  }, [list]);
+    const shuffled = [...list];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return [...shuffled, ...shuffled];
+  }, [list.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scrollerRef = useRef(null);
 

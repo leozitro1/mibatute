@@ -92,6 +92,7 @@ export default function AdminPage() {
   const [blockedError, setBlockedError] = useState("");
   const [blockedUsers, setBlockedUsers] = useState([]);
 
+  const [showBlocked, setShowBlocked] = useState(false);
   const [cityFilter, setCityFilter] = useState("Todas");
   const [localityFilter, setLocalityFilter] = useState("Todas");
 
@@ -852,264 +853,190 @@ export default function AdminPage() {
 
               const greenTxt = greenStatusText({ aggStatus, artEstado, isBlocked });
 
+              // Textos de explicación de los denunciantes
+              const detailTexts = repList
+                .map((x) => String(x?.details || "").trim())
+                .filter(Boolean);
+
               return (
                 <div key={g.key} className="bg-white border border-gray-100 rounded-3xl p-5">
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div className="min-w-0">
+
+                  {/* ── HEADER ── */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${pill.cls}`}>{pill.txt}</span>
-                        <span className="text-sm font-semibold text-gray-900">{artTitle}</span>
+                        {!isChat && <span className={`px-2 py-1 rounded-full text-[10px] font-semibold border ${artEstadoP.cls}`}>{artEstadoP.txt}</span>}
+                        {isBlocked && <span className="px-2 py-1 rounded-full bg-red-100 text-red-800 border border-red-200 text-[10px] font-semibold">BLOQUEADO</span>}
+                        {isBannedNow && <span className="px-2 py-1 rounded-full bg-orange-100 text-orange-900 border border-orange-200 text-[10px] font-semibold">SANCIONADO</span>}
+                      </div>
+                      <p className="mt-1 text-sm font-semibold text-gray-900">{artTitle}</p>
+                      <p className="mt-0.5 text-xs text-gray-500 font-medium">
+                        {!isChat && head?.city ? `${head.city}${head.locality ? `, ${head.locality}` : ""} · ` : ""}
+                        Usuario: <span className="font-semibold text-gray-800">{ownerNameReal}</span>
+                        {" · "}Último reporte: {fmtDate(head?.last_report_at)}
+                      </p>
+                      <p className="mt-1 text-[11px] text-gray-500 font-medium">
+                        <span className="font-bold text-gray-800">{total}</span> reportes —{" "}
+                        <span className="text-blue-700 font-semibold">{openCount} nuevos</span>{", "}
+                        <span className="text-yellow-800 font-semibold">{reviewingCount} en revisión</span>{", "}
+                        <span className="text-green-800 font-semibold">{resolvedCount} resueltos</span>{", "}
+                        <span className="text-gray-600 font-semibold">{dismissedCount} descartados</span>
+                      </p>
+                    </div>
+
+                    {/* Imagen */}
+                    {!isChat && (
+                      <div className="shrink-0 w-28 md:w-36">
+                        <div className="rounded-2xl overflow-hidden border border-gray-100 bg-gray-50">
+                          {head?.articulo_thumb ? (
+                            <img src={head.articulo_thumb} alt="thumb" className="w-full h-24 object-cover"
+                              onError={(e) => (e.currentTarget.style.display = "none")} />
+                          ) : (
+                            <div className="h-24 flex items-center justify-center text-[10px] font-semibold text-gray-400">Sin imagen</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── MOTIVOS + DETALLES ── */}
+                  <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3">
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">Motivos reportados</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {reasons.length ? reasons.map(([k, c]) => (
+                          <span key={`${k}-${c}`} className="px-2 py-1 rounded-full text-[11px] font-semibold border border-gray-200 bg-white text-gray-800">{k} ({c})</span>
+                        )) : <span className="text-xs text-gray-400">—</span>}
+                      </div>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-3">
+                      <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-widest">Lo que dijeron los denunciantes</p>
+                      {detailTexts.length ? (
+                        <ul className="mt-2 space-y-1">
+                          {detailTexts.map((d, i) => (
+                            <li key={i} className="text-xs text-gray-700 font-medium leading-relaxed border-l-2 border-amber-300 pl-2">
+                              {d}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-xs text-gray-400 font-medium">No escribieron explicación.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── ACCIONES ── */}
+                  <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+                    {/* Acciones del artículo */}
+                    <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3">
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">
+                        {isChat ? "Acciones del chat" : "Acciones del artículo"}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
                         {!isChat && (
-                          <span className="text-xs text-gray-500 font-medium">
-                            {head?.city ? `${head.city}${head.locality ? `, ${head.locality}` : ""}` : ""}
-                          </span>
+                          <button type="button" onClick={() => openPreview(head?.articulo_id)}
+                            className="px-3 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-xs border border-gray-200 hover:border-gray-900">
+                            👁 Ver preview
+                          </button>
                         )}
-                        {isChat && (
-                          <span className="text-xs text-gray-500 font-medium">
-                            {head?.target_id ? `Chat ID: ${head.target_id}` : "Chat"}
-                          </span>
-                        )}
-                        <span className="text-xs text-gray-400 font-medium">Último: {fmtDate(head?.last_report_at)}</span>
-                        <span className="ml-1 text-xs font-semibold text-green-700">{greenTxt}</span>
-                      </div>
-
-                      <div className="mt-2 text-[12px] font-medium text-gray-600">
-                        <span className="font-semibold text-gray-900">{total}</span> reportes —{" "}
-                        <span className="text-blue-700 font-semibold">{openCount}</span> nuevos,{" "}
-                        <span className="text-yellow-800 font-semibold">{reviewingCount}</span> en revisión,{" "}
-                        <span className="text-green-800 font-semibold">{resolvedCount}</span> resueltos,{" "}
-                        <span className="text-gray-700 font-semibold">{dismissedCount}</span> descartados.
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Motivos (top)</p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {reasons.length ? (
-                              reasons.map(([k, c]) => (
-                                <span
-                                  key={`${k}-${c}`}
-                                  className="px-3 py-1 rounded-full text-[11px] font-semibold border border-gray-200 bg-white text-gray-800"
-                                  title={k}
-                                >
-                                  {k} ({c})
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-xs text-gray-500 font-medium">—</span>
-                            )}
-                          </div>
-
-                          <div className="mt-3 text-xs text-gray-600 font-medium">
-                            Usuario: <span className="font-semibold text-gray-900">{ownerNameReal}</span>{" "}
-                            {isBlocked ? (
-                              <span className="ml-2 px-2 py-1 rounded-full bg-red-100 text-red-800 border border-red-200 text-[10px] font-semibold">
-                                BLOQUEADO
-                              </span>
-                            ) : null}
-                            {isBannedNow ? (
-                              <span className="ml-2 px-2 py-1 rounded-full bg-orange-100 text-orange-900 border border-orange-200 text-[10px] font-semibold">
-                                SANCIONADO
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <div className="mt-3 flex items-center gap-2">
-                            <span className="text-xs text-gray-600 font-medium">{isChat ? "Estado chat" : "Estado artículo"}:</span>
-                            <span className={`px-3 py-1 rounded-full text-[11px] font-semibold border ${artEstadoP.cls}`}>
-                              {artEstadoP.txt}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Acciones rápidas</p>
-
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {!isChat && (
-                              <button
-                                type="button"
-                                onClick={() => openPreview(head?.articulo_id)}
-                                className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-xs border border-gray-200 hover:border-gray-900"
-                              >
-                                Ver artículo (preview)
-                              </button>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const ok = confirm("¿Marcar EN REVISIÓN y bloquear el artículo?");
-                                if (!ok) return;
-
-                                const idsToReview = repList
-                                  .filter((x) => {
-                                    const st = String(x.status || "").toLowerCase();
-                                    return st === "open" || st === "reviewing";
-                                  })
-                                  .map((x) => x.report_id);
-
-                                const okR = await bulkUpdateReports({
-                                  reportIds: idsToReview,
-                                  patch: { status: "reviewing", resolution: "" },
-                                });
-                                if (!okR.ok) return;
-
-                                if (!isChat) await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "en_revision" });
-                                await loadReports({ force: true });
-                              }}
-                              className="px-4 py-2 rounded-2xl bg-yellow-100 text-yellow-900 font-semibold text-xs border border-yellow-200 hover:border-yellow-900"
-                            >
-                              En revisión (bloquear)
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const ok = confirm("¿Descartar reportes y desbloquear si estaba en revisión?");
-                                if (!ok) return;
-
-                                const okR = await bulkUpdateReports({
-                                  reportIds,
-                                  patch: { status: "dismissed", resolution: "" },
-                                });
-                                if (!okR.ok) return;
-
-                                if (normalizeEstadoArticulo(head?.articulo_estado) === "en_revision") {
-                                  if (!isChat) await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "disponible" });
-                                }
-
-                                await loadReports({ force: true });
-                              }}
-                              className="px-4 py-2 rounded-2xl bg-gray-200 text-gray-900 font-semibold text-xs border border-gray-300 hover:border-gray-900"
-                            >
-                              Descartar (desbloquear)
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const ok = confirm(
-                                  "¿Marcar como RESUELTO y BORRAR las denuncias?\n\nEsto las elimina y ya no aparecerán en este panel."
-                                );
-                                if (!ok) return;
-
-                                if (normalizeEstadoArticulo(head?.articulo_estado) === "en_revision") {
-                                  if (!isChat) await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "disponible" });
-                                }
-
-                                const del = await deleteReportsByIds(reportIds);
-                                if (!del.ok) return;
-
-                                await loadReports({ force: true });
-                              }}
-                              className="px-4 py-2 rounded-2xl bg-green-100 text-green-800 font-semibold text-xs border border-green-200 hover:border-green-800"
-                            >
-                              Resuelto (borrar denuncia)
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const ok = confirm("¿Eliminar el ARTÍCULO? Esto borra anuncio y relaciones.");
-                                if (!ok) return;
-
-                                const del = await deleteArticleDeep(head?.articulo_id);
-                                if (!del.ok) return;
-
-                                await bulkUpdateReports({
-                                  reportIds,
-                                  patch: { status: "resolved", resolution: "Artículo eliminado por moderación." },
-                                });
-
-                                await loadReports({ force: true });
-                              }}
-                              className="px-4 py-2 rounded-2xl bg-red-100 text-red-800 font-semibold text-xs border border-red-200 hover:border-red-800"
-                            >
-                              Eliminar artículo
-                            </button>
-                          </div>
-
-                          {ownerId ? (
-                            <div className="mt-4 pt-4 border-t border-gray-200">
-                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
-                                Usuario (sanción / bloqueo)
-                              </p>
-
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => applyBanDays(ownerId, 1)}
-                                  className="px-4 py-2 rounded-2xl bg-orange-50 text-orange-900 font-semibold text-xs border border-orange-200 hover:border-orange-900"
-                                >
-                                  Sancionar 1 día
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => applyBanDays(ownerId, 3)}
-                                  className="px-4 py-2 rounded-2xl bg-orange-50 text-orange-900 font-semibold text-xs border border-orange-200 hover:border-orange-900"
-                                >
-                                  3 días
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => applyBanDays(ownerId, 7)}
-                                  className="px-4 py-2 rounded-2xl bg-orange-50 text-orange-900 font-semibold text-xs border border-orange-200 hover:border-orange-900"
-                                >
-                                  7 días
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => clearBan(ownerId)}
-                                  className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-xs border border-gray-200 hover:border-gray-900"
-                                >
-                                  Quitar sanción
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => setBlocked(ownerId, true)}
-                                  className="px-4 py-2 rounded-2xl bg-red-100 text-red-800 font-semibold text-xs border border-red-200 hover:border-red-800"
-                                >
-                                  Bloquear usuario
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => setBlocked(ownerId, false)}
-                                  className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-xs border border-gray-200 hover:border-gray-900"
-                                >
-                                  Desbloquear
-                                </button>
-                              </div>
-
-                              <p className="mt-3 text-xs text-gray-600 font-medium">
-                                Sanción hasta:{" "}
-                                <span className="font-semibold text-gray-900">{flags?.ban_until ? fmtDate(flags.ban_until) : "—"}</span>
-                              </p>
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="shrink-0 w-full md:w-56">
-                      <div className="rounded-3xl overflow-hidden border border-gray-100 bg-gray-50">
-                        {head?.articulo_thumb ? (
-                          <img
-                            src={head.articulo_thumb}
-                            alt="thumb"
-                            className="w-full h-40 object-cover"
-                            onError={(e) => (e.currentTarget.style.display = "none")}
-                          />
-                        ) : (
-                          <div className="h-40 flex items-center justify-center text-xs font-semibold text-gray-400">Sin imagen</div>
+                        <button type="button"
+                          onClick={async () => {
+                            const ok = confirm("¿Marcar EN REVISIÓN y bloquear el artículo?");
+                            if (!ok) return;
+                            const idsToReview = repList.filter(x => { const st = String(x.status||"").toLowerCase(); return st==="open"||st==="reviewing"; }).map(x=>x.report_id);
+                            const okR = await bulkUpdateReports({ reportIds: idsToReview, patch: { status: "reviewing", resolution: "" } });
+                            if (!okR.ok) return;
+                            if (!isChat) await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "en_revision" });
+                            await loadReports({ force: true });
+                          }}
+                          className="px-3 py-2 rounded-2xl bg-yellow-100 text-yellow-900 font-semibold text-xs border border-yellow-200 hover:border-yellow-900">
+                          🔒 En revisión
+                        </button>
+                        <button type="button"
+                          onClick={async () => {
+                            const ok = confirm("¿Descartar reportes y desbloquear si estaba en revisión?");
+                            if (!ok) return;
+                            const okR = await bulkUpdateReports({ reportIds, patch: { status: "dismissed", resolution: "" } });
+                            if (!okR.ok) return;
+                            if (normalizeEstadoArticulo(head?.articulo_estado)==="en_revision") {
+                              if (!isChat) await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "disponible" });
+                            }
+                            await loadReports({ force: true });
+                          }}
+                          className="px-3 py-2 rounded-2xl bg-gray-200 text-gray-900 font-semibold text-xs border border-gray-300 hover:border-gray-900">
+                          ✓ Descartar
+                        </button>
+                        <button type="button"
+                          onClick={async () => {
+                            const ok = confirm("¿Marcar como RESUELTO y BORRAR las denuncias?\n\nEsto las elimina y ya no aparecerán en este panel.");
+                            if (!ok) return;
+                            if (normalizeEstadoArticulo(head?.articulo_estado)==="en_revision") {
+                              if (!isChat) await setArticleStatus({ articleId: head?.articulo_id, nextEstado: "disponible" });
+                            }
+                            const del = await deleteReportsByIds(reportIds);
+                            if (!del.ok) return;
+                            await loadReports({ force: true });
+                          }}
+                          className="px-3 py-2 rounded-2xl bg-green-100 text-green-800 font-semibold text-xs border border-green-200 hover:border-green-800">
+                          ✅ Resuelto
+                        </button>
+                        {!isChat && (
+                          <button type="button"
+                            onClick={async () => {
+                              const ok = confirm("¿Eliminar el ARTÍCULO? Esto borra anuncio y relaciones.");
+                              if (!ok) return;
+                              const del = await deleteArticleDeep(head?.articulo_id);
+                              if (!del.ok) return;
+                              await bulkUpdateReports({ reportIds, patch: { status: "resolved", resolution: "Artículo eliminado por moderación." } });
+                              await loadReports({ force: true });
+                            }}
+                            className="px-3 py-2 rounded-2xl bg-red-100 text-red-800 font-semibold text-xs border border-red-200 hover:border-red-800">
+                            🗑 Eliminar artículo
+                          </button>
                         )}
                       </div>
                     </div>
+
+                    {/* Acciones del usuario */}
+                    {ownerId ? (
+                      <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3">
+                        <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">Sancionar usuario</p>
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => applyBanDays(ownerId, 1)}
+                            className="px-3 py-2 rounded-2xl bg-orange-50 text-orange-900 font-semibold text-xs border border-orange-200 hover:border-orange-900">
+                            1 día
+                          </button>
+                          <button type="button" onClick={() => applyBanDays(ownerId, 3)}
+                            className="px-3 py-2 rounded-2xl bg-orange-50 text-orange-900 font-semibold text-xs border border-orange-200 hover:border-orange-900">
+                            3 días
+                          </button>
+                          <button type="button" onClick={() => applyBanDays(ownerId, 7)}
+                            className="px-3 py-2 rounded-2xl bg-orange-50 text-orange-900 font-semibold text-xs border border-orange-200 hover:border-orange-900">
+                            7 días
+                          </button>
+                          <button type="button" onClick={() => clearBan(ownerId)}
+                            className="px-3 py-2 rounded-2xl bg-white text-gray-700 font-semibold text-xs border border-gray-200 hover:border-gray-900">
+                            Quitar sanción
+                          </button>
+                          <button type="button" onClick={() => setBlocked(ownerId, true)}
+                            className="px-3 py-2 rounded-2xl bg-red-100 text-red-800 font-semibold text-xs border border-red-200 hover:border-red-800">
+                            Bloquear
+                          </button>
+                          <button type="button" onClick={() => setBlocked(ownerId, false)}
+                            className="px-3 py-2 rounded-2xl bg-white text-gray-700 font-semibold text-xs border border-gray-200 hover:border-gray-900">
+                            Desbloquear
+                          </button>
+                        </div>
+                        {flags?.ban_until && (
+                          <p className="mt-2 text-[11px] text-gray-500 font-medium">
+                            Sanción hasta: <span className="font-semibold text-gray-800">{fmtDate(flags.ban_until)}</span>
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               );
@@ -1122,21 +1049,33 @@ export default function AdminPage() {
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Usuarios</p>
                 <h2 className="text-lg font-semibold text-gray-900 mt-1">Bloqueados</h2>
                 <p className="text-xs text-gray-500 font-medium mt-1">
-                  Lista directa desde <span className="font-semibold">usuarios.is_blocked = true</span>
+                  {blockedUsers.length > 0 ? `${blockedUsers.length} usuarios bloqueados` : "Lista de usuarios bloqueados"}
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={loadBlockedUsers}
-                className="px-4 py-2 rounded-2xl bg-gray-100 text-gray-900 font-semibold text-sm border border-gray-200 hover:border-gray-900"
-                disabled={blockedLoading}
-              >
-                Refrescar bloqueados
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowBlocked(v => !v); if (!showBlocked) loadBlockedUsers(); }}
+                  className={
+                    "px-4 py-2 rounded-2xl font-semibold text-sm border transition " +
+                    (showBlocked
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "bg-white text-gray-900 border-gray-200 hover:border-gray-900")
+                  }
+                >
+                  {showBlocked ? "Ocultar bloqueados" : "Mostrar bloqueados"}
+                </button>
+                {showBlocked && (
+                  <button type="button" onClick={loadBlockedUsers} disabled={blockedLoading}
+                    className="px-4 py-2 rounded-2xl bg-gray-100 text-gray-900 font-semibold text-sm border border-gray-200 hover:border-gray-900">
+                    Refrescar
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="mt-4">
+            {showBlocked && <div className="mt-4">
               {blockedLoading ? (
                 <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
                   <p className="text-sm font-semibold text-gray-700">Cargando bloqueados…</p>
@@ -1203,7 +1142,7 @@ export default function AdminPage() {
                   ))}
                 </div>
               )}
-            </div>
+            </div>}
           </div>
 
 
