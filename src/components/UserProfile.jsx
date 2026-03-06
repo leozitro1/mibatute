@@ -1007,8 +1007,6 @@ export default function UserProfile({
 
   const [isEditing, setIsEditing] = useState(false);
   const originalProfileRef = useRef(null);
-  // Cache chatId → articuloId para que el realtime no necesite ir a la DB
-  const chatIdToArtIdRef = useRef(new Map());
 
   const [managingProduct, setManagingProduct] = useState(null);
 
@@ -1174,10 +1172,6 @@ export default function UserProfile({
         const isSeller = String(sellerId || "") === String(user.id);
         return isBuyer || isSeller;
       });
-      // Aprovechar para llenar el cache chatId → articuloId
-      myChats.forEach((c) => {
-        if (c?.id && c?.articulo_id) chatIdToArtIdRef.current.set(String(c.id), String(c.articulo_id));
-      });
 
       const chatIds = myChats.map((c) => c.id).filter(Boolean);
       if (!chatIds.length) {
@@ -1201,30 +1195,25 @@ export default function UserProfile({
 
       const readMap = new Map((reads || []).map((r) => [String(r.chat_id), r?.last_read_at || null]));
 
-      // Contar mensajes no leídos por chat
-      const unreadCountByChat = new Map();
-      for (const c of myChats) {
-        const lastReadRaw = readMap.get(String(c.id)) || null;
-        const { count } = await supabase
-          .from("chat_messages")
-          .select("id", { count: "exact", head: true })
-          .eq("chat_id", c.id)
-          .neq("sender_id", user.id)
-          .gt("created_at", lastReadRaw || "1970-01-01");
-        unreadCountByChat.set(String(c.id), count || 0);
-      }
-
       const perArticulo = new Map();
       myChats.forEach((c) => {
         const articuloId = String(c?.articulo_id || "");
-        const cnt = unreadCountByChat.get(String(c.id)) || 0;
-        perArticulo.set(articuloId, (perArticulo.get(articuloId) || 0) + cnt);
+        const lastMsgAt = c?.last_message_at ? new Date(c.last_message_at).getTime() : 0;
+
+        const lastReadRaw = readMap.get(String(c.id)) || null;
+        const lastReadAt = lastReadRaw ? new Date(lastReadRaw).getTime() : 0;
+
+        const isUnread = lastMsgAt > 0 && lastMsgAt > lastReadAt;
+        const prev = perArticulo.get(articuloId) === true;
+
+        if (isUnread || prev) perArticulo.set(articuloId, true);
+        else if (!perArticulo.has(articuloId)) perArticulo.set(articuloId, false);
       });
 
       setUnreadByArticulo((prev) => {
         const next = new Map(prev);
         ids.forEach((aid) => {
-          next.set(String(aid), perArticulo.get(String(aid)) || 0);
+          next.set(String(aid), perArticulo.get(String(aid)) === true);
         });
         return next;
       });
@@ -1361,10 +1350,9 @@ export default function UserProfile({
     };
   }, [user?.id]);
 
-  // ✅ Carga rescates
+  // ✅ Carga rescates — al montar, igual que publicaciones
   useEffect(() => {
     if (!user?.id) return;
-    if (activeTab !== "rescates") return;
 
     let alive = true;
 
@@ -1503,7 +1491,7 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [activeTab, user?.id, loadUnreadForArticuloIds]);
+  }, [user?.id, loadUnreadForArticuloIds]);
 
   const handleToggleEdit = () => {
     if (saving) return;
@@ -1652,7 +1640,7 @@ export default function UserProfile({
   // ✅ maps publicaciones + unread (robusto)
   useEffect(() => {
     if (!user?.id) return;
-    if (activeTab !== "publicaciones") return;
+    if (activeTab !== "publicaciones" && activeTab !== "buzon") return;
 
     const ids = (publications || []).map(getArticuloId).filter(Boolean);
     if (!ids.length) {
@@ -1685,8 +1673,6 @@ export default function UserProfile({
         const chatMap = new Map();
         (chats || []).forEach((r) => {
           if (r?.articulo_id) chatMap.set(String(r.articulo_id), true);
-          // llenar cache chatId → articuloId
-          if (r?.id && r?.articulo_id) chatIdToArtIdRef.current.set(String(r.id), String(r.articulo_id));
         });
 
         setHasPostulacionesByArticulo(postMap);
@@ -1709,7 +1695,7 @@ export default function UserProfile({
   // ✅ maps rescates + unread (buyer)
   useEffect(() => {
     if (!user?.id) return;
-    if (activeTab !== "rescates") return;
+    if (activeTab !== "rescates" && activeTab !== "buzon") return;
 
     const ids = (rescates || [])
       .map((r) => r?.articulo_id || r?.articuloId || getArticuloId(r?.articulo))
@@ -1726,7 +1712,7 @@ export default function UserProfile({
       try {
         const { data: chatRows, error: chatErr } = await supabase
           .from("chats")
-          .select("id, articulo_id")
+          .select("articulo_id")
           .in("articulo_id", ids)
           .eq("buyer_id", user.id);
 
@@ -1737,8 +1723,6 @@ export default function UserProfile({
         const chatMap = new Map();
         (chatRows || []).forEach((r) => {
           if (r?.articulo_id) chatMap.set(String(r.articulo_id), true);
-          // llenar cache chatId → articuloId (rescates)
-          if (r?.id && r?.articulo_id) chatIdToArtIdRef.current.set(String(r.id), String(r.articulo_id));
         });
 
         setHasChatBuyerByArticulo(chatMap);
@@ -1756,74 +1740,23 @@ export default function UserProfile({
     };
   }, [activeTab, user?.id, rescates, loadUnreadForArticuloIds]);
 
-  // ✅ REALTIME: mensajes nuevos + cambios de estado de artículos
+  // ✅ REALTIME: cuando cambie last_message_at en chats => refresca unread del artículo afectado
   useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
-      .channel("realtime-userprofile-v2-" + user.id)
-
-      // Mensaje nuevo → incremento optimista inmediato usando cache local
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
-        const msg = payload?.new;
-        if (!msg?.chat_id) return;
-        if (String(msg?.sender_id || "") === String(user.id)) return;
-
-        const chatId = String(msg.chat_id);
-        const cached = chatIdToArtIdRef.current.get(chatId);
-
-        if (cached) {
-          // Cache hit: incremento inmediato sin ninguna query
-          setUnreadByArticulo((prev) => {
-            const next = new Map(prev);
-            next.set(cached, (next.get(cached) || 0) + 1);
-            return next;
-          });
-          // Confirmar con DB en segundo plano
-          loadUnreadForArticuloIds([cached]);
-        } else {
-          // Cache miss: ir a DB (solo ocurre la primera vez antes de cargar la pestaña)
-          supabase
-            .from("chats").select("id, articulo_id").eq("id", chatId).maybeSingle()
-            .then(({ data }) => {
-              if (!data?.articulo_id) return;
-              const aid = String(data.articulo_id);
-              // Guardar en cache para la próxima vez
-              chatIdToArtIdRef.current.set(chatId, aid);
-              setUnreadByArticulo((prev) => {
-                const next = new Map(prev);
-                next.set(aid, (next.get(aid) || 0) + 1);
-                return next;
-              });
-              loadUnreadForArticuloIds([aid]);
-            });
-        }
-      })
-
-      // Chat actualizado (last_message_at) → refrescar
+      .channel("realtime-userprofile-chats")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chats" }, (payload) => {
-        const articuloId = payload?.new?.articulo_id;
-        if (articuloId) loadUnreadForArticuloIds([articuloId]);
+        const row = payload?.new || {};
+        const articuloId = row?.articulo_id;
+        if (!articuloId) return;
+        loadUnreadForArticuloIds([articuloId]);
       })
-
-      // Artículo cambia estado (reserva, entrega, ganador) → actualizar card sin recargar
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "articulos" }, (payload) => {
-        const row = payload?.new;
-        if (!row?.id) return;
-        const isOurPub  = String(row?.owner_id  || row?.usuario_id || "") === String(user.id);
-        const isOurResc = String(row?.ganador_id || row?.buyer_id  || "") === String(user.id);
-        if (!isOurPub && !isOurResc) return;
-        setArticuloOverridesById((prev) => {
-          const next = new Map(prev);
-          next.set(String(row.id), row);
-          return next;
-        });
-        loadUnreadForArticuloIds([row.id]);
-      })
-
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user?.id, loadUnreadForArticuloIds]);
 
   // ── Cargar mensajes del sistema ──────────────────────────────────────────
@@ -1861,47 +1794,9 @@ export default function UserProfile({
     }
   }, []);
 
-  // Carga inicial al montar — llena el cache de chats Y los sysMsgs sin esperar click en pestaña
+  // Carga inicial al montar — necesario para mostrar el badge sin entrar al buzón
   useEffect(() => {
-    if (!user?.id) return;
-
-    // 1. Mensajes del sistema
-    loadSysMsgs();
-
-    // 2. Cache chatId → articuloId — dos queries separadas para máxima compatibilidad
-    //    (Supabase no lanza excepciones, devuelve { data, error })
-    (async () => {
-      const fillCache = (rows) => {
-        (Array.isArray(rows) ? rows : []).forEach((c) => {
-          if (c?.id && c?.articulo_id)
-            chatIdToArtIdRef.current.set(String(c.id), String(c.articulo_id));
-        });
-      };
-
-      // Como buyer (rescates)
-      const { data: asBuyer } = await supabase
-        .from("chats").select("id, articulo_id").eq("buyer_id", user.id);
-      fillCache(asBuyer);
-
-      // Como seller — probar seller_id primero
-      const resSeller = await supabase
-        .from("chats").select("id, articulo_id").eq("seller_id", user.id);
-      if (!resSeller.error) {
-        fillCache(resSeller.data);
-      } else {
-        // seller_id no existe — probar owner_id
-        const resOwner = await supabase
-          .from("chats").select("id, articulo_id").eq("owner_id", user.id);
-        if (!resOwner.error) {
-          fillCache(resOwner.data);
-        } else {
-          // último fallback — usuario_id
-          const resUsuario = await supabase
-            .from("chats").select("id, articulo_id").eq("usuario_id", user.id);
-          fillCache(resUsuario.data);
-        }
-      }
-    })();
+    if (user?.id) loadSysMsgs();
   }, [user?.id, loadSysMsgs]);
 
   // Recarga al volver al buzón (por si hubo cambios)
@@ -1943,7 +1838,7 @@ export default function UserProfile({
     (rescates || []).forEach((r) => put(r?.articulo || {}, "res"));
 
     const items = Array.from(map.entries()).map(([id, v]) => {
-      const hasUnread = unreadByArticulo.get(String(id)) > 0;
+      const hasUnread = unreadByArticulo.get(String(id)) === true;
       const notif = notifByArticulo?.[String(id)] || null;
       const notifCount = Number(notif?.total || 0) || 0;
       const hasChat =
@@ -1988,24 +1883,6 @@ export default function UserProfile({
   const inboxUnreadCount = useMemo(() => {
     return (Array.isArray(sysMsgs) ? sysMsgs : []).filter((m) => !m?.read_at).length;
   }, [sysMsgs]);
-
-  const pubUnreadCount = useMemo(() => {
-    let n = 0;
-    (publications || []).forEach((art0) => {
-      const id = getArticuloId(getArtEffective(art0));
-      if (id) n += unreadByArticulo.get(String(id)) || 0;
-    });
-    return n;
-  }, [publications, unreadByArticulo, articuloOverridesById]);
-
-  const rescatesUnreadCount = useMemo(() => {
-    let n = 0;
-    (rescates || []).forEach((r) => {
-      const id = r?.articulo_id || r?.articuloId || getArticuloId(r?.articulo);
-      if (id) n += unreadByArticulo.get(String(id)) || 0;
-    });
-    return n;
-  }, [rescates, unreadByArticulo]);
 
   const formatDate = (item) => {
     try {
@@ -2542,11 +2419,6 @@ export default function UserProfile({
                 type="button"
               >
                 Mis Publicaciones
-                {pubUnreadCount > 0 ? (
-                  <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-600 text-white text-[10px] font-black">
-                    {pubUnreadCount}
-                  </span>
-                ) : null}
               </button>
 
               <button
@@ -2559,11 +2431,6 @@ export default function UserProfile({
                 type="button"
               >
                 Mis Rescates
-                {rescatesUnreadCount > 0 ? (
-                  <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-red-600 text-white text-[10px] font-black">
-                    {rescatesUnreadCount}
-                  </span>
-                ) : null}
               </button>
 
               <button
@@ -2735,6 +2602,7 @@ export default function UserProfile({
                     </div>
                   )}
 
+                  {/* ── Buzón vacío ────────────────────────────────────────── */}
                   {sysMsgs.length === 0 && !sysMsgsLoading && (
                     <div className="text-center py-12">
                       <p className="text-gray-400 font-bold">
@@ -2803,7 +2671,7 @@ export default function UserProfile({
                         currentId && eliminandoArticuloId === String(currentId);
 
                       const hasUnread = currentId
-                        ? unreadByArticulo.get(String(currentId)) > 0
+                        ? unreadByArticulo.get(String(currentId)) === true
                         : false;
 
                       const notif = currentId ? notifByArticulo?.[String(currentId)] : null;
@@ -2892,9 +2760,7 @@ export default function UserProfile({
                               aria-label="Ver mensajes"
                             >
                               {hasUnread ? (
-                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-600 ring-2 ring-white flex items-center justify-center text-[9px] font-black text-white leading-none">
-                                  {unreadByArticulo.get(String(currentId)) || ""}
-                                </span>
+                                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
                               ) : null}
                               {isLoadingThis ? (
                                 <Loader2 className="animate-spin" size={16} />
@@ -3001,7 +2867,7 @@ export default function UserProfile({
                       const tipoUI = badgeUIByTipo(tipo);
 
                       const hasUnread = articuloId
-                        ? unreadByArticulo.get(String(articuloId)) > 0
+                        ? unreadByArticulo.get(String(articuloId)) === true
                         : false;
 
                       return (
