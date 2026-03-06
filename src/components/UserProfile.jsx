@@ -995,6 +995,7 @@ export default function UserProfile({
   onOpenGestion,
   onOpenChat,
   onDelete,
+  onArticuloReservado,
 }) {
   const [activeTab, setActiveTab] = useState("publicaciones"); // ✅ ahora inicia en Buzón
   const [authEmail, setAuthEmail] = useState("");
@@ -2755,6 +2756,11 @@ export default function UserProfile({
 
                       const isEntregado = estado === "entregado";
       const isPausado = !!(getArtEffective(art0)?.pausado || articuloOverridesById.get(String(getArticuloId(getArtEffective(art0))))?.pausado);
+                      const isReservado = estado === "reservado";
+                      const reservadoAt = art?.updated_at ? new Date(art.updated_at) : null;
+                      const diasDesdeReserva = reservadoAt ? Math.floor((Date.now() - reservadoAt.getTime()) / 86400000) : 0;
+                      const diasRestantes = isReservado ? Math.max(0, 7 - diasDesdeReserva) : 0;
+                      const bloqueadoPorReserva = isReservado && diasRestantes > 0;
                       const isVenta = isVentaArticulo(art);
 
                       const buyerId = art?.buyer_id || art?.buyerId || null;
@@ -2915,6 +2921,7 @@ export default function UserProfile({
                               </button>
                             ) : null}
 
+                            {!isReservado && (
                             <button
                               type="button"
                               onPointerDown={(e) => e.stopPropagation()}
@@ -2931,7 +2938,9 @@ export default function UserProfile({
                             >
                               {isPausado ? <Play size={16} /> : <Pause size={16} />}
                             </button>
+                            )}
 
+                            <div className="flex flex-col items-center gap-0.5">
                             <button
                               type="button"
                               onPointerDown={(e) => e.stopPropagation()}
@@ -2939,11 +2948,16 @@ export default function UserProfile({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (isUserBlocked) return alert(blockedUserMsg());
+                                if (!bloqueadoPorReserva && isReservado) {
+                                  const ok = window.confirm("¿Ya entregaste el artículo?\n\nTe recomendamos marcarlo como Entregado antes de borrar, así el rescatador sabe que todo quedó bien.");
+                                  if (!ok) return;
+                                }
                                 eliminarPublicacion(art);
                               }}
-                              disabled={!!isDeletingThis || isUserBlocked}
-                              className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50"
+                              disabled={!!isDeletingThis || isUserBlocked || bloqueadoPorReserva}
+                              className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                               aria-label="Eliminar publicación"
+                              title={bloqueadoPorReserva ? `Podrás eliminar en ${diasRestantes} día${diasRestantes === 1 ? "" : "s"}` : "Eliminar publicación"}
                             >
                               {isDeletingThis ? (
                                 <Loader2 className="animate-spin" size={16} />
@@ -2951,6 +2965,12 @@ export default function UserProfile({
                                 <Trash2 size={16} />
                               )}
                             </button>
+                            {bloqueadoPorReserva && (
+                              <span className="text-[9px] font-bold text-red-400 uppercase tracking-tight leading-none">
+                                {diasRestantes}d
+                              </span>
+                            )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -3162,6 +3182,7 @@ export default function UserProfile({
             });
           }
           setArticuloSeleccionado(nuevoArticulo);
+          onArticuloReservado?.(nuevoArticulo);
         }}
         onAfterDecision={refreshSolicitudesArticuloSeleccionado}
       />
