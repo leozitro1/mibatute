@@ -1498,6 +1498,29 @@ export default function UserProfile({
     };
   }, [user?.id]);
 
+  // ✅ Soft polling — refresca unread + sysMsgs cada 60s sin recargar listas
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const tick = async () => {
+      try {
+        // Recolectar IDs actuales de publicaciones y rescates
+        const pubIds = (publications || [])
+          .map((p) => String(getArticuloId(p) || ""))
+          .filter(Boolean);
+        const rescIds = (rescates || [])
+          .map((r) => String(r?.articulo_id || getArticuloId(r?.articulo) || ""))
+          .filter(Boolean);
+        const allIds = [...new Set([...pubIds, ...rescIds])];
+        if (allIds.length) await loadUnreadRef.current?.(allIds);
+        await loadSysMsgs();
+      } catch {}
+    };
+
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [user?.id, publications, rescates, loadSysMsgs]);
+
   const handleToggleEdit = () => {
     if (saving) return;
     if (isUserBlocked) return alert(blockedUserMsg());
@@ -3077,6 +3100,13 @@ export default function UserProfile({
                               <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
                                 Postulado: {formatDateTime(r?.created_at) || "Sin fecha"}
                               </span>
+
+                              {!isVenta && String(ganadorId || "") === String(user?.id || "") && (estado === "reservado" || estado === "entregado") && (
+                                <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 ring-1 ring-green-300 px-2 py-1 rounded-xl text-[10px] font-black uppercase animate-pulse">
+                                  <CheckCircle2 size={11} />
+                                  {estado === "entregado" ? "¡Recibiste esto!" : "¡Fuiste elegido!"}
+                                </span>
+                              )}
 
                               {!isVenta && String(ganadorId || "") === String(user?.id || "") && (estado === "reservado" || estado === "entregado") && (
                                 <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 ring-1 ring-green-300 px-2 py-1 rounded-xl text-[10px] font-black uppercase animate-pulse">
