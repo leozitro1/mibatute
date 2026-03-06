@@ -1,5 +1,6 @@
 // src/components/HeroBanner.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "../supabase/supabaseClient";
 
 /**
  * HeroBanner (Slider)
@@ -12,6 +13,37 @@ import { useEffect, useMemo, useRef, useState } from "react";
  *  - onAds: callback para el botón del slide 3
  */
 export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
+  const [currentAd, setCurrentAd] = useState(null);
+  const impressionRegisteredRef = useRef(new Set());
+
+  const loadAd = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("patrocinadores")
+        .select("id,imagen_url,texto,descripcion,enlace")
+        .eq("activo", true)
+        .limit(10);
+      if (error || !data?.length) return;
+      const pick = data[Math.floor(Math.random() * data.length)];
+      setCurrentAd(pick);
+    } catch {}
+  }, []);
+
+  useEffect(() => { loadAd(); }, [loadAd]);
+
+  useEffect(() => {
+    if (!currentAd?.id) return;
+    if (impressionRegisteredRef.current.has(currentAd.id)) return;
+    impressionRegisteredRef.current.add(currentAd.id);
+    (async () => { try { await supabase.rpc("reg_impresion", { p_ad_id: currentAd.id }); } catch {} })();
+  }, [currentAd?.id]);
+
+  const handleAdClick = useCallback(() => {
+    if (!currentAd) { onAds?.(); return; }
+    (async () => { try { await supabase.rpc("reg_clic", { p_ad_id: currentAd.id }); } catch {} })();
+    if (currentAd.enlace) window.open(currentAd.enlace, "_blank", "noopener,noreferrer");
+  }, [currentAd, onAds]);
+
   const slides = useMemo(
     () => [
       {
@@ -31,6 +63,17 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
         aria: "Ver cómo funciona Mi Batute",
       },
       {
+        key: "ads",
+        badge: "Publicidad",
+        title: currentAd?.texto ? <>{currentAd.texto}</> : <>Este espacio se puede vender</>,
+        desc: currentAd?.descripcion || (currentAd ? null : "Una forma de monetización: anuncia tu marca aquí. Primero verás planes y precios (como debe ser)."),
+        cta: currentAd ? "Visitar sitio →" : "Ver planes y precios",
+        onClick: handleAdClick,
+        img: currentAd?.imagen_url || "https://images.unsplash.com/photo-1557838923-2985c318be48?q=80&w=1600&auto=format&fit=crop",
+        aria: currentAd ? "Visitar patrocinador" : "Ver planes y precios para publicidad",
+        isAdSlot: true,
+      },
+      {
         key: "blog",
         badge: "Blog y tutoriales",
         title: <>Ideas reales para reciclar y reutilizar</>,
@@ -42,20 +85,9 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
           "https://images.unsplash.com/photo-1528323273322-d81458248d40?q=80&w=1600&auto=format&fit=crop",
         aria: "Ver blog y tutoriales",
       },
-      {
-        key: "ads",
-        badge: "Publicidad",
-        title: <>Este espacio se puede vender</>,
-        desc:
-          "Una forma de monetización: anuncia tu marca aquí. Primero verás planes y precios (como debe ser).",
-        cta: "Ver planes y precios",
-        onClick: () => (onAds ? onAds() : console.log("CTA: publicidad")),
-        img:
-          "https://images.unsplash.com/photo-1557838923-2985c318be48?q=80&w=1600&auto=format&fit=crop",
-        aria: "Ver planes y precios para publicidad",
-      },
+
     ],
-    [onLearnMore, onBlog, onAds]
+    [onLearnMore, onBlog, currentAd, handleAdClick]
   );
 
   const [index, setIndex] = useState(0);
@@ -97,6 +129,14 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
       onBlurCapture={() => setPaused(false)}
       aria-label="Banner principal"
     >
+      {active.isAdSlot && (
+        <div className="absolute top-3 right-3 z-10">
+          <span className="inline-flex items-center rounded-full bg-black/40 backdrop-blur-sm px-2.5 py-1 text-[10px] font-bold text-white/70 uppercase tracking-widest border border-white/10">
+            Publicidad
+          </span>
+        </div>
+      )}
+
       {/* Background image */}
       <div
         className="absolute inset-0 bg-cover bg-center transition-opacity duration-500"
@@ -104,9 +144,9 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
         aria-hidden="true"
       />
       {/* Overlays for legibility */}
-      <div className="absolute inset-0 bg-black/45" aria-hidden="true" />
+      <div className={`absolute inset-0 ${active.isAdSlot ? "bg-black/20" : "bg-black/45"}`} aria-hidden="true" />
       <div
-        className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/35 to-black/15"
+        className={`absolute inset-0 bg-gradient-to-r ${active.isAdSlot ? "from-black/40 via-black/15 to-black/5" : "from-black/65 via-black/35 to-black/15"}`}
         aria-hidden="true"
       />
 
@@ -126,7 +166,9 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
             {active.title}
           </h1>
 
-          <p className="max-w-xl text-sm text-white/85 sm:text-base">{active.desc}</p>
+          {active.desc && (
+            <p className="max-w-xl text-sm text-white/85 sm:text-base">{active.desc}</p>
+          )}
 
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <button

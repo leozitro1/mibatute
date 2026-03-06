@@ -6,6 +6,7 @@ import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
 import Terms from "./pages/Terms";
 import MasterPage from "./pages/MasterPage";
+import AdsPanel from "./pages/AdsPanel";
 import Navbar from "./components/Navbar";
 import ProductCard from "./components/ProductCard";
 import PublishModal from "./components/PublishModal";
@@ -2034,6 +2035,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
       <Route path="/admin" element={<AdminPage />} />
       <Route path="/master" element={<MasterPage />} />
+      <Route path="/master/ads" element={<AdsPanel />} />
       <Route path="/terminos" element={<Terms />} />
       </Routes>
   );

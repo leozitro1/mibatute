@@ -906,6 +906,13 @@ export default function MasterPage() {
                 Mensajes
               </button>
 
+              <Link
+                to="/master/ads"
+                className="px-4 py-2 rounded-2xl font-semibold text-sm border bg-white text-gray-900 border-gray-200 hover:border-gray-300 transition hover:shadow-sm active:scale-[0.99]"
+              >
+                📢 Anuncios
+              </Link>
+
               <button
                 type="button"
                 onClick={() => {
