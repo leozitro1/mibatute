@@ -2911,11 +2911,13 @@ export default function UserProfile({
                                   e.stopPropagation();
                                   if (isUserBlocked) return alert(blockedUserMsg());
                                   if (isReview) return alert(revisionBlockMsg(titulo));
+                                  if (isReservado) return alert("Este artículo ya tiene un ganador asignado y no puede editarse.");
                                   abrirEditar(art);
                                 }}
-                                className="bg-gray-100 p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
-                                disabled={isReview || isUserBlocked}
+                                className="bg-gray-100 p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={isReview || isUserBlocked || isReservado}
                                 aria-label="Editar"
+                                title={isReservado ? "No se puede editar un artículo reservado" : "Editar"}
                               >
                                 <Pencil size={16} />
                               </button>
@@ -2941,35 +2943,36 @@ export default function UserProfile({
                             )}
 
                             <div className="flex flex-col items-center gap-0.5">
-                            <button
-                              type="button"
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (isUserBlocked) return alert(blockedUserMsg());
-                                if (!bloqueadoPorReserva && isReservado) {
-                                  const ok = window.confirm("¿Ya entregaste el artículo?\n\nTe recomendamos marcarlo como Entregado antes de borrar, así el rescatador sabe que todo quedó bien.");
-                                  if (!ok) return;
-                                }
-                                eliminarPublicacion(art);
-                              }}
-                              disabled={!!isDeletingThis || isUserBlocked || bloqueadoPorReserva}
-                              className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
-                              aria-label="Eliminar publicación"
-                              title={bloqueadoPorReserva ? `Podrás eliminar en ${diasRestantes} día${diasRestantes === 1 ? "" : "s"}` : "Eliminar publicación"}
-                            >
-                              {isDeletingThis ? (
-                                <Loader2 className="animate-spin" size={16} />
-                              ) : (
-                                <Trash2 size={16} />
+                              <button
+                                type="button"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isUserBlocked) return alert(blockedUserMsg());
+                                  if (bloqueadoPorReserva) return alert(`Este artículo está reservado.\nPodrás eliminarlo en ${diasRestantes} día${diasRestantes === 1 ? "" : "s"}, una vez que se confirme la entrega.`);
+                                  if (isReservado) {
+                                    const ok = window.confirm("¿Ya entregaste el artículo?\n\nTe recomendamos marcarlo como Entregado antes de borrar, así el rescatador sabe que todo quedó bien.");
+                                    if (!ok) return;
+                                  }
+                                  eliminarPublicacion(art);
+                                }}
+                                disabled={!!isDeletingThis || isUserBlocked || bloqueadoPorReserva}
+                                className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Eliminar publicación"
+                                title={bloqueadoPorReserva ? `Podrás eliminar en ${diasRestantes} día${diasRestantes === 1 ? "" : "s"}` : "Eliminar publicación"}
+                              >
+                                {isDeletingThis ? (
+                                  <Loader2 className="animate-spin" size={16} />
+                                ) : (
+                                  <Trash2 size={16} />
+                                )}
+                              </button>
+                              {bloqueadoPorReserva && (
+                                <span className="text-[9px] font-bold text-red-400 uppercase tracking-tight leading-none">
+                                  {diasRestantes}d
+                                </span>
                               )}
-                            </button>
-                            {bloqueadoPorReserva && (
-                              <span className="text-[9px] font-bold text-red-400 uppercase tracking-tight leading-none">
-                                {diasRestantes}d
-                              </span>
-                            )}
                             </div>
                           </div>
                         </div>
