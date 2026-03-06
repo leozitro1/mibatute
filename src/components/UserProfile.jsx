@@ -995,7 +995,6 @@ export default function UserProfile({
   onOpenGestion,
   onOpenChat,
   onDelete,
-  onArticuloReservado,
 }) {
   const [activeTab, setActiveTab] = useState("publicaciones"); // ✅ ahora inicia en Buzón
   const [authEmail, setAuthEmail] = useState("");
@@ -1945,11 +1944,17 @@ export default function UserProfile({
   const rescNotifCount = useMemo(() => {
     let n = 0;
     (rescates || []).forEach((r) => {
-      const id = String(r?.articulo_id || r?.articuloId || getArticuloId(r?.articulo) || "");
+      const art = r?.articulo || {};
+      const id = String(r?.articulo_id || r?.articuloId || getArticuloId(art) || "");
       if (id && unreadByArticulo.get(id) === true) n++;
+      // +1 si fue elegido ganador y el artículo está reservado (donación)
+      const estado = normEstado(art?.estado || art?.status || "");
+      const ganadorId = art?.ganador_id || art?.winner_id || art?.winnerUid || art?.recipient_id || null;
+      const isVenta = isVentaArticulo(art);
+      if (!isVenta && ganadorId && String(ganadorId) === String(user?.id || "") && estado === "reservado") n++;
     });
     return n;
-  }, [rescates, unreadByArticulo]);
+  }, [rescates, unreadByArticulo, user?.id]);
 
   const formatDate = (item) => {
     try {
@@ -3049,6 +3054,13 @@ export default function UserProfile({
                               <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
                                 Postulado: {formatDateTime(r?.created_at) || "Sin fecha"}
                               </span>
+
+                              {!isVenta && String(ganadorId || "") === String(user?.id || "") && (estado === "reservado" || estado === "entregado") && (
+                                <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 ring-1 ring-green-300 px-2 py-1 rounded-xl text-[10px] font-black uppercase animate-pulse">
+                                  <CheckCircle2 size={11} />
+                                  {estado === "entregado" ? "¡Recibiste esto!" : "¡Fuiste elegido!"}
+                                </span>
+                              )}
                             </div>
 
                             {r?.justificacion ? (
@@ -3150,7 +3162,6 @@ export default function UserProfile({
             });
           }
           setArticuloSeleccionado(nuevoArticulo);
-          onArticuloReservado?.(nuevoArticulo);
         }}
         onAfterDecision={refreshSolicitudesArticuloSeleccionado}
       />
