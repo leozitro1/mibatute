@@ -5,7 +5,7 @@ import {
   Camera,
   Loader2,
   Pencil,
-  Trash2,
+  Trash2, Pause, Play,
   MessageCircle,
   MessageSquare,
   CheckCircle2,
@@ -2197,6 +2197,30 @@ export default function UserProfile({
     }
   };
 
+  const togglePausado = async (art0) => {
+    const art = getArtEffective(art0);
+    const id = getArticuloId(art);
+    if (!id) return;
+    const current = articuloOverridesById.get(String(id)) || art;
+    const next = !current?.pausado;
+    try {
+      const { error } = await supabase
+        .from("articulos")
+        .update({ pausado: next })
+        .eq("id", id);
+      if (error) throw error;
+      setArticuloOverridesById((prev) => {
+        const m = new Map(prev);
+        const base = m.get(String(id)) || art;
+        m.set(String(id), { ...base, pausado: next });
+        return m;
+      });
+    } catch (e) {
+      console.error("togglePausado error:", e);
+      alert("No se pudo " + (next ? "pausar" : "reactivar") + " la publicación.");
+    }
+  };
+
   const eliminarPublicacion = async (art0) => {
     if (isUserBlocked) return alert(blockedUserMsg());
 
@@ -2724,6 +2748,7 @@ export default function UserProfile({
                         cargandoSolicitudes && selectedId && selectedId === currentId;
 
                       const isEntregado = estado === "entregado";
+      const isPausado = !!(getArtEffective(art0)?.pausado || articuloOverridesById.get(String(getArticuloId(getArtEffective(art0))))?.pausado);
                       const isVenta = isVentaArticulo(art);
 
                       const buyerId = art?.buyer_id || art?.buyerId || null;
@@ -2830,6 +2855,13 @@ export default function UserProfile({
                                   {notif.total} NUEVO
                                 </span>
                               ) : null}
+
+                              {isPausado ? (
+                                <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-800 ring-1 ring-yellow-200 px-2 py-1 rounded-xl text-[10px] font-black uppercase">
+                                  <Pause size={10} />
+                                  PAUSADA
+                                </span>
+                              ) : null}
                             </div>
                           </div>
 
@@ -2876,6 +2908,23 @@ export default function UserProfile({
                                 <Pencil size={16} />
                               </button>
                             ) : null}
+
+                            <button
+                              type="button"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isUserBlocked) return alert(blockedUserMsg());
+                                togglePausado(art0);
+                              }}
+                              disabled={isUserBlocked || isReview}
+                              className={`p-3 rounded-2xl transition disabled:opacity-50 ${isPausado ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-500 hover:text-white" : "bg-gray-100 text-gray-600 hover:bg-yellow-100 hover:text-yellow-700"}`}
+                              aria-label={isPausado ? "Reactivar publicación" : "Pausar publicación"}
+                              title={isPausado ? "Reactivar publicación" : "Pausar publicación"}
+                            >
+                              {isPausado ? <Play size={16} /> : <Pause size={16} />}
+                            </button>
 
                             <button
                               type="button"

@@ -225,6 +225,7 @@ export default function ProductDetail({
     item?.location || (localidad && ciudad ? `${localidad}, ${ciudad}` : localidad || ciudad || "Ubicación");
 
   const isAvailable = estadoNorm === "disponible";
+  const isPausado = !!(item?.pausado);
   const isGift = tipoNorm !== "venta";
 
   const articuloId = getArticuloId(item);
@@ -393,6 +394,9 @@ export default function ProductDetail({
 
     if (isUnderReview) {
       alert("Este artículo está EN REVISIÓN por moderación. Por ahora no se puede solicitar.");
+    }
+    if (isPausado) {
+      alert("Esta publicación está pausada. El dueño no acepta solicitudes por ahora.");
       submitLock.current = false;
       return;
     }
@@ -822,7 +826,17 @@ export default function ProductDetail({
             </div>
           )}
 
-          {isGift && isAvailable && !isOwner && !isUnderReview && (
+          {isPausado && !isOwner && (
+            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-2xl p-4 flex items-start gap-3">
+              <span className="text-yellow-500 text-lg mt-0.5">⏸</span>
+              <div>
+                <p className="text-sm font-black text-yellow-900">Publicación pausada</p>
+                <p className="text-xs text-yellow-800 font-bold mt-0.5">El dueño no acepta ofertas ni solicitudes por ahora.</p>
+              </div>
+            </div>
+          )}
+
+          {isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
             <div className="mt-6 space-y-4 border-t pt-6">
               {checkingApplied ? (
                 <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
@@ -894,7 +908,7 @@ export default function ProductDetail({
             </div>
           )}
 
-          {!isGift && isAvailable && !isOwner && !isUnderReview && (
+          {!isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
             <div className="mt-auto space-y-3 pt-6 border-t">
               <button
                 onClick={() => setReserveConfirmOpen(true)}
