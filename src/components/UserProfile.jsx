@@ -1799,10 +1799,7 @@ export default function UserProfile({
     if (user?.id) loadSysMsgs();
   }, [user?.id, loadSysMsgs]);
 
-  // Recarga al volver al buzón (por si hubo cambios)
-  useEffect(() => {
-    if (activeTab === "buzon") loadSysMsgs();
-  }, [activeTab, loadSysMsgs]);
+
 
   useEffect(() => {
     if (!user?.id) return;
