@@ -182,6 +182,8 @@ export default function ProductDetail({
   const [checkingApplied, setCheckingApplied] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
   const [rateLimitInfo, setRateLimitInfo] = useState(null); // { h, m, msg }
+  const [creditosSaldo, setCreditosSaldo] = useState(null);
+  const [usandoCreditoExtra, setUsandoCreditoExtra] = useState(false);
 
   const [ownerNameResolved, setOwnerNameResolved] = useState("");
   const [ownerPhotoResolved, setOwnerPhotoResolved] = useState("");
@@ -333,6 +335,10 @@ export default function ProductDetail({
       return;
     }
 
+    // Cargar saldo de créditos
+    supabase.from("cupos").select("saldo").eq("usuario_id", user.id).maybeSingle()
+      .then(({ data }) => setCreditosSaldo(data?.saldo ?? 0));
+
     let alive = true;
 
     (async () => {
@@ -368,6 +374,35 @@ export default function ProductDetail({
       alive = false;
     };
   }, [isOpen, item?.id, user?.id, ownerId, isGift, isAvailable, articuloId, isUnderReview]);
+
+  const usarCreditoYPostular = async () => {
+    if (!user?.id || (creditosSaldo ?? 0) < 1) return;
+    setUsandoCreditoExtra(true);
+    try {
+      // Descontar crédito
+      await supabase.from("cupos").update({ saldo: (creditosSaldo - 1), updated_at: new Date().toISOString() }).eq("usuario_id", user.id);
+      await supabase.from("cupos_historial").insert({ usuario_id: user.id, cantidad: -1, concepto: "cupo_donacion" });
+      await supabase.from("cupos_extra_donacion").insert({ usuario_id: user.id });
+      setCreditosSaldo(s => Math.max(0, (s ?? 1) - 1));
+      setRateLimitInfo(null);
+      // Reenviar la postulación
+      const text = message.trim();
+      setIsSubmitting(true);
+      const res = await onSolicitar?.(item, text);
+      if (res && res.success === false) {
+        throw new Error(res.error || "No se pudo enviar.");
+      }
+      setHasApplied(true);
+      setMessage("");
+      safeClose();
+    } catch (e) {
+      alert("No se pudo procesar. Intenta de nuevo.");
+    } finally {
+      setUsandoCreditoExtra(false);
+      setIsSubmitting(false);
+      submitLock.current = false;
+    }
+  };
 
   if (!isOpen || !item) return null;
 
@@ -439,6 +474,8 @@ export default function ProductDetail({
       if (res && res.success === false) {
         if (res.code === "RATE_LIMIT_REACHED" && res.meta) {
           setRateLimitInfo({ h: res.meta.h, m: res.meta.m, msg: res.error });
+          setIsSubmitting(false);
+          submitLock.current = false;
           return;
         }
         throw new Error(res.error || "No se pudo enviar tu solicitud.");
@@ -866,17 +903,47 @@ export default function ProductDetail({
                   </button>
                 </div>
               ) : rateLimitInfo ? (
-                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl">
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl space-y-3">
                   <p className="text-sm font-black text-amber-800">⏳ Límite de postulaciones alcanzado</p>
-                  <p className="text-xs text-amber-700 mt-1 font-medium leading-relaxed">
+                  <p className="text-xs text-amber-700 font-medium leading-relaxed">
                     Solo puedes postularte a <strong>2 donaciones cada 6 horas</strong> para evitar acaparamiento.
                   </p>
-                  <p className="text-xs font-black text-amber-800 mt-2">
-                    Podrás intentar de nuevo en{" "}
-                    {rateLimitInfo.h > 0 ? `${rateLimitInfo.h}h ${rateLimitInfo.m}m` : `${rateLimitInfo.m} minutos`}.
-                  </p>
-                  <button onClick={safeClose} className="mt-3 w-full bg-amber-600 text-white py-3 rounded-2xl font-black" type="button">
-                    Entendido
+
+                  {/* Opción esperar */}
+                  <div className="bg-white border border-amber-200 rounded-2xl px-4 py-3">
+                    <p className="text-xs font-black text-amber-800 uppercase tracking-wide mb-0.5">🕐 Esperar</p>
+                    <p className="text-xs text-amber-700 font-medium">
+                      Tu próximo cupo libera en{" "}
+                      <strong>{rateLimitInfo.h > 0 ? `${rateLimitInfo.h}h ${rateLimitInfo.m}m` : `${rateLimitInfo.m} min`}</strong>.
+                    </p>
+                  </div>
+
+                  {/* Opción usar crédito */}
+                  <div className="bg-white border border-amber-200 rounded-2xl px-4 py-3">
+                    <p className="text-xs font-black text-amber-800 uppercase tracking-wide mb-0.5">🪙 Usar 1 crédito</p>
+                    {(creditosSaldo ?? 0) > 0 ? (
+                      <>
+                        <p className="text-xs text-amber-700 font-medium mb-2">
+                          Tienes <strong>{creditosSaldo}</strong> crédito{creditosSaldo !== 1 ? "s" : ""}. Postulate ahora descontando 1.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={usandoCreditoExtra}
+                          onClick={usarCreditoYPostular}
+                          className="w-full bg-amber-500 text-white py-2.5 rounded-2xl font-black text-sm hover:bg-amber-600 transition disabled:opacity-50"
+                        >
+                          {usandoCreditoExtra ? "Procesando..." : "🪙 Postularme con 1 crédito"}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-xs text-amber-700 font-medium">
+                        No tienes créditos. Recarga desde tu perfil.
+                      </p>
+                    )}
+                  </div>
+
+                  <button onClick={safeClose} className="w-full bg-gray-200 text-gray-700 py-2.5 rounded-2xl font-black text-sm hover:bg-gray-300 transition" type="button">
+                    Cancelar
                   </button>
                 </div>
               ) : (

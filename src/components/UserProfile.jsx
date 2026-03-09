@@ -19,6 +19,7 @@ import {
   Eye,
   X,
   Inbox,
+  Star,
 } from "lucide-react";
 import { LOCATIONS } from "../data/locations";
 import ManageArticleModal from "./ManageArticleModal";
@@ -1022,6 +1023,14 @@ export default function UserProfile({
   const [rescates, setRescates] = useState([]);
   const [cargandoRescates, setCargandoRescates] = useState(false);
   const [donacionLimit, setDonacionLimit] = useState(null); // { used, remaining, proximaEn }
+  const [cuposSaldo, setCuposSaldo] = useState(null); // saldo de créditos
+  const [recargaOpen, setRecargaOpen] = useState(false);
+  const [recargaPaquete, setRecargaPaquete] = useState(null); // { monto, cupos }
+  const [recargaCodigo, setRecargaCodigo] = useState(null);
+  const [recargaLoading, setRecargaLoading] = useState(false);
+  const [destacandoId, setDestacandoId] = useState(null);
+  const [comprandoCupo, setComprandoCupo] = useState(false);
+  const [featuredOverrides, setFeaturedOverrides] = useState({});
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewArt, setPreviewArt] = useState(null);
@@ -1499,6 +1508,86 @@ export default function UserProfile({
     };
   }, [user?.id]);
 
+  // ✅ Carga saldo de créditos del usuario
+  useEffect(() => {
+    if (!user?.id) return;
+    const cargarSaldo = async () => {
+      try {
+        const { data } = await supabase
+          .from("cupos")
+          .select("saldo")
+          .eq("usuario_id", user.id)
+          .maybeSingle();
+        setCuposSaldo(data?.saldo ?? 0);
+      } catch {}
+    };
+    cargarSaldo();
+  }, [user?.id]);
+
+  // Función para generar recarga pendiente
+  const generarRecarga = async (paquete) => {
+    if (!user?.id) return;
+    setRecargaLoading(true);
+    try {
+      const { data: codigoData } = await supabase.rpc("generar_codigo_recarga");
+      const codigo = codigoData;
+      const { error } = await supabase.from("recargas_pendientes").insert({
+        usuario_id: user.id,
+        codigo,
+        monto_cop: paquete.monto,
+        cupos: paquete.cupos,
+        estado: "pendiente",
+      });
+      if (error) throw error;
+      setRecargaCodigo(codigo);
+      setRecargaPaquete(paquete);
+    } catch (e) {
+      alert("Error generando la recarga. Intenta de nuevo.");
+    } finally {
+      setRecargaLoading(false);
+    }
+  };
+
+  // Destacar publicación — cuesta 1 crédito
+  const toggleDestacado = async (art) => {
+    const artId = getArticuloId(art);
+    if (!artId || !user?.id) return;
+    const isFeaturedNow = featuredOverrides[artId] ?? art?.is_featured ?? false;
+    if (isFeaturedNow) return;
+    if ((cuposSaldo ?? 0) < 1) {
+      alert("No tienes créditos suficientes.\n\nRecarga desde el panel de créditos arriba.");
+      return;
+    }
+    if (!window.confirm("¿Destacar esta publicación? Se descontará 1 crédito.")) return;
+    setDestacandoId(artId);
+    try {
+      await supabase.from("cupos").update({ saldo: (cuposSaldo - 1), updated_at: new Date().toISOString() }).eq("usuario_id", user.id);
+      await supabase.from("cupos_historial").insert({ usuario_id: user.id, cantidad: -1, concepto: "destacado", referencia_id: artId });
+      await supabase.from("articulos").update({ is_featured: true }).eq("id", artId);
+      setCuposSaldo(s => Math.max(0, (s ?? 1) - 1));
+      setFeaturedOverrides(p => ({ ...p, [artId]: true }));
+    } catch { alert("Error al destacar la publicación."); }
+    finally { setDestacandoId(null); }
+  };
+
+  // Cupo extra de donación — cuesta 1 crédito
+  const comprarCupoExtra = async () => {
+    if ((cuposSaldo ?? 0) < 1) {
+      alert("No tienes créditos suficientes.\n\nRecarga desde el panel de créditos arriba.");
+      return;
+    }
+    if (!window.confirm("¿Usar 1 crédito para obtener un cupo extra de donación ahora?")) return;
+    setComprandoCupo(true);
+    try {
+      await supabase.from("cupos").update({ saldo: (cuposSaldo - 1), updated_at: new Date().toISOString() }).eq("usuario_id", user.id);
+      await supabase.from("cupos_historial").insert({ usuario_id: user.id, cantidad: -1, concepto: "cupo_donacion" });
+      await supabase.from("cupos_extra_donacion").insert({ usuario_id: user.id });
+      setCuposSaldo(s => Math.max(0, (s ?? 1) - 1));
+      setDonacionLimit(prev => prev ? { ...prev, remaining: 1 } : prev);
+    } catch { alert("Error al comprar el cupo."); }
+    finally { setComprandoCupo(false); }
+  };
+
   // ✅ Calcula cupo de postulaciones a donaciones (últimas 6h)
   useEffect(() => {
     if (!user?.id) return;
@@ -1512,10 +1601,17 @@ export default function UserProfile({
           .gte("created_at", sixHoursAgo)
           .order("created_at", { ascending: true });
         if (error) return;
-        const used = Math.min((data || []).length, 2);
-        const remaining = Math.max(0, 2 - used);
+        const { data: extrasData } = await supabase
+          .from("cupos_extra_donacion")
+          .select("created_at")
+          .eq("usuario_id", user.id)
+          .gte("created_at", sixHoursAgo);
+        const extras = (extrasData || []).length;
+        const maxAllowed = 2 + extras;
+        const used = Math.min((data || []).length, maxAllowed);
+        const remaining = Math.max(0, maxAllowed - used);
         let proximaEn = null;
-        if (remaining === 0 && data?.length >= 2) {
+        if (remaining === 0 && data?.length >= maxAllowed) {
           const masAntigua = new Date(data[0].created_at);
           const proxima = new Date(masAntigua.getTime() + 6 * 60 * 60 * 1000);
           const ms = proxima - Date.now();
@@ -1525,7 +1621,7 @@ export default function UserProfile({
             proximaEn = h > 0 ? `${h}h ${m}m` : `${m} min`;
           }
         }
-        setDonacionLimit({ used, remaining, proximaEn });
+        setDonacionLimit({ used, remaining, proximaEn, maxAllowed });
       } catch {}
     };
     calcLimit();
@@ -1647,13 +1743,26 @@ export default function UserProfile({
   }, [myProducts]);
 
   const publications = useMemo(() => {
+    const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
+    const ahora = Date.now();
     const base = [...(safeMyProducts || [])]
       .filter((a) => {
         const id = getArticuloId(a);
-        if (!id) return true;
-        return !deletedIds.has(String(id));
+        if (id && deletedIds.has(String(id))) return false;
+        // Ocultar entregados con más de 7 días
+        const estado = normEstado(a?.estado || a?.status || "disponible");
+        if (estado === "entregado" && a?.updated_at) {
+          const msSinceEntrega = ahora - new Date(a.updated_at).getTime();
+          if (msSinceEntrega > SIETE_DIAS_MS) return false;
+        }
+        return true;
       })
       .sort((a, b) => {
+        const estadoA = normEstado(a?.estado || a?.status || "disponible");
+        const estadoB = normEstado(b?.estado || b?.status || "disponible");
+        // Entregados siempre al final
+        if (estadoA === "entregado" && estadoB !== "entregado") return 1;
+        if (estadoB === "entregado" && estadoA !== "entregado") return -1;
         const ta = a?.created_at
           ? new Date(a.created_at).getTime()
           : a?.createdAt?.seconds
@@ -1661,7 +1770,6 @@ export default function UserProfile({
           : a?.createdAt
           ? new Date(a.createdAt).getTime()
           : 0;
-
         const tb = b?.created_at
           ? new Date(b.created_at).getTime()
           : b?.createdAt?.seconds
@@ -1669,12 +1777,35 @@ export default function UserProfile({
           : b?.createdAt
           ? new Date(b.createdAt).getTime()
           : 0;
-
         return tb - ta;
       });
 
     return base;
   }, [safeMyProducts, deletedIds]);
+
+  // Rescates ordenados: entregados al fondo, ocultar si >7 días
+  const rescatesSorted = useMemo(() => {
+    const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
+    const ahora = Date.now();
+    return [...(rescates || [])]
+      .filter((r) => {
+        const art = r?.articulo || {};
+        const estado = normEstado(art?.estado || art?.status || "disponible");
+        if (estado === "entregado" && art?.updated_at) {
+          return ahora - new Date(art.updated_at).getTime() <= SIETE_DIAS_MS;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const estadoA = normEstado(a?.articulo?.estado || a?.articulo?.status || "disponible");
+        const estadoB = normEstado(b?.articulo?.estado || b?.articulo?.status || "disponible");
+        if (estadoA === "entregado" && estadoB !== "entregado") return 1;
+        if (estadoB === "entregado" && estadoA !== "entregado") return -1;
+        const ta = a?.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b?.created_at ? new Date(b.created_at).getTime() : 0;
+        return tb - ta;
+      });
+  }, [rescates]);
 
   // ✅ maps publicaciones + unread (robusto)
   useEffect(() => {
@@ -2569,6 +2700,104 @@ export default function UserProfile({
 
         {/* DERECHA */}
         <div className="md:col-span-2 space-y-6">
+
+          {/* ── CAJA DE CRÉDITOS ── */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-4 flex flex-col gap-2">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                <span className="text-lg">🪙</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">Saldo de créditos</p>
+                <p className="text-2xl font-black text-gray-800">
+                  {cuposSaldo === null ? "..." : cuposSaldo}
+                  <span className="text-sm font-semibold text-gray-400 ml-1">crédito{cuposSaldo !== 1 ? "s" : ""}</span>
+                </p>
+                <p className="text-[11px] text-gray-400 mt-0.5">1 crédito = destacar 1 publicación o 1 cupo extra de donación</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setRecargaOpen(true); setRecargaCodigo(null); setRecargaPaquete(null); }}
+                className="shrink-0 px-4 py-2 rounded-2xl bg-forest-green text-white font-black text-sm hover:bg-green-700 transition"
+              >
+                + Recargar
+              </button>
+            </div>
+            <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
+              <p className="text-[11px] font-medium text-orange-600 text-center">Para comprar o vender no necesitas créditos — son solo para donaciones y destacados.</p>
+            </div>
+          </div>
+
+          {/* ── MODAL RECARGA ── */}
+          {recargaOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!recargaLoading) { setRecargaOpen(false); setRecargaCodigo(null); } }}>
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+                {!recargaCodigo ? (
+                  <>
+                    <h2 className="text-xl font-black text-gray-800 mb-1">Recargar créditos</h2>
+                    <p className="text-sm text-gray-500 mb-5">Elige un paquete y transfiere por Nequi. Cada crédito vale $1.000 COP.</p>
+                    <div className="space-y-3 mb-6">
+                      {[
+                        { monto: 2000, cupos: 2, label: "2 créditos", sublabel: "$2.000 COP" },
+                        { monto: 5000, cupos: 5, label: "5 créditos", sublabel: "$5.000 COP", popular: true },
+                        { monto: 10000, cupos: 10, label: "10 créditos", sublabel: "$10.000 COP" },
+                      ].map((p) => (
+                        <button
+                          key={p.monto}
+                          type="button"
+                          disabled={recargaLoading}
+                          onClick={() => generarRecarga(p)}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition font-bold ${
+                            p.popular
+                              ? "border-green-500 bg-green-50 text-green-800"
+                              : "border-gray-200 hover:border-green-300 text-gray-700"
+                          } disabled:opacity-50`}
+                        >
+                          <span>{p.label}</span>
+                          <div className="flex items-center gap-2">
+                            {p.popular && <span className="text-[10px] font-black uppercase bg-forest-green text-white px-2 py-0.5 rounded-full">Popular</span>}
+                            <span className="text-sm font-black">{p.sublabel}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <button type="button" onClick={() => setRecargaOpen(false)} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 font-semibold">Cancelar</button>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-center mb-4">
+                      <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
+                        <span className="text-2xl">📲</span>
+                      </div>
+                      <h2 className="text-xl font-black text-gray-800">¡Casi listo!</h2>
+                      <p className="text-sm text-gray-500 mt-1">Transfiere por Nequi y usa este código como referencia</p>
+                    </div>
+                    <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-4 text-center mb-4">
+                      <p className="text-xs text-green-600 font-bold uppercase tracking-widest mb-1">Tu código de recarga</p>
+                      <p className="text-3xl font-black text-green-700 tracking-widest">{recargaCodigo}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-2xl p-4 mb-4 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">Nequi</span>
+                        <span className="font-black text-gray-800">3183181800</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">Monto</span>
+                        <span className="font-black text-gray-800">${recargaPaquete?.monto?.toLocaleString("es-CO")} COP</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">Créditos a recibir</span>
+                        <span className="font-black text-green-700">{recargaPaquete?.cupos} créditos</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-center text-gray-400 mb-4">⚠️ Escribe el código <strong>{recargaCodigo}</strong> en el mensaje de la transferencia. Los créditos se acreditan en menos de 24 horas.</p>
+                    <button type="button" onClick={() => { setRecargaOpen(false); setRecargaCodigo(null); }} className="w-full py-3 rounded-2xl bg-forest-green text-white font-black hover:bg-green-700 transition">Entendido</button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="flex border-b">
               <button
@@ -2796,12 +3025,10 @@ export default function UserProfile({
                   <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl border bg-purple-50 border-purple-200 text-sm font-medium text-purple-800">
                     <span className="text-lg">⭐</span>
                     <div className="flex-1 min-w-0">
-                      Solo puedes tener{" "}
-                      <span className="font-black">1 publicación destacada</span>{" "}
-                      de forma gratuita.
-                      <span className="block text-xs text-purple-600 mt-0.5 opacity-80">Próximamente podrás tener más con un plan premium.</span>
+                      Destaca publicaciones para que aparezcan primero.
+                      <span className="block text-xs text-purple-600 mt-0.5 opacity-80">1 crédito por publicación. Toca ⭐ en cualquier publicación.</span>
                     </div>
-                    <span className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-purple-200 text-purple-700 px-2 py-1 rounded-full">Próximamente</span>
+                    <span className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-purple-200 text-purple-700 px-2 py-1 rounded-full">🪙 {cuposSaldo ?? 0}</span>
                   </div>
 
                   {publications.length === 0 ? (
@@ -2871,11 +3098,15 @@ export default function UserProfile({
                         <div
                           key={currentId ? `art-${currentId}` : `art-idx-${idx}`}
                           className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition ${
-                            notif?.total
+                            isEntregado
+                              ? "bg-gray-50 border-gray-200 opacity-50"
+                              : notif?.total
                               ? "bg-orange-50 border-orange-200 ring-1 ring-orange-200"
                               : "bg-white border-gray-100"
                           } ${
-                            isReview || isUserBlocked
+                            isEntregado
+                              ? "cursor-default pointer-events-none"
+                              : isReview || isUserBlocked
                               ? "opacity-70 cursor-not-allowed"
                               : "hover:shadow-md cursor-pointer"
                           }`}
@@ -2971,6 +3202,26 @@ export default function UserProfile({
                               )}
                             </button>
 
+                            {/* Botón ⭐ Destacar: oculto si ya hay ganador o está entregado */}
+                            {!isEntregado && !hasWinner && !isVenta && (() => {
+                              const isFeat = featuredOverrides[currentId] ?? art?.is_featured ?? false;
+                              return (
+                                <button
+                                  type="button"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => { e.stopPropagation(); toggleDestacado(art); }}
+                                  disabled={isFeat || destacandoId === currentId}
+                                  className={`p-3 rounded-2xl transition ${
+                                    isFeat ? "bg-yellow-100 text-yellow-500 cursor-default" : "bg-gray-100 text-gray-400 hover:bg-yellow-50 hover:text-yellow-500 disabled:opacity-50"
+                                  }`}
+                                  title={isFeat ? "⭐ Publicación destacada" : "Destacar — 1 crédito"}
+                                >
+                                  <Star size={16} fill={isFeat ? "currentColor" : "none"} />
+                                </button>
+                              );
+                            })()}
+
                             {!isEntregado ? (
                               <button
                                 type="button"
@@ -3011,6 +3262,17 @@ export default function UserProfile({
                             </button>
                             )}
 
+                            {/* Botón eliminar: solo si NO está en cuenta regresiva de reserva */}
+                            {bloqueadoPorReserva ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <div className="bg-red-50 text-red-300 p-3 rounded-2xl cursor-default" title={`Se borrará automáticamente en ${diasRestantes} día${diasRestantes === 1 ? "" : "s"}`}>
+                                  <Trash2 size={16} />
+                                </div>
+                                <span className="text-[9px] font-bold text-red-300 uppercase tracking-tight leading-none">
+                                  {diasRestantes}d
+                                </span>
+                              </div>
+                            ) : !isEntregado ? (
                             <div className="flex flex-col items-center gap-0.5">
                               <button
                                 type="button"
@@ -3019,17 +3281,16 @@ export default function UserProfile({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (isUserBlocked) return alert(blockedUserMsg());
-                                  if (bloqueadoPorReserva) return alert(`Este artículo está reservado.\nPodrás eliminarlo en ${diasRestantes} día${diasRestantes === 1 ? "" : "s"}, una vez que se confirme la entrega.`);
                                   if (isReservado) {
                                     const ok = window.confirm("¿Ya entregaste el artículo?\n\nTe recomendamos marcarlo como Entregado antes de borrar, así el rescatador sabe que todo quedó bien.");
                                     if (!ok) return;
                                   }
                                   eliminarPublicacion(art);
                                 }}
-                                disabled={!!isDeletingThis || isUserBlocked || bloqueadoPorReserva}
+                                disabled={!!isDeletingThis || isUserBlocked}
                                 className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                                 aria-label="Eliminar publicación"
-                                title={bloqueadoPorReserva ? `Podrás eliminar en ${diasRestantes} día${diasRestantes === 1 ? "" : "s"}` : "Eliminar publicación"}
+                                title="Eliminar publicación"
                               >
                                 {isDeletingThis ? (
                                   <Loader2 className="animate-spin" size={16} />
@@ -3037,12 +3298,8 @@ export default function UserProfile({
                                   <Trash2 size={16} />
                                 )}
                               </button>
-                              {bloqueadoPorReserva && (
-                                <span className="text-[9px] font-bold text-red-400 uppercase tracking-tight leading-none">
-                                  {diasRestantes}d
-                                </span>
-                              )}
                             </div>
+                            ) : null}
                           </div>
                         </div>
                       );
@@ -3087,14 +3344,28 @@ export default function UserProfile({
                           ))}
                         </div>
                       </div>
-                      {/* fila promo */}
+                      {/* fila promo / comprar cupo */}
                       <div className="flex items-center justify-between gap-2 pt-1 border-t border-current border-opacity-10">
-                        <span className="text-xs opacity-75">
-                          ¿Quieres más cupos? Próximamente podrás comprar cupos adicionales.
-                        </span>
-                        <span className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-green-200 text-green-800 px-2 py-1 rounded-full" style={{background: donacionLimit.remaining === 0 ? "#fde68a" : undefined, color: donacionLimit.remaining === 0 ? "#92400e" : undefined}}>
-                          Próximamente
-                        </span>
+                        {donacionLimit.remaining === 0 ? (
+                          <>
+                            <span className="text-xs opacity-75">
+                              Tienes <strong>{cuposSaldo ?? 0}</strong> crédito{(cuposSaldo ?? 0) !== 1 ? "s" : ""}. Usa 1 para postularte ahora.
+                            </span>
+                            <button
+                              type="button"
+                              disabled={comprandoCupo || (cuposSaldo ?? 0) < 1}
+                              onClick={comprarCupoExtra}
+                              className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-amber-500 text-white px-3 py-1 rounded-full hover:bg-amber-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {comprandoCupo ? "..." : "🪙 Usar 1 crédito"}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-xs opacity-75">Usa créditos para postularte extra cuando llegues al límite.</span>
+                            <span className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-green-200 text-green-800 px-2 py-1 rounded-full">🪙 {cuposSaldo ?? 0}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
@@ -3103,14 +3374,14 @@ export default function UserProfile({
                     <div className="py-12 text-center text-gray-500 font-bold">
                       Cargando rescates...
                     </div>
-                  ) : rescates.length === 0 ? (
+                  ) : rescatesSorted.length === 0 ? (
                     <div className="text-center py-12">
                       <p className="text-gray-400 font-bold">
                         Aún no tienes rescates. Postúlate a una publicación y te aparecerá aquí.
                       </p>
                     </div>
                   ) : (
-                    rescates.map((r) => {
+                    rescatesSorted.map((r) => {
                       const art = r?.articulo || {};
                       const titulo = art?.titulo || art?.title || "Sin título";
                       const estado = normEstado(art?.estado || art?.status || "disponible");
@@ -3136,6 +3407,8 @@ export default function UserProfile({
                         art?.winnerUid ||
                         art?.recipient_id ||
                         null;
+
+                      const isEntregadoRescate = estado === "entregado";
 
                       // Donación cuya reserva fue cancelada: art volvió a disponible sin ganador
                       const fueReservadoYCancelado =
@@ -3169,13 +3442,15 @@ export default function UserProfile({
                         <div
                           key={r?.id || `${r?.articulo_id}-${r?.created_at}`}
                           className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition ${
-                            fueReservadoYCancelado
+                            isEntregadoRescate
+                              ? "bg-gray-50 border-gray-200 opacity-50"
+                              : fueReservadoYCancelado
                               ? "bg-gray-50 border-gray-200 opacity-60"
                               : hasUnread
                                 ? "bg-green-50 border-green-200 ring-1 ring-green-200"
                                 : "bg-white border-gray-100"
                           } ${
-                            fueReservadoYCancelado ? "cursor-default" : isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
+                            isEntregadoRescate ? "cursor-default pointer-events-none" : fueReservadoYCancelado ? "cursor-default" : isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
                           }`}
                         >
                           <img

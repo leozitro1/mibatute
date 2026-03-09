@@ -135,6 +135,110 @@ export default function MasterPage() {
   const [msgSeverity, setMsgSeverity] = useState("info"); // info | warning | critical
   const [msgSending, setMsgSending] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState(null);
+  const [recargas, setRecargas] = useState([]);
+  const [recargasLoading, setRecargasLoading] = useState(false);
+  const [acreditandoId, setAcreditandoId] = useState(null);
+  const [recargaFiltro, setRecargaFiltro] = useState("pendiente");
+  const [recargaQ, setRecargaQ] = useState("");
+  // Ajuste manual de créditos
+  const [ajusteOpen, setAjusteOpen] = useState(false);
+  const [ajusteEmail, setAjusteEmail] = useState("");
+  const [ajusteCantidad, setAjusteCantidad] = useState("");
+  const [ajusteMotivo, setAjusteMotivo] = useState("");
+  const [ajusteLoading, setAjusteLoading] = useState(false);
+  const [ajusteResultado, setAjusteResultado] = useState(null);
+
+  // Filtrado de recargas — calculado fuera del render para que búsqueda funcione
+  const recargasFiltradas = useMemo(() => {
+    const qLow = recargaQ.toLowerCase().trim();
+    let lista = recargaFiltro === "todas" ? recargas : recargas.filter(r => r.estado === recargaFiltro);
+    if (!qLow) return lista;
+    return lista.filter(r =>
+      r.codigo?.toLowerCase().includes(qLow) ||
+      (r.usuario?.nombre || "").toLowerCase().includes(qLow) ||
+      (r.usuario?.email || "").toLowerCase().includes(qLow)
+    );
+  }, [recargas, recargaFiltro, recargaQ]);
+
+  const cargarRecargas = async () => {
+    setRecargasLoading(true);
+    try {
+      const { data: rows } = await supabase
+        .from("recargas_pendientes")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (!rows?.length) { setRecargas([]); return; }
+      // Enriquecer con datos del usuario
+      const uids = [...new Set(rows.map(r => r.usuario_id).filter(Boolean))];
+      const { data: users } = await supabase
+        .from("usuarios")
+        .select("id, nombre, email")
+        .in("id", uids);
+      const userMap = Object.fromEntries((users || []).map(u => [u.id, u]));
+      setRecargas(rows.map(r => ({ ...r, usuario: userMap[r.usuario_id] || null })));
+    } catch {}
+    finally { setRecargasLoading(false); }
+  };
+
+  const acreditarRecarga = async (r) => {
+    const clave = window.prompt("Ingresa la clave maestra para confirmar:");
+    if (clave === null) return;
+    if (clave !== MASTER_PASS) { alert("❌ Clave incorrecta."); return; }
+    setAcreditandoId(r.id);
+    try {
+      // 1 — Marcar como confirmada
+      await supabase.from("recargas_pendientes").update({
+        estado: "confirmada",
+        confirmada_at: new Date().toISOString(),
+      }).eq("id", r.id);
+      // 2 — Acreditar cupos (upsert)
+      const { data: existing } = await supabase.from("cupos").select("saldo").eq("usuario_id", r.usuario_id).maybeSingle();
+      const nuevoSaldo = (existing?.saldo || 0) + r.cupos;
+      await supabase.from("cupos").upsert({ usuario_id: r.usuario_id, saldo: nuevoSaldo, updated_at: new Date().toISOString() }, { onConflict: "usuario_id" });
+      // 3 — Registrar en historial
+      await supabase.from("cupos_historial").insert({ usuario_id: r.usuario_id, cantidad: r.cupos, concepto: "recarga", referencia_id: r.id });
+      setRecargas(prev => prev.map(x => x.id === r.id ? { ...x, estado: "confirmada" } : x));
+      alert(`✅ ${r.cupos} créditos acreditados a ${r.usuario?.nombre || r.usuario?.email}.`);
+    } catch (e) { alert("Error: " + e.message); }
+    finally { setAcreditandoId(null); }
+  };
+
+  const ajustarCreditos = async () => {
+    const clave = window.prompt("Ingresa la clave maestra:");
+    if (clave === null) return;
+    if (clave !== MASTER_PASS) { alert("❌ Clave incorrecta."); return; }
+    const cant = parseInt(ajusteCantidad);
+    if (!ajusteEmail.trim()) { alert("Ingresa el correo del usuario."); return; }
+    if (isNaN(cant) || cant === 0) { alert("Ingresa una cantidad válida (positiva para agregar, negativa para quitar)."); return; }
+    if (Math.abs(cant) > 20) { alert("El ajuste máximo es de 20 créditos a la vez."); return; }
+    if (!ajusteMotivo.trim()) { alert("Ingresa un motivo."); return; }
+    setAjusteLoading(true);
+    setAjusteResultado(null);
+    try {
+      // Buscar usuario por email
+      const { data: u } = await supabase.from("usuarios").select("id, nombre, email").eq("email", ajusteEmail.trim().toLowerCase()).maybeSingle();
+      if (!u) { setAjusteResultado({ ok: false, msg: "No se encontró ningún usuario con ese correo." }); return; }
+      // Obtener saldo actual
+      const { data: cuposRow } = await supabase.from("cupos").select("saldo").eq("usuario_id", u.id).maybeSingle();
+      const saldoActual = cuposRow?.saldo ?? 0;
+      const nuevoSaldo = Math.max(0, saldoActual + cant);
+      // Upsert saldo
+      await supabase.from("cupos").upsert({ usuario_id: u.id, saldo: nuevoSaldo, updated_at: new Date().toISOString() }, { onConflict: "usuario_id" });
+      // Historial
+      await supabase.from("cupos_historial").insert({ usuario_id: u.id, cantidad: cant, concepto: cant > 0 ? "ajuste_manual_suma" : "ajuste_manual_resta" });
+      setAjusteResultado({ ok: true, msg: `✅ Hecho. ${u.nombre || u.email}: ${saldoActual} → ${nuevoSaldo} créditos. (${cant > 0 ? "+" : ""}${cant} por: ${ajusteMotivo})` });
+      setAjusteCantidad("");
+      setAjusteMotivo("");
+    } catch (e) { setAjusteResultado({ ok: false, msg: "Error: " + e.message }); }
+    finally { setAjusteLoading(false); }
+  };
+
+  const rechazarRecarga = async (r) => {
+    if (!window.confirm(`¿Rechazar la recarga ${r.codigo}?`)) return;
+    await supabase.from("recargas_pendientes").update({ estado: "rechazada" }).eq("id", r.id);
+    setRecargas(prev => prev.map(x => x.id === r.id ? { ...x, estado: "rechazada" } : x));
+  };
 
   const [msgUserQuery, setMsgUserQuery] = useState("");
   const [msgSelectedOne, setMsgSelectedOne] = useState("");
@@ -930,6 +1034,19 @@ export default function MasterPage() {
                 Mensajes
               </button>
 
+              <button
+                type="button"
+                onClick={() => { setTab("recargas"); cargarRecargas(); }}
+                className={
+                  "px-4 py-2 rounded-2xl font-semibold text-sm border " +
+                  (tab === "recargas"
+                    ? "bg-fuchsia-600 text-white border-fuchsia-600 shadow-sm"
+                    : "bg-white text-gray-900 border-gray-200 hover:border-gray-300 transition hover:shadow-sm active:scale-[0.99]")
+                }
+              >
+                🪙 Recargas
+              </button>
+
               <Link
                 to="/master/ads"
                 className="px-4 py-2 rounded-2xl font-semibold text-sm border bg-white text-gray-900 border-gray-200 hover:border-gray-300 transition hover:shadow-sm active:scale-[0.99]"
@@ -1315,6 +1432,123 @@ export default function MasterPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          ) : tab === "recargas" ? (
+            <div className="mt-6 space-y-4">
+
+              {/* ── AJUSTE MANUAL ── */}
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+                <button type="button" onClick={() => { setAjusteOpen(p => !p); setAjusteResultado(null); }}
+                  className="w-full flex items-center justify-between text-sm font-black text-gray-700">
+                  <span>⚙️ Ajuste manual de créditos</span>
+                  <span className="text-gray-400 text-xs">{ajusteOpen ? "▲ Cerrar" : "▼ Abrir"}</span>
+                </button>
+                {ajusteOpen && (
+                  <div className="mt-3 space-y-2">
+                    <input
+                      type="email"
+                      placeholder="Correo del usuario"
+                      value={ajusteEmail}
+                      onChange={e => setAjusteEmail(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        placeholder="Cantidad (ej: 3 o -2)"
+                        value={ajusteCantidad}
+                        onChange={e => setAjusteCantidad(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Motivo"
+                        value={ajusteMotivo}
+                        onChange={e => setAjusteMotivo(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400">Positivo para agregar (+3), negativo para quitar (-2). El saldo nunca baja de 0.</p>
+                    <button type="button" disabled={ajusteLoading} onClick={ajustarCreditos}
+                      className="w-full py-2 rounded-xl bg-gray-800 text-white font-black text-sm hover:bg-gray-900 disabled:opacity-50 transition">
+                      {ajusteLoading ? "Procesando..." : "Aplicar ajuste"}
+                    </button>
+                    {ajusteResultado && (
+                      <p className={`text-xs font-bold px-3 py-2 rounded-xl ${ ajusteResultado.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700" }`}>
+                        {ajusteResultado.msg}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ── FILTROS + BÚSQUEDA ── */}
+              <div className="flex flex-col gap-3">
+                <input
+                  type="text"
+                  value={recargaQ}
+                  onChange={e => setRecargaQ(e.target.value)}
+                  placeholder="Buscar por código, nombre o correo…"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 bg-white"
+                />
+                <div className="flex items-center gap-2 flex-wrap">
+                  {["pendiente","confirmada","rechazada","todas"].map((f) => (
+                    <button key={f} type="button" onClick={() => setRecargaFiltro(f)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                        recargaFiltro === f
+                          ? f === "pendiente" ? "bg-amber-500 text-white border-amber-500"
+                            : f === "confirmada" ? "bg-green-600 text-white border-green-600"
+                            : f === "rechazada" ? "bg-red-500 text-white border-red-500"
+                            : "bg-gray-800 text-white border-gray-800"
+                          : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                      }`}>
+                      {f === "pendiente" ? "⏳ Pendientes" : f === "confirmada" ? "✅ Confirmadas" : f === "rechazada" ? "✗ Canceladas" : "Todas"}
+                    </button>
+                  ))}
+                  <button type="button" onClick={cargarRecargas} className="text-xs font-bold text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-xl border border-gray-200 hover:border-gray-400 transition">↻</button>
+                </div>
+              </div>
+
+              {/* ── LISTA ── */}
+              {recargasLoading ? (
+                <p className="text-center text-gray-400 py-8 font-semibold">Cargando...</p>
+              ) : recargasFiltradas.length === 0 ? (
+                <p className="text-center text-gray-400 py-8 font-semibold">No hay resultados.</p>
+              ) : (
+                  <div className="space-y-3">
+                    {recargasFiltradas.map((r) => (
+                      <div key={r.id} className={`flex flex-col md:flex-row md:items-center gap-3 p-4 rounded-2xl border ${
+                        r.estado === "confirmada" ? "bg-green-50 border-green-200" :
+                        r.estado === "rechazada" ? "bg-red-50 border-red-200" :
+                        "bg-white border-gray-200"
+                      }`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-black text-green-700 text-lg tracking-widest">{r.codigo}</span>
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                              r.estado === "confirmada" ? "bg-green-100 text-green-800" :
+                              r.estado === "rechazada" ? "bg-red-100 text-red-700" :
+                              "bg-amber-100 text-amber-800"
+                            }`}>{r.estado}</span>
+                          </div>
+                          <p className="text-sm text-gray-700 font-bold mt-0.5">{r.usuario?.nombre || "Sin nombre"}</p>
+                          <p className="text-xs text-green-700 font-semibold">{r.usuario?.email || "Sin correo"}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {r.cupos} créditos · ${r.monto_cop?.toLocaleString("es-CO")} COP · {new Date(r.created_at).toLocaleString("es-CO")}
+                          </p>
+                        </div>
+                        {r.estado === "pendiente" && (
+                          <div className="flex gap-2 shrink-0">
+                            <button type="button" disabled={acreditandoId === r.id} onClick={() => acreditarRecarga(r)} className="px-4 py-2 rounded-2xl bg-forest-green text-white font-bold text-xs hover:bg-green-700 disabled:opacity-50">
+                              {acreditandoId === r.id ? "Acreditando..." : "✅ Confirmar"}
+                            </button>
+                            <button type="button" onClick={() => rechazarRecarga(r)} className="px-4 py-2 rounded-2xl bg-red-100 text-red-700 font-bold text-xs hover:bg-red-200">✗ Rechazar</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+              )}
             </div>
           ) : tab === "publicaciones" ? (
             <div className="mt-6">

@@ -1157,13 +1157,14 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
       const res = await crearPostulacionConLimite({ articuloId: productId, usuarioId: uid, justificacion: message || "", applyRateLimit: true });
       if (res && res.success === false) {
-        // res.error ya viene listo (bloqueo/filtro/límite)
+        if (res.code === "RATE_LIMIT_REACHED") return res;
         throw new Error(res.error || "No se pudo enviar tu solicitud.");
       }
 
       alert("¡Solicitud enviada! El vendedor decidirá a quién entregárselo.");
       await load();
       await loadNotifications();
+      return { success: true };
     } catch (err) {
       console.error("Error enviando postulación:", err);
       alert(String(err?.message || "Error enviando la solicitud. Intenta de nuevo."));
@@ -1965,7 +1966,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   await handleBuy(id);
                   return;
                 } else {
-                  await handleApply(id, message);
+                  const applyRes = await handleApply(id, message);
+                  if (applyRes?.code === "RATE_LIMIT_REACHED") return applyRes;
                   setSelectedProduct(null);
                 }
               }}

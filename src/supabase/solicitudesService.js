@@ -329,7 +329,14 @@ export const crearPostulacionConLimite = async ({ articuloId, usuarioId, justifi
         .gte("created_at", sixHoursAgo)
         .order("created_at", { ascending: true });
 
-      if (!rateErr && recientes && recientes.length >= 2) {
+      const { data: extras } = await supabase
+        .from("cupos_extra_donacion")
+        .select("created_at")
+        .eq("usuario_id", uid)
+        .gte("created_at", sixHoursAgo);
+      const maxAllowed = 2 + (extras?.length || 0);
+
+      if (!rateErr && recientes && recientes.length >= maxAllowed) {
         const masAntigua = new Date(recientes[0].created_at);
         const proxima = new Date(masAntigua.getTime() + 6 * 60 * 60 * 1000);
         const msRestantes = proxima - Date.now();
