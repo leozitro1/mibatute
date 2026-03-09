@@ -2720,7 +2720,7 @@ export default function UserProfile({
                 onClick={() => { setRecargaOpen(true); setRecargaCodigo(null); setRecargaPaquete(null); }}
                 className="shrink-0 px-4 py-2 rounded-2xl bg-forest-green text-white font-black text-sm hover:bg-green-700 transition"
               >
-                + Recargar
+                + Recargar Nequi
               </button>
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
@@ -2735,7 +2735,7 @@ export default function UserProfile({
                 {!recargaCodigo ? (
                   <>
                     <h2 className="text-xl font-black text-gray-800 mb-1">Recargar créditos</h2>
-                    <p className="text-sm text-gray-500 mb-5">Elige un paquete y transfiere por Nequi. Cada crédito vale $1.000 COP.</p>
+                    <p className="text-sm text-gray-500 mb-5">Elige un paquete y transfíere por <strong>Nequi</strong>. Cada crédito vale $1.000 COP.</p>
                     <div className="space-y-3 mb-6">
                       {[
                         { monto: 2000, cupos: 2, label: "2 créditos", sublabel: "$2.000 COP" },
@@ -2779,7 +2779,7 @@ export default function UserProfile({
                     <div className="bg-gray-50 rounded-2xl p-4 mb-4 space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-500 font-semibold">Nequi</span>
-                        <span className="font-black text-gray-800">3183181800</span>
+                        <span className="font-black text-red-600">3183181800</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500 font-semibold">Monto</span>
@@ -2790,7 +2790,7 @@ export default function UserProfile({
                         <span className="font-black text-green-700">{recargaPaquete?.cupos} créditos</span>
                       </div>
                     </div>
-                    <p className="text-xs text-center text-gray-400 mb-4">⚠️ Escribe el código <strong>{recargaCodigo}</strong> en el mensaje de la transferencia. Los créditos se acreditan en menos de 24 horas.</p>
+                    <p className="text-xs text-center text-gray-400 mb-4">🔴 Escribe el código <strong className="text-gray-700">{recargaCodigo}</strong> en el campo <strong className="text-red-600">Referencia</strong> de la transferencia Nequi — es muy importante para activar tu recarga. Los créditos se acreditan en menos de 24 horas.</p>
                     <button type="button" onClick={() => { setRecargaOpen(false); setRecargaCodigo(null); }} className="w-full py-3 rounded-2xl bg-forest-green text-white font-black hover:bg-green-700 transition">Entendido</button>
                   </>
                 )}
