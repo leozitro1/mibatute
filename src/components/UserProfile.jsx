@@ -1021,6 +1021,7 @@ export default function UserProfile({
 
   const [rescates, setRescates] = useState([]);
   const [cargandoRescates, setCargandoRescates] = useState(false);
+  const [donacionLimit, setDonacionLimit] = useState(null); // { used, remaining, proximaEn }
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewArt, setPreviewArt] = useState(null);
@@ -1498,6 +1499,39 @@ export default function UserProfile({
     };
   }, [user?.id]);
 
+  // ✅ Calcula cupo de postulaciones a donaciones (últimas 6h)
+  useEffect(() => {
+    if (!user?.id) return;
+    const calcLimit = async () => {
+      try {
+        const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+          .from("postulacion_historial")
+          .select("created_at")
+          .eq("usuario_id", user.id)
+          .gte("created_at", sixHoursAgo)
+          .order("created_at", { ascending: true });
+        if (error) return;
+        const used = Math.min((data || []).length, 2);
+        const remaining = Math.max(0, 2 - used);
+        let proximaEn = null;
+        if (remaining === 0 && data?.length >= 2) {
+          const masAntigua = new Date(data[0].created_at);
+          const proxima = new Date(masAntigua.getTime() + 6 * 60 * 60 * 1000);
+          const ms = proxima - Date.now();
+          if (ms > 0) {
+            const h = Math.floor(ms / 3_600_000);
+            const m = Math.floor((ms % 3_600_000) / 60_000);
+            proximaEn = h > 0 ? `${h}h ${m}m` : `${m} min`;
+          }
+        }
+        setDonacionLimit({ used, remaining, proximaEn });
+      } catch {}
+    };
+    calcLimit();
+  }, [user?.id, rescates]);
+
+
   const handleToggleEdit = () => {
     if (saving) return;
     if (isUserBlocked) return alert(blockedUserMsg());
@@ -1845,6 +1879,29 @@ export default function UserProfile({
   // Carga inicial al montar — necesario para mostrar el badge sin entrar al buzón
   useEffect(() => {
     if (user?.id) loadSysMsgs();
+  }, [user?.id, loadSysMsgs]);
+
+  // ✅ Soft polling — refs para publicaciones y rescates
+  const publicationsRef = useRef([]);
+  const rescatesRef = useRef([]);
+  useEffect(() => { publicationsRef.current = publications || []; });
+  useEffect(() => { rescatesRef.current = rescates || []; });
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const tick = async () => {
+      try {
+        const pubIds = publicationsRef.current
+          .map((p) => String(getArticuloId(p) || "")).filter(Boolean);
+        const rescIds = rescatesRef.current
+          .map((r) => String(r?.articulo_id || getArticuloId(r?.articulo) || "")).filter(Boolean);
+        const allIds = [...new Set([...pubIds, ...rescIds])];
+        if (allIds.length) await loadUnreadRef.current?.(allIds);
+        await loadSysMsgs();
+      } catch {}
+    };
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
   }, [user?.id, loadSysMsgs]);
 
 
@@ -2735,6 +2792,18 @@ export default function UserProfile({
 
               {activeTab === "publicaciones" && (
                 <>
+                  {/* Banner publicación destacada */}
+                  <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl border bg-purple-50 border-purple-200 text-sm font-medium text-purple-800">
+                    <span className="text-lg">⭐</span>
+                    <div className="flex-1 min-w-0">
+                      Solo puedes tener{" "}
+                      <span className="font-black">1 publicación destacada</span>{" "}
+                      de forma gratuita.
+                      <span className="block text-xs text-purple-600 mt-0.5 opacity-80">Próximamente podrás tener más con un plan premium.</span>
+                    </div>
+                    <span className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-purple-200 text-purple-700 px-2 py-1 rounded-full">Próximamente</span>
+                  </div>
+
                   {publications.length === 0 ? (
                     <div className="text-center py-12">
                       <p className="text-gray-400 font-bold">
@@ -2984,6 +3053,40 @@ export default function UserProfile({
 
               {activeTab === "rescates" && (
                 <>
+                  {/* Banner cupo de donaciones */}
+                  {donacionLimit && (
+                    <div className={`mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl border text-sm font-medium ${
+                      donacionLimit.remaining === 0
+                        ? "bg-amber-50 border-amber-200 text-amber-800"
+                        : "bg-green-50 border-green-200 text-green-800"
+                    }`}>
+                      <span className="text-lg">{donacionLimit.remaining === 0 ? "⏳" : "🎁"}</span>
+                      <div className="flex-1 min-w-0">
+                        {donacionLimit.remaining === 0 ? (
+                          <>
+                            <span className="font-black">Límite alcanzado — </span>
+                            podrás postularte a donaciones en{" "}
+                            <span className="font-black">{donacionLimit.proximaEn ?? "menos de 1 min"}</span>
+                          </>
+                        ) : (
+                          <>
+                            Puedes postularte a{" "}
+                            <span className="font-black">{donacionLimit.remaining} donación{donacionLimit.remaining !== 1 ? "es" : ""}</span>
+                            {" "}más{" "}
+                            <span className="text-xs opacity-70">(máx. 2 cada 6h)</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        {[0,1].map(i => (
+                          <span key={i} className={`w-2.5 h-2.5 rounded-full ${
+                            i < donacionLimit.remaining ? "bg-green-500" : "bg-gray-300"
+                          }`} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {cargandoRescates ? (
                     <div className="py-12 text-center text-gray-500 font-bold">
                       Cargando rescates...
@@ -3022,14 +3125,26 @@ export default function UserProfile({
                         art?.recipient_id ||
                         null;
 
+                      // Donación cuya reserva fue cancelada: art volvió a disponible sin ganador
+                      const fueReservadoYCancelado =
+                        !isVenta &&
+                        estado === "disponible" &&
+                        art?.updated_at &&
+                        r?.created_at &&
+                        new Date(art.updated_at) > new Date(r.created_at) &&
+                        !ganadorId;
+
+                      // Para donaciones: chat solo si eres el ganador activo.
+                      // hasChatBuyer NO aplica en donaciones porque el chat persiste
+                      // aunque el vendedor cancele la reserva.
                       const canOpenMsgsRescate =
                         !isReview &&
                         !isUserBlocked &&
+                        !fueReservadoYCancelado &&
                         (isVenta
                           ? hasChatBuyer || isBuyer
-                          : hasChatBuyer ||
-                            (String(ganadorId || "") === String(user.id) &&
-                             (estado === "reservado" || estado === "entregado")));
+                          : String(ganadorId || "") === String(user.id) &&
+                            (estado === "reservado" || estado === "entregado"));
 
                       const statusUI = badgeUIByStatus(estado);
                       const tipoUI = badgeUIByTipo(tipo);
@@ -3042,11 +3157,13 @@ export default function UserProfile({
                         <div
                           key={r?.id || `${r?.articulo_id}-${r?.created_at}`}
                           className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition ${
-                            hasUnread
-                              ? "bg-green-50 border-green-200 ring-1 ring-green-200"
-                              : "bg-white border-gray-100"
+                            fueReservadoYCancelado
+                              ? "bg-gray-50 border-gray-200 opacity-60"
+                              : hasUnread
+                                ? "bg-green-50 border-green-200 ring-1 ring-green-200"
+                                : "bg-white border-gray-100"
                           } ${
-                            isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
+                            fueReservadoYCancelado ? "cursor-default" : isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
                           }`}
                         >
                           <img
@@ -3077,6 +3194,12 @@ export default function UserProfile({
                               <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
                                 Postulado: {formatDateTime(r?.created_at) || "Sin fecha"}
                               </span>
+
+                              {fueReservadoYCancelado && (
+                                <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-500 ring-1 ring-gray-300 px-2 py-1 rounded-xl text-[10px] font-black uppercase">
+                                  El vendedor canceló la reserva
+                                </span>
+                              )}
 
                               {!isVenta && String(ganadorId || "") === String(user?.id || "") && (estado === "reservado" || estado === "entregado") && (
                                 <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 ring-1 ring-green-300 px-2 py-1 rounded-xl text-[10px] font-black uppercase animate-pulse">

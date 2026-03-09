@@ -291,7 +291,7 @@ export const contarPostulacionesPorArticulos = async (articuloIds = []) => {
  * - Evita duplicado (si ya existe, no inserta)
  * - Si está lleno: error code MAX_POSTULACIONES_REACHED
  */
-export const crearPostulacionConLimite = async ({ articuloId, usuarioId, justificacion = "" }) => {
+export const crearPostulacionConLimite = async ({ articuloId, usuarioId, justificacion = "", applyRateLimit = false }) => {
   try {
     const aid = String(articuloId || "").trim();
     const uid = String(usuarioId || "").trim();
@@ -317,6 +317,32 @@ export const crearPostulacionConLimite = async ({ articuloId, usuarioId, justifi
           masked: enmascararContenido(just),
         },
       };
+    }
+
+    // ✅ Rate limit: máx 2 postulaciones a donaciones cada 6 horas
+    if (applyRateLimit) {
+      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+      const { data: recientes, error: rateErr } = await supabase
+        .from("postulacion_historial")
+        .select("created_at")
+        .eq("usuario_id", uid)
+        .gte("created_at", sixHoursAgo)
+        .order("created_at", { ascending: true });
+
+      if (!rateErr && recientes && recientes.length >= 2) {
+        const masAntigua = new Date(recientes[0].created_at);
+        const proxima = new Date(masAntigua.getTime() + 6 * 60 * 60 * 1000);
+        const msRestantes = proxima - Date.now();
+        const h = Math.floor(msRestantes / 3_600_000);
+        const m = Math.floor((msRestantes % 3_600_000) / 60_000);
+        const tiempoMsg = h > 0 ? `${h}h ${m}m` : `${m} minutos`;
+        return {
+          success: false,
+          error: `⏳ Alcanzaste el límite de 2 postulaciones a donaciones cada 6 horas.\nPodrás postularte de nuevo en ${tiempoMsg}.`,
+          code: "RATE_LIMIT_REACHED",
+          meta: { proxima: proxima.toISOString(), h, m },
+        };
+      }
     }
 
     // 1) si ya existe postulación, no creamos otra
@@ -378,6 +404,13 @@ export const crearPostulacionConLimite = async ({ articuloId, usuarioId, justifi
     if (insErr) {
       console.log("Error insert postulación:", insErr);
       return { success: false, error: insErr.message || "No se pudo crear la postulación" };
+    }
+
+    // ✅ Registrar en historial (persiste aunque se cancele la postulación)
+    if (applyRateLimit) {
+      await supabase
+        .from("postulacion_historial")
+        .insert({ usuario_id: uid, articulo_id: aid });
     }
 
     return {

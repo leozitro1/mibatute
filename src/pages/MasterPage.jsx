@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../supabase/supabaseClient";
 
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1icXZ1eHZ3Z2V4cHNkdWlqcGNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMTYzNjYsImV4cCI6MjA4NTc5MjM2Nn0.Jpe7LNRlduNfvx0FrRXWOjoBA69ZwR2OIAhdcBpGH58";
+
 // ===================== helpers =====================
 function fmtDate(v) {
   try {
@@ -132,6 +134,7 @@ export default function MasterPage() {
   const [msgBody, setMsgBody] = useState("");
   const [msgSeverity, setMsgSeverity] = useState("info"); // info | warning | critical
   const [msgSending, setMsgSending] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState(null);
 
   const [msgUserQuery, setMsgUserQuery] = useState("");
   const [msgSelectedOne, setMsgSelectedOne] = useState("");
@@ -540,6 +543,39 @@ export default function MasterPage() {
       return false;
     }
   }, []);
+
+  const deleteUser = async (u) => {
+    const c1 = window.confirm(
+      `⚠️ ¿Eliminar la cuenta de ${u.nombre || u.email}?\n\nEsto borrará su cuenta, publicaciones y postulaciones. Es IRREVERSIBLE.`
+    );
+    if (!c1) return;
+    const c2 = window.confirm("¿Completamente seguro? Esta acción no se puede deshacer.");
+    if (!c2) return;
+    setDeletingUserId(u.id);
+    try {
+      const resp = await fetch(
+        "https://mbqvuxvwgexpsduijpck.supabase.co/functions/v1/master-delete-user",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+            "apikey": SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ targetUserId: u.id, masterPass: MASTER_PASS }),
+        }
+      );
+      const data = await resp.json().catch(() => ({}));
+      const error = !resp.ok ? { message: data?.error || `HTTP ${resp.status}` } : null;
+      if (error || data?.error) throw new Error(error?.message || data?.error);
+      setUsers((prev) => prev.filter((x) => x.id !== u.id));
+      alert(`✅ Cuenta de ${u.nombre || u.email} eliminada.`);
+    } catch (e) {
+      alert(`❌ Error: ${e?.message || e}`);
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
 
   const clearBan = useCallback(async (userId) => {
     const ok = confirm("¿Quitar sanción a este usuario?");
@@ -1554,6 +1590,15 @@ export default function MasterPage() {
                               className="px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-xs border border-gray-200 hover:border-gray-900"
                             >
                               Quitar sanción
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => deleteUser(u)}
+                              disabled={deletingUserId === u.id}
+                              className="px-4 py-2 rounded-2xl bg-red-600 text-white font-bold text-xs border border-red-700 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {deletingUserId === u.id ? "Eliminando..." : "🗑 Eliminar cuenta"}
                             </button>
                           </div>
                         </div>

@@ -181,6 +181,7 @@ export default function ProductDetail({
 
   const [checkingApplied, setCheckingApplied] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  const [rateLimitInfo, setRateLimitInfo] = useState(null); // { h, m, msg }
 
   const [ownerNameResolved, setOwnerNameResolved] = useState("");
   const [ownerPhotoResolved, setOwnerPhotoResolved] = useState("");
@@ -337,6 +338,7 @@ export default function ProductDetail({
     (async () => {
       try {
         setCheckingApplied(true);
+        setRateLimitInfo(null);
 
         const { data, error } = await supabase
           .from("postulaciones")
@@ -429,6 +431,10 @@ export default function ProductDetail({
       setIsSubmitting(true);
       const res = await onSolicitar?.(item, text);
       if (res && res.success === false) {
+        if (res.code === "RATE_LIMIT_REACHED" && res.meta) {
+          setRateLimitInfo({ h: res.meta.h, m: res.meta.m, msg: res.error });
+          return;
+        }
         throw new Error(res.error || "No se pudo enviar tu solicitud.");
       }
 
@@ -851,6 +857,20 @@ export default function ProductDetail({
 
                   <button onClick={safeClose} className="mt-3 w-full bg-gray-900 text-white py-3 rounded-2xl font-black" type="button">
                     CERRAR
+                  </button>
+                </div>
+              ) : rateLimitInfo ? (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl">
+                  <p className="text-sm font-black text-amber-800">⏳ Límite de postulaciones alcanzado</p>
+                  <p className="text-xs text-amber-700 mt-1 font-medium leading-relaxed">
+                    Solo puedes postularte a <strong>2 donaciones cada 6 horas</strong> para evitar acaparamiento.
+                  </p>
+                  <p className="text-xs font-black text-amber-800 mt-2">
+                    Podrás intentar de nuevo en{" "}
+                    {rateLimitInfo.h > 0 ? `${rateLimitInfo.h}h ${rateLimitInfo.m}m` : `${rateLimitInfo.m} minutos`}.
+                  </p>
+                  <button onClick={safeClose} className="mt-3 w-full bg-amber-600 text-white py-3 rounded-2xl font-black" type="button">
+                    Entendido
                   </button>
                 </div>
               ) : (

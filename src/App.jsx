@@ -1155,7 +1155,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         return;
       }
 
-      const res = await crearPostulacionConLimite({ articuloId: productId, usuarioId: uid, justificacion: message || "" });
+      const res = await crearPostulacionConLimite({ articuloId: productId, usuarioId: uid, justificacion: message || "", applyRateLimit: true });
       if (res && res.success === false) {
         // res.error ya viene listo (bloqueo/filtro/límite)
         throw new Error(res.error || "No se pudo enviar tu solicitud.");
