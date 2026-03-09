@@ -1,7 +1,7 @@
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Search, MapPin, User, ChevronDown, LogOut, MessageCircle, X } from "lucide-react";
-import { COLOMBIA_DATA } from "../data/locations";
+import { ACTIVE_COLOMBIA_DATA } from "../data/locations";
 import { supabase } from "../supabase/supabaseClient";
 
 const logoMiBatute = "/logo.png";
@@ -595,7 +595,7 @@ export default function Navbar({
                   className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6"
                   aria-label="Seleccionar ciudad"
                 >
-                  {COLOMBIA_DATA.map((c) => (
+                  {ACTIVE_COLOMBIA_DATA.map((c) => (
                     <option key={c.city} value={c.city}>
                       {c.city}
                     </option>
@@ -616,7 +616,7 @@ export default function Navbar({
                   className="w-full bg-transparent text-[12px] font-bold text-gray-700 outline-none appearance-none cursor-pointer pr-6"
                   aria-label="Seleccionar ciudad"
                 >
-                  {COLOMBIA_DATA.map((c) => (
+                  {ACTIVE_COLOMBIA_DATA.map((c) => (
                     <option key={c.city} value={c.city}>
                       {c.city}
                     </option>

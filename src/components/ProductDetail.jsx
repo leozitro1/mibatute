@@ -388,6 +388,12 @@ export default function ProductDetail({
       return;
     }
 
+    if (!user?.email_confirmed_at) {
+      alert("Debes verificar tu correo electrónico antes de postularte.\n\nRevisa tu bandeja de entrada y haz clic en el enlace de confirmación.");
+      submitLock.current = false;
+      return;
+    }
+
     if (isOwner) {
       alert("Esta es tu publicación. No puedes postularte a tu propio artículo.");
       submitLock.current = false;

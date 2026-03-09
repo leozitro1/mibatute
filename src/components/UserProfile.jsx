@@ -3055,34 +3055,46 @@ export default function UserProfile({
                 <>
                   {/* Banner cupo de donaciones */}
                   {donacionLimit && (
-                    <div className={`mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl border text-sm font-medium ${
+                    <div className={`mb-4 flex flex-col gap-2 px-4 py-3 rounded-2xl border text-sm font-medium ${
                       donacionLimit.remaining === 0
                         ? "bg-amber-50 border-amber-200 text-amber-800"
                         : "bg-green-50 border-green-200 text-green-800"
                     }`}>
-                      <span className="text-lg">{donacionLimit.remaining === 0 ? "⏳" : "🎁"}</span>
-                      <div className="flex-1 min-w-0">
-                        {donacionLimit.remaining === 0 ? (
-                          <>
-                            <span className="font-black">Límite alcanzado — </span>
-                            podrás postularte a donaciones en{" "}
-                            <span className="font-black">{donacionLimit.proximaEn ?? "menos de 1 min"}</span>
-                          </>
-                        ) : (
-                          <>
-                            Puedes postularte a{" "}
-                            <span className="font-black">{donacionLimit.remaining} donación{donacionLimit.remaining !== 1 ? "es" : ""}</span>
-                            {" "}más{" "}
-                            <span className="text-xs opacity-70">(máx. 2 cada 6h)</span>
-                          </>
-                        )}
+                      {/* fila principal */}
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">{donacionLimit.remaining === 0 ? "⏳" : "🎁"}</span>
+                        <div className="flex-1 min-w-0">
+                          {donacionLimit.remaining === 0 ? (
+                            <>
+                              <span className="font-black">Límite alcanzado — </span>
+                              podrás postularte a donaciones en{" "}
+                              <span className="font-black">{donacionLimit.proximaEn ?? "menos de 1 min"}</span>
+                            </>
+                          ) : (
+                            <>
+                              Puedes postularte a{" "}
+                              <span className="font-black">{donacionLimit.remaining} donación{donacionLimit.remaining !== 1 ? "es" : ""}</span>
+                              {" "}más{" "}
+                              <span className="text-xs opacity-70">(máx. 2 cada 6h)</span>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          {[0,1].map(i => (
+                            <span key={i} className={`w-2.5 h-2.5 rounded-full ${
+                              i < donacionLimit.remaining ? "bg-green-500" : "bg-gray-300"
+                            }`} />
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex gap-1 shrink-0">
-                        {[0,1].map(i => (
-                          <span key={i} className={`w-2.5 h-2.5 rounded-full ${
-                            i < donacionLimit.remaining ? "bg-green-500" : "bg-gray-300"
-                          }`} />
-                        ))}
+                      {/* fila promo */}
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-current border-opacity-10">
+                        <span className="text-xs opacity-75">
+                          ¿Quieres más cupos? Próximamente podrás comprar cupos adicionales.
+                        </span>
+                        <span className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-green-200 text-green-800 px-2 py-1 rounded-full" style={{background: donacionLimit.remaining === 0 ? "#fde68a" : undefined, color: donacionLimit.remaining === 0 ? "#92400e" : undefined}}>
+                          Próximamente
+                        </span>
                       </div>
                     </div>
                   )}

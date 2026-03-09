@@ -446,6 +446,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     if (isSubmitting || isCropping || cropOpen) return;
 
     if (!user) return alert("Debes iniciar sesión para publicar.");
+    if (!user?.email_confirmed_at) return alert("Debes verificar tu correo electrónico antes de publicar.\n\nRevisa tu bandeja de entrada y haz clic en el enlace de confirmación.");
     if (!files.length) return alert("Sube al menos 1 foto del artículo.");
     if (!formData.title.trim()) return alert("Escribe un título.");
     if (!formData.city) return alert("Selecciona una ciudad.");

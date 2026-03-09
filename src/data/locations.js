@@ -1,4 +1,9 @@
 // src/data/locations.js
+
+// ✅ Para activar más ciudades, agrégalas aquí:
+// ["Bogotá", "Medellín", "Cali", "Barranquilla"]
+export const ACTIVE_CITIES = ["Bogotá"];
+
 export const COLOMBIA_DATA = [
   {
     city: "Bogotá",
@@ -24,8 +29,13 @@ export const COLOMBIA_DATA = [
   }
 ];
 
+// ✅ Solo ciudades activas (filtradas por ACTIVE_CITIES)
+export const ACTIVE_COLOMBIA_DATA = COLOMBIA_DATA.filter((c) =>
+  ACTIVE_CITIES.includes(c.city)
+);
+
 // ✅ Objeto listo para <select>
-export const LOCATIONS = COLOMBIA_DATA.reduce((acc, item) => {
+export const LOCATIONS = ACTIVE_COLOMBIA_DATA.reduce((acc, item) => {
   acc[item.city] = item.localities || [];
   return acc;
 }, {});

@@ -199,15 +199,7 @@ export default function MasterPage() {
     };
   }, []);
 
-  // ---------------- gate hydrate ----------------
-  useEffect(() => {
-    if (!authUser?.id) return;
-    try {
-      const k = `mb_master_gate_ok_${authUser.id}`;
-      const saved = localStorage.getItem(k);
-      if (saved === "1") setGateOk(true);
-    } catch {}
-  }, [authUser?.id]);
+  // gate: siempre pide clave al entrar — no persiste en localStorage
 
   const handleGateSubmit = useCallback(
     (e) => {
@@ -222,10 +214,6 @@ export default function MasterPage() {
       if (gatePass === MASTER_PASS) {
         setGateOk(true);
         setGatePass("");
-        try {
-          const k = `mb_master_gate_ok_${authUser?.id || "anon"}`;
-          localStorage.setItem(k, "1");
-        } catch {}
       } else {
         setGateErr("Contraseña incorrecta.");
       }
@@ -237,10 +225,6 @@ export default function MasterPage() {
     setGateOk(false);
     setGatePass("");
     setGateErr("");
-    try {
-      const k = `mb_master_gate_ok_${authUser?.id || "anon"}`;
-      localStorage.removeItem(k);
-    } catch {}
   }, [authUser?.id]);
 
   // ---------------- permiso para enviar mensajes ----------------
@@ -549,8 +533,12 @@ export default function MasterPage() {
       `⚠️ ¿Eliminar la cuenta de ${u.nombre || u.email}?\n\nEsto borrará su cuenta, publicaciones y postulaciones. Es IRREVERSIBLE.`
     );
     if (!c1) return;
-    const c2 = window.confirm("¿Completamente seguro? Esta acción no se puede deshacer.");
-    if (!c2) return;
+    const claveIngresada = window.prompt("Ingresa la clave maestra para confirmar:");
+    if (claveIngresada === null) return;
+    if (claveIngresada !== MASTER_PASS) {
+      alert("❌ Clave incorrecta. No se eliminó nada.");
+      return;
+    }
     setDeletingUserId(u.id);
     try {
       const resp = await fetch(
