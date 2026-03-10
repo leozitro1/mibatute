@@ -198,6 +198,24 @@ export default function MasterPage() {
       await supabase.from("cupos").upsert({ usuario_id: r.usuario_id, saldo: nuevoSaldo, updated_at: new Date().toISOString() }, { onConflict: "usuario_id" });
       // 3 — Registrar en historial
       await supabase.from("cupos_historial").insert({ usuario_id: r.usuario_id, cantidad: r.cupos, concepto: "recarga", referencia_id: r.id });
+      // 4 — Notificar al usuario por buzón (insert directo)
+      const fecha = new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" });
+      const { data: msgRow, error: msgErr } = await supabase
+        .from("system_messages")
+        .insert({
+          sender_id: authUser.id,
+          title: "🪙 Recarga confirmada",
+          message: `Tu recarga de ${r.cupos} crédito${r.cupos !== 1 ? "s" : ""} fue confirmada el ${fecha}. ¡Ya puedes usarlos para destacar publicaciones o conseguir cupos extra de donación!`,
+          severity: "info",
+        })
+        .select("id")
+        .single();
+      if (!msgErr && msgRow?.id) {
+        await supabase.from("system_message_receipts").insert({
+          message_id: msgRow.id,
+          user_id: r.usuario_id,
+        });
+      }
       setRecargas(prev => prev.map(x => x.id === r.id ? { ...x, estado: "confirmada" } : x));
       alert(`✅ ${r.cupos} créditos acreditados a ${r.usuario?.nombre || r.usuario?.email}.`);
     } catch (e) { alert("Error: " + e.message); }
