@@ -3284,6 +3284,9 @@ export default function UserProfile({
                                   if (isReservado) {
                                     const ok = window.confirm("¿Ya entregaste el artículo?\n\nTe recomendamos marcarlo como Entregado antes de borrar, así el rescatador sabe que todo quedó bien.");
                                     if (!ok) return;
+                                  } else {
+                                    const ok = window.confirm("¿Estás seguro de que quieres eliminar esta publicación? Esta acción no se puede deshacer.");
+                                    if (!ok) return;
                                   }
                                   eliminarPublicacion(art);
                                 }}
