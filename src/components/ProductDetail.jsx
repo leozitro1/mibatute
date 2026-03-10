@@ -187,6 +187,7 @@ export default function ProductDetail({
 
   const [ownerNameResolved, setOwnerNameResolved] = useState("");
   const [ownerPhotoResolved, setOwnerPhotoResolved] = useState("");
+  const [ownerReputacion, setOwnerReputacion] = useState(null); // { promedio, total }
 
   const [stableOwnerPhoto, setStableOwnerPhoto] = useState("");
 
@@ -374,6 +375,18 @@ export default function ProductDetail({
       alive = false;
     };
   }, [isOpen, item?.id, user?.id, ownerId, isGift, isAvailable, articuloId, isUnderReview]);
+
+  // Cargar reputación del vendedor
+  useEffect(() => {
+    if (!isOpen || !ownerId) { setOwnerReputacion(null); return; }
+    supabase.from("reputacion").select("estrellas").eq("reviewed_id", ownerId)
+      .then(({ data }) => {
+        if (!data) { setOwnerReputacion({ promedio: 0, total: 0 }); return; }
+        const total = data.length;
+        const promedio = total > 0 ? data.reduce((s, r) => s + r.estrellas, 0) / total : 0;
+        setOwnerReputacion({ promedio: Math.round(promedio * 10) / 10, total });
+      });
+  }, [isOpen, ownerId]);
 
   const usarCreditoYPostular = async () => {
     if (!user?.id || (creditosSaldo ?? 0) < 1) return;
@@ -839,6 +852,20 @@ export default function ProductDetail({
                 <ShieldCheck size={12} className="text-forest-green" />
                 Vendedor verificado
               </div>
+              {ownerReputacion !== null && (
+                <div className="flex items-center gap-0.5 mt-1">
+                  {[1,2,3,4,5].map(s => (
+                    <svg key={s} width="12" height="12" viewBox="0 0 24 24" fill={ownerReputacion.total > 0 && s <= Math.round(ownerReputacion.promedio) ? "#FBBF24" : "#E5E7EB"} xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                  ))}
+                  {ownerReputacion.total > 0 && (
+                    <span className="text-[10px] text-gray-500 ml-1">
+                      {ownerReputacion.promedio.toFixed(1)} <span className="text-gray-400">({ownerReputacion.total})</span>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {!isOwner && (

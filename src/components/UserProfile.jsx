@@ -389,6 +389,8 @@ function ModalSolicitudes({
   userIdOwner,
   onArticuloUpdated,
   onAfterDecision,
+  yaCalifique = new Set(),
+  onAbrirCalificar,
 }) {
   const [updatingKey, setUpdatingKey] = useState(null);
 
@@ -635,7 +637,12 @@ function ModalSolicitudes({
       onArticuloUpdated?.(data || { ...articulo, estado: "entregado", status: "entregado" });
       onAfterDecision?.();
 
-      alert("✅ Entrega marcada. El chat queda visible (solo lectura).");
+      // Abrir modal de calificación al ganador
+      if (ganadorId && !yaCalifique.has(String(articuloId))) {
+        setTimeout(() => onAbrirCalificar?.({ reviewedId: ganadorId, articuloId, rol: "vendedor" }), 400);
+      } else {
+        alert("✅ Entrega marcada. El chat queda visible (solo lectura).");
+      }
       onClose?.();
     } catch (e) {
       console.error(e);
@@ -1032,6 +1039,14 @@ export default function UserProfile({
   const [comprandoCupo, setComprandoCupo] = useState(false);
   const [featuredOverrides, setFeaturedOverrides] = useState({});
 
+  // \u2b50 Reputación
+  const [miReputacion, setMiReputacion] = useState(null); // { promedio, total }
+  const [calificarModal, setCalificarModal] = useState(null); // { reviewedId, articuloId, rol: "vendedor"|"ganador" }
+  const [calificarEstrellas, setCalificarEstrellas] = useState(0);
+  const [calificarHover, setCalificarHover] = useState(0);
+  const [calificarLoading, setCalificarLoading] = useState(false);
+  const [yaCalifique, setYaCalifique] = useState(new Set()); // articuloIds ya calificados
+
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewArt, setPreviewArt] = useState(null);
 
@@ -1080,6 +1095,16 @@ export default function UserProfile({
   const SAFE_LOCATIONS = useMemo(() => {
     return LOCATIONS && typeof LOCATIONS === "object" ? LOCATIONS : {};
   }, []);
+
+  // Cargar reputación propia
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase.from("reputacion_promedio").select("promedio,total").eq("usuario_id", user.id).maybeSingle()
+      .then(({ data }) => setMiReputacion(data ? { promedio: parseFloat(data.promedio), total: parseInt(data.total) } : { promedio: 0, total: 0 }));
+    // Cargar articulos ya calificados por este usuario
+    supabase.from("reputacion").select("articulo_id").eq("reviewer_id", user.id)
+      .then(({ data }) => setYaCalifique(new Set((data || []).map(r => String(r.articulo_id)))));
+  }, [user?.id]);
 
   // ✅ BLOQUEO REAL desde tabla usuarios
   const [isUserBlocked, setIsUserBlocked] = useState(false);
@@ -2416,6 +2441,26 @@ export default function UserProfile({
     }
   };
 
+  const enviarCalificacion = async () => {
+    if (!calificarModal || calificarEstrellas < 1) return;
+    setCalificarLoading(true);
+    try {
+      await supabase.from("reputacion").insert({
+        reviewer_id: user.id,
+        reviewed_id: calificarModal.reviewedId,
+        articulo_id: calificarModal.articuloId,
+        estrellas: calificarEstrellas,
+      });
+      setYaCalifique(prev => new Set([...prev, String(calificarModal.articuloId)]));
+      setCalificarModal(null);
+      setCalificarEstrellas(0);
+      // Refrescar mi reputación si yo fui calificado
+      supabase.from("reputacion_promedio").select("promedio,total").eq("usuario_id", user.id).maybeSingle()
+        .then(({ data }) => setMiReputacion(data ? { promedio: parseFloat(data.promedio), total: parseInt(data.total) } : { promedio: 0, total: 0 }));
+    } catch (e) { alert("No se pudo enviar la calificación."); }
+    finally { setCalificarLoading(false); }
+  };
+
   const eliminarPublicacion = async (art0) => {
     if (isUserBlocked) return alert(blockedUserMsg());
 
@@ -2543,6 +2588,19 @@ export default function UserProfile({
                   </label>
                 </div>
               </div>
+
+              {/* \u2b50 Reputación propia */}
+              {miReputacion && (
+                <div className="flex items-center justify-center gap-1 mb-2">
+                  {[1,2,3,4,5].map(s => (
+                    <span key={s} className={`text-xl ${s <= Math.round(miReputacion.promedio) ? "text-yellow-400" : "text-gray-200"}`}>★</span>
+                  ))}
+                  <span className="text-xs font-black text-gray-500 ml-1">
+                    {miReputacion.promedio > 0 ? miReputacion.promedio.toFixed(1) : "Sin calificaciones"}
+                    {miReputacion.total > 0 && <span className="font-normal text-gray-400"> ({miReputacion.total})</span>}
+                  </span>
+                </div>
+              )}
 
               <form onSubmit={handleUpdate} className="space-y-3">
                 <div>
@@ -3222,6 +3280,24 @@ export default function UserProfile({
                               );
                             })()}
 
+                            {/* \u2b50 Calificar al ganador (vendedor, tras entrega) */}
+                            {isEntregado && !isVenta && ganadorId && currentId && !yaCalifique.has(String(currentId)) && (
+                              <button
+                                type="button"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCalificarModal({ reviewedId: ganadorId, articuloId: currentId, rol: "vendedor" });
+                                  setCalificarEstrellas(0);
+                                }}
+                                className="bg-yellow-100 text-yellow-600 p-3 rounded-2xl hover:bg-yellow-400 hover:text-white transition"
+                                title="\u2b50 Calificar al ganador"
+                              >
+                                ⭐
+                              </button>
+                            )}
+
                             {!isEntregado ? (
                               <button
                                 type="button"
@@ -3453,7 +3529,7 @@ export default function UserProfile({
                                 ? "bg-green-50 border-green-200 ring-1 ring-green-200"
                                 : "bg-white border-gray-100"
                           } ${
-                            isEntregadoRescate ? "cursor-default pointer-events-none" : fueReservadoYCancelado ? "cursor-default" : isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
+                            isEntregadoRescate ? "cursor-default" : fueReservadoYCancelado ? "cursor-default" : isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
                           }`}
                         >
                           <img
@@ -3511,6 +3587,7 @@ export default function UserProfile({
                             <button
                               type="button"
                               onClick={() => {
+                                if (isEntregadoRescate) return;
                                 if (isUserBlocked) return alert(blockedUserMsg());
                                 if (isReview) return alert(revisionBlockMsg(titulo));
                                 verMensajesRescate(r);
@@ -3543,6 +3620,22 @@ export default function UserProfile({
                               </button>
                             ) : null}
 
+                            {/* Botón calificar al vendedor cuando entregado */}
+                            {isEntregadoRescate && !isVenta && art?.owner_id && !yaCalifique.has(String(articuloId)) && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCalificarModal({ reviewedId: art.owner_id, articuloId, rol: "ganador" });
+                                  setCalificarEstrellas(0);
+                                }}
+                                className="bg-yellow-100 text-yellow-700 p-3 rounded-2xl hover:bg-yellow-400 hover:text-white transition"
+                                title="Calificar al vendedor"
+                              >
+                                ⭐
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => {
@@ -3571,7 +3664,49 @@ export default function UserProfile({
 </div>
           </div>
 
-          {typeof onOpenGestion !== "function" && (
+          {/* \u2b50 Modal calificación */}
+      {calificarModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-lg font-black text-gray-800 mb-1">
+              ⭐ Califica tu experiencia
+            </h3>
+            <p className="text-sm text-gray-500 mb-5">
+              {calificarModal.rol === "vendedor"
+                ? "¿Cómo fue la experiencia con el ganador/rescatador?"
+                : "¿Cómo fue la experiencia con el vendedor/donante?"}
+            </p>
+            <div className="flex justify-center gap-3 mb-6">
+              {[1,2,3,4,5].map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  onMouseEnter={() => setCalificarHover(s)}
+                  onMouseLeave={() => setCalificarHover(0)}
+                  onClick={() => setCalificarEstrellas(s)}
+                  className={`text-4xl transition-transform hover:scale-110 ${
+                    s <= (calificarHover || calificarEstrellas) ? "text-yellow-400" : "text-gray-200"
+                  }`}
+                >
+                  ⭐
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => { setCalificarModal(null); setCalificarEstrellas(0); }}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-700 font-black text-sm hover:bg-gray-200 transition">
+                Ahora no
+              </button>
+              <button type="button" disabled={calificarEstrellas < 1 || calificarLoading} onClick={enviarCalificacion}
+                className="flex-1 py-3 rounded-2xl bg-yellow-400 text-white font-black text-sm hover:bg-yellow-500 transition disabled:opacity-40">
+                {calificarLoading ? "Enviando..." : "Enviar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {typeof onOpenGestion !== "function" && (
             <ManageArticleModal
               isOpen={!!managingProduct}
               article={managingProduct}
@@ -3601,6 +3736,8 @@ export default function UserProfile({
           onArticuloReservado?.(nuevoArticulo);
         }}
         onAfterDecision={refreshSolicitudesArticuloSeleccionado}
+        yaCalifique={yaCalifique}
+        onAbrirCalificar={(data) => { setCalificarModal(data); setCalificarEstrellas(0); }}
       />
 
       {/* ✅ MODAL: Confirmar eliminación de cuenta */}
