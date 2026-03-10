@@ -637,9 +637,11 @@ function ModalSolicitudes({
       onArticuloUpdated?.(data || { ...articulo, estado: "entregado", status: "entregado" });
       onAfterDecision?.();
 
-      // Abrir modal de calificación al ganador
-      if (ganadorId && !yaCalifique.has(String(articuloId))) {
-        setTimeout(() => onAbrirCalificar?.({ reviewedId: ganadorId, articuloId, rol: "vendedor" }), 400);
+      // Abrir modal de calificación (donación→ganador, venta→comprador)
+      const buyerIdLocal = articulo?.buyer_id || articulo?.buyerId || null;
+      const reviewTarget = ganadorId || buyerIdLocal;
+      if (reviewTarget && !yaCalifique.has(String(articuloId))) {
+        setTimeout(() => onAbrirCalificar?.({ reviewedId: reviewTarget, articuloId, rol: "vendedor" }), 400);
       } else {
         alert("✅ Entrega marcada. El chat queda visible (solo lectura).");
       }
@@ -705,7 +707,7 @@ function ModalSolicitudes({
     if (hasWinner) return;
 
     const ok = confirm(
-      `¿Rechazar la solicitud de ${displayName}?\n\nSe eliminará su postulación y TAMBIÉN el chat/mensajes (si existen) para que si vuelve a postular sea como primera vez.`
+      `¿Rechazar la solicitud de ${displayName}?\n\nSe eliminará su postulación y el chat asociado.`
     );
     if (!ok) return;
 
@@ -714,6 +716,13 @@ function ModalSolicitudes({
     try {
       setUpdatingKey(key);
 
+      // Guardar en tabla de rechazados
+      await supabase.from("postulaciones_rechazadas").insert({
+        articulo_id: articuloId,
+        usuario_id: targetUserId,
+      }).select();
+
+      // Borrar postulacion (el owner tiene permiso DELETE)
       const { error: delErr } = await supabase
         .from("postulaciones")
         .delete()
@@ -867,78 +876,57 @@ function ModalSolicitudes({
             <div className="space-y-3">
               {solicitudesVisibles.map((s) => {
                 const { nombre, foto, userId } = getUserFromSolicitud(s);
-                const mensaje =
-                  s?.justificacion || s?.mensaje || s?.message || "(Sin justificación)";
+                const mensaje = s?.justificacion || s?.mensaje || s?.message || "";
                 const fecha = formatDateTime(s?.created_at);
-
                 const isBusyElegir = updatingKey === `${articuloId}:${userId}`;
                 const isBusyRechazar = updatingKey === `${articuloId}:${userId}:reject`;
+                const isBusy = isBusyElegir || isBusyRechazar;
 
                 return (
-                  <div
-                    key={s?.id || `${nombre}-${fecha}`}
-                    className="p-4 rounded-3xl border border-gray-100 bg-gray-50"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="shrink-0">
-                        {foto ? (
-                          <img
-                            src={foto}
-                            alt={nombre}
-                            className="w-10 h-10 rounded-full object-cover border border-white shadow"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-black text-gray-600">
-                            {String(nombre).charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-black text-gray-900 truncate">{nombre}</p>
-                          {fecha ? (
-                            <span className="text-[10px] font-black uppercase text-gray-400 whitespace-nowrap">
-                              {fecha}
-                            </span>
-                          ) : null}
+                  <div key={s?.id || `${nombre}-${fecha}`}
+                    className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden">
+                    <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+                      {foto ? (
+                        <img src={foto} alt={nombre}
+                          className="w-9 h-9 rounded-full object-cover shrink-0 ring-2 ring-white shadow-sm"
+                          onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-forest-green/20 text-forest-green flex items-center justify-center font-black text-sm shrink-0">
+                          {String(nombre).charAt(0).toUpperCase()}
                         </div>
-
-                        <p className="mt-2 text-sm text-gray-700 font-medium leading-relaxed whitespace-pre-wrap">
-                          {mensaje}
-                        </p>
-
-                        <div className="mt-3 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => entregarAUsuario(userId)}
-                            disabled={isBusyElegir || isBusyRechazar || !userId}
-                            className="bg-forest-green/15 text-forest-green px-3 py-2 rounded-2xl text-[10px] font-black uppercase hover:brightness-110 transition disabled:opacity-50"
-                          >
-                            {isBusyElegir ? "Seleccionando..." : "Elegir a este usuario"}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => rechazarSolicitud(userId, nombre)}
-                            disabled={isBusyElegir || isBusyRechazar || !userId}
-                            className="bg-red-100 text-red-700 px-3 py-2 rounded-2xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition disabled:opacity-50"
-                          >
-                            {isBusyRechazar ? "Rechazando..." : "Rechazar solicitud"}
-                          </button>
-                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-gray-900 text-sm truncate">{nombre}</p>
+                        {fecha && <p className="text-[10px] text-gray-400 font-medium">{fecha}</p>}
                       </div>
+                    </div>
+                    {mensaje ? (
+                      <p className="px-4 pb-3 text-sm text-gray-600 leading-relaxed border-b border-gray-100">{mensaje}</p>
+                    ) : (
+                      <p className="px-4 pb-3 text-xs text-gray-400 italic border-b border-gray-100">Sin mensaje</p>
+                    )}
+                    <div className="flex">
+                      <button type="button"
+                        onClick={() => entregarAUsuario(userId)}
+                        disabled={isBusy || !userId}
+                        className="flex-1 py-3 text-[11px] font-black uppercase tracking-wide text-forest-green hover:bg-forest-green hover:text-white transition disabled:opacity-40 flex items-center justify-center gap-1.5">
+                        {isBusyElegir ? "Seleccionando..." : "✓ Elegir"}
+                      </button>
+                      <div className="w-px bg-gray-200" />
+                      <button type="button"
+                        onClick={() => rechazarSolicitud(userId, nombre)}
+                        disabled={isBusy || !userId}
+                        className="flex-1 py-3 text-[11px] font-black uppercase tracking-wide text-red-500 hover:bg-red-500 hover:text-white transition disabled:opacity-40 flex items-center justify-center gap-1.5">
+                        {isBusyRechazar ? "Rechazando..." : "× Rechazar"}
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="py-10 text-center text-gray-500 font-bold">
-              No hay postulaciones para este artículo aún.
+            <div className="py-10 text-center text-gray-400 text-sm font-bold">
+              Nadie se ha postulado aún.
             </div>
           )}
         </div>
@@ -3163,12 +3151,12 @@ export default function UserProfile({
                               : "bg-white border-gray-100"
                           } ${
                             isEntregado
-                              ? "cursor-default pointer-events-none"
+                              ? "cursor-default"
                               : isReview || isUserBlocked
                               ? "opacity-70 cursor-not-allowed"
                               : "hover:shadow-md cursor-pointer"
                           }`}
-                          onClick={() => {
+                          onClick={() => { if (isEntregado) return;
                             if (isUserBlocked) return alert(blockedUserMsg());
                             if (isReview) return alert(revisionBlockMsg(titulo));
 
@@ -3280,21 +3268,24 @@ export default function UserProfile({
                               );
                             })()}
 
-                            {/* \u2b50 Calificar al ganador (vendedor, tras entrega) */}
-                            {isEntregado && !isVenta && ganadorId && currentId && !yaCalifique.has(String(currentId)) && (
+                            {/* Calificar: donación→ganador, venta→comprador */}
+                            {isEntregado && currentId && !yaCalifique.has(String(currentId)) && (
+                              ((!isVenta && ganadorId) || (isVenta && buyerId))
+                            ) && (
                               <button
                                 type="button"
                                 onPointerDown={(e) => e.stopPropagation()}
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setCalificarModal({ reviewedId: ganadorId, articuloId: currentId, rol: "vendedor" });
+                                  const target = isVenta ? buyerId : ganadorId;
+                                  setCalificarModal({ reviewedId: target, articuloId: currentId, rol: "vendedor" });
                                   setCalificarEstrellas(0);
                                 }}
-                                className="bg-yellow-100 text-yellow-600 p-3 rounded-2xl hover:bg-yellow-400 hover:text-white transition"
-                                title="\u2b50 Calificar al ganador"
+                                className="bg-forest-green text-white p-3 rounded-2xl hover:brightness-110 transition"
+                                title="Calificar transacción"
                               >
-                                ⭐
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                               </button>
                             )}
 
@@ -3368,6 +3359,30 @@ export default function UserProfile({
                                 }}
                                 disabled={!!isDeletingThis || isUserBlocked}
                                 className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label="Eliminar publicación"
+                                title="Eliminar publicación"
+                              >
+                                {isDeletingThis ? (
+                                  <Loader2 className="animate-spin" size={16} />
+                                ) : (
+                                  <Trash2 size={16} />
+                                )}
+                              </button>
+                            </div>
+                            ) : isEntregado ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <button
+                                type="button"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const ok = window.confirm("¿Eliminar esta venta del historial?");
+                                  if (!ok) return;
+                                  eliminarPublicacion(art);
+                                }}
+                                disabled={!!isDeletingThis}
+                                className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition"
                                 aria-label="Eliminar publicación"
                                 title="Eliminar publicación"
                               >
@@ -3620,8 +3635,10 @@ export default function UserProfile({
                               </button>
                             ) : null}
 
-                            {/* Botón calificar al vendedor cuando entregado */}
-                            {isEntregadoRescate && !isVenta && art?.owner_id && !yaCalifique.has(String(articuloId)) && (
+                            {/* Calificar vendedor/donante: donación→ganador, venta→comprador */}
+                            {isEntregadoRescate && art?.owner_id && !yaCalifique.has(String(articuloId)) && (
+                              (!isVenta || (isVenta && isBuyer))
+                            ) && (
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -3629,10 +3646,10 @@ export default function UserProfile({
                                   setCalificarModal({ reviewedId: art.owner_id, articuloId, rol: "ganador" });
                                   setCalificarEstrellas(0);
                                 }}
-                                className="bg-yellow-100 text-yellow-700 p-3 rounded-2xl hover:bg-yellow-400 hover:text-white transition"
-                                title="Calificar al vendedor"
+                                className="bg-forest-green text-white p-3 rounded-2xl hover:brightness-110 transition"
+                                title="Calificar transacción"
                               >
-                                ⭐
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                               </button>
                             )}
 
@@ -3667,38 +3684,55 @@ export default function UserProfile({
           {/* \u2b50 Modal calificación */}
       {calificarModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
-            <h3 className="text-lg font-black text-gray-800 mb-1">
-              ⭐ Califica tu experiencia
-            </h3>
-            <p className="text-sm text-gray-500 mb-5">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl">
+            {/* Título */}
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Reputación</p>
+            <h3 className="text-lg font-black text-gray-900 mb-1">Califica tu experiencia</h3>
+            <p className="text-sm text-gray-500 mb-6">
               {calificarModal.rol === "vendedor"
                 ? "¿Cómo fue la experiencia con el ganador/rescatador?"
                 : "¿Cómo fue la experiencia con el vendedor/donante?"}
             </p>
-            <div className="flex justify-center gap-3 mb-6">
-              {[1,2,3,4,5].map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  onMouseEnter={() => setCalificarHover(s)}
-                  onMouseLeave={() => setCalificarHover(0)}
-                  onClick={() => setCalificarEstrellas(s)}
-                  className={`text-4xl transition-transform hover:scale-110 ${
-                    s <= (calificarHover || calificarEstrellas) ? "text-yellow-400" : "text-gray-200"
-                  }`}
-                >
-                  ⭐
-                </button>
-              ))}
+            {/* Estrellas SVG planas */}
+            <div className="flex justify-center gap-2 mb-6">
+              {[1,2,3,4,5].map(s => {
+                const activa = s <= (calificarHover || calificarEstrellas);
+                return (
+                  <button key={s} type="button"
+                    onMouseEnter={() => setCalificarHover(s)}
+                    onMouseLeave={() => setCalificarHover(0)}
+                    onClick={() => setCalificarEstrellas(s)}
+                    className="p-1 transition-transform hover:scale-110 focus:outline-none">
+                    <svg width="36" height="36" viewBox="0 0 24 24"
+                      fill={activa ? "#1a7a4a" : "none"}
+                      stroke={activa ? "#1a7a4a" : "#D1D5DB"}
+                      strokeWidth="1.5"
+                      xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinejoin="round" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                  </button>
+                );
+              })}
             </div>
+            {/* Label selección */}
+            <p className="text-center text-xs font-black text-gray-400 uppercase tracking-wide mb-5">
+              {calificarEstrellas === 0 && "Selecciona una calificación"}
+              {calificarEstrellas === 1 && "😕 Mala experiencia"}
+              {calificarEstrellas === 2 && "😐 Regular"}
+              {calificarEstrellas === 3 && "🙂 Buena"}
+              {calificarEstrellas === 4 && "😊 Muy buena"}
+              {calificarEstrellas === 5 && "🤩 Excelente"}
+            </p>
             <div className="flex gap-3">
-              <button type="button" onClick={() => { setCalificarModal(null); setCalificarEstrellas(0); }}
-                className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-700 font-black text-sm hover:bg-gray-200 transition">
+              <button type="button"
+                onClick={() => { setCalificarModal(null); setCalificarEstrellas(0); }}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm hover:bg-gray-200 transition">
                 Ahora no
               </button>
-              <button type="button" disabled={calificarEstrellas < 1 || calificarLoading} onClick={enviarCalificacion}
-                className="flex-1 py-3 rounded-2xl bg-yellow-400 text-white font-black text-sm hover:bg-yellow-500 transition disabled:opacity-40">
+              <button type="button"
+                disabled={calificarEstrellas < 1 || calificarLoading}
+                onClick={enviarCalificacion}
+                className="flex-1 py-3 rounded-2xl bg-forest-green text-white font-black text-sm hover:brightness-110 transition disabled:opacity-30">
                 {calificarLoading ? "Enviando..." : "Enviar"}
               </button>
             </div>

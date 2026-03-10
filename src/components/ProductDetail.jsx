@@ -181,6 +181,7 @@ export default function ProductDetail({
 
   const [checkingApplied, setCheckingApplied] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  const [hasBeenRejected, setHasBeenRejected] = useState(false);
   const [rateLimitInfo, setRateLimitInfo] = useState(null); // { h, m, msg }
   const [creditosSaldo, setCreditosSaldo] = useState(null);
   const [usandoCreditoExtra, setUsandoCreditoExtra] = useState(false);
@@ -188,6 +189,11 @@ export default function ProductDetail({
   const [ownerNameResolved, setOwnerNameResolved] = useState("");
   const [ownerPhotoResolved, setOwnerPhotoResolved] = useState("");
   const [ownerReputacion, setOwnerReputacion] = useState(null); // { promedio, total }
+  const [calificarModal, setCalificarModal] = useState(null);
+  const [calificarEstrellas, setCalificarEstrellas] = useState(0);
+  const [calificarHover, setCalificarHover] = useState(0);
+  const [calificarLoading, setCalificarLoading] = useState(false);
+  const [yaCalifiqueItem, setYaCalifiqueItem] = useState(false);
 
   const [stableOwnerPhoto, setStableOwnerPhoto] = useState("");
 
@@ -327,12 +333,14 @@ export default function ProductDetail({
     if (isUnderReview) {
       setCheckingApplied(false);
       setHasApplied(false);
+      setHasBeenRejected(false);
       return;
     }
 
     if (!articuloId || !isGift || !isAvailable || !user?.id || user.id === ownerId) {
       setCheckingApplied(false);
       setHasApplied(false);
+      setHasBeenRejected(false);
       return;
     }
 
@@ -347,6 +355,23 @@ export default function ProductDetail({
         setCheckingApplied(true);
         setRateLimitInfo(null);
 
+        // Verificar si fue rechazado
+        const { data: rechData } = await supabase
+          .from("postulaciones_rechazadas")
+          .select("id")
+          .eq("articulo_id", articuloId)
+          .eq("usuario_id", user.id)
+          .limit(1);
+
+        if (!alive) return;
+
+        if (Array.isArray(rechData) && rechData.length > 0) {
+          setHasBeenRejected(true);
+          setHasApplied(false);
+          return;
+        }
+
+        // Verificar si ya se postuló
         const { data, error } = await supabase
           .from("postulaciones")
           .select("id")
@@ -358,9 +383,11 @@ export default function ProductDetail({
 
         if (error) {
           setHasApplied(false);
+          setHasBeenRejected(false);
           return;
         }
 
+        setHasBeenRejected(false);
         setHasApplied(Array.isArray(data) && data.length > 0);
       } catch {
         if (!alive) return;
@@ -386,7 +413,39 @@ export default function ProductDetail({
         const promedio = total > 0 ? data.reduce((s, r) => s + r.estrellas, 0) / total : 0;
         setOwnerReputacion({ promedio: Math.round(promedio * 10) / 10, total });
       });
+    // ¿Ya calificó este item?
+    if (user?.id && articuloId) {
+      supabase.from("reputacion").select("id").eq("reviewer_id", user.id).eq("articulo_id", articuloId).limit(1)
+        .then(({ data }) => setYaCalifiqueItem(!!(data && data.length > 0)));
+    }
   }, [isOpen, ownerId]);
+
+  const enviarCalificacionPD = async () => {
+    if (!calificarModal || calificarEstrellas < 1 || !user?.id) return;
+    setCalificarLoading(true);
+    try {
+      await supabase.from("reputacion").insert({
+        reviewer_id: user.id,
+        reviewed_id: calificarModal.reviewedId,
+        articulo_id: calificarModal.articuloId,
+        estrellas: calificarEstrellas,
+      });
+      setYaCalifiqueItem(true);
+      setCalificarModal(null);
+      setCalificarEstrellas(0);
+      // Refrescar reputación del owner
+      if (ownerId) {
+        supabase.from("reputacion").select("estrellas").eq("reviewed_id", ownerId)
+          .then(({ data }) => {
+            if (!data) return;
+            const total = data.length;
+            const promedio = total > 0 ? data.reduce((s, r) => s + r.estrellas, 0) / total : 0;
+            setOwnerReputacion({ promedio: Math.round(promedio * 10) / 10, total });
+          });
+      }
+    } catch (e) { alert("No se pudo enviar la calificación."); }
+    finally { setCalificarLoading(false); }
+  };
 
   const usarCreditoYPostular = async () => {
     if (!user?.id || (creditosSaldo ?? 0) < 1) return;
@@ -918,6 +977,16 @@ export default function ProductDetail({
                 <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
                   <p className="text-xs font-black text-gray-600 uppercase">Verificando tu solicitud…</p>
                 </div>
+              ) : hasBeenRejected ? (
+                <div className="bg-red-50 border border-red-200 p-4 rounded-2xl">
+                  <p className="text-sm font-black text-red-700">🚫 Tu solicitud fue rechazada.</p>
+                  <p className="text-xs text-red-600 mt-1 font-medium leading-relaxed">
+                    El donante decidió no elegirte para este artículo. Puedes postularte a otras donaciones.
+                  </p>
+                  <button onClick={safeClose} className="mt-3 w-full bg-red-600 text-white py-3 rounded-2xl font-black hover:bg-red-700 transition" type="button">
+                    Cerrar
+                  </button>
+                </div>
               ) : hasApplied ? (
                 <div className="bg-forest-green/10 border border-forest-green/20 p-4 rounded-2xl">
                   <p className="text-sm font-black text-gray-800">✅ Ya hiciste una solicitud.</p>
@@ -1046,14 +1115,74 @@ export default function ProductDetail({
           )}
 
           {canSeeChat && (
-            <div className="mt-8 animate-in slide-in-from-bottom-4">
+            <div className="mt-8 animate-in slide-in-from-bottom-4 space-y-3">
               <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
                 <p className="text-sm font-bold text-gray-700">Chat privado habilitado ✅</p>
                 <p className="text-xs text-gray-500 mt-1">Solo tú y la otra parte pueden ver este chat.</p>
               </div>
+              {/* Calificar al vendedor cuando entregado (comprador o ganador) */}
+              {estadoNorm === "entregado" && !isOwner && !yaCalifiqueItem && ownerId && (
+                <button type="button"
+                  onClick={() => { setCalificarModal({ reviewedId: ownerId, articuloId, rol: "ganador" }); setCalificarEstrellas(0); }}
+                  className="w-full py-3 rounded-2xl bg-forest-green text-white font-black text-sm flex items-center justify-center gap-2 hover:brightness-110 transition">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  Calificar al vendedor
+                </button>
+              )}
             </div>
           )}
         </div>
+
+        {/* MODAL CALIFICAR */}
+        {calificarModal && (
+          <div className="absolute inset-0 z-[150] flex items-center justify-center bg-black/50 px-4">
+            <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Reputación</p>
+              <h3 className="text-lg font-black text-gray-900 mb-1">Califica tu experiencia</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                {calificarModal.rol === "vendedor" ? "¿Cómo fue la experiencia con el comprador?" : "¿Cómo fue la experiencia con el vendedor/donante?"}
+              </p>
+              <div className="flex justify-center gap-2 mb-4">
+                {[1,2,3,4,5].map(s => {
+                  const activa = s <= (calificarHover || calificarEstrellas);
+                  return (
+                    <button key={s} type="button"
+                      onMouseEnter={() => setCalificarHover(s)}
+                      onMouseLeave={() => setCalificarHover(0)}
+                      onClick={() => setCalificarEstrellas(s)}
+                      className="p-1 transition-transform hover:scale-110 focus:outline-none">
+                      <svg width="36" height="36" viewBox="0 0 24 24"
+                        fill={activa ? "#1a7a4a" : "none"}
+                        stroke={activa ? "#1a7a4a" : "#D1D5DB"}
+                        strokeWidth="1.5"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinejoin="round" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-center text-xs font-black text-gray-400 uppercase tracking-wide mb-5">
+                {calificarEstrellas === 0 && "Selecciona una calificación"}
+                {calificarEstrellas === 1 && "😕 Mala experiencia"}
+                {calificarEstrellas === 2 && "😐 Regular"}
+                {calificarEstrellas === 3 && "🙂 Buena"}
+                {calificarEstrellas === 4 && "😊 Muy buena"}
+                {calificarEstrellas === 5 && "🤩 Excelente"}
+              </p>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => { setCalificarModal(null); setCalificarEstrellas(0); }}
+                  className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm hover:bg-gray-200 transition">
+                  Ahora no
+                </button>
+                <button type="button" disabled={calificarEstrellas < 1 || calificarLoading} onClick={enviarCalificacionPD}
+                  className="flex-1 py-3 rounded-2xl bg-forest-green text-white font-black text-sm hover:brightness-110 transition disabled:opacity-30">
+                  {calificarLoading ? "Enviando..." : "Enviar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL REPORTAR */}
         {reportOpen && (
