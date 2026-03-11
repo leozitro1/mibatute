@@ -123,7 +123,8 @@ async function safeInsertArticulos(payload) {
   let p = { ...(payload || {}) };
 
   for (let i = 0; i < 8; i++) {
-    const res = await supabase.from("articulos").insert(p).select("*").single();
+    // ✅ OPT: solo id tras insert (el caller no necesita el row completo aquí)
+    const res = await supabase.from("articulos").insert(p).select("id").single();
 
     if (!res?.error) return { data: res.data, error: null };
 
@@ -214,7 +215,8 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
     position: startPos + i,
   }));
 
-  const { data, error } = await supabase.from("articulo_imagenes").insert(rows).select("*");
+  // ✅ OPT: columnas mínimas tras insert de imágenes
+  const { data, error } = await supabase.from("articulo_imagenes").insert(rows).select("id,url,path,position");
   if (error) return { success: false, error: error.message };
 
   return { success: true, data };
@@ -224,15 +226,17 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
  * Trae un artículo y sus imágenes (ordenadas).
  */
 export async function getArticleWithImages(articleId) {
+  // ✅ OPT: columnas explícitas en vez de * (evita traer todo el row en cada edit)
   const { data, error } = await supabase
     .from("articulos")
     .select(
-      `
-      *,
-      articulo_imagenes:articulo_imagenes (
-        id, url, path, position, created_at
-      )
-    `
+      `id,titulo,title,modo,mode,tipo,estado,status,
+       ciudad,city,localidad_es,locality,categoria,category,subcategoria,subcategory,
+       descripcion,description,precio,price,
+       owner_id,usuario_id,buyer_id,ganador_id,winner_id,recipient_id,
+       image_url,imagen_url_principal,imagenes,is_featured,destacado,isFeatured,
+       estado_producto,created_at,updated_at,delivered_at,
+       articulo_imagenes:articulo_imagenes(id,url,path,position,created_at)`
     )
     .eq("id", articleId)
     .order("position", { foreignTable: "articulo_imagenes", ascending: true })
@@ -260,13 +264,13 @@ async function syncArticleImagesArray(articleId) {
     const urls = (Array.isArray(imgs) ? imgs : []).map((x) => x?.url).filter(Boolean);
     const first = urls[0] || null;
 
-    // ⚠️ Si tu RLS bloquea update directo aquí, luego movemos este sync a una RPC también.
-    await supabase.from("articulos").update({ imagenes: urls }).eq("id", articleId);
-
+    // ✅ OPT: un solo UPDATE en vez de 3 separados
+    const updatePayload = { imagenes: urls };
     if (first) {
-      await supabase.from("articulos").update({ image_url: first }).eq("id", articleId);
-      await supabase.from("articulos").update({ imagen_url_principal: first }).eq("id", articleId);
+      updatePayload.image_url = first;
+      updatePayload.imagen_url_principal = first;
     }
+    await supabase.from("articulos").update(updatePayload).eq("id", articleId);
 
     return { success: true, urls };
   } catch {
@@ -473,9 +477,10 @@ export async function addArticleImages(articleId, newFiles, ownerId = null) {
       ownerId = art?.owner_id;
     }
 
+    // ✅ OPT: head:true no trae datos, pero usamos id para mayor claridad
     const { count, error: cErr } = await supabase
       .from("articulo_imagenes")
-      .select("*", { count: "exact", head: true })
+      .select("id", { count: "exact", head: true })
       .eq("articulo_id", articleId);
 
     if (cErr) return { success: false, error: cErr.message };
@@ -533,11 +538,12 @@ export async function replaceArticleImage(imageId, newFile, ownerId) {
     const up = await uploadArticleImage({ file: newFile, ownerId });
     if (!up.success) return up;
 
+    // ✅ OPT: columnas mínimas tras update de imagen
     const { data, error: uErr } = await supabase
       .from("articulo_imagenes")
       .update({ url: up.url, path: up.path })
       .eq("id", imageId)
-      .select("*")
+      .select("id,url,path,position")
       .single();
 
     if (uErr) {
@@ -666,7 +672,8 @@ export async function updateArticle(articleId, formData = {}, file = null) {
     const safeDirectUpdate = async (patch) => {
       let p = { ...(patch || {}) };
       const run = async () => {
-        return await supabase.from("articulos").update(p).eq("id", articleId).select("*").maybeSingle();
+        // ✅ OPT: select mínimo tras update de destacado
+        return await supabase.from("articulos").update(p).eq("id", articleId).select("id").maybeSingle();
       };
 
       let { data, error } = await run();

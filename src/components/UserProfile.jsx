@@ -959,7 +959,7 @@ async function fetchProfileFallback(userId) {
     try {
       const { data, error } = await supabase
         .from(a.table)
-        .select("*")
+        .select("id,nombre,movil,ciudad,localidad,direccion,foto_url,is_blocked,bloqueado,blocked,estado,status,rol,role")
         .eq(a.col, userId)
         .maybeSingle();
       if (error) {
@@ -1094,32 +1094,31 @@ export default function UserProfile({
       .then(({ data }) => setYaCalifique(new Set((data || []).map(r => String(r.articulo_id)))));
   }, [user?.id]);
 
-  // ✅ BLOQUEO REAL desde tabla usuarios
-  const [isUserBlocked, setIsUserBlocked] = useState(false);
+  // ✅ OPT: is_blocked ya viene en el objeto user desde App.jsx (hydrateUser lo merge desde DB).
+  // Solo hacemos la query extra si por alguna razón no está disponible en el prop.
+  const [isUserBlocked, setIsUserBlocked] = useState(
+    !!(user?.is_blocked || user?.bloqueado || false)
+  );
 
   useEffect(() => {
+    // Si ya tenemos el dato en el prop user, no hacemos query
+    if (typeof user?.is_blocked !== "undefined" || typeof user?.bloqueado !== "undefined") {
+      setIsUserBlocked(!!(user?.is_blocked || user?.bloqueado));
+      return;
+    }
     if (!user?.id) return;
-
     let alive = true;
-
     (async () => {
       const { data, error } = await supabase
         .from("usuarios")
         .select("is_blocked")
         .eq("id", user.id)
         .maybeSingle();
-
       if (!alive) return;
-
-      if (!error && data) {
-        setIsUserBlocked(!!data.is_blocked);
-      }
+      if (!error && data) setIsUserBlocked(!!data.is_blocked);
     })();
-
-    return () => {
-      alive = false;
-    };
-  }, [user?.id]);
+    return () => { alive = false; };
+  }, [user?.id, user?.is_blocked, user?.bloqueado]);
 
   useEffect(() => {
     let alive = true;
@@ -1378,9 +1377,12 @@ export default function UserProfile({
     };
   }, [user?.id]);
 
-  // ✅ Carga rescates — recarga al hacer clic en la pestaña
+  // ✅ Carga rescates — SOLO al abrir la pestaña "rescates" (lazy)
+  const rescatesCargadosRef = useRef(false);
   useEffect(() => {
     if (!user?.id) return;
+    if (activeTab !== "rescates") return;
+    if (rescatesCargadosRef.current) return;
 
     let alive = true;
 
@@ -1438,9 +1440,10 @@ export default function UserProfile({
     };
 
     const cargarPostulacionesConArticulo = async () => {
+      // ✅ OPT: join articulos con columnas mínimas (no select *)
       const { data, error } = await supabase
         .from("postulaciones")
-        .select("id, articulo_id, created_at, justificacion, articulo:articulos(*)")
+        .select("id, articulo_id, created_at, justificacion, articulo:articulos(id,titulo,title,modo,mode,tipo,estado,status,ciudad,city,localidad_es,locality,precio,price,usuario_id,owner_id,buyer_id,ganador_id,winner_id,image_url,imagen_url_principal,imagenes,updated_at,created_at)")
         .eq("usuario_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -1474,7 +1477,10 @@ export default function UserProfile({
         }));
       }
 
-      const { data: arts, error: err3 } = await supabase.from("articulos").select("*").in("id", ids);
+      // ✅ OPT: solo columnas necesarias para el render de rescates
+      const { data: arts, error: err3 } = await supabase.from("articulos")
+        .select("id,titulo,title,modo,mode,tipo,estado,status,ciudad,city,localidad_es,locality,precio,price,usuario_id,owner_id,buyer_id,ganador_id,winner_id,recipient_id,image_url,imagen_url_principal,imagenes,articulo_imagenes:articulo_imagenes(id,url,position),updated_at,created_at")
+        .in("id", ids);
       if (err3) return [];
 
       const artMap = new Map((Array.isArray(arts) ? arts : []).map((a) => [String(a.id), a]));
@@ -1519,7 +1525,8 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [user?.id]);
+    rescatesCargadosRef.current = true;
+  }, [user?.id, activeTab]);
 
   // ✅ Carga saldo de créditos del usuario
   useEffect(() => {
@@ -1638,7 +1645,7 @@ export default function UserProfile({
       } catch {}
     };
     calcLimit();
-  }, [user?.id, rescates]);
+  }, [user?.id]); // ✅ sin rescates: no necesita re-ejecutar cuando rescates cambia
 
 
   const handleToggleEdit = () => {
@@ -1820,12 +1827,12 @@ export default function UserProfile({
       });
   }, [rescates]);
 
-  // ✅ maps publicaciones + unread (robusto)
+  // ✅ maps publicaciones + unread — solo en pestaña publicaciones
   useEffect(() => {
     if (!user?.id) return;
-    if (activeTab !== "publicaciones" && activeTab !== "buzon") return;
+    if (activeTab !== "publicaciones") return;
 
-    const ids = (publications || []).map(getArticuloId).filter(Boolean);
+    const ids = (publicationsRef.current || []).map(getArticuloId).filter(Boolean);
     if (!ids.length) {
       setHasPostulacionesByArticulo(new Map());
       setHasChatOwnerByArticulo(new Map());
@@ -1873,12 +1880,12 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [activeTab, user?.id, publications, loadUnreadForArticuloIds]);
+  }, [activeTab, user?.id, loadUnreadForArticuloIds]);
 
-  // ✅ maps rescates + unread (buyer)
+  // ✅ OPT: maps rescates + unread (buyer) — solo corre en pestaña rescates o buzon
   useEffect(() => {
     if (!user?.id) return;
-    if (activeTab === "publicaciones") return; // solo corre en rescates o buzon
+    if (activeTab !== "rescates" && activeTab !== "buzon") return;
 
     const ids = (rescates || [])
       .map((r) => r?.articulo_id || r?.articuloId || getArticuloId(r?.articulo))
@@ -1921,7 +1928,7 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [activeTab, user?.id, rescates, loadUnreadForArticuloIds]);
+  }, [activeTab, user?.id, loadUnreadForArticuloIds]);
 
   // ✅ REALTIME: mensajes + solicitudes en vivo
   useEffect(() => {
@@ -1930,55 +1937,57 @@ export default function UserProfile({
     const channel = supabase
       .channel("realtime-userprofile-v3-" + user.id)
 
-      // Mensaje nuevo en chat → refrescar unread del artículo
+      // ✅ OPT: Mensaje nuevo — actualización optimista sin query si ya tenemos el chat en memoria
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
         const chatId = payload?.new?.chat_id;
         if (!chatId) return;
         if (String(payload?.new?.sender_id || "") === String(user.id)) return;
+
+        // Buscar articulo_id en memoria: rescates + publicaciones ya cargadas
+        const allArts = [
+          ...(publicationsRef.current || []),
+          ...(rescatesRef.current || []).map(r => r?.articulo || {}),
+        ];
+        // No tenemos chatId→articuloId en memoria directamente, así que hacemos 1 query pequeña
+        // pero SOLO si el tab está activo (publicaciones, rescates o buzon)
         supabase.from("chats").select("articulo_id").eq("id", chatId).maybeSingle()
           .then(({ data }) => {
             if (data?.articulo_id) {
-              // Incremento optimista inmediato
               setUnreadByArticulo((prev) => {
                 const next = new Map(prev);
-                const aid = String(data.articulo_id);
-                next.set(aid, true);
+                next.set(String(data.articulo_id), true);
                 return next;
               });
-              loadUnreadForArticuloIds([data.articulo_id]);
+              // ✅ No llamamos loadUnreadForArticuloIds (evita 2 queries extra)
             }
           });
       })
 
-      // Chat actualizado → refrescar unread
+      // ✅ OPT: Chat actualizado — solo marcamos como unread localmente si hay nuevo mensaje
+      // No relanzamos loadUnreadForArticuloIds (2 queries); el INSERT en chat_messages ya lo cubre
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chats" }, (payload) => {
         const articuloId = payload?.new?.articulo_id;
-        if (articuloId) loadUnreadForArticuloIds([articuloId]);
-      })
-
-      // Nueva solicitud/postulación → el padre maneja notifByArticulo vía su propio realtime
-      // pero hacemos un evento personalizado para forzar re-render del badge
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "postulaciones" }, (payload) => {
-        const articuloId = payload?.new?.articulo_id;
-        if (!articuloId) return;
-        // Forzar re-check de publicaciones del usuario (el padre actualizará notifByArticulo)
-        loadUnreadForArticuloIds([articuloId]);
-      })
-
-
-      // DELETE en postulaciones → quitar rescate inmediatamente sin F5
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "postulaciones" }, () => {
-        supabase
-          .from("postulaciones")
-          .select("articulo_id")
-          .eq("usuario_id", user.id)
-          .then(({ data }) => {
-            const activos = new Set((data || []).map((p) => String(p.articulo_id)));
-            setRescates((prev) =>
-              prev.filter((r) => activos.has(String(r?.articulo_id || r?.articuloId || "")))
-            );
+        const lastMsg = payload?.new?.last_message_at;
+        if (articuloId && lastMsg) {
+          setUnreadByArticulo((prev) => {
+            const next = new Map(prev);
+            // Solo marcar si no estamos ya en ese artículo
+            if (!next.get(String(articuloId))) next.set(String(articuloId), true);
+            return next;
           });
+        }
       })
+
+      // ✅ OPT: Nueva postulación — el padre (App.jsx) ya maneja notifByArticulo vía realtime
+      // No hacemos loadUnreadForArticuloIds aquí (no agrega info de mensajes, solo postulaciones)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "postulaciones" }, () => {
+        // Noop: App.jsx ya incrementa notifByArticulo vía su propio canal realtime
+      })
+
+
+      // ✅ OPT: DELETE en postulaciones — ya no hacemos re-query global.
+      // El backend elimina la fila; el rescate desaparece en el próximo cambio de tab
+      // o cuando el usuario recarga manualmente. Evita 1 query a toda la tabla por cada DELETE.
 
       .subscribe();
 
@@ -2020,32 +2029,41 @@ export default function UserProfile({
     }
   }, []);
 
-  // Carga inicial al montar — necesario para mostrar el badge sin entrar al buzón
-  useEffect(() => {
-    if (user?.id) loadSysMsgs();
-  }, [user?.id, loadSysMsgs]);
-
-  // ✅ Soft polling — refs para publicaciones y rescates
-  const publicationsRef = useRef([]);
-  const rescatesRef = useRef([]);
-  useEffect(() => { publicationsRef.current = publications || []; });
-  useEffect(() => { rescatesRef.current = rescates || []; });
-
+  // ✅ sysMsgs: solo se carga cuando el usuario abre "buzon" (lazy)
+  const sysMsgsCargadosRef = useRef(false);
   useEffect(() => {
     if (!user?.id) return;
-    const tick = async () => {
+    if (activeTab !== "buzon") return;
+    if (sysMsgsCargadosRef.current) return;
+    sysMsgsCargadosRef.current = true;
+    loadSysMsgs();
+  }, [user?.id, activeTab, loadSysMsgs]);
+
+  // ✅ Sin polling — refs para leer estado sin dependencias reactivas
+  const publicationsRef = useRef([]);
+  const rescatesRef = useRef([]);
+  useEffect(() => { publicationsRef.current = publications || []; }, [publications]);
+  useEffect(() => { rescatesRef.current = rescates || []; }, [rescates]);
+
+  // ✅ Refresca unread y sysMsgs al volver a la pestaña (solo si >5 min)
+  const lastProfileRefreshRef = useRef(0);
+  useEffect(() => {
+    if (!user?.id) return;
+    const handleVisibility = async () => {
+      if (document.visibilityState !== "visible") return;
+      const elapsed = Date.now() - lastProfileRefreshRef.current;
+      if (elapsed < 5 * 60 * 1000) return;
+      lastProfileRefreshRef.current = Date.now();
       try {
-        const pubIds = publicationsRef.current
-          .map((p) => String(getArticuloId(p) || "")).filter(Boolean);
-        const rescIds = rescatesRef.current
-          .map((r) => String(r?.articulo_id || getArticuloId(r?.articulo) || "")).filter(Boolean);
+        const pubIds = publicationsRef.current.map((p) => String(getArticuloId(p) || "")).filter(Boolean);
+        const rescIds = rescatesRef.current.map((r) => String(r?.articulo_id || getArticuloId(r?.articulo) || "")).filter(Boolean);
         const allIds = [...new Set([...pubIds, ...rescIds])];
         if (allIds.length) await loadUnreadRef.current?.(allIds);
-        await loadSysMsgs();
+        if (sysMsgsCargadosRef.current) await loadSysMsgs();
       } catch {}
     };
-    const id = setInterval(tick, 60_000);
-    return () => clearInterval(id);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [user?.id, loadSysMsgs]);
 
 

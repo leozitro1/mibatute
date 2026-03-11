@@ -168,20 +168,22 @@ async function fetchUserLite(userId) {
   return null;
 }
 
+// ✅ OPT: cache en memoria — evita query a usuarios en cada sendMessage
+const _blockCache = new Map(); // uid → { blocked, ts }
+const _BLOCK_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
 async function isBlockedUser(uid) {
   const id = String(uid || "").trim();
   if (!id) return false;
 
+  const cached = _blockCache.get(id);
+  if (cached && Date.now() - cached.ts < _BLOCK_TTL_MS) return cached.blocked;
+
   try {
-    // intentamos con is_blocked (tu campo real)
     const { data, error } = await supabase.from("usuarios").select("is_blocked").eq("id", id).maybeSingle();
-    if (!error) return !!data?.is_blocked;
-
-    // si la columna no existe por algún motivo, no bloqueamos por UI (RLS hará su trabajo)
-    if (String(error?.code) === "42703") return false;
-
-    // si hay otro error (RLS), tampoco “rompemos” UI
-    return false;
+    const blocked = !error ? !!data?.is_blocked : false;
+    _blockCache.set(id, { blocked, ts: Date.now() });
+    return blocked;
   } catch {
     return false;
   }
@@ -191,7 +193,8 @@ async function findChatRow({ articuloId, buyerId }) {
   if (!articuloId) return null;
 
   try {
-    let q = supabase.from("chats").select("*").eq("articulo_id", articuloId);
+    // ✅ OPT: columnas necesarias para chatRow
+    let q = supabase.from("chats").select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at").eq("articulo_id", articuloId);
     if (buyerId) q = q.eq("buyer_id", buyerId);
 
     const { data, error } = await q.order("created_at", { ascending: false }).maybeSingle();
@@ -207,9 +210,10 @@ async function findChatRow({ articuloId, buyerId }) {
   }
 
   try {
+    // ✅ OPT: columnas mínimas (fallback sin buyerId)
     const { data, error } = await supabase
       .from("chats")
-      .select("*")
+      .select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at")
       .eq("articulo_id", articuloId)
       .order("created_at", { ascending: false })
       .maybeSingle();
@@ -239,7 +243,8 @@ async function safeCreateChatRow({ articuloId, buyerId, sellerId }) {
   };
 
   try {
-    const { data, error } = await supabase.from("chats").insert(payload).select("*").maybeSingle();
+    // ✅ OPT: solo columnas necesarias tras insert
+    const { data, error } = await supabase.from("chats").insert(payload).select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at").maybeSingle();
 
     if (!error && data?.id) return { data, error: null };
 
@@ -590,9 +595,10 @@ export default function ChatMessenger({
     (async () => {
       setLoading(true);
 
+      // ✅ OPT: solo columnas necesarias para renderizar mensajes
       const { data, error } = await supabase
         .from("chat_messages")
-        .select("*")
+        .select("id,chat_id,sender_id,body,message,content,text,mensaje,created_at")
         .eq("chat_id", chatId)
         .order("created_at", { ascending: true });
 

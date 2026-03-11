@@ -411,6 +411,11 @@ export default function App() {
     return { data: Array.isArray(res?.data) ? res.data : [], error: res?.error || null };
   }, []);
 
+  // ✅ Ref espejo de products — loadNotifications lo lee sin crear dependencia circular
+  const productsRef = useRef([]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { productsRef.current = products; }, [products]);
+
   const loadNotifications = useCallback(async () => {
     const uid = getActiveUid();
     if (!uid) {
@@ -420,6 +425,9 @@ export default function App() {
       setNotifications([]);
       return;
     }
+
+    // ✅ Usa ref en vez de closure sobre products — rompe la dependencia circular
+    const currentProducts = productsRef.current;
 
     const byArticulo = {}; // { [articuloId]: { unreadChats, newSolicitudes, pendingVentas, total } }
 
@@ -438,14 +446,14 @@ export default function App() {
     };
 
     // Para títulos/imagenes rápidos
-    const articleById = Object.fromEntries((products || []).map((p) => [String(getArticuloId(p) || ""), p]));
+    const articleById = Object.fromEntries((currentProducts || []).map((p) => [String(getArticuloId(p) || ""), p]));
 
     const dropdownItems = [];
 
     // 1) Ventas pendientes (desde products ya cargados)
     let pendingVentas = 0;
     try {
-      const mine = (products || []).filter((p) => String(p?.owner_id || p?.usuario_id || "") === String(uid));
+      const mine = (currentProducts || []).filter((p) => String(p?.owner_id || p?.usuario_id || "") === String(uid));
       for (const it of mine) {
         const estado = normEstado(it?.estado || it?.status || "");
         const tipo = normTipo(it?.mode || it?.tipo || "");
@@ -612,7 +620,7 @@ export default function App() {
     try {
       const lsKeyGanador = `mb_seen_ganador_${uid}`;
       const seenGanador = readSeenMap(lsKeyGanador);
-      const allProducts = Array.isArray(products) ? products : [];
+      const allProducts = Array.isArray(currentProducts) ? currentProducts : [];
       for (const p of allProducts) {
         const ganadorId = p?.ganador_id || p?.winner_id || p?.winnerUid || p?.recipient_id || null;
         if (!ganadorId || String(ganadorId) !== String(uid)) continue;
@@ -648,7 +656,7 @@ export default function App() {
     setNotifProfileCount(totalUnread + newSolicitudes + pendingVentas);
     setNotifByArticulo(byArticulo);
     setNotifications(sortedDropdown);
-  }, [getActiveUid, lsKeyChats, lsKeyPosts, products, fetchChatsForUid]);
+  }, [getActiveUid, lsKeyChats, lsKeyPosts, fetchChatsForUid]);
 
   // =========================================================
   // ✅ helper: abrir chat por articulo + buyerId
@@ -798,7 +806,8 @@ export default function App() {
       }
       if (!articuloId) return;
 
-      const art = (products || []).find((p) => String(getArticuloId(p)) === String(articuloId)) || null;
+      // ✅ usa productsRef para no crear dependencia innecesaria
+      const art = (productsRef.current || []).find((p) => String(getArticuloId(p)) === String(articuloId)) || null;
       if (!art) {
         setCurrentView("profile");
         return;
@@ -812,7 +821,7 @@ export default function App() {
 
       loadNotifications();
     },
-    [currentUser, products, markSolicitudesSeenForArticulo, loadNotifications]
+    [currentUser, markSolicitudesSeenForArticulo, loadNotifications]
   );
 
   // =========================================================
@@ -896,15 +905,26 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   // =========================================================
 
   const load = useCallback(async () => {
+    // ✅ Solo columnas necesarias para el listado — sin select("*")
     const { data, error } = await supabase
       .from("articulos")
       .select(
-        `
-        *,
-        articulo_imagenes:articulo_imagenes (
-          id, url, path, position, created_at
-        )
-      `
+        `id, titulo, title, modo, mode, tipo, estado, status,
+         ciudad, city, localidad_es, locality,
+         precio, price, usuario_id, owner_id, buyer_id,
+         ganador_id, winner_id, recipient_id,
+         reserved_at, updated_at, created_at,
+         image_url, imagen_url_principal, imagenes,
+         isFeatured, is_featured, destacado, featured,
+         estado_producto, review_status, approval_status,
+         moderation_status, revision_status,
+         category, categoria, categoria_es, category_name,
+         subcategory, subcategoria, sub_category, subcategoria_es, subcategory_name,
+         interested_max, max_interested, max_solicitudes, cupos_max,
+         is_blocked, bloqueado,
+         articulo_imagenes:articulo_imagenes (
+           id, url, position
+         )`
       )
       .order("created_at", { ascending: false })
       .order("position", { foreignTable: "articulo_imagenes", ascending: true });
@@ -928,7 +948,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       else ownersMap = Object.fromEntries((owners || []).map((u) => [u.id, u]));
     }
 
-    // ✅ 1) normaliza primero (como ya lo hacías)
+    // ✅ Normaliza artículos
     let normalized = raw.map((it) => {
       const imgsRel = Array.isArray(it.articulo_imagenes) ? it.articulo_imagenes : [];
       const imgsRelUrls = imgsRel.map((x) => x?.url).filter(Boolean);
@@ -939,50 +959,46 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
       return {
         ...it,
-        // ✅ Destacado (normalizado para UI)
         isFeatured: !!(it?.isFeatured ?? it?.is_featured ?? it?.destacado ?? it?.featured ?? false),
         articulo_imagenes: imgsRel,
         imagenes_db: imgsDb,
         imagenes: imgsRelUrls.length ? imgsRelUrls : imgsDb,
         owner_name_from_user_table: ownerPublic?.nombre || "",
         owner_photo: ownerPublic?.foto_url || "",
-        interested_count: 0, // ✅ default
+        interested_count: 0,
       };
     });
 
-    // ✅ 2) calcular interesados por artículo (postulaciones)
+    // ✅ Conteo de interesados: una sola query con count por grupo
+    // Evita iterar con múltiples chunks y traer todos los registros
     try {
       const ids = normalized.map((x) => getArticuloId(x)).filter(Boolean);
-      const counts = {}; // { [artId]: count }
+      if (ids.length) {
+        const counts = {};
+        const chunks = chunkArray(ids, 200);
+        for (const ch of chunks) {
+          // ✅ Solo trae articulo_id — sin payload extra
+          const { data: posts, error: postErr } = await supabase
+            .from("postulaciones")
+            .select("articulo_id")
+            .in("articulo_id", ch)
+            .limit(2000);
 
-      const chunks = chunkArray(ids, 200);
-
-      for (const ch of chunks) {
-        const { data: posts, error: postErr } = await supabase
-          .from("postulaciones")
-          .select("articulo_id")
-          .in("articulo_id", ch)
-          .limit(5000);
-
-        if (postErr) {
-          break;
-        }
-
-        if (Array.isArray(posts)) {
-          for (const p of posts) {
-            const aid = p?.articulo_id;
-            if (!aid) continue;
-            const k = String(aid);
-            counts[k] = (counts[k] || 0) + 1;
+          if (postErr) break;
+          if (Array.isArray(posts)) {
+            for (const p of posts) {
+              const aid = p?.articulo_id;
+              if (!aid) continue;
+              const k = String(aid);
+              counts[k] = (counts[k] || 0) + 1;
+            }
           }
         }
+        normalized = normalized.map((it) => {
+          const id = getArticuloId(it);
+          return { ...it, interested_count: id ? (counts[String(id)] || 0) : 0 };
+        });
       }
-
-      normalized = normalized.map((it) => {
-        const id = getArticuloId(it);
-        const c = id ? (counts[String(id)] || 0) : 0;
-        return { ...it, interested_count: c };
-      });
     } catch {}
 
     setProducts(normalized);
@@ -994,41 +1010,55 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     });
   }, []);
 
-  // ✅ Poll simple (cada 7s): load + notifs
+  // ✅ Carga inicial única — sin polling agresivo
+  // Se recarga solo cuando el usuario vuelve a la pestaña (visibilitychange)
+  // y solo si pasaron más de 3 minutos desde la última carga
+  const lastLoadRef = useRef(0);
+
   useEffect(() => {
     let alive = true;
 
     const run = async () => {
+      if (!alive) return;
       await load();
-      await loadNotifications();
+      lastLoadRef.current = Date.now();
+      // Notificaciones solo si hay usuario autenticado
+      if (getActiveUid()) await loadNotifications();
     };
 
     run();
 
-    const t = setInterval(() => {
-      if (!alive) return;
-      load();
-      loadNotifications();
-    }, 7000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const elapsed = Date.now() - lastLoadRef.current;
+        // Recarga solo si pasaron más de 3 minutos
+        if (elapsed > 3 * 60 * 1000) {
+          run();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       alive = false;
-      clearInterval(t);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [load, loadNotifications]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load]);
 
   // =========================================================
   // ✅ REALTIME: refresca dropdown al llegar postulación/mensaje
   // =========================================================
   const rtRef = useRef({ channel: null, uid: null });
 
+  // ✅ Suscripción realtime: depende SOLO de currentUser.id
+  // Usa productsRef para leer products sin rehacer el canal en cada refresh
   useEffect(() => {
     const uid = getActiveUid();
 
     if (rtRef.current.channel) {
-      try {
-        supabase.removeChannel(rtRef.current.channel);
-      } catch {}
+      try { supabase.removeChannel(rtRef.current.channel); } catch {}
       rtRef.current.channel = null;
       rtRef.current.uid = null;
     }
@@ -1040,18 +1070,18 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     ch.on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "postulaciones" },
-      async (payload) => {
+      (payload) => {
         const artId = payload?.new?.articulo_id;
         if (!artId) return;
 
-        const isMine = (products || []).some(
+        // ✅ Lee productsRef (no recrea el canal cuando products cambia)
+        const isMine = (productsRef.current || []).some(
           (p) =>
             String(getArticuloId(p)) === String(artId) &&
             String(p?.owner_id || p?.usuario_id || "") === String(uid)
         );
 
         if (!isMine) return;
-
         loadNotifications();
       }
     );
@@ -1059,9 +1089,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     ch.on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "chat_messages" },
-      async () => {
-        loadNotifications();
-      }
+      () => { loadNotifications(); }
     );
 
     ch.subscribe();
@@ -1070,13 +1098,27 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     rtRef.current.uid = uid;
 
     return () => {
-      try {
-        supabase.removeChannel(ch);
-      } catch {}
+      try { supabase.removeChannel(ch); } catch {}
       rtRef.current.channel = null;
       rtRef.current.uid = null;
     };
-  }, [getActiveUid, products, loadNotifications]);
+  // ✅ Solo se rehace cuando cambia el usuario — no cuando cambian products
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
+  // ✅ Carga notificaciones SOLO cuando el usuario se autentica o cambia
+  // No se mezcla con el ciclo de load() de productos
+  useEffect(() => {
+    if (currentUser?.id) {
+      loadNotifications();
+    } else {
+      setNotifChatCount(0);
+      setNotifProfileCount(0);
+      setNotifByArticulo({});
+      setNotifications([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   const currentCityData = useMemo(() => {
     return COLOMBIA_DATA.find((c) => c.city === selectedCity);
@@ -1162,8 +1204,14 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       }
 
       alert("¡Solicitud enviada! El vendedor decidirá a quién entregárselo.");
-      await load();
-      await loadNotifications();
+      // ✅ Actualización local del contador — sin recargar todo
+      setProducts((prev) =>
+        prev.map((it) =>
+          String(getArticuloId(it)) === String(productId)
+            ? { ...it, interested_count: (Number(it.interested_count) || 0) + 1 }
+            : it
+        )
+      );
       return { success: true };
     } catch (err) {
       console.error("Error enviando postulación:", err);
@@ -1260,7 +1308,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         markChatSeen(ensured.chat.id);
       }
 
-      await load();
+      // ✅ setProducts ya actualizó estado localmente — solo recargamos notifs
       await loadNotifications();
     } catch (err) {
       console.error("HANDLEBUY ERROR:", err);
@@ -1312,8 +1360,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       }
 
       alert("Venta cancelada. El artículo volvió a estar disponible ✅");
-      await load();
-      await loadNotifications();
+      // ✅ Ya actualizamos setProducts localmente arriba — sin full reload
     } catch (e) {
       console.error(e);
       alert("No se pudo cancelar la venta.");
@@ -1369,8 +1416,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       setEditArticle(null);
 
       alert("✅ Publicación eliminada.");
-      await load();
-      await loadNotifications();
+      // ✅ setProducts ya filtra el artículo localmente — sin full reload
     } catch (e) {
       console.error("DELETE ERROR:", e);
       alert("No se pudo eliminar. (Revisa RLS/policies en Supabase).");
@@ -2005,7 +2051,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               }}
               onCancelSale={cancelSale}
               onCancelSaleSuccess={async () => {
-                await load();
+                // ✅ Solo notificaciones — el estado ya se actualizó localmente
                 await loadNotifications();
               }}
               onOpenChat={async ({ article, buyerId }) => {
@@ -2026,8 +2072,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 setEditArticle(null);
               }}
               onUpdateSuccess={async () => {
+                // ✅ Recarga completa solo cuando se edita un artículo (datos pueden haber cambiado)
                 await load();
-                await loadNotifications();
               }}
             />
 
