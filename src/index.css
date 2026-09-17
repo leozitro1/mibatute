@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+/* Aquí agregamos tus colores de marca para que funcionen con la versión nueva */
+@theme {
+  --color-forest-green: #2D5A27;
+  --color-treasure-gold: #FFB703;
+  --color-smoke-white: #F8F9FA;
+}
