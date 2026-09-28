@@ -16,7 +16,8 @@ const ManageArticleModal = lazy(() => import("./components/ManageArticleModal"))
 const EditArticleModal = lazy(() => import("./components/EditArticleModal"));
 const ChatMessenger = lazy(() => import("./components/ChatMessenger"));
 
-const MAX_HOME_ARTICLES = Number(import.meta.env.VITE_MAX_HOME_ARTICLES || 40);
+const HOME_PAGE_SIZE = Number(import.meta.env.VITE_HOME_PAGE_SIZE || 12);
+const MAX_HOME_ARTICLES = Number(import.meta.env.VITE_MAX_HOME_ARTICLES || 48);
 const NOTIFICATIONS_REFRESH_MS = Number(import.meta.env.VITE_NOTIFICATIONS_REFRESH_MS || 300000);
 const ARTICLE_LIST_SELECT = `
   id,
@@ -145,6 +146,8 @@ function resolveInterestedMax(item) {
 
 export default function App() {
   const [products, setProducts] = useState([]);
+  const [hasMoreProducts, setHasMoreProducts] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -767,28 +770,8 @@ export default function App() {
   // ✅ Loader artículos + owner_name/photo + ✅ interested_count
   // =========================================================
 
-  const load = useCallback(async () => {
-    if (!isSupabaseConfigured) {
-      setProducts([]);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("articulos")
-      .select(ARTICLE_LIST_SELECT)
-      .order("created_at", { ascending: false })
-      .order("position", { foreignTable: "articulo_imagenes", ascending: true })
-      .limit(MAX_HOME_ARTICLES);
-
-    if (error) {
-      console.error("Error cargando articulos:", error);
-      return;
-    }
-
-    const raw = Array.isArray(data) ? data : [];
-
-    // ✅ 1) normaliza primero (como ya lo hacías)
-    let normalized = raw.map((it) => {
+  const normalizeArticles = useCallback((rows = []) => {
+    return (Array.isArray(rows) ? rows : []).map((it) => {
       const imgsRel = Array.isArray(it.articulo_imagenes) ? it.articulo_imagenes : [];
       const imgsRelUrls = imgsRel.map((x) => x?.url).filter(Boolean);
       const imgsDb = Array.isArray(it.imagenes) ? it.imagenes.filter(Boolean) : [];
@@ -803,15 +786,91 @@ export default function App() {
         interested_count: Number(it?.interested_count || 0),
       };
     });
+  }, []);
 
-    setProducts(normalized);
+  const fetchArticlePage = useCallback(
+    async ({ offset = 0, pageSize = HOME_PAGE_SIZE } = {}) => {
+      if (!isSupabaseConfigured) {
+        return { items: [], hasMore: false, error: null };
+      }
+
+      const remaining = Math.max(0, MAX_HOME_ARTICLES - offset);
+      if (remaining <= 0) return { items: [], hasMore: false, error: null };
+      const cappedPageSize = Math.max(1, Math.min(pageSize, remaining));
+
+      const { data, error } = await supabase
+        .from("articulos")
+        .select(ARTICLE_LIST_SELECT)
+        .order("created_at", { ascending: false })
+        .order("position", { foreignTable: "articulo_imagenes", ascending: true })
+        .range(offset, offset + cappedPageSize);
+
+      if (error) return { items: [], hasMore: false, error };
+
+      const rows = Array.isArray(data) ? data : [];
+      return {
+        items: normalizeArticles(rows.slice(0, cappedPageSize)),
+        hasMore: rows.length > cappedPageSize && offset + cappedPageSize < MAX_HOME_ARTICLES,
+        error: null,
+      };
+    },
+    [normalizeArticles]
+  );
+
+  const load = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setProducts([]);
+      setHasMoreProducts(false);
+      return;
+    }
+
+    const { items, hasMore, error } = await fetchArticlePage({ offset: 0, pageSize: HOME_PAGE_SIZE });
+
+    if (error) {
+      console.error("Error cargando articulos:", error);
+      return;
+    }
+
+    setProducts(items);
+    setHasMoreProducts(hasMore);
 
     setSelectedProduct((prev) => {
       if (!prev?.id) return prev;
-      const updated = normalized.find((x) => x.id === prev.id);
+      const updated = items.find((x) => x.id === prev.id);
       return updated ? { ...prev, ...updated } : prev;
     });
-  }, []);
+  }, [fetchArticlePage]);
+
+  const loadMoreProducts = useCallback(async () => {
+    if (isLoadingMore || !hasMoreProducts) return;
+
+    setIsLoadingMore(true);
+    try {
+      const { items, hasMore, error } = await fetchArticlePage({
+        offset: products.length,
+        pageSize: HOME_PAGE_SIZE,
+      });
+
+      if (error) {
+        console.error("Error cargando más articulos:", error);
+        return;
+      }
+
+      setProducts((prev) => {
+        const seen = new Set(prev.map((item) => String(getArticuloId(item))));
+        const nextItems = items.filter((item) => {
+          const id = getArticuloId(item);
+          if (!id || seen.has(String(id))) return false;
+          seen.add(String(id));
+          return true;
+        });
+        return [...prev, ...nextItems];
+      });
+      setHasMoreProducts(hasMore);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [fetchArticlePage, hasMoreProducts, isLoadingMore, products.length]);
 
   // ✅ Bajo consumo: carga inicial y refresco por foco/visibilidad, sin polling constante.
   useEffect(() => {
@@ -1494,48 +1553,63 @@ export default function App() {
                 </div>
 
                 {filteredProducts.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredProducts.map((item) => {
-                      const resolvedImage =
-                        item.image_url ||
-                        item.imagen_url_principal ||
-                        (Array.isArray(item.imagenes) ? item.imagenes : item.imagenes_db) ||
-                        "";
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {filteredProducts.map((item) => {
+                        const resolvedImage =
+                          item.image_url ||
+                          item.imagen_url_principal ||
+                          (Array.isArray(item.imagenes) ? item.imagenes : item.imagenes_db) ||
+                          "";
 
-                      const resolvedLocation = `${item.city || item.ciudad || ""}${
-                        item.locality || item.localidad_es ? `, ${item.locality || item.localidad_es}` : ""
-                      }`;
+                        const resolvedLocation = `${item.city || item.ciudad || ""}${
+                          item.locality || item.localidad_es ? `, ${item.locality || item.localidad_es}` : ""
+                        }`;
 
-                      const artId = getArticuloId(item);
-                      const notif = artId ? notifByArticulo[String(artId)] : null;
+                        const artId = getArticuloId(item);
+                        const notif = artId ? notifByArticulo[String(artId)] : null;
 
-                      // ✅ interesados desde load() (postulaciones)
-                      const interestedCount = Number(item?.interested_count || 0) || 0;
-                      const interestedMax = resolveInterestedMax(item);
+                        // ✅ interesados desde load() (postulaciones)
+                        const interestedCount = Number(item?.interested_count || 0) || 0;
+                        const interestedMax = resolveInterestedMax(item);
 
-                      return (
-                        <div key={item.id} onClick={() => setSelectedProduct(item)} className="cursor-pointer">
-                          <ProductCard
-                            title={item.title || item.titulo || "Sin título"}
-                            location={resolvedLocation}
-                            mode={normTipo(item.mode || item.tipo || "donacion")}
-                            price={item.price || 0}
-                            image={resolvedImage}
-                            isFeatured={item.isFeatured || false}
-                            status={item.estado || item.status || "disponible"}
-                            // ✅ interesados (ARREGLO)
-                            interestedCount={interestedCount}
-                            interestedMax={interestedMax}
-                            // ✅ props opcionales (no rompen si ProductCard no los usa)
-                            notifTotal={notif?.total || 0}
-                            notifChats={notif?.unreadChats || 0}
-                            notifSolicitudes={notif?.newSolicitudes || 0}
-                            notifVentas={notif?.pendingVentas || 0}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <div key={item.id} onClick={() => setSelectedProduct(item)} className="cursor-pointer">
+                            <ProductCard
+                              title={item.title || item.titulo || "Sin título"}
+                              location={resolvedLocation}
+                              mode={normTipo(item.mode || item.tipo || "donacion")}
+                              price={item.price || 0}
+                              image={resolvedImage}
+                              isFeatured={item.isFeatured || false}
+                              status={item.estado || item.status || "disponible"}
+                              // ✅ interesados (ARREGLO)
+                              interestedCount={interestedCount}
+                              interestedMax={interestedMax}
+                              // ✅ props opcionales (no rompen si ProductCard no los usa)
+                              notifTotal={notif?.total || 0}
+                              notifChats={notif?.unreadChats || 0}
+                              notifSolicitudes={notif?.newSolicitudes || 0}
+                              notifVentas={notif?.pendingVentas || 0}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {hasMoreProducts ? (
+                      <div className="mt-8 flex justify-center">
+                        <button
+                          type="button"
+                          onClick={loadMoreProducts}
+                          disabled={isLoadingMore}
+                          className="px-5 py-3 rounded-2xl bg-gray-900 text-white text-xs font-black uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed hover:bg-forest-green transition"
+                        >
+                          {isLoadingMore ? "Cargando..." : "Cargar más"}
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
                 ) : (
                   <div className="text-center py-20">
                     <p className="text-gray-400 font-bold">No encontramos nada con ese filtro. ¡Sé el primero en publicarlo!</p>
