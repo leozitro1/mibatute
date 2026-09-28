@@ -86,8 +86,12 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
       }
 
       if (result.success) {
-        alert("¡Bienvenido a MiBatute! Registro exitoso.");
-        onLogin?.();
+        if (result.needsEmailConfirmation) {
+          alert("Registro creado. Revisa tu correo para confirmar la cuenta antes de iniciar sesión.");
+        } else {
+          alert("¡Bienvenido a MiBatute! Registro exitoso.");
+          onLogin?.();
+        }
         handleClose();
       } else {
         alert("Error al registrar: " + (result.error || "No se pudo registrar"));

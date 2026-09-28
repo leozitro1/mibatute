@@ -29,6 +29,7 @@ export const registerUser = async (email, password, extraData = {}) => {
   if (authError) return { success: false, error: authError.message };
 
   const user = data?.user;
+  const session = data?.session;
   if (!user) {
     return {
       success: false,
@@ -53,9 +54,13 @@ export const registerUser = async (email, password, extraData = {}) => {
     { onConflict: "id" }
   );
 
-  if (dbError) return { success: false, error: dbError.message };
+  if (dbError && session) return { success: false, error: dbError.message };
 
-  return { success: true, user };
+  return {
+    success: true,
+    user,
+    needsEmailConfirmation: !session,
+  };
 };
 
 export const loginUser = async (email, password) => {

@@ -135,18 +135,22 @@ begin
 end;
 $$;
 
+drop trigger if exists usuarios_set_updated_at on public.usuarios;
 create trigger usuarios_set_updated_at
 before update on public.usuarios
 for each row execute function public.set_updated_at();
 
+drop trigger if exists articulos_set_updated_at on public.articulos;
 create trigger articulos_set_updated_at
 before update on public.articulos
 for each row execute function public.set_updated_at();
 
+drop trigger if exists chats_set_updated_at on public.chats;
 create trigger chats_set_updated_at
 before update on public.chats
 for each row execute function public.set_updated_at();
 
+drop trigger if exists chat_reads_set_updated_at on public.chat_reads;
 create trigger chat_reads_set_updated_at
 before update on public.chat_reads
 for each row execute function public.set_updated_at();
@@ -174,10 +178,12 @@ begin
 end;
 $$;
 
+drop trigger if exists postulaciones_interested_count_insert on public.postulaciones;
 create trigger postulaciones_interested_count_insert
 after insert on public.postulaciones
 for each row execute function public.bump_articulo_interested_count();
 
+drop trigger if exists postulaciones_interested_count_delete on public.postulaciones;
 create trigger postulaciones_interested_count_delete
 after delete on public.postulaciones
 for each row execute function public.bump_articulo_interested_count();
@@ -194,9 +200,48 @@ begin
 end;
 $$;
 
+drop trigger if exists chat_messages_set_last_message_at on public.chat_messages;
 create trigger chat_messages_set_last_message_at
 after insert on public.chat_messages
 for each row execute function public.set_chat_last_message_at();
+
+create or replace function public.create_profile_for_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.usuarios (id, nombre, movil, ciudad, localidad)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'nombre', ''),
+    coalesce(new.raw_user_meta_data->>'movil', ''),
+    coalesce(new.raw_user_meta_data->>'ciudad', new.raw_user_meta_data->>'city', ''),
+    coalesce(
+      new.raw_user_meta_data->>'localidad',
+      new.raw_user_meta_data->>'localidad_es',
+      new.raw_user_meta_data->>'locality',
+      new.raw_user_meta_data->>'location',
+      ''
+    )
+  )
+  on conflict (id) do update
+  set
+    nombre = excluded.nombre,
+    movil = excluded.movil,
+    ciudad = excluded.ciudad,
+    localidad = excluded.localidad,
+    updated_at = now();
+
+  return new;
+end;
+$$;
+
+drop trigger if exists create_profile_for_new_user on auth.users;
+create trigger create_profile_for_new_user
+after insert on auth.users
+for each row execute function public.create_profile_for_new_user();
 
 alter table public.usuarios enable row level security;
 alter table public.articulos enable row level security;
@@ -206,41 +251,50 @@ alter table public.chats enable row level security;
 alter table public.chat_messages enable row level security;
 alter table public.chat_reads enable row level security;
 
+drop policy if exists "Perfiles publicos visibles" on public.usuarios;
 create policy "Perfiles publicos visibles"
 on public.usuarios for select
 using (true);
 
+drop policy if exists "Cada usuario actualiza su perfil" on public.usuarios;
 create policy "Cada usuario actualiza su perfil"
 on public.usuarios for all
 using (auth.uid() = id)
 with check (auth.uid() = id);
 
+drop policy if exists "Articulos visibles" on public.articulos;
 create policy "Articulos visibles"
 on public.articulos for select
 using (true);
 
+drop policy if exists "Crear articulos propios" on public.articulos;
 create policy "Crear articulos propios"
 on public.articulos for insert
 with check (auth.uid() = owner_id);
 
+drop policy if exists "Editar articulos propios" on public.articulos;
 create policy "Editar articulos propios"
 on public.articulos for update
 using (auth.uid() = owner_id)
 with check (auth.uid() = owner_id);
 
+drop policy if exists "Borrar articulos propios" on public.articulos;
 create policy "Borrar articulos propios"
 on public.articulos for delete
 using (auth.uid() = owner_id);
 
+drop policy if exists "Imagenes visibles" on public.articulo_imagenes;
 create policy "Imagenes visibles"
 on public.articulo_imagenes for select
 using (true);
 
+drop policy if exists "Gestionar imagenes propias" on public.articulo_imagenes;
 create policy "Gestionar imagenes propias"
 on public.articulo_imagenes for all
 using (auth.uid() = owner_id)
 with check (auth.uid() = owner_id);
 
+drop policy if exists "Postulaciones visibles para participantes" on public.postulaciones;
 create policy "Postulaciones visibles para participantes"
 on public.postulaciones for select
 using (
@@ -251,10 +305,12 @@ using (
   )
 );
 
+drop policy if exists "Crear postulacion propia" on public.postulaciones;
 create policy "Crear postulacion propia"
 on public.postulaciones for insert
 with check (auth.uid() = usuario_id);
 
+drop policy if exists "Borrar postulacion propia o como dueno" on public.postulaciones;
 create policy "Borrar postulacion propia o como dueno"
 on public.postulaciones for delete
 using (
@@ -265,6 +321,7 @@ using (
   )
 );
 
+drop policy if exists "Chats visibles para participantes" on public.chats;
 create policy "Chats visibles para participantes"
 on public.chats for select
 using (
@@ -275,10 +332,12 @@ using (
   )
 );
 
+drop policy if exists "Crear chats como participante" on public.chats;
 create policy "Crear chats como participante"
 on public.chats for insert
 with check (auth.uid() in (buyer_id, seller_id, owner_id, usuario_id));
 
+drop policy if exists "Actualizar chats como participante" on public.chats;
 create policy "Actualizar chats como participante"
 on public.chats for update
 using (
@@ -289,6 +348,7 @@ using (
   )
 );
 
+drop policy if exists "Borrar chats como participante" on public.chats;
 create policy "Borrar chats como participante"
 on public.chats for delete
 using (
@@ -299,6 +359,7 @@ using (
   )
 );
 
+drop policy if exists "Mensajes visibles para participantes del chat" on public.chat_messages;
 create policy "Mensajes visibles para participantes del chat"
 on public.chat_messages for select
 using (
@@ -309,6 +370,7 @@ using (
   )
 );
 
+drop policy if exists "Enviar mensajes como remitente" on public.chat_messages;
 create policy "Enviar mensajes como remitente"
 on public.chat_messages for insert
 with check (
@@ -320,6 +382,7 @@ with check (
   )
 );
 
+drop policy if exists "Borrar mensajes de chats propios" on public.chat_messages;
 create policy "Borrar mensajes de chats propios"
 on public.chat_messages for delete
 using (
@@ -330,6 +393,7 @@ using (
   )
 );
 
+drop policy if exists "Lecturas propias" on public.chat_reads;
 create policy "Lecturas propias"
 on public.chat_reads for all
 using (auth.uid() = user_id)
