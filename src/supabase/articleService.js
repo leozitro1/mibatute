@@ -1,11 +1,11 @@
 // src/supabase/articleService.js
 import { supabase } from "./supabaseClient";
+import { uploadImageKitImage } from "../imagekit/imageService";
 
-const BUCKET = "articulos";
 const MAX_IMAGES = 4;
 const ARTICLE_SELECT =
   "id,owner_id,usuario_id,owner_name,owner_photo,title,description,category,subcategory,subcategoria,mode,price,city,locality,status,estado,interested_count,imagenes,image_url,imagen_url,imagen_url_principal,buyer_id,comprador_id,ganador_id,winner_id,recipient_id,reserved_at,updated_at,created_at";
-const ARTICLE_IMAGE_SELECT = "id,articulo_id,owner_id,url,path,position,created_at";
+const ARTICLE_IMAGE_SELECT = "id,articulo_id,owner_id,url,path,file_id,position,created_at";
 
 // ===============================
 // ✅ ESTÁNDAR DE IMÁGENES (GUARDIA EN SERVICE)
@@ -183,7 +183,7 @@ async function safeUpdateArticulos(articleId, patch) {
 }
 
 /**
- * Sube UNA imagen al bucket "articulos" en la carpeta del usuario.
+ * Sube UNA imagen a ImageKit en la carpeta del usuario.
  * Retorna { success, url, path }.
  *
  * ✅ NUEVO: optimiza antes de subir.
@@ -204,30 +204,27 @@ export async function uploadArticleImage({ file, ownerId }) {
   const safeExt = ext.replace(/[^a-z0-9]/g, "") || "jpg";
 
   const fileName = `${Date.now()}_${Math.random().toString(16).slice(2)}.${safeExt}`;
-  const path = `${ownerId}/${fileName}`;
-
-  const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, optimizedFile, {
-    contentType: optimizedFile.type || "image/jpeg",
-    cacheControl: "3600",
-    upsert: false,
+  const uploaded = await uploadImageKitImage({
+    file: optimizedFile,
+    fileName,
+    folder: `/mibatute/articulos/${ownerId}`,
   });
 
-  if (uploadError) return { success: false, error: uploadError.message };
+  if (!uploaded.success) return uploaded;
 
-  const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  const baseUrl = pub?.publicUrl || "";
-  const url = baseUrl ? `${baseUrl}?v=${Date.now()}` : "";
-
-  return { success: true, url, path };
+  return {
+    success: true,
+    url: uploaded.thumbnailUrl || uploaded.url,
+    detailUrl: uploaded.detailUrl || uploaded.url,
+    path: uploaded.filePath,
+    fileId: uploaded.fileId,
+  };
 }
 
 async function removeStorageFiles(paths = []) {
-  const clean = Array.from(paths || []).filter(Boolean);
-  if (!clean.length) return { success: true };
-
-  const { error } = await supabase.storage.from(BUCKET).remove(clean);
-  if (error) return { success: false, error: error.message };
-
+  // ImageKit deletion requires a private API call. We intentionally do not expose
+  // deletion from the browser; orphan cleanup can be handled later from admin tooling.
+  void paths;
   return { success: true };
 }
 
@@ -255,6 +252,7 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
     owner_id: ownerId,
     url: img.url,
     path: img.path,
+    file_id: img.fileId || null,
     position: startPos + i,
   }));
 

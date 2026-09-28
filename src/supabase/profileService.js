@@ -1,7 +1,6 @@
 // src/supabase/profileService.js
 import { supabase } from "./supabaseClient";
-
-const BUCKET = "perfiles";
+import { uploadImageKitImage } from "../imagekit/imageService";
 const PROFILE_MAX_ORIGINAL_MB = 3;
 const PROFILE_MAX_SIDE = 512;
 const PROFILE_FORMAT = "image/webp";
@@ -154,21 +153,16 @@ export const updateProfile = async (userId, profile, file = null) => {
       const optimizedFile = await optimizeProfileImage(file);
       const ext = (optimizedFile.name?.split(".").pop() || "webp").toLowerCase();
       const safeExt = ext.replace(/[^a-z0-9]/g, "") || "webp";
-      const path = `${userId}/${userId}.${safeExt}`;
-
-      const uploadPromise = supabase.storage.from(BUCKET).upload(path, optimizedFile, {
-        contentType: optimizedFile.type || PROFILE_FORMAT,
-        cacheControl: "3600",
-        upsert: true, // ✅ reemplaza si existe
+      const uploadPromise = uploadImageKitImage({
+        file: optimizedFile,
+        fileName: `${userId}.${safeExt}`,
+        folder: `/mibatute/perfiles/${userId}`,
       });
 
-      const { error: upErr } = await withTimeout(uploadPromise, 20000, "upload-timeout");
-      if (upErr) return { success: false, error: upErr.message };
+      const uploaded = await withTimeout(uploadPromise, 20000, "upload-timeout");
+      if (!uploaded?.success) return { success: false, error: uploaded?.error || "No se pudo subir la foto." };
 
-      // URL pública + bust de cache
-      const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(path);
-      const baseUrl = publicData?.publicUrl || "";
-      foto_url = baseUrl ? `${baseUrl}?v=${Date.now()}` : "";
+      foto_url = uploaded.thumbnailUrl || uploaded.url || "";
     }
 
     // 2) Upsert en tabla usuarios (robusto: crea si no existe)

@@ -52,38 +52,10 @@ function isHttpUrl(v) {
   return s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:");
 }
 
-/**
- * ✅ intenta resolver foto_url cuando viene como:
- * - URL completa -> se usa tal cual
- * - "bucket/ruta/archivo.png" -> intenta publicUrl y si no, signedUrl
- */
 async function resolvePhotoUrlMaybe(storageValue) {
   const raw = String(storageValue || "").trim();
   if (!raw) return "";
-
-  if (isHttpUrl(raw)) return raw;
-
-  const parts = raw.split("/").filter(Boolean);
-  if (parts.length < 2) return "";
-
-  const bucket = parts[0];
-  const path = parts.slice(1).join("/");
-
-  try {
-    const pub = supabase.storage.from(bucket).getPublicUrl(path);
-    const pubUrl = pub?.data?.publicUrl || "";
-    if (pubUrl) return pubUrl;
-  } catch {
-    // ignore
-  }
-
-  try {
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
-    if (error) return "";
-    return data?.signedUrl || "";
-  } catch {
-    return "";
-  }
+  return isHttpUrl(raw) ? raw : "";
 }
 
 // ✅ UNIFICACIÓN: regalo -> donacion

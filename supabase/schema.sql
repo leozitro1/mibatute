@@ -55,6 +55,7 @@ create table if not exists public.articulo_imagenes (
   owner_id uuid not null references auth.users(id) on delete cascade,
   url text not null,
   path text not null,
+  file_id text,
   position integer not null default 0,
   created_at timestamptz not null default now()
 );
@@ -333,41 +334,3 @@ create policy "Lecturas propias"
 on public.chat_reads for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
-
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values
-  ('articulos', 'articulos', true, 8388608, array['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
-  ('perfiles', 'perfiles', true, 8388608, array['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-on conflict (id) do update
-set public = excluded.public,
-    file_size_limit = excluded.file_size_limit,
-    allowed_mime_types = excluded.allowed_mime_types;
-
-create policy "Imagenes publicas legibles"
-on storage.objects for select
-using (bucket_id in ('articulos', 'perfiles'));
-
-create policy "Usuarios suben imagenes a su carpeta"
-on storage.objects for insert
-with check (
-  bucket_id in ('articulos', 'perfiles')
-  and auth.uid()::text = (storage.foldername(name))[1]
-);
-
-create policy "Usuarios actualizan imagenes de su carpeta"
-on storage.objects for update
-using (
-  bucket_id in ('articulos', 'perfiles')
-  and auth.uid()::text = (storage.foldername(name))[1]
-)
-with check (
-  bucket_id in ('articulos', 'perfiles')
-  and auth.uid()::text = (storage.foldername(name))[1]
-);
-
-create policy "Usuarios borran imagenes de su carpeta"
-on storage.objects for delete
-using (
-  bucket_id in ('articulos', 'perfiles')
-  and auth.uid()::text = (storage.foldername(name))[1]
-);
