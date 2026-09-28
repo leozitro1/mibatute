@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "../supabase/supabaseClient";
 
-const MAX_CHAT_MESSAGES = Number(import.meta.env.VITE_MAX_CHAT_MESSAGES || 100);
+const MAX_CHAT_MESSAGES = Number(import.meta.env.VITE_MAX_CHAT_MESSAGES || 50);
+const CHAT_SELECT = "id, articulo_id, buyer_id, seller_id, owner_id, usuario_id, status, last_message_at, created_at, updated_at";
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -173,7 +174,7 @@ async function findChatRow({ articuloId, buyerId }) {
   if (!articuloId) return null;
 
   try {
-    let q = supabase.from("chats").select("*").eq("articulo_id", articuloId);
+    let q = supabase.from("chats").select(CHAT_SELECT).eq("articulo_id", articuloId);
     if (buyerId) q = q.eq("buyer_id", buyerId);
 
     const { data, error } = await q.order("created_at", { ascending: false }).maybeSingle();
@@ -192,7 +193,7 @@ async function findChatRow({ articuloId, buyerId }) {
   try {
     const { data, error } = await supabase
       .from("chats")
-      .select("*")
+      .select(CHAT_SELECT)
       .eq("articulo_id", articuloId)
       .order("created_at", { ascending: false })
       .maybeSingle();
@@ -221,7 +222,7 @@ async function safeCreateChatRow({ articuloId, buyerId, meId }) {
   let lastErr = null;
 
   for (const payload of candidates) {
-    const { data, error } = await supabase.from("chats").insert(payload).select("*").maybeSingle();
+    const { data, error } = await supabase.from("chats").insert(payload).select(CHAT_SELECT).maybeSingle();
 
     if (!error && data?.id) return { data, error: null };
 
@@ -594,34 +595,6 @@ export default function ChatMessenger({
       supabase.removeChannel(channel);
     };
   }, [isOpen, chatRow?.id, scrollToBottom, markSeenUpToLatest]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const chatId = chatRow?.id;
-    if (!chatId) return;
-
-    const channel = supabase
-      .channel(`chat_deleted_${chatId}`)
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "chats", filter: `id=eq.${chatId}` },
-        () => {
-          setMessages([]);
-          setChatRow(null);
-          setUiError("Este chat fue eliminado.");
-          try {
-            onClose?.();
-          } catch {
-            // ignore
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isOpen, chatRow?.id, onClose]);
 
   useEffect(() => {
     if (!isOpen) return;

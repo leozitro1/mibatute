@@ -20,6 +20,7 @@ create table if not exists public.articulos (
   owner_id uuid not null references auth.users(id) on delete cascade,
   usuario_id uuid generated always as (owner_id) stored,
   owner_name text default '',
+  owner_photo text default '',
   title text not null default '',
   description text default '',
   category text default '',
@@ -30,6 +31,14 @@ create table if not exists public.articulos (
   city text default '',
   locality text default '',
   status text not null default 'disponible',
+  estado text default 'disponible',
+  buyer_id uuid references auth.users(id) on delete set null,
+  comprador_id uuid references auth.users(id) on delete set null,
+  ganador_id uuid references auth.users(id) on delete set null,
+  winner_id uuid references auth.users(id) on delete set null,
+  recipient_id uuid references auth.users(id) on delete set null,
+  reserved_at timestamptz,
+  delivered_at timestamptz,
   interested_count integer not null default 0,
   applicants uuid[] not null default '{}',
   imagenes text[] not null default '{}',
@@ -107,8 +116,13 @@ create index if not exists chats_articulo_id_idx on public.chats(articulo_id);
 create index if not exists chats_buyer_id_idx on public.chats(buyer_id);
 create index if not exists chat_messages_chat_id_idx on public.chat_messages(chat_id, created_at);
 
-alter publication supabase_realtime add table public.chats;
-alter publication supabase_realtime add table public.chat_messages;
+do $$
+begin
+  alter publication supabase_realtime add table public.chat_messages;
+exception
+  when duplicate_object then null;
+end;
+$$;
 
 create or replace function public.set_updated_at()
 returns trigger

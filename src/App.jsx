@@ -1,22 +1,61 @@
 // src/App.jsx
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, useCallback } from "react";
 import Navbar from "./components/Navbar";
 import ProductCard from "./components/ProductCard";
-import PublishModal from "./components/PublishModal";
-import AuthModal from "./components/AuthModal";
-import UserProfile from "./components/UserProfile";
-import ProductDetail from "./components/ProductDetail";
 import HeroBanner from "./components/HeroBanner";
-import HowItWorks from "./components/HowItWorks";
-import ManageArticleModal from "./components/ManageArticleModal";
-import EditArticleModal from "./components/EditArticleModal";
-import ChatMessenger from "./components/ChatMessenger";
 
 import { COLOMBIA_DATA } from "./data/locations";
-import { supabase } from "./supabase/supabaseClient";
+import { isSupabaseConfigured, supabase } from "./supabase/supabaseClient";
 
-const MAX_HOME_ARTICLES = Number(import.meta.env.VITE_MAX_HOME_ARTICLES || 80);
-const NOTIFICATIONS_REFRESH_MS = Number(import.meta.env.VITE_NOTIFICATIONS_REFRESH_MS || 120000);
+const PublishModal = lazy(() => import("./components/PublishModal"));
+const AuthModal = lazy(() => import("./components/AuthModal"));
+const UserProfile = lazy(() => import("./components/UserProfile"));
+const ProductDetail = lazy(() => import("./components/ProductDetail"));
+const HowItWorks = lazy(() => import("./components/HowItWorks"));
+const ManageArticleModal = lazy(() => import("./components/ManageArticleModal"));
+const EditArticleModal = lazy(() => import("./components/EditArticleModal"));
+const ChatMessenger = lazy(() => import("./components/ChatMessenger"));
+
+const MAX_HOME_ARTICLES = Number(import.meta.env.VITE_MAX_HOME_ARTICLES || 40);
+const NOTIFICATIONS_REFRESH_MS = Number(import.meta.env.VITE_NOTIFICATIONS_REFRESH_MS || 300000);
+const ARTICLE_LIST_SELECT = `
+  id,
+  owner_id,
+  usuario_id,
+  owner_name,
+  owner_photo,
+  title,
+  description,
+  category,
+  subcategory,
+  subcategoria,
+  mode,
+  price,
+  city,
+  locality,
+  status,
+  estado,
+  interested_count,
+  imagenes,
+  image_url,
+  imagen_url,
+  imagen_url_principal,
+  buyer_id,
+  comprador_id,
+  ganador_id,
+  winner_id,
+  recipient_id,
+  reserved_at,
+  updated_at,
+  created_at,
+  articulo_imagenes:articulo_imagenes (
+    id, url, path, position, created_at
+  )
+`;
+const CHAT_SELECT =
+  "id, articulo_id, buyer_id, seller_id, owner_id, usuario_id, status, last_message_at, created_at, updated_at";
+const ARTICLE_MUTATION_SELECT =
+  "id,status,estado,buyer_id,comprador_id,ganador_id,winner_id,recipient_id,reserved_at,updated_at";
 
 /**
  * ✅ Árbol categorías + subcategorías
@@ -63,7 +102,12 @@ async function safeUpdateArticulos(articleId, patch) {
   let payload = { ...(patch || {}) };
 
   const run = async () => {
-    return await supabase.from("articulos").update(payload).eq("id", articleId).select("*").maybeSingle();
+    return await supabase
+      .from("articulos")
+      .update(payload)
+      .eq("id", articleId)
+      .select(ARTICLE_MUTATION_SELECT)
+      .maybeSingle();
   };
 
   let { data, error } = await run();
@@ -216,7 +260,7 @@ export default function App() {
   const readChatByArticuloAndBuyer = async ({ articuloId, buyerId }) => {
     const { data, error } = await supabase
       .from("chats")
-      .select("*")
+      .select(CHAT_SELECT)
       .eq("articulo_id", articuloId)
       .eq("buyer_id", buyerId)
       .maybeSingle();
@@ -227,7 +271,7 @@ export default function App() {
   const readChatByArticuloAndMember = async ({ articuloId, uid }) => {
     let res = await supabase
       .from("chats")
-      .select("*")
+      .select(CHAT_SELECT)
       .eq("articulo_id", articuloId)
       .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
       .maybeSingle();
@@ -235,7 +279,7 @@ export default function App() {
     if (res?.error?.message && /Could not find the 'seller_id' column/i.test(res.error.message)) {
       res = await supabase
         .from("chats")
-        .select("*")
+        .select(CHAT_SELECT)
         .eq("articulo_id", articuloId)
         .or(`buyer_id.eq.${uid},owner_id.eq.${uid}`)
         .maybeSingle();
@@ -244,7 +288,7 @@ export default function App() {
     if (res?.error?.message && /Could not find the 'owner_id' column/i.test(res.error.message)) {
       res = await supabase
         .from("chats")
-        .select("*")
+        .select(CHAT_SELECT)
         .eq("articulo_id", articuloId)
         .or(`buyer_id.eq.${uid},usuario_id.eq.${uid}`)
         .maybeSingle();
@@ -689,7 +733,11 @@ export default function App() {
         }
 
         let merged = { ...sbUser };
-        const { data, error } = await supabase.from("usuarios").select("*").eq("id", sbUser.id).single();
+        const { data, error } = await supabase
+          .from("usuarios")
+          .select("id,nombre,movil,ciudad,localidad,direccion,foto_url")
+          .eq("id", sbUser.id)
+          .single();
         if (!error && data) merged = { ...sbUser, ...data };
 
         if (!alive) return;
@@ -720,16 +768,14 @@ export default function App() {
   // =========================================================
 
   const load = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setProducts([]);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("articulos")
-      .select(
-        `
-        *,
-        articulo_imagenes:articulo_imagenes (
-          id, url, path, position, created_at
-        )
-      `
-      )
+      .select(ARTICLE_LIST_SELECT)
       .order("created_at", { ascending: false })
       .order("position", { foreignTable: "articulo_imagenes", ascending: true })
       .limit(MAX_HOME_ARTICLES);
@@ -740,18 +786,6 @@ export default function App() {
     }
 
     const raw = Array.isArray(data) ? data : [];
-    const ownerIds = Array.from(new Set(raw.map((it) => it?.usuario_id || it?.owner_id).filter(Boolean)));
-
-    let ownersMap = {};
-    if (ownerIds.length) {
-      const { data: owners, error: ownersErr } = await supabase
-        .from("usuarios_publicos")
-        .select("id,nombre,foto_url")
-        .in("id", ownerIds);
-
-      if (ownersErr) console.log("Error cargando usuarios_publicos:", ownersErr);
-      else ownersMap = Object.fromEntries((owners || []).map((u) => [u.id, u]));
-    }
 
     // ✅ 1) normaliza primero (como ya lo hacías)
     let normalized = raw.map((it) => {
@@ -759,24 +793,16 @@ export default function App() {
       const imgsRelUrls = imgsRel.map((x) => x?.url).filter(Boolean);
       const imgsDb = Array.isArray(it.imagenes) ? it.imagenes.filter(Boolean) : [];
 
-      const ownerId = it?.usuario_id || it?.owner_id;
-      const ownerPublic = ownerId ? ownersMap[ownerId] : null;
-
       return {
         ...it,
         articulo_imagenes: imgsRel,
         imagenes_db: imgsDb,
         imagenes: imgsRelUrls.length ? imgsRelUrls : imgsDb,
-        owner_name_from_user_table: ownerPublic?.nombre || "",
-        owner_photo: ownerPublic?.foto_url || "",
-        interested_count: 0, // ✅ default
+        owner_name_from_user_table: it?.owner_name || "",
+        owner_photo: it?.owner_photo || "",
+        interested_count: Number(it?.interested_count || 0),
       };
     });
-
-    normalized = normalized.map((it) => ({
-      ...it,
-      interested_count: Number(it?.interested_count || 0),
-    }));
 
     setProducts(normalized);
 
@@ -790,7 +816,7 @@ export default function App() {
   // ✅ Bajo consumo: carga inicial y refresco por foco/visibilidad, sin polling constante.
   useEffect(() => {
     load();
-  }, [load, currentUser?.id]);
+  }, [load]);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -1252,6 +1278,7 @@ export default function App() {
         }}
       />
 
+      <Suspense fallback={null}>
       <main className="max-w-7xl mx-auto px-4 py-8">
         {currentView === "home" && (
           <div className="animate-in fade-in duration-500">
@@ -1556,82 +1583,94 @@ export default function App() {
         {currentView === "how-it-works" && <HowItWorks onBack={() => setCurrentView("home")} />}
       </main>
 
-      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} onLogin={() => setIsAuthOpen(false)} />
+      {isAuthOpen ? (
+        <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} onLogin={() => setIsAuthOpen(false)} />
+      ) : null}
 
-      <PublishModal
-        isOpen={isPublishOpen}
-        onClose={() => setIsPublishOpen(false)}
-        onPublish={handleAddProduct}
-        currentCity={selectedCity}
-        user={currentUser}
-        categories={CATEGORY_TREE}
-      />
+      {isPublishOpen ? (
+        <PublishModal
+          isOpen={isPublishOpen}
+          onClose={() => setIsPublishOpen(false)}
+          onPublish={handleAddProduct}
+          currentCity={selectedCity}
+          user={currentUser}
+          categories={CATEGORY_TREE}
+        />
+      ) : null}
 
-      <ProductDetail
-        item={selectedProduct}
-        isOpen={!!selectedProduct}
-        onClose={() => setSelectedProduct(null)}
-        user={currentUser}
-        onSolicitar={async (item, message) => {
-          const id = getArticuloId(item);
-          if (!id) return alert("Este artículo no tiene id válido.");
+      {selectedProduct ? (
+        <ProductDetail
+          item={selectedProduct}
+          isOpen={!!selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          user={currentUser}
+          onSolicitar={async (item, message) => {
+            const id = getArticuloId(item);
+            if (!id) return alert("Este artículo no tiene id válido.");
 
-          const isVenta = normTipo(item?.mode || item?.tipo) === "venta";
+            const isVenta = normTipo(item?.mode || item?.tipo) === "venta";
 
-          if (isVenta) {
-            await handleBuy(id);
-            return;
-          } else {
-            await handleApply(id, message);
-            setSelectedProduct(null);
-          }
-        }}
-        onOpenChat={async (item) => {
-          await openChatFromArticle(item);
-        }}
-      />
+            if (isVenta) {
+              await handleBuy(id);
+              return;
+            } else {
+              await handleApply(id, message);
+              setSelectedProduct(null);
+            }
+          }}
+          onOpenChat={async (item) => {
+            await openChatFromArticle(item);
+          }}
+        />
+      ) : null}
 
-      <ManageArticleModal
-        isOpen={isManageOpen}
-        article={manageArticle}
-        onClose={() => {
-          setIsManageOpen(false);
-          setManageArticle(null);
-        }}
-        onCancelSale={cancelSale}
-        onCancelSaleSuccess={async () => {
-          await load();
-          await loadNotifications();
-        }}
-        onOpenChat={async ({ article, buyerId }) => {
-          await openChatByArticleAndBuyer({ article, buyerId });
-        }}
-      />
+      {isManageOpen ? (
+        <ManageArticleModal
+          isOpen={isManageOpen}
+          article={manageArticle}
+          onClose={() => {
+            setIsManageOpen(false);
+            setManageArticle(null);
+          }}
+          onCancelSale={cancelSale}
+          onCancelSaleSuccess={async () => {
+            await load();
+            await loadNotifications();
+          }}
+          onOpenChat={async ({ article, buyerId }) => {
+            await openChatByArticleAndBuyer({ article, buyerId });
+          }}
+        />
+      ) : null}
 
-      <EditArticleModal
-        isOpen={isEditOpen}
-        article={editArticle}
-        onClose={() => {
-          setIsEditOpen(false);
-          setEditArticle(null);
-        }}
-        onUpdateSuccess={async () => {
-          await load();
-          await loadNotifications();
-        }}
-      />
+      {isEditOpen ? (
+        <EditArticleModal
+          isOpen={isEditOpen}
+          article={editArticle}
+          onClose={() => {
+            setIsEditOpen(false);
+            setEditArticle(null);
+          }}
+          onUpdateSuccess={async () => {
+            await load();
+            await loadNotifications();
+          }}
+        />
+      ) : null}
 
-      {/* ✅ CHAT GLOBAL */}
-      <ChatMessenger
-        isOpen={!!chatOpen}
-        onClose={() => setChatOpen(null)}
-        userId={currentUser?.id}
-        chat={chatOpen?.chat}
-        article={chatOpen?.article}
-        otherUserId={chatOpen?.otherUserId}
-        role={chatOpen?.role}
-        errorMessage={chatOpen?.errorMessage}
-      />
+      {chatOpen ? (
+        <ChatMessenger
+          isOpen={!!chatOpen}
+          onClose={() => setChatOpen(null)}
+          userId={currentUser?.id}
+          chat={chatOpen?.chat}
+          article={chatOpen?.article}
+          otherUserId={chatOpen?.otherUserId}
+          role={chatOpen?.role}
+          errorMessage={chatOpen?.errorMessage}
+        />
+      ) : null}
+      </Suspense>
     </div>
   );
 }

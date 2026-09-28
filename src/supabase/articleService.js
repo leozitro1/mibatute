@@ -3,17 +3,20 @@ import { supabase } from "./supabaseClient";
 
 const BUCKET = "articulos";
 const MAX_IMAGES = 4;
+const ARTICLE_SELECT =
+  "id,owner_id,usuario_id,owner_name,owner_photo,title,description,category,subcategory,subcategoria,mode,price,city,locality,status,estado,interested_count,imagenes,image_url,imagen_url,imagen_url_principal,buyer_id,comprador_id,ganador_id,winner_id,recipient_id,reserved_at,updated_at,created_at";
+const ARTICLE_IMAGE_SELECT = "id,articulo_id,owner_id,url,path,position,created_at";
 
 // ===============================
 // ✅ ESTÁNDAR DE IMÁGENES (GUARDIA EN SERVICE)
 // ===============================
 // Rechazar originales enormes (para evitar cuelgues al procesar canvas)
-const MAX_ORIGINAL_MB = 8;
+const MAX_ORIGINAL_MB = 5;
 
 // Normalización (lo que realmente subimos)
-const MAX_SIDE = 1200; // lado mayor
+const MAX_SIDE = 1000; // lado mayor
 const OUT_FORMAT = "image/webp"; // "image/webp" o "image/jpeg"
-const OUT_QUALITY = 0.75; // menor egress/storage sin sacrificar demasiado detalle
+const OUT_QUALITY = 0.7; // menor egress/storage sin sacrificar demasiado detalle
 
 function bytesToMB(b) {
   return Math.round((b / (1024 * 1024)) * 100) / 100;
@@ -137,7 +140,7 @@ async function safeInsertArticulos(payload) {
   let lastError = null;
 
   for (const p of candidates) {
-    const { data, error } = await supabase.from("articulos").insert([p]).select("*").single();
+    const { data, error } = await supabase.from("articulos").insert([p]).select(ARTICLE_SELECT).single();
     if (!error) return { data, error: null };
 
     lastError = error;
@@ -158,7 +161,7 @@ async function safeUpdateArticulos(articleId, patch) {
     .from("articulos")
     .update(payload)
     .eq("id", articleId)
-    .select("*")
+    .select(ARTICLE_SELECT)
     .maybeSingle();
 
   if (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
@@ -171,7 +174,7 @@ async function safeUpdateArticulos(articleId, patch) {
         .from("articulos")
         .update(payload)
         .eq("id", articleId)
-        .select("*")
+        .select(ARTICLE_SELECT)
         .maybeSingle());
     }
   }
@@ -255,7 +258,7 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
     position: startPos + i,
   }));
 
-  const { data, error } = await supabase.from("articulo_imagenes").insert(rows).select("*");
+  const { data, error } = await supabase.from("articulo_imagenes").insert(rows).select(ARTICLE_IMAGE_SELECT);
   if (error) return { success: false, error: error.message };
 
   return { success: true, data };
@@ -335,6 +338,7 @@ export async function publishArticle({ formData, files, user }) {
   const payload = {
     owner_id: user.id,
     owner_name: user.user_metadata?.nombre || user.email || "Usuario",
+    owner_photo: user.user_metadata?.foto_url || "",
     title,
     category,
     subcategory,
@@ -345,6 +349,7 @@ export async function publishArticle({ formData, files, user }) {
     locality: formData?.localidad_es ?? formData?.locality ?? null,
     description: String(formData?.descripcion ?? formData?.description ?? "").trim(),
     status: "disponible",
+    estado: "disponible",
     applicants: [],
   };
 
@@ -395,7 +400,12 @@ export async function updateArticleFields(articleId, updates = {}) {
       if (v !== undefined) payload[k] = v;
     }
 
-    let { data, error } = await supabase.from("articulos").update(payload).eq("id", articleId).select("*").single();
+    let { data, error } = await supabase
+      .from("articulos")
+      .update(payload)
+      .eq("id", articleId)
+      .select(ARTICLE_SELECT)
+      .single();
 
     if (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
       const m = error.message.match(/Could not find the '(.+?)' column/i);
@@ -408,7 +418,7 @@ export async function updateArticleFields(articleId, updates = {}) {
           .from("articulos")
           .update(payload)
           .eq("id", articleId)
-          .select("*")
+          .select(ARTICLE_SELECT)
           .single());
       }
     }
@@ -501,7 +511,7 @@ export async function replaceArticleImage(imageId, newFile, ownerId) {
       .from("articulo_imagenes")
       .update({ url: up.url, path: up.path })
       .eq("id", imageId)
-      .select("*")
+      .select(ARTICLE_IMAGE_SELECT)
       .single();
 
     if (uErr) {

@@ -27,6 +27,11 @@ import { obtenerMisRescates } from "../supabase/rescatesService";
 // ✅ para cancelar postulación directamente + actualizar entrega
 import { supabase } from "../supabase/supabaseClient";
 
+const ARTICLE_PROFILE_SELECT =
+  "id,owner_id,usuario_id,owner_name,owner_photo,title,description,category,subcategory,subcategoria,mode,price,city,locality,status,estado,interested_count,imagenes,image_url,imagen_url,imagen_url_principal,buyer_id,comprador_id,ganador_id,winner_id,recipient_id,reserved_at,updated_at,created_at";
+const ARTICLE_PROFILE_MUTATION_SELECT =
+  "id,status,estado,buyer_id,comprador_id,ganador_id,winner_id,recipient_id,reserved_at,updated_at";
+
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
@@ -87,7 +92,7 @@ async function safeUpdateArticulos(articleId, patch, ownerId) {
   const runUpdate = async (ownerColumn) => {
     let q = supabase.from("articulos").update(payload).eq("id", articleId);
     if (ownerId && ownerColumn) q = q.eq(ownerColumn, ownerId);
-    return await q.select("*").maybeSingle();
+    return await q.select(ARTICLE_PROFILE_MUTATION_SELECT).maybeSingle();
   };
 
   let { data, error } = await runUpdate("owner_id");
@@ -830,7 +835,11 @@ async function fetchProfileFallback(userId) {
 
   for (const a of attempts) {
     try {
-      const { data, error } = await supabase.from(a.table).select("*").eq(a.col, userId).maybeSingle();
+      const { data, error } = await supabase
+        .from(a.table)
+        .select("id,nombre,movil,ciudad,localidad,direccion,foto_url")
+        .eq(a.col, userId)
+        .maybeSingle();
       if (error) {
         console.log(`[fallback profile] ${a.table}.${a.col} error:`, error);
         continue;
@@ -1208,7 +1217,7 @@ export default function UserProfile({
         }));
       }
 
-      const { data: arts, error: err3 } = await supabase.from("articulos").select("*").in("id", ids);
+      const { data: arts, error: err3 } = await supabase.from("articulos").select(ARTICLE_PROFILE_SELECT).in("id", ids);
       if (err3) return [];
 
       const artMap = new Map((Array.isArray(arts) ? arts : []).map((a) => [String(a.id), a]));

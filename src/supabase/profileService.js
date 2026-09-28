@@ -2,6 +2,10 @@
 import { supabase } from "./supabaseClient";
 
 const BUCKET = "perfiles";
+const PROFILE_MAX_ORIGINAL_MB = 3;
+const PROFILE_MAX_SIDE = 512;
+const PROFILE_FORMAT = "image/webp";
+const PROFILE_QUALITY = 0.72;
 
 // Limpia null/undefined y SOLO permite estas columnas
 const sanitizeProfilePayload = (profile) => {
@@ -29,6 +33,45 @@ function ok(data) {
 }
 function fail(error, data = null) {
   return { success: false, error, data };
+}
+
+async function optimizeProfileImage(file) {
+  if (!file) return file;
+  if (!file.type?.startsWith("image/")) throw new Error("Solo se permiten imágenes.");
+  if (file.size > PROFILE_MAX_ORIGINAL_MB * 1024 * 1024) {
+    throw new Error(`La foto supera ${PROFILE_MAX_ORIGINAL_MB}MB.`);
+  }
+  if (typeof document === "undefined") return file;
+
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+    });
+
+    const scale = Math.min(1, PROFILE_MAX_SIDE / Math.max(img.width, img.height));
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) throw new Error("No se pudo procesar la foto.");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, PROFILE_FORMAT, PROFILE_QUALITY));
+    if (!blob) throw new Error("No se pudo optimizar la foto.");
+    return new File([blob], "perfil.webp", { type: PROFILE_FORMAT });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 // ✅ intenta leer perfil en varias tablas/columnas (por cambios de esquema)
@@ -108,12 +151,13 @@ export const updateProfile = async (userId, profile, file = null) => {
 
     // 1) Si viene archivo, súbelo a Storage (con upsert)
     if (file) {
-      const ext = (file.name?.split(".").pop() || "jpg").toLowerCase();
-      const safeExt = ext.replace(/[^a-z0-9]/g, "") || "jpg";
+      const optimizedFile = await optimizeProfileImage(file);
+      const ext = (optimizedFile.name?.split(".").pop() || "webp").toLowerCase();
+      const safeExt = ext.replace(/[^a-z0-9]/g, "") || "webp";
       const path = `${userId}/${userId}.${safeExt}`;
 
-      const uploadPromise = supabase.storage.from(BUCKET).upload(path, file, {
-        contentType: file.type || "image/jpeg",
+      const uploadPromise = supabase.storage.from(BUCKET).upload(path, optimizedFile, {
+        contentType: optimizedFile.type || PROFILE_FORMAT,
         cacheControl: "3600",
         upsert: true, // ✅ reemplaza si existe
       });
