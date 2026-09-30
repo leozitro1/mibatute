@@ -3346,7 +3346,7 @@ export default function UserProfile({
                             </button>
 
                             {/* Botón ⭐ Destacar: oculto si ya hay ganador o está entregado */}
-                            {!isEntregado && !hasWinner && !isVenta && (() => {
+                            {!isEntregado && !hasWinner && (() => {
                               const isFeat = featuredOverrides[currentId] ?? art?.is_featured ?? false;
                               return (
                                 <button
@@ -3359,6 +3359,7 @@ export default function UserProfile({
                                     isFeat ? "bg-yellow-100 text-yellow-500 cursor-default" : "bg-gray-100 text-gray-400 hover:bg-yellow-50 hover:text-yellow-500 disabled:opacity-50"
                                   }`}
                                   title={isFeat ? "⭐ Publicación destacada" : "Destacar — 1 crédito"}
+                                  aria-label={isFeat ? "Publicación destacada" : "Destacar publicación"}
                                 >
                                   <Star size={16} fill={isFeat ? "currentColor" : "none"} />
                                 </button>
