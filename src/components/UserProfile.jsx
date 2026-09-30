@@ -1019,6 +1019,8 @@ export default function UserProfile({
   const [cargandoChatRescate, setCargandoChatRescate] = useState(null); // articuloId del rescate abriendo
 
   const [rescates, setRescates] = useState([]);
+  const [rescatesError, setRescatesError] = useState("");
+  const [rescatesReload, setRescatesReload] = useState(0);
   const [cargandoRescates, setCargandoRescates] = useState(false);
   const [donacionLimit, setDonacionLimit] = useState(null); // { used, remaining, proximaEn }
   const [cuposSaldo, setCuposSaldo] = useState(null); // saldo de créditos
@@ -1383,156 +1385,41 @@ export default function UserProfile({
     };
   }, [user?.id]);
 
-  // ✅ Carga rescates — SOLO al abrir la pestaña "rescates" (lazy)
-  const rescatesCargadosRef = useRef(false);
+  // Reload on each visit so new applications and purchases are included.
   useEffect(() => {
-    if (!user?.id) return;
-    if (activeTab !== "rescates") return;
-    if (rescatesCargadosRef.current) return;
-
+    if (!user?.id || activeTab !== "rescates") return;
     let alive = true;
-
-    const normalizarRescate = (row) => {
-      const articulo = row?.articulo || row?.articulos || row?.article || null;
-      const articulo_id = row?.articulo_id || row?.articuloId || getArticuloId(articulo) || null;
-
-      return {
-        ...row,
-        articulo_id,
-        articulo: articulo || row?.articulo || null,
-      };
-    };
-
-    const filtrarVisibleParaUsuario = (list) => {
-      return (Array.isArray(list) ? list : []).filter((r) => {
-        const art = r?.articulo || {};
-        const estado = normEstado(art?.estado || art?.status || "");
-        const isVenta = isVentaArticulo(art);
-
-        if (!isVenta) {
-          const ganadorId =
-            art?.ganador_id || art?.winner_id || art?.winnerUid || art?.recipient_id || null;
-
-          if ((estado === "reservado" || estado === "entregado") && ganadorId) {
-            return String(ganadorId) === String(user.id);
-          }
-
-          return true;
-        }
-
-        const buyerId = art?.buyer_id || art?.buyerId || null;
-        const isBuyer = String(buyerId || "") === String(user.id);
-        return isBuyer && (estado === "reservado" || estado === "entregado" || estado === "en_revision");
-      });
-    };
-
-    const mergeUnicosPorArticulo = (a = [], b = []) => {
-      const map = new Map();
-      [...a, ...b].forEach((item) => {
-        const rr = normalizarRescate(item);
-        const key = String(rr?.articulo_id || getArticuloId(rr?.articulo) || rr?.id || "").trim();
-        if (!key) return;
-
-        if (!map.has(key)) {
-          map.set(key, rr);
-        } else {
-          const prev = map.get(key);
-          const prevHasArt = !!prev?.articulo;
-          const nextHasArt = !!rr?.articulo;
-          if (!prevHasArt && nextHasArt) map.set(key, rr);
-        }
-      });
-      return Array.from(map.values());
-    };
-
-    const cargarPostulacionesConArticulo = async () => {
-      // ✅ OPT: join articulos con columnas mínimas (no select *)
-      const { data, error } = await supabase
-        .from("postulaciones")
-        .select("id, articulo_id, created_at, justificacion, articulo:articulos(id,titulo,title,modo,mode,tipo,estado,status,ciudad,city,localidad_es,locality,precio,price,usuario_id,owner_id,buyer_id,ganador_id,winner_id,image_url,imagen_url_principal,imagenes,updated_at,created_at)")
-        .eq("usuario_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (!error) {
-        return (Array.isArray(data) ? data : []).map((p) => ({
-          id: p.id,
-          articulo_id: p.articulo_id,
-          created_at: p.created_at,
-          justificacion: p.justificacion,
-          articulo: p.articulo || null,
-        }));
-      }
-
-      const { data: posts, error: err2 } = await supabase
-        .from("postulaciones")
-        .select("id, articulo_id, created_at, justificacion")
-        .eq("usuario_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (err2) return [];
-
-      const ids = (Array.isArray(posts) ? posts : []).map((p) => p.articulo_id).filter(Boolean);
-
-      if (!ids.length) {
-        return (Array.isArray(posts) ? posts : []).map((p) => ({
-          id: p.id,
-          articulo_id: p.articulo_id,
-          created_at: p.created_at,
-          justificacion: p.justificacion,
-          articulo: null,
-        }));
-      }
-
-      // ✅ OPT: solo columnas necesarias para el render de rescates
-      const { data: arts, error: err3 } = await supabase.from("articulos")
-        .select("id,titulo,title,modo,mode,tipo,estado,status,ciudad,city,localidad_es,locality,precio,price,usuario_id,owner_id,buyer_id,ganador_id,winner_id,recipient_id,image_url,imagen_url_principal,imagenes,articulo_imagenes:articulo_imagenes(id,url,position),updated_at,created_at")
-        .in("id", ids);
-      if (err3) return [];
-
-      const artMap = new Map((Array.isArray(arts) ? arts : []).map((a) => [String(a.id), a]));
-
-      return (Array.isArray(posts) ? posts : []).map((p) => ({
-        id: p.id,
-        articulo_id: p.articulo_id,
-        created_at: p.created_at,
-        justificacion: p.justificacion,
-        articulo: artMap.get(String(p.articulo_id)) || null,
-      }));
-    };
 
     (async () => {
       setCargandoRescates(true);
-
+      setRescatesError("");
       try {
-        const { data: dataService, error: errorService } = await obtenerMisRescates(user.id);
-        const postulaciones = await cargarPostulacionesConArticulo();
-
+        const { data, error } = await obtenerMisRescates(user.id);
+        if (error) throw error;
         if (!alive) return;
-
-        const listService = errorService ? [] : Array.isArray(dataService) ? dataService : [];
-        const merged = mergeUnicosPorArticulo(listService, postulaciones);
-
-        const filtrados = filtrarVisibleParaUsuario(merged);
-        setRescates(filtrados);
-
-        const rescateIds = filtrados
-          .map((r) => r?.articulo_id || r?.articuloId || getArticuloId(r?.articulo))
-          .filter(Boolean);
-
-        await loadUnreadRef.current?.(rescateIds);
-      } catch (e) {
-        console.error("Error cargando rescates (merge):", e);
-        if (alive) setRescates([]);
+        const visible = (data || []).filter(row => {
+          const art = row.articulo;
+          const estado = normEstado(art.estado || art.status || "");
+          if (!isVentaArticulo(art)) {
+            const winner = art.ganador_id || art.winner_id || art.recipient_id;
+            return !(["reservado", "entregado"].includes(estado) && winner)
+              || String(winner) === String(user.id);
+          }
+          return String(art.buyer_id || "") === String(user.id)
+            && ["reservado", "entregado", "en_revision"].includes(estado);
+        });
+        setRescates(visible);
+        await loadUnreadRef.current?.(visible.map(row => row.articulo_id));
+      } catch (error) {
+        console.error("Error cargando rescates:", error);
+        if (alive) setRescatesError("No se pudieron cargar tus postulaciones y compras. Intenta de nuevo.");
       } finally {
         if (alive) setCargandoRescates(false);
       }
     })();
 
-    return () => {
-      alive = false;
-    };
-    rescatesCargadosRef.current = true;
-  }, [user?.id, activeTab]);
+    return () => { alive = false; };
+  }, [user?.id, activeTab, rescatesReload]);
 
   // ✅ Carga saldo de créditos del usuario
   useEffect(() => {
@@ -3565,6 +3452,14 @@ export default function UserProfile({
                   {cargandoRescates ? (
                     <div className="py-12 text-center text-gray-500 font-bold">
                       Cargando rescates...
+                    </div>
+                  ) : rescatesError ? (
+                    <div className="text-center py-12" role="alert">
+                      <p className="text-red-700">{rescatesError}</p>
+                      <button type="button" onClick={() => setRescatesReload(value => value + 1)}
+                        className="mt-3 text-forest-green font-bold underline">
+                        Reintentar
+                      </button>
                     </div>
                   ) : rescatesSorted.length === 0 ? (
                     <div className="text-center py-12">
