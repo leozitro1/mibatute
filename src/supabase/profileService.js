@@ -142,6 +142,18 @@ export const getProfile = async (userId) => {
 async function updateThenInsertUsuarios(userId, payload) {
   const selectCols = "id,nombre,movil,ciudad,localidad,direccion,foto_url";
 
+  const upsert = await supabase
+    .from("usuarios")
+    .upsert([{ id: userId, ...payload }], { onConflict: "id" })
+    .select(selectCols)
+    .maybeSingle();
+
+  if (!upsert?.error && upsert?.data) return { data: upsert.data, error: null, stage: "upsert" };
+
+  if (upsert?.error) {
+    console.log("[updateThenInsertUsuarios] upsert warn:", upsert.error);
+  }
+
   const upd = await supabase
     .from("usuarios")
     .update(payload)
@@ -204,15 +216,15 @@ export const updateProfile = async (userId, profile, file = null) => {
       });
     }
 
-    /**
-     * ✅ CAMBIO CLAVE:
-     * Antes guardabas PII en auth.user_metadata (nombre/movil/ciudad/etc).
-     * Eso es EXACTAMENTE lo que hace que, después de anonimizar en DB,
-     * vuelvas a ver el nombre/teléfono reales al re-login.
-     *
-     * Para tu caso (privacidad/anonimización), NO sincronizamos PII a Auth.
-     * Si quieres, luego podemos guardar SOLO foto_url (pero por ahora lo dejamos limpio).
-     */
+    if (foto_url) {
+      try {
+        await supabase.auth.updateUser({
+          data: { foto_url, avatar_url: foto_url, photo_url: foto_url },
+        });
+      } catch (e) {
+        console.log("[updateProfile] auth photo metadata warn:", e);
+      }
+    }
 
     const data = res?.data || null;
     return { success: true, data, foto_url: data?.foto_url || foto_url };
