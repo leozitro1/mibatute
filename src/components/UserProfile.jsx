@@ -182,16 +182,15 @@ async function safeUpdateArticulos(articleId, patch, ownerId) {
 
 function getTipoPublicacion(art) {
   const raw =
-    art?.tipo_publicacion ??
-    art?.tipo ??
-    art?.tipo_articulo ??
-    art?.tipo_publicación ??
-    art?.publication_type ??
-    art?.type ??
-    art?.categoria ??
-    art?.category ??
-    art?.modo ??
-    art?.modalidad ??
+    art?.mode ||
+    art?.tipo_publicacion ||
+    art?.tipo ||
+    art?.tipo_articulo ||
+    art?.tipo_publicación ||
+    art?.publication_type ||
+    art?.type ||
+    art?.modo ||
+    art?.modalidad ||
     "";
 
   const t = String(raw || "").trim();

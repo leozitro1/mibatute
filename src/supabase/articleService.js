@@ -721,7 +721,7 @@ export async function updateArticle(articleId, formData = {}, file = null) {
     const uid = auth?.session?.user?.id;
     if (!uid) return { success: false, error: "Debes iniciar sesion." };
     const mode = normalizeMode(formData.tipo ?? formData.mode);
-    const price = mode === "venta" ? Number(formData.price) : null;
+    const price = mode === "venta" ? Number(formData.price) : 0;
     if (mode === "venta" && (!Number.isFinite(price) || price <= 0 || price > 500000)) {
       return { success: false, error: "El precio debe estar entre 1 y 500.000 COP." };
     }
