@@ -37,6 +37,7 @@ import { obtenerMisRescates } from "../supabase/rescatesService";
 import { supabase } from "../supabase/supabaseClient";
 
 const ENABLE_PROFILE_REALTIME = false;
+const PROFILE_PUBLICATIONS_LIMIT = 100;
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -1028,6 +1029,8 @@ export default function UserProfile({
   const [destacandoId, setDestacandoId] = useState(null);
   const [comprandoCupo, setComprandoCupo] = useState(false);
   const [featuredOverrides, setFeaturedOverrides] = useState({});
+  const [profileProducts, setProfileProducts] = useState([]);
+  const [profileProductsLoading, setProfileProductsLoading] = useState(false);
 
   // \u2b50 Reputación
   const [miReputacion, setMiReputacion] = useState(null); // { promedio, total }
@@ -1759,11 +1762,78 @@ export default function UserProfile({
   };
 
   const safeMyProducts = useMemo(() => {
-    if (Array.isArray(myProducts)) return myProducts;
-    if (Array.isArray(myProducts?.data)) return myProducts.data;
-    if (Array.isArray(myProducts?.items)) return myProducts.items;
-    return [];
-  }, [myProducts]);
+    const propProducts = Array.isArray(myProducts)
+      ? myProducts
+      : Array.isArray(myProducts?.data)
+      ? myProducts.data
+      : Array.isArray(myProducts?.items)
+      ? myProducts.items
+      : [];
+
+    const byId = new Map();
+    [...profileProducts, ...propProducts].forEach((item) => {
+      const id = getArticuloId(item);
+      if (id) byId.set(String(id), item);
+    });
+    return [...byId.values()];
+  }, [myProducts, profileProducts]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setProfileProducts([]);
+      return;
+    }
+
+    let alive = true;
+
+    (async () => {
+      setProfileProductsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("articulos")
+          .select(
+            `id, titulo, title, mode, tipo, estado, status,
+             city, locality,
+             price, usuario_id, owner_id, buyer_id,
+             ganador_id, winner_id, recipient_id,
+             reserved_at, updated_at, created_at,
+             image_url, imagen_url_principal, imagenes,
+             is_featured,
+             review_status, approval_status,
+             moderation_status, revision_status,
+             category, categoria,
+             subcategory, subcategoria,
+             articulo_imagenes:articulo_imagenes (
+               id, url, position
+             )`
+          )
+          .or(`owner_id.eq.${user.id},usuario_id.eq.${user.id}`)
+          .order("created_at", { ascending: false })
+          .order("position", { foreignTable: "articulo_imagenes", ascending: true })
+          .limit(PROFILE_PUBLICATIONS_LIMIT);
+
+        if (!alive) return;
+
+        if (error) {
+          console.log("Warn cargando publicaciones perfil:", error);
+          setProfileProducts([]);
+          return;
+        }
+
+        setProfileProducts(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (!alive) return;
+        console.log("Warn cargando publicaciones perfil:", e);
+        setProfileProducts([]);
+      } finally {
+        if (alive) setProfileProductsLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [user?.id]);
 
   const publications = useMemo(() => {
     const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;

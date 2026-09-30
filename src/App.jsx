@@ -26,7 +26,7 @@ import { supabase } from "./supabase/supabaseClient";
 
 import { crearPostulacionConLimite } from "./supabase/solicitudesService";
 
-const HOME_QUERY_LIMIT = 24;
+const HOME_QUERY_LIMIT = 100;
 const NOTIFICATION_POST_LIMIT = 80;
 const NOTIFICATION_MESSAGE_LIMIT = 100;
 const INTERESTED_COUNT_LIMIT = 200;
@@ -936,28 +936,21 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     let query = supabase
       .from("articulos")
       .select(
-        `id, titulo, title, modo, mode, tipo, estado, status,
-         ciudad, city, localidad_es, locality,
-         precio, price, usuario_id, owner_id, buyer_id,
+        `id, titulo, title, mode, tipo, estado, status,
+         city, locality,
+         price, usuario_id, owner_id, buyer_id,
          ganador_id, winner_id, recipient_id,
          reserved_at, updated_at, created_at,
          image_url, imagen_url_principal, imagenes,
-         isFeatured, is_featured, destacado, featured,
-         estado_producto, review_status, approval_status,
+         is_featured,
+         review_status, approval_status,
          moderation_status, revision_status,
-         category, categoria, categoria_es, category_name,
-         subcategory, subcategoria, sub_category, subcategoria_es, subcategory_name,
-         interested_max, max_interested, max_solicitudes, cupos_max,
-         is_blocked, bloqueado,
+         category, categoria,
+         subcategory, subcategoria,
          articulo_imagenes:articulo_imagenes (
            id, url, position
          )`
-      )
-      .eq("city", selectedCity);
-
-    if (selectedLocality !== "Todas") {
-      query = query.eq("locality", selectedLocality);
-    }
+      );
 
     const { data, error } = await query
       .order("created_at", { ascending: false })
@@ -1043,7 +1036,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       const updated = normalized.find((x) => x.id === prev.id);
       return updated ? { ...prev, ...updated } : prev;
     });
-  }, [selectedCity, selectedLocality]);
+  }, []);
 
   // ✅ Carga inicial única — sin polling agresivo
   // Se recarga solo cuando el usuario vuelve a la pestaña (visibilitychange)
