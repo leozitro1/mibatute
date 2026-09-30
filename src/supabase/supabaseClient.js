@@ -42,12 +42,14 @@ function createDisabledSupabase() {
   return {
     auth: {
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: disabledError }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
       signUp: () => disabledResponse(null),
       signInWithPassword: () => disabledResponse(null),
       signOut: () => Promise.resolve({ error: null }),
     },
     from: () => createDisabledQuery(),
+    rpc: () => disabledResponse(null),
     storage: {
       from: () => ({
         upload: () => disabledResponse(null),
@@ -73,4 +75,12 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 export const supabase =
-  isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : createDisabledSupabase();
+  isSupabaseConfigured
+    ? createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      })
+    : createDisabledSupabase();

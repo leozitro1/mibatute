@@ -3,20 +3,17 @@ import { supabase } from "./supabaseClient";
 import { uploadImageKitImage } from "../imagekit/imageService";
 
 const MAX_IMAGES = 4;
-const ARTICLE_SELECT =
-  "id,owner_id,usuario_id,owner_name,owner_photo,title,description,category,subcategory,subcategoria,mode,price,city,locality,status,estado,interested_count,imagenes,image_url,imagen_url,imagen_url_principal,buyer_id,comprador_id,ganador_id,winner_id,recipient_id,reserved_at,updated_at,created_at";
-const ARTICLE_IMAGE_SELECT = "id,articulo_id,owner_id,url,path,file_id,position,created_at";
 
 // ===============================
 // ✅ ESTÁNDAR DE IMÁGENES (GUARDIA EN SERVICE)
 // ===============================
 // Rechazar originales enormes (para evitar cuelgues al procesar canvas)
-const MAX_ORIGINAL_MB = 5;
+const MAX_ORIGINAL_MB = 8;
 
 // Normalización (lo que realmente subimos)
-const MAX_SIDE = 1000; // lado mayor
+const MAX_SIDE = 1600; // lado mayor
 const OUT_FORMAT = "image/webp"; // "image/webp" o "image/jpeg"
-const OUT_QUALITY = 0.7; // menor egress/storage sin sacrificar demasiado detalle
+const OUT_QUALITY = 0.82; // 0.75–0.85 recomendado
 
 function bytesToMB(b) {
   return Math.round((b / (1024 * 1024)) * 100) / 100;
@@ -98,16 +95,11 @@ async function compressAndResizeImage(file) {
 }
 
 async function ensureOptimizedImage(file) {
-  // Si esto corre en un entorno sin DOM (muy raro en tu app),
-  // no intentamos canvas y subimos original.
   if (typeof document === "undefined") return file;
 
   try {
     return await compressAndResizeImage(file);
   } catch (e) {
-    // Si falla la optimización, mejor bloquear (para cumplir el estándar)
-    // o si prefieres “no bloquear”, retorna original.
-    // Yo lo dejo BLOQUEANDO para que sí se aplique el estándar.
     throw e;
   }
 }
@@ -126,105 +118,72 @@ function normalizeMode(v) {
  * Intenta escribir subcategory/subcategoria solo si existen.
  */
 async function safeInsertArticulos(payload) {
-  const candidates = [
-    payload,
-    // fallback 1: sin subcategory/subcategoria
-    (() => {
-      const p = { ...payload };
-      delete p.subcategory;
-      delete p.subcategoria;
-      return p;
-    })(),
-  ];
+  // ✅ Inserta soportando columnas que pueden NO existir (compatibilidad)
+  // Si Supabase devuelve: Could not find the '<col>' column, se elimina y reintenta.
+  let p = { ...(payload || {}) };
 
-  let lastError = null;
+  for (let i = 0; i < 8; i++) {
+    // ✅ OPT: solo id tras insert (el caller no necesita el row completo aquí)
+    const res = await supabase.from("articulos").insert(p).select("id").single();
 
-  for (const p of candidates) {
-    const { data, error } = await supabase.from("articulos").insert([p]).select(ARTICLE_SELECT).single();
-    if (!error) return { data, error: null };
+    if (!res?.error) return { data: res.data, error: null };
 
-    lastError = error;
+    const msg = res?.error?.message || "";
+    const m = msg.match(/Could not find the '(.+?)' column/i);
 
-    if (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
+    if (m?.[1] && Object.prototype.hasOwnProperty.call(p, m[1])) {
+      const missing = m[1];
+      const next = { ...p };
+      delete next[missing];
+      p = next;
       continue;
     }
-    break;
+
+    return { data: null, error: res.error };
   }
 
-  return { data: null, error: lastError || { message: "No se pudo insertar en articulos." } };
+  return { data: null, error: { message: "No se pudo insertar en articulos (compatibilidad columnas)." } };
 }
 
-async function safeUpdateArticulos(articleId, patch) {
-  let payload = { ...(patch || {}) };
-
-  let { data, error } = await supabase
-    .from("articulos")
-    .update(payload)
-    .eq("id", articleId)
-    .select(ARTICLE_SELECT)
-    .maybeSingle();
-
-  if (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
-    const m = error.message.match(/Could not find the '(.+?)' column/i);
-    const missing = m?.[1];
-
-    if (missing && Object.prototype.hasOwnProperty.call(payload, missing)) {
-      delete payload[missing];
-      ({ data, error } = await supabase
-        .from("articulos")
-        .update(payload)
-        .eq("id", articleId)
-        .select(ARTICLE_SELECT)
-        .maybeSingle());
-    }
-  }
-
-  return { data, error };
-}
 
 /**
- * Sube UNA imagen a ImageKit en la carpeta del usuario.
- * Retorna { success, url, path }.
- *
- * ✅ NUEVO: optimiza antes de subir.
+ * ✅ RPC: Actualiza SOLO campos permitidos del artículo (sin moderación).
+ * Esta RPC reemplaza el UPDATE directo para evitar que el dueño cambie is_hidden.
  */
-export async function uploadArticleImage({ file, ownerId }) {
-  if (!file) return { success: false, error: "Archivo (file) es requerido" };
-  if (!ownerId) return { success: false, error: "ownerId es requerido" };
+async function rpcOwnerUpdateArticulo(articleId, updates = {}) {
+  const {
+    title = null,
+    category = null,
+    mode = null,
+    price = null,
+    city = null,
+    locality = null,
+    description = null,
+    image_url = null,
+  } = updates || {};
 
-  let optimizedFile = file;
-
-  try {
-    optimizedFile = await ensureOptimizedImage(file);
-  } catch (e) {
-    return { success: false, error: e?.message || "No se pudo optimizar la imagen." };
-  }
-
-  const ext = (optimizedFile.name?.split(".").pop() || "jpg").toLowerCase();
-  const safeExt = ext.replace(/[^a-z0-9]/g, "") || "jpg";
-
-  const fileName = `${Date.now()}_${Math.random().toString(16).slice(2)}.${safeExt}`;
-  const uploaded = await uploadImageKitImage({
-    file: optimizedFile,
-    fileName,
-    folder: `/mibatute/articulos/${ownerId}`,
+  const { error } = await supabase.rpc("owner_update_articulo", {
+    p_articulo_id: articleId,
+    p_title: title,
+    p_category: category,
+    p_mode: mode,
+    p_price: price,
+    p_city: city,
+    p_locality: locality,
+    p_description: description,
+    p_image_url: image_url,
   });
 
-  if (!uploaded.success) return uploaded;
-
-  return {
-    success: true,
-    url: uploaded.thumbnailUrl || uploaded.url,
-    detailUrl: uploaded.detailUrl || uploaded.url,
-    path: uploaded.filePath,
-    fileId: uploaded.fileId,
-  };
+  if (error) return { success: false, error: error.message };
+  return { success: true };
 }
 
 async function removeStorageFiles(paths = []) {
-  // ImageKit deletion requires a private API call. We intentionally do not expose
-  // deletion from the browser; orphan cleanup can be handled later from admin tooling.
-  void paths;
+  const clean = Array.from(paths || []).filter(Boolean);
+  if (!clean.length) return { success: true };
+
+  // Las imágenes nuevas viven en ImageKit. Evitamos llamadas a Supabase Storage
+  // desde el cliente; la limpieza remota se puede hacer luego con endpoint admin.
   return { success: true };
 }
 
@@ -252,11 +211,12 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
     owner_id: ownerId,
     url: img.url,
     path: img.path,
-    file_id: img.fileId || null,
+    file_id: img.file_id || null,
     position: startPos + i,
   }));
 
-  const { data, error } = await supabase.from("articulo_imagenes").insert(rows).select(ARTICLE_IMAGE_SELECT);
+  // ✅ OPT: columnas mínimas tras insert de imágenes
+  const { data, error } = await supabase.from("articulo_imagenes").insert(rows).select("id,url,path,file_id,position");
   if (error) return { success: false, error: error.message };
 
   return { success: true, data };
@@ -266,15 +226,17 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
  * Trae un artículo y sus imágenes (ordenadas).
  */
 export async function getArticleWithImages(articleId) {
+  // ✅ OPT: columnas explícitas en vez de * (evita traer todo el row en cada edit)
   const { data, error } = await supabase
     .from("articulos")
     .select(
-      `
-      *,
-      articulo_imagenes:articulo_imagenes (
-        id, url, path, position, created_at
-      )
-    `
+      `id,titulo,title,modo,mode,tipo,estado,status,
+       ciudad,city,localidad_es,locality,categoria,category,subcategoria,subcategory,
+       descripcion,description,precio,price,
+       owner_id,usuario_id,buyer_id,ganador_id,winner_id,recipient_id,
+       image_url,imagen_url_principal,imagenes,is_featured,destacado,isFeatured,
+       estado_producto,created_at,updated_at,delivered_at,
+       articulo_imagenes:articulo_imagenes(id,url,path,position,created_at)`
     )
     .eq("id", articleId)
     .order("position", { foreignTable: "articulo_imagenes", ascending: true })
@@ -302,13 +264,13 @@ async function syncArticleImagesArray(articleId) {
     const urls = (Array.isArray(imgs) ? imgs : []).map((x) => x?.url).filter(Boolean);
     const first = urls[0] || null;
 
-    await supabase
-      .from("articulos")
-      .update({
-        imagenes: urls,
-        ...(first ? { image_url: first, imagen_url_principal: first } : {}),
-      })
-      .eq("id", articleId);
+    // ✅ OPT: un solo UPDATE en vez de 3 separados
+    const updatePayload = { imagenes: urls };
+    if (first) {
+      updatePayload.image_url = first;
+      updatePayload.imagen_url_principal = first;
+    }
+    await supabase.from("articulos").update(updatePayload).eq("id", articleId);
 
     return { success: true, urls };
   } catch {
@@ -333,10 +295,35 @@ export async function publishArticle({ formData, files, user }) {
   const category = formData?.categoria ?? formData?.category ?? null;
   const subcategory = formData?.subcategoria ?? formData?.subcategory ?? null;
 
+  // ✅ Estado del producto (1-10). Acepta varias llaves por compatibilidad.
+  const estadoRaw =
+    formData?.estado_producto ??
+    formData?.estadoProducto ??
+    formData?.conditionScore ??
+    formData?.condition ??
+    null;
+
+  const estado_producto = (() => {
+    if (estadoRaw === null || estadoRaw === undefined || String(estadoRaw).trim() === "") return null;
+    const n = Number(estadoRaw);
+    if (!Number.isFinite(n)) return null;
+    const rounded = Math.round(n);
+    return Math.max(1, Math.min(10, rounded));
+  })();
+
+  // ✅ Destacado (por ahora libre). Lo mandamos en varios nombres por compatibilidad.
+  const featuredVal = !!(
+    formData?.destacado ??
+    formData?.is_featured ??
+    formData?.isFeatured ??
+    formData?.isfeatured ??
+    formData?.featured ??
+    false
+  );
+
   const payload = {
     owner_id: user.id,
     owner_name: user.user_metadata?.nombre || user.email || "Usuario",
-    owner_photo: user.user_metadata?.foto_url || "",
     title,
     category,
     subcategory,
@@ -345,9 +332,13 @@ export async function publishArticle({ formData, files, user }) {
     price: mode === "venta" ? Number(formData?.precio ?? formData?.price ?? 0) : 0,
     city: formData?.ciudad ?? formData?.city ?? null,
     locality: formData?.localidad_es ?? formData?.locality ?? null,
+    // ✅ Destacado (compatibilidad de columnas)
+    is_featured: featuredVal,
+    destacado: featuredVal,
+    isFeatured: featuredVal,
     description: String(formData?.descripcion ?? formData?.description ?? "").trim(),
+    estado_producto,
     status: "disponible",
-    estado: "disponible",
     applicants: [],
   };
 
@@ -361,12 +352,14 @@ export async function publishArticle({ formData, files, user }) {
   const uploaded = [];
   try {
     // ✅ Subir imágenes en paralelo (cada una se optimiza dentro de uploadArticleImage)
-    const results = await Promise.all(list.map((file) => uploadArticleImage({ file, ownerId: user.id })));
+    const results = await Promise.all(
+      list.map((file) => uploadArticleImage({ file, ownerId: user.id }))
+    );
 
     const failed = results.find((r) => !r?.success);
     if (failed) throw new Error(failed.error || "Error subiendo una imagen");
 
-    for (const r of results) uploaded.push({ url: r.url, path: r.path });
+    for (const r of results) uploaded.push({ url: r.url, path: r.path, file_id: r.file_id || null });
 
     const ins = await insertArticleImages({
       articuloId: articulo.id,
@@ -388,6 +381,7 @@ export async function publishArticle({ formData, files, user }) {
 
 /**
  * Actualiza SOLO campos del artículo (no imágenes).
+ * ✅ Ahora usa RPC segura.
  */
 export async function updateArticleFields(articleId, updates = {}) {
   try {
@@ -398,34 +392,64 @@ export async function updateArticleFields(articleId, updates = {}) {
       if (v !== undefined) payload[k] = v;
     }
 
-    let { data, error } = await supabase
-      .from("articulos")
-      .update(payload)
-      .eq("id", articleId)
-      .select(ARTICLE_SELECT)
-      .single();
+    // Intento mapear solo campos soportados por la RPC
+    const mapped = {
+      title: payload.title,
+      category: payload.category,
+      mode: payload.mode,
+      price: payload.price,
+      city: payload.city,
+      locality: payload.locality,
+      description: payload.description,
+      image_url: payload.image_url,
+    };
 
-    if (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
-      const m = error.message.match(/Could not find the '(.+?)' column/i);
-      const missingCol = m?.[1];
+    // Limpieza: si no viene, mandamos null para que no reviente (la RPC setea exactamente)
+    // Si quieres que "undefined" signifique "no cambiar", lo hacemos luego con una RPC distinta tipo patch.
+    const r = await rpcOwnerUpdateArticulo(articleId, mapped);
+    if (!r.success) return { success: false, error: r.error };
 
-      if (missingCol && Object.prototype.hasOwnProperty.call(payload, missingCol)) {
-        delete payload[missingCol];
+    const fresh = await getArticleWithImages(articleId);
+    if (!fresh.success) return fresh;
 
-        ({ data, error } = await supabase
-          .from("articulos")
-          .update(payload)
-          .eq("id", articleId)
-          .select(ARTICLE_SELECT)
-          .single());
-      }
-    }
-
-    if (error) return { success: false, error: error.message };
-    return { success: true, data };
+    return { success: true, data: fresh.data };
   } catch (err) {
     return { success: false, error: err?.message || "Error inesperado" };
   }
+}
+
+/**
+ * Sube UNA imagen a ImageKit en la carpeta del usuario.
+ * Retorna { success, url, path }.
+ *
+ * ✅ NUEVO: optimiza antes de subir.
+ */
+export async function uploadArticleImage({ file, ownerId }) {
+  if (!file) return { success: false, error: "Archivo (file) es requerido" };
+  if (!ownerId) return { success: false, error: "ownerId es requerido" };
+
+  let optimizedFile = file;
+
+  try {
+    optimizedFile = await ensureOptimizedImage(file);
+  } catch (e) {
+    return { success: false, error: e?.message || "No se pudo optimizar la imagen." };
+  }
+
+  const upload = await uploadImageKitImage({
+    file: optimizedFile,
+    folder: `/mibatute/articulos/${ownerId}`,
+    fileName: `${Date.now()}-${Math.random().toString(16).slice(2)}-${optimizedFile.name || "articulo.webp"}`,
+  });
+
+  if (!upload.success) return upload;
+
+  return {
+    success: true,
+    url: upload.thumbnailUrl || upload.url,
+    path: upload.filePath || upload.url,
+    file_id: upload.fileId || null,
+  };
 }
 
 /**
@@ -439,14 +463,19 @@ export async function addArticleImages(articleId, newFiles, ownerId = null) {
     if (!files.length) return { success: false, error: "No hay imágenes para agregar" };
 
     if (!ownerId) {
-      const { data: art, error: artErr } = await supabase.from("articulos").select("owner_id").eq("id", articleId).single();
+      const { data: art, error: artErr } = await supabase
+        .from("articulos")
+        .select("owner_id")
+        .eq("id", articleId)
+        .single();
       if (artErr) return { success: false, error: artErr.message };
       ownerId = art?.owner_id;
     }
 
+    // ✅ OPT: head:true no trae datos, pero usamos id para mayor claridad
     const { count, error: cErr } = await supabase
       .from("articulo_imagenes")
-      .select("*", { count: "exact", head: true })
+      .select("id", { count: "exact", head: true })
       .eq("articulo_id", articleId);
 
     if (cErr) return { success: false, error: cErr.message };
@@ -459,7 +488,6 @@ export async function addArticleImages(articleId, newFiles, ownerId = null) {
       return { success: false, error: `Solo puedes agregar ${remaining} imagen(es) más` };
     }
 
-    // ✅ subir imágenes en paralelo (optimiza dentro)
     const results = await Promise.all(files.map((file) => uploadArticleImage({ file, ownerId })));
 
     const ok = results.filter((r) => r?.success);
@@ -470,7 +498,7 @@ export async function addArticleImages(articleId, newFiles, ownerId = null) {
       return { success: false, error: fail.error || "Error subiendo una imagen" };
     }
 
-    const uploaded = ok.map((r) => ({ url: r.url, path: r.path }));
+    const uploaded = ok.map((r) => ({ url: r.url, path: r.path, file_id: r.file_id || null }));
 
     const ins = await insertArticleImages({ articuloId: articleId, ownerId, images: uploaded });
     if (!ins.success) {
@@ -505,11 +533,12 @@ export async function replaceArticleImage(imageId, newFile, ownerId) {
     const up = await uploadArticleImage({ file: newFile, ownerId });
     if (!up.success) return up;
 
+    // ✅ OPT: columnas mínimas tras update de imagen
     const { data, error: uErr } = await supabase
       .from("articulo_imagenes")
-      .update({ url: up.url, path: up.path })
+      .update({ url: up.url, path: up.path, file_id: up.file_id || null })
       .eq("id", imageId)
-      .select(ARTICLE_IMAGE_SELECT)
+      .select("id,url,path,file_id,position")
       .single();
 
     if (uErr) {
@@ -605,6 +634,7 @@ async function normalizeImagePositions(articleId) {
 
 /**
  * ✅ updateArticle (para tu EditArticleModal)
+ * ✅ Ahora usa RPC segura para actualizar campos.
  */
 export async function updateArticle(articleId, formData = {}, file = null) {
   try {
@@ -613,25 +643,85 @@ export async function updateArticle(articleId, formData = {}, file = null) {
     const rawMode = formData?.tipo ?? formData?.mode;
 
     const updates = {
-      title: formData?.titulo ?? formData?.title,
-      description: formData?.descripcion ?? formData?.description,
-      city: formData?.ciudad ?? formData?.city,
-      locality: formData?.localidad_es ?? formData?.localidad ?? formData?.locality,
-      category: formData?.categoria ?? formData?.category,
-      subcategory: formData?.subcategoria ?? formData?.subcategory,
-      subcategoria: formData?.subcategoria ?? formData?.subcategory,
-      mode: rawMode !== undefined ? normalizeMode(rawMode) : undefined,
+      title: formData?.titulo ?? formData?.title ?? null,
+      description: formData?.descripcion ?? formData?.description ?? null,
+      city: formData?.ciudad ?? formData?.city ?? null,
+      locality: formData?.localidad_es ?? formData?.localidad ?? formData?.locality ?? null,
+      category: formData?.categoria ?? formData?.category ?? null,
+      mode: rawMode !== undefined ? normalizeMode(rawMode) : null,
+      // price: si editas precio en tu modal, lo agregamos aquí
+      price: null,
+      // image_url: lo dejamos null; se setea con syncArticleImagesArray al final
+      image_url: null,
+      // ✅ Destacado (editar)
+      destacado: formData?.destacado ?? formData?.is_featured ?? formData?.isFeatured ?? formData?.featured ?? null,
+      is_featured: formData?.is_featured ?? formData?.destacado ?? formData?.isFeatured ?? formData?.featured ?? null,
+      isFeatured: formData?.isFeatured ?? formData?.is_featured ?? formData?.destacado ?? formData?.featured ?? null,
+      featured: formData?.featured ?? formData?.isFeatured ?? formData?.is_featured ?? formData?.destacado ?? null,
+
     };
 
-    for (const k of Object.keys(updates)) {
-      if (updates[k] === undefined) delete updates[k];
+
+
+    // ✅ helper: update directo tolerante a columnas faltantes (para destacado)
+    const safeDirectUpdate = async (patch) => {
+      let p = { ...(patch || {}) };
+      const run = async () => {
+        // ✅ OPT: select mínimo tras update de destacado
+        return await supabase.from("articulos").update(p).eq("id", articleId).select("id").maybeSingle();
+      };
+
+      let { data, error } = await run();
+
+      while (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
+        const mm = error.message.match(/Could not find the '(.+?)' column/i);
+        const missing = mm?.[1];
+        if (missing && Object.prototype.hasOwnProperty.call(p, missing)) {
+          delete p[missing];
+          ({ data, error } = await run());
+        } else {
+          break;
+        }
+      }
+
+      return { data, error };
+    };
+    // ✅ Actualización segura por RPC
+    const r = await rpcOwnerUpdateArticulo(articleId, updates);
+    if (!r.success) return { success: false, error: r.error };
+
+
+    // ✅ Si el caller envió destacado, actualízalo por update directo (RPC legacy no lo soporta)
+    const wantFeatured =
+      updates?.destacado !== null ||
+      updates?.is_featured !== null ||
+      updates?.isFeatured !== null ||
+      updates?.featured !== null;
+
+    if (wantFeatured) {
+      const featuredBool = !!(updates?.isFeatured ?? updates?.is_featured ?? updates?.destacado ?? updates?.featured);
+      const { error: featErr } = await safeDirectUpdate({
+        destacado: featuredBool,
+        is_featured: featuredBool,
+        isFeatured: featuredBool,
+        featured: featuredBool,
+      });
+      if (featErr) {
+        console.log("updateArticle: featured update warn:", featErr?.message || featErr);
+      }
     }
 
-    const { data, error } = await safeUpdateArticulos(articleId, updates);
-    if (error) return { success: false, error: error.message };
-
+    // ✅ Si viene nueva imagen, la agregamos (esto toca articulo_imagenes, no articulos)
     if (file) {
-      const ownerId = data?.owner_id || null;
+      // obtenemos owner_id para subir al folder correcto
+      const { data: art, error: artErr } = await supabase
+        .from("articulos")
+        .select("owner_id")
+        .eq("id", articleId)
+        .single();
+      if (artErr) return { success: false, error: artErr.message };
+
+      const ownerId = art?.owner_id || null;
       const add = await addArticleImages(articleId, [file], ownerId);
       if (!add.success) return add;
     }

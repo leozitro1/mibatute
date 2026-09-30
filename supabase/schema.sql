@@ -104,9 +104,219 @@ create table if not exists public.chat_reads (
   unique (chat_id, user_id)
 );
 
+alter table public.usuarios add column if not exists email text default '';
+alter table public.usuarios add column if not exists is_blocked boolean not null default false;
+alter table public.usuarios add column if not exists bloqueado boolean not null default false;
+alter table public.usuarios add column if not exists ban_until timestamptz;
+alter table public.usuarios add column if not exists role text default '';
+alter table public.usuarios add column if not exists rol text default '';
+alter table public.usuarios add column if not exists estado text default '';
+alter table public.usuarios add column if not exists status text default '';
+
+alter table public.articulos add column if not exists titulo text default '';
+alter table public.articulos add column if not exists tipo text default '';
+alter table public.articulos add column if not exists categoria text default '';
+alter table public.articulos add column if not exists review_status text default '';
+alter table public.articulos add column if not exists approval_status text default '';
+alter table public.articulos add column if not exists moderation_status text default '';
+alter table public.articulos add column if not exists revision_status text default '';
+alter table public.articulos add column if not exists is_featured boolean not null default false;
+
+create table if not exists public.reports (
+  id uuid primary key default gen_random_uuid(),
+  articulo_id uuid references public.articulos(id) on delete cascade,
+  reporter_user_id uuid references auth.users(id) on delete set null,
+  reported_user_id uuid references auth.users(id) on delete set null,
+  owner_id uuid references auth.users(id) on delete set null,
+  reason text default '',
+  details text,
+  status text not null default 'open',
+  resolution text default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.chat_reports (
+  id uuid primary key default gen_random_uuid(),
+  chat_id uuid references public.chats(id) on delete cascade,
+  reporter_id uuid references auth.users(id) on delete set null,
+  reported_user_id uuid references auth.users(id) on delete set null,
+  articulo_id uuid references public.articulos(id) on delete set null,
+  reason text default '',
+  details text,
+  messages_snapshot jsonb default '[]'::jsonb,
+  status text not null default 'open',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.patrocinadores (
+  id uuid primary key default gen_random_uuid(),
+  imagen_url text not null default '',
+  texto text not null default '',
+  descripcion text,
+  enlace text,
+  activo boolean not null default true,
+  impresiones integer not null default 0,
+  clics integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.cupos (
+  usuario_id uuid primary key references auth.users(id) on delete cascade,
+  saldo integer not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.cupos_historial (
+  id uuid primary key default gen_random_uuid(),
+  usuario_id uuid references auth.users(id) on delete cascade,
+  cantidad integer not null default 0,
+  concepto text default '',
+  referencia_id uuid,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.cupos_extra_donacion (
+  id uuid primary key default gen_random_uuid(),
+  usuario_id uuid references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.recargas_pendientes (
+  id uuid primary key default gen_random_uuid(),
+  usuario_id uuid references auth.users(id) on delete cascade,
+  email text default '',
+  cupos integer not null default 0,
+  codigo text default '',
+  estado text not null default 'pendiente',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.postulaciones_rechazadas (
+  id uuid primary key default gen_random_uuid(),
+  articulo_id uuid references public.articulos(id) on delete cascade,
+  usuario_id uuid references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (articulo_id, usuario_id)
+);
+
+create table if not exists public.postulacion_historial (
+  id uuid primary key default gen_random_uuid(),
+  articulo_id uuid references public.articulos(id) on delete cascade,
+  usuario_id uuid references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.reputacion (
+  id uuid primary key default gen_random_uuid(),
+  reviewer_id uuid references auth.users(id) on delete cascade,
+  reviewed_id uuid references auth.users(id) on delete cascade,
+  articulo_id uuid references public.articulos(id) on delete cascade,
+  estrellas integer not null default 0 check (estrellas between 0 and 5),
+  comentario text default '',
+  created_at timestamptz not null default now(),
+  unique (reviewer_id, articulo_id)
+);
+
+create or replace view public.reputacion_promedio as
+select reviewed_id as usuario_id, avg(estrellas)::numeric(4,2) as promedio, count(*)::integer as total
+from public.reputacion
+group by reviewed_id;
+
+create table if not exists public.system_messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid references auth.users(id) on delete set null,
+  title text default '',
+  body text default '',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.system_message_receipts (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid references public.system_messages(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  read_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (message_id, user_id)
+);
+
 create or replace view public.usuarios_publicos as
-select id, nombre, ciudad, localidad, foto_url
+select id, nombre, ciudad, localidad, foto_url, is_blocked, bloqueado, ban_until
 from public.usuarios;
+
+create or replace view public.admin_reports_view as
+select
+  r.id as report_id,
+  r.created_at as report_created_at,
+  r.status,
+  r.reason,
+  r.details,
+  r.resolution,
+  r.articulo_id,
+  r.reporter_user_id,
+  r.reported_user_id,
+  a.owner_id,
+  a.title as articulo_title,
+  a.titulo as articulo_titulo,
+  a.estado as articulo_estado,
+  a.status as articulo_status,
+  a.image_url,
+  a.imagen_url_principal,
+  count(*) over (partition by r.articulo_id) as report_total,
+  count(*) filter (where r.status = 'open') over (partition by r.articulo_id) as report_open,
+  count(*) filter (where r.status = 'reviewing') over (partition by r.articulo_id) as report_reviewing,
+  count(*) filter (where r.status = 'resolved') over (partition by r.articulo_id) as report_resolved,
+  count(*) filter (where r.status = 'dismissed') over (partition by r.articulo_id) as report_dismissed,
+  max(r.created_at) over (partition by r.articulo_id) as last_report_at
+from public.reports r
+left join public.articulos a on a.id = r.articulo_id;
+
+create or replace function public.generar_codigo_recarga()
+returns text
+language sql
+as $$
+  select upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 10));
+$$;
+
+create or replace function public.get_my_inbox()
+returns setof public.system_messages
+language sql
+security definer
+set search_path = public
+as $$
+  select sm.*
+  from public.system_messages sm
+  join public.system_message_receipts smr on smr.message_id = sm.id
+  where smr.user_id = auth.uid()
+  order by sm.created_at desc;
+$$;
+
+create or replace function public.delete_article_deep(p_articulo_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.chat_messages
+  where chat_id in (select id from public.chats where articulo_id = p_articulo_id);
+
+  delete from public.chat_reads
+  where chat_id in (select id from public.chats where articulo_id = p_articulo_id);
+
+  delete from public.chats where articulo_id = p_articulo_id;
+  delete from public.postulaciones where articulo_id = p_articulo_id;
+  delete from public.postulaciones_rechazadas where articulo_id = p_articulo_id;
+  delete from public.postulacion_historial where articulo_id = p_articulo_id;
+  delete from public.reports where articulo_id = p_articulo_id;
+  delete from public.chat_reports where articulo_id = p_articulo_id;
+  delete from public.articulo_imagenes where articulo_id = p_articulo_id;
+  delete from public.articulos where id = p_articulo_id;
+end;
+$$;
 
 create index if not exists articulos_owner_id_idx on public.articulos(owner_id);
 create index if not exists articulos_created_at_idx on public.articulos(created_at desc);
@@ -116,6 +326,12 @@ create index if not exists postulaciones_usuario_id_idx on public.postulaciones(
 create index if not exists chats_articulo_id_idx on public.chats(articulo_id);
 create index if not exists chats_buyer_id_idx on public.chats(buyer_id);
 create index if not exists chat_messages_chat_id_idx on public.chat_messages(chat_id, created_at);
+create index if not exists reports_articulo_id_idx on public.reports(articulo_id, created_at desc);
+create index if not exists reports_status_idx on public.reports(status);
+create index if not exists chat_reports_chat_id_idx on public.chat_reports(chat_id, created_at desc);
+create index if not exists patrocinadores_activo_idx on public.patrocinadores(activo, created_at desc);
+create index if not exists recargas_pendientes_usuario_id_idx on public.recargas_pendientes(usuario_id, created_at desc);
+create index if not exists reputacion_reviewed_id_idx on public.reputacion(reviewed_id);
 
 do $$
 begin
@@ -153,6 +369,26 @@ for each row execute function public.set_updated_at();
 drop trigger if exists chat_reads_set_updated_at on public.chat_reads;
 create trigger chat_reads_set_updated_at
 before update on public.chat_reads
+for each row execute function public.set_updated_at();
+
+drop trigger if exists reports_set_updated_at on public.reports;
+create trigger reports_set_updated_at
+before update on public.reports
+for each row execute function public.set_updated_at();
+
+drop trigger if exists chat_reports_set_updated_at on public.chat_reports;
+create trigger chat_reports_set_updated_at
+before update on public.chat_reports
+for each row execute function public.set_updated_at();
+
+drop trigger if exists patrocinadores_set_updated_at on public.patrocinadores;
+create trigger patrocinadores_set_updated_at
+before update on public.patrocinadores
+for each row execute function public.set_updated_at();
+
+drop trigger if exists recargas_pendientes_set_updated_at on public.recargas_pendientes;
+create trigger recargas_pendientes_set_updated_at
+before update on public.recargas_pendientes
 for each row execute function public.set_updated_at();
 
 create or replace function public.bump_articulo_interested_count()
@@ -250,6 +486,18 @@ alter table public.postulaciones enable row level security;
 alter table public.chats enable row level security;
 alter table public.chat_messages enable row level security;
 alter table public.chat_reads enable row level security;
+alter table public.reports enable row level security;
+alter table public.chat_reports enable row level security;
+alter table public.patrocinadores enable row level security;
+alter table public.cupos enable row level security;
+alter table public.cupos_historial enable row level security;
+alter table public.cupos_extra_donacion enable row level security;
+alter table public.recargas_pendientes enable row level security;
+alter table public.postulaciones_rechazadas enable row level security;
+alter table public.postulacion_historial enable row level security;
+alter table public.reputacion enable row level security;
+alter table public.system_messages enable row level security;
+alter table public.system_message_receipts enable row level security;
 
 drop policy if exists "Perfiles publicos visibles" on public.usuarios;
 create policy "Perfiles publicos visibles"
@@ -398,3 +646,151 @@ create policy "Lecturas propias"
 on public.chat_reads for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+drop policy if exists "Reportes visibles propios o admin" on public.reports;
+create policy "Reportes visibles propios o admin"
+on public.reports for select
+using (
+  auth.uid() in (reporter_user_id, reported_user_id, owner_id)
+  or exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+);
+
+drop policy if exists "Crear reportes autenticados" on public.reports;
+create policy "Crear reportes autenticados"
+on public.reports for insert
+with check (auth.uid() = reporter_user_id);
+
+drop policy if exists "Admins gestionan reportes" on public.reports;
+create policy "Admins gestionan reportes"
+on public.reports for update
+using (
+  exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+);
+
+drop policy if exists "Chat reports visibles propios o admin" on public.chat_reports;
+create policy "Chat reports visibles propios o admin"
+on public.chat_reports for select
+using (
+  auth.uid() in (reporter_id, reported_user_id)
+  or exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+);
+
+drop policy if exists "Crear chat reports autenticados" on public.chat_reports;
+create policy "Crear chat reports autenticados"
+on public.chat_reports for insert
+with check (auth.uid() = reporter_id);
+
+drop policy if exists "Patrocinadores visibles activos" on public.patrocinadores;
+create policy "Patrocinadores visibles activos"
+on public.patrocinadores for select
+using (
+  activo = true
+  or exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+);
+
+drop policy if exists "Admins gestionan patrocinadores" on public.patrocinadores;
+create policy "Admins gestionan patrocinadores"
+on public.patrocinadores for all
+using (
+  exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+)
+with check (
+  exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+);
+
+drop policy if exists "Cupos propios" on public.cupos;
+create policy "Cupos propios"
+on public.cupos for select
+using (
+  auth.uid() = usuario_id
+  or exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+);
+
+drop policy if exists "Admins gestionan cupos" on public.cupos;
+create policy "Admins gestionan cupos"
+on public.cupos for all
+using (
+  exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+)
+with check (
+  exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+);
+
+drop policy if exists "Historial cupos propio o admin" on public.cupos_historial;
+create policy "Historial cupos propio o admin"
+on public.cupos_historial for select
+using (
+  auth.uid() = usuario_id
+  or exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+);
+
+drop policy if exists "Usuarios crean recargas propias" on public.recargas_pendientes;
+create policy "Usuarios crean recargas propias"
+on public.recargas_pendientes for insert
+with check (auth.uid() = usuario_id);
+
+drop policy if exists "Recargas propias o admin" on public.recargas_pendientes;
+create policy "Recargas propias o admin"
+on public.recargas_pendientes for select
+using (
+  auth.uid() = usuario_id
+  or exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+);
+
+drop policy if exists "Admins actualizan recargas" on public.recargas_pendientes;
+create policy "Admins actualizan recargas"
+on public.recargas_pendientes for update
+using (
+  exists (
+    select 1 from public.usuarios u
+    where u.id = auth.uid() and lower(coalesce(u.role, u.rol, '')) in ('admin', 'master')
+  )
+);
+
+drop policy if exists "Reputacion visible" on public.reputacion;
+create policy "Reputacion visible"
+on public.reputacion for select
+using (true);
+
+drop policy if exists "Crear reputacion propia" on public.reputacion;
+create policy "Crear reputacion propia"
+on public.reputacion for insert
+with check (auth.uid() = reviewer_id);
+
+drop policy if exists "Mensajes sistema propios" on public.system_message_receipts;
+create policy "Mensajes sistema propios"
+on public.system_message_receipts for select
+using (auth.uid() = user_id);

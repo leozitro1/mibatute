@@ -54,6 +54,23 @@ function normTipo(v) {
   return s;
 }
 
+function formatDateTime(value) {
+  try {
+    if (!value) return "";
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleString("es-CO", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
 /**
  * ✅ Update "a prueba de columnas faltantes"
  * Si Supabase responde: Could not find the 'X' column...
@@ -90,10 +107,6 @@ export default function ManageArticleModal({
   const [savingWinner, setSavingWinner] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // ✅ VENTA (comprador)
-  const [buyerLoading, setBuyerLoading] = useState(false);
-  const [buyerPublic, setBuyerPublic] = useState(null);
-
   // ✅ DONACIÓN (ganador)
   const [winnerLoading, setWinnerLoading] = useState(false);
   const [winnerPublic, setWinnerPublic] = useState(null);
@@ -116,11 +129,7 @@ export default function ManageArticleModal({
   const buyerId = article?.buyer_id || article?.buyerId || null;
 
   const winnerIdFromArticle =
-    article?.ganador_id ||
-    article?.winner_id ||
-    article?.winnerUid ||
-    article?.recipient_id ||
-    null;
+    article?.ganador_id || article?.winner_id || article?.winnerUid || article?.recipient_id || null;
 
   // ✅ sync winner local cuando abre modal
   useEffect(() => {
@@ -170,39 +179,6 @@ export default function ManageArticleModal({
       alive = false;
     };
   }, [articuloId, isOpen, isVenta]);
-
-  // ===========================
-  // ✅ VENTA: cargar comprador (usuarios_publicos)
-  // ===========================
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!isVenta) return;
-    if (!buyerId) return;
-
-    let alive = true;
-
-    const fetchBuyer = async () => {
-      setBuyerLoading(true);
-      setBuyerPublic(null);
-
-      const { data, error } = await supabase
-        .from("usuarios_publicos")
-        .select("id,nombre,foto_url")
-        .eq("id", buyerId)
-        .maybeSingle();
-
-      if (!alive) return;
-
-      if (!error && data) setBuyerPublic(data);
-      setBuyerLoading(false);
-    };
-
-    fetchBuyer();
-
-    return () => {
-      alive = false;
-    };
-  }, [isOpen, isVenta, buyerId]);
 
   // ===========================
   // ✅ DONACIÓN: cargar ganador (usuarios_publicos) + fallback
@@ -319,13 +295,33 @@ export default function ManageArticleModal({
       }
 
       alert("✅ Seleccionado. El artículo quedó reservado.");
-      // ✅ NO cerramos el modal: ahora dejamos botón para abrir chat cuando quieras
     } catch (e) {
       console.error(e);
       alert("No se pudo seleccionar: " + (e?.message || "Error"));
-      // si falló, revertimos winner local para no engañar la UI
       setWinnerIdLocal(null);
       setWinnerDisplayLocal(null);
+    } finally {
+      setSavingWinner(false);
+    }
+  };
+
+  // ✅ Rechazar UNA solicitud (borra postulacion)
+  const rechazarSolicitud = async (postulacionId) => {
+    if (!postulacionId) return;
+    const ok = confirm("¿Rechazar esta solicitud?");
+    if (!ok) return;
+
+    try {
+      setSavingWinner(true);
+      const { error } = await supabase.from("postulaciones").delete().eq("id", postulacionId);
+      if (error) throw error;
+
+      setPostulados((prev) =>
+        (Array.isArray(prev) ? prev : []).filter((x) => String(x?.id) !== String(postulacionId))
+      );
+    } catch (e) {
+      console.error(e);
+      alert("No se pudo rechazar: " + (e?.message || "Error (RLS/policies)"));
     } finally {
       setSavingWinner(false);
     }
@@ -353,14 +349,7 @@ export default function ManageArticleModal({
 
       if (upErr) throw upErr;
 
-      // cerrar chats del artículo (si existen)
-      try {
-        await supabase.from("chats").update({ status: "closed" }).eq("articulo_id", articuloId);
-      } catch (e) {
-        console.log("Cerrar chats (opcional) no pudo ejecutarse:", e?.message || e);
-      }
-
-      alert("✅ Marcado como ENTREGADO. Transacción cerrada.");
+      alert("✅ Marcado como ENTREGADO. El chat queda disponible para ver historial (solo lectura).");
 
       if (typeof onCancelSaleSuccess === "function") {
         await onCancelSaleSuccess();
@@ -395,7 +384,6 @@ export default function ManageArticleModal({
 
       if (upErr) throw upErr;
 
-      // limpiar local
       setWinnerIdLocal(null);
       setWinnerPublic(null);
       setWinnerDisplayLocal(null);
@@ -428,16 +416,19 @@ export default function ManageArticleModal({
 
   // ===========================
   // ✅ DONACIÓN: abrir chat con ganador
-  // - OJO: si está ENTREGADO, tu App.jsx bloquea el chat para donación entregada
+  // ✅ (permitido incluso si ENTREGADO para ver historial)
   // ===========================
   const handleOpenChatDonacion = () => {
     if (!winnerId) return alert("No hay ganador seleccionado.");
-    if (isEntregado) return alert("Esta publicación ya fue marcada como ENTREGADA. El chat está cerrado.");
 
     if (typeof onOpenChat === "function") {
-      // ✅ App.jsx espera { article, buyerId }
       onOpenChat({
-        article: { ...article, ganador_id: winnerId, estado: "reservado", status: "reservado" },
+        article: {
+          ...article,
+          ganador_id: winnerId,
+          estado: isEntregado ? "entregado" : "reservado",
+          status: isEntregado ? "entregado" : "reservado",
+        },
         buyerId: winnerId,
       });
       return;
@@ -461,12 +452,6 @@ export default function ManageArticleModal({
       });
 
       if (err1) throw err1;
-
-      try {
-        await supabase.from("chats").update({ status: "closed" }).eq("articulo_id", articuloId);
-      } catch (e) {
-        console.log("Cerrar chats (opcional) no pudo ejecutarse:", e?.message || e);
-      }
 
       alert("Venta cancelada. El artículo volvió a estar disponible ✅");
 
@@ -504,208 +489,147 @@ export default function ManageArticleModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl">
-        <div className="flex items-center gap-4 mb-6">
-          <img
-            src={getThumb(article)}
-            onError={(e) => {
-              if (e.currentTarget.dataset.fallbackApplied) return;
-              e.currentTarget.dataset.fallbackApplied = "1";
-              e.currentTarget.src = FALLBACK_SVG;
-            }}
-            className="w-12 h-12 rounded-xl object-cover"
-            alt="mini"
-          />
-          <div className="min-w-0">
-            <h2 className="font-black uppercase text-sm truncate">{titulo}</h2>
-            <p className="text-[10px] font-bold uppercase text-gray-400 mt-1">
-              {tipoNorm || "tipo"} · {estado || "estado"}
-            </p>
+      {/* ✅ Modal más angosto */}
+      <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden">
+        {/* HEADER */}
+        <div className="p-8 pb-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              {!isVenta ? (
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-400 mb-2">
+                  POSTULACIONES
+                </p>
+              ) : (
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-400 mb-2">
+                  GESTIÓN
+                </p>
+              )}
+
+              <div className="flex items-center gap-4">
+                <img
+                  src={getThumb(article)}
+                  onError={(e) => {
+                    if (e.currentTarget.dataset.fallbackApplied) return;
+                    e.currentTarget.dataset.fallbackApplied = "1";
+                    e.currentTarget.src = FALLBACK_SVG;
+                  }}
+                  className="w-12 h-12 rounded-xl object-cover border border-gray-100"
+                  alt="mini"
+                />
+
+                <div className="min-w-0">
+                  <h2 className="font-black text-2xl text-gray-900 truncate">{titulo}</h2>
+                  <p className="text-sm text-gray-500 font-semibold mt-1">
+                    {!isVenta ? "Selecciona a quién entregarlo (regalo / donación)." : "Gestiona tu venta."}
+                  </p>
+                  <p className="text-[11px] font-black uppercase text-gray-400 mt-2">
+                    {tipoNorm || "tipo"} · {estado || "estado"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 px-5 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 transition font-black text-[11px] uppercase"
+            >
+              Cerrar
+            </button>
           </div>
         </div>
 
-        {/* =========================
-            ✅ CASO VENTA
-           ========================= */}
-        {isVenta ? (
-          <div>
-            {isEntregado ? (
-              <div className="space-y-3">
-                <div className="bg-gray-100 border border-gray-200 rounded-2xl p-4">
-                  <p className="text-sm font-black text-gray-800 uppercase">Entregado ✅</p>
-                  <p className="text-xs text-gray-600 mt-1">
-                    Esta venta ya está cerrada. En la lista solo quedará disponible “Eliminar”.
-                  </p>
-                </div>
+        <div className="border-t border-gray-200" />
 
-                {buyerId ? (
-                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                    <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Comprador</p>
-
-                    {buyerLoading ? (
-                      <p className="text-xs text-gray-400 font-bold">Cargando comprador...</p>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-gray-200 shrink-0 flex items-center justify-center">
-                          {buyerPublic?.foto_url ? (
-                            <img
-                              src={buyerPublic.foto_url}
-                              alt={buyerPublic?.nombre || "Comprador"}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                          ) : (
-                            <span className="font-black text-gray-500">
-                              {(buyerPublic?.nombre?.[0] || "C").toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="min-w-0">
-                          <p className="text-sm font-black text-gray-800 truncate">
-                            {buyerPublic?.nombre || "Comprador"}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+        {/* BODY */}
+        <div className="p-8 pt-6">
+          {isVenta ? (
+            <div>
+              {isEntregado ? (
+                <div className="space-y-3">
+                  <div className="bg-gray-100 border border-gray-200 rounded-2xl p-4">
+                    <p className="text-sm font-black text-gray-800 uppercase">Entregado ✅</p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Esta venta ya está cerrada. El chat debe abrir solo para ver historial (solo lectura).
+                    </p>
                   </div>
-                ) : null}
 
-                <button
-                  onClick={onClose}
-                  className="mt-2 w-full text-gray-400 font-bold text-xs uppercase"
-                  type="button"
-                >
-                  Cerrar
-                </button>
-              </div>
-            ) : !isReservado ? (
-              <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-                <p className="text-sm font-bold text-gray-700">Este artículo aún no está reservado.</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Cuando alguien lo reserve, aquí podrás abrir el chat, marcar entregado o cancelar la venta.
-                </p>
-
-                <button
-                  onClick={onClose}
-                  className="mt-6 w-full text-gray-400 font-bold text-xs uppercase"
-                  type="button"
-                >
-                  Cerrar
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
-                  <p className="text-sm font-black text-green-800 uppercase">Reserva activa ✅</p>
-                  <p className="text-xs text-green-700 mt-1">
-                    Ya hay un comprador. Puedes chatear, marcar como entregado o cancelar si no hubo acuerdo.
+                  <button
+                    onClick={handleOpenChatVenta}
+                    className="w-full bg-forest-green text-white text-[11px] font-black py-3 rounded-2xl uppercase"
+                    type="button"
+                  >
+                    Abrir chat (ver historial)
+                  </button>
+                </div>
+              ) : !isReservado ? (
+                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                  <p className="text-sm font-bold text-gray-700">Este artículo aún no está reservado.</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Cuando alguien lo reserve, aquí podrás abrir el chat, marcar entregado o cancelar la venta.
                   </p>
                 </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
+                    <p className="text-sm font-black text-green-800 uppercase">Reserva activa ✅</p>
+                    <p className="text-xs text-green-700 mt-1">
+                      Ya hay una reserva. Puedes chatear, marcar como entregado o cancelar si no hubo acuerdo.
+                    </p>
+                  </div>
 
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                  <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Comprador</p>
+                  <button
+                    onClick={handleOpenChatVenta}
+                    className="w-full bg-forest-green text-white text-[11px] font-black py-3 rounded-2xl uppercase"
+                    type="button"
+                  >
+                    Abrir chat
+                  </button>
 
-                  {buyerLoading ? (
-                    <p className="text-xs text-gray-400 font-bold">Cargando comprador...</p>
-                  ) : (
+                  <button
+                    onClick={marcarEntregado}
+                    disabled={savingWinner}
+                    className="w-full bg-gray-900 text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
+                    type="button"
+                  >
+                    {savingWinner ? "Guardando..." : "Entregado (cerrar venta)"}
+                  </button>
+
+                  <button
+                    onClick={handleCancelSale}
+                    className="w-full bg-red-600 text-white text-[11px] font-black py-3 rounded-2xl uppercase"
+                    type="button"
+                    disabled={savingWinner}
+                  >
+                    Cancelar venta (volver a disponible)
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              {errorMsg ? (
+                <div className="bg-red-50 border border-red-100 text-red-700 text-xs font-bold p-3 rounded-2xl mb-4">
+                  {errorMsg}
+                </div>
+              ) : null}
+
+              {winnerId ? (
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
+                    <p className="text-sm font-black text-green-800 uppercase">
+                      {isEntregado ? "Entregado ✅" : "Seleccionado ✅"}
+                    </p>
+                    <p className="text-xs text-green-700 mt-1">
+                      {isEntregado
+                        ? "Transacción cerrada. El chat debe abrir para ver historial (solo lectura)."
+                        : "Este artículo quedó reservado para entrega. Los demás ya no deben verlo."}
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-white rounded-3xl border border-gray-100">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-gray-200 shrink-0 flex items-center justify-center">
-                        {buyerPublic?.foto_url ? (
-                          <img
-                            src={buyerPublic.foto_url}
-                            alt={buyerPublic?.nombre || "Comprador"}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <span className="font-black text-gray-500">
-                            {(buyerPublic?.nombre?.[0] || "C").toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-sm font-black text-gray-800 truncate">
-                          {buyerPublic?.nombre || "Comprador"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={handleOpenChatVenta}
-                  className="w-full bg-forest-green text-white text-[10px] font-black p-3 rounded-2xl uppercase"
-                  type="button"
-                >
-                  Abrir chat con comprador
-                </button>
-
-                <button
-                  onClick={marcarEntregado}
-                  disabled={savingWinner}
-                  className="w-full bg-gray-900 text-white text-[10px] font-black p-3 rounded-2xl uppercase disabled:opacity-50"
-                  type="button"
-                >
-                  {savingWinner ? "Guardando..." : "Entregado (cerrar venta)"}
-                </button>
-
-                <button
-                  onClick={handleCancelSale}
-                  className="w-full bg-red-600 text-white text-[10px] font-black p-3 rounded-2xl uppercase"
-                  type="button"
-                  disabled={savingWinner}
-                >
-                  Cancelar venta (volver a disponible)
-                </button>
-
-                <button
-                  onClick={onClose}
-                  className="mt-2 w-full text-gray-400 font-bold text-xs uppercase"
-                  type="button"
-                >
-                  Cerrar
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* =========================
-             ✅ CASO DONACIÓN
-             ========================= */
-          <div>
-            {errorMsg ? (
-              <div className="bg-red-50 border border-red-100 text-red-700 text-xs font-bold p-3 rounded-2xl mb-4">
-                {errorMsg}
-              </div>
-            ) : null}
-
-            {winnerId ? (
-              <div className="space-y-3">
-                <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
-                  <p className="text-sm font-black text-green-800 uppercase">
-                    {isEntregado ? "Entregado ✅" : "Seleccionado ✅"}
-                  </p>
-                  <p className="text-xs text-green-700 mt-1">
-                    {isEntregado
-                      ? "Transacción cerrada. En la lista quedará solo “Eliminar”."
-                      : "Este artículo quedó reservado para entrega. Los demás ya no deben verlo."}
-                  </p>
-                </div>
-
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                  <p className="text-[10px] font-black uppercase text-gray-400 mb-2">Ganador</p>
-
-                  {winnerLoading && !winnerVisible ? (
-                    <p className="text-xs text-gray-400 font-bold">Cargando ganador...</p>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-gray-200 shrink-0 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-50 border border-gray-200 shrink-0 flex items-center justify-center">
                         {winnerFoto ? (
                           <img
                             src={winnerFoto}
@@ -723,113 +647,135 @@ export default function ManageArticleModal({
                       </div>
 
                       <div className="min-w-0">
-                        <p className="text-sm font-black text-gray-800 truncate">{winnerNombre}</p>
+                        <p className="text-sm font-black text-gray-900 truncate">{winnerNombre}</p>
+                        <p className="text-[11px] font-bold text-gray-500">Ganador</p>
                       </div>
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      <button
+                        onClick={handleOpenChatDonacion}
+                        disabled={savingWinner}
+                        className="w-full bg-forest-green text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
+                        type="button"
+                        title={isEntregado ? "Ver historial (solo lectura)" : "Abrir chat con el ganador"}
+                      >
+                        {isEntregado ? "Abrir chat (ver historial)" : "Abrir chat con ganador"}
+                      </button>
+
+                      {isEntregado ? null : (
+                        <button
+                          onClick={marcarEntregado}
+                          disabled={savingWinner}
+                          className="w-full bg-gray-900 text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
+                          type="button"
+                        >
+                          {savingWinner ? "Guardando..." : "Entregado (cerrar)"}
+                        </button>
+                      )}
+
+                      {isEntregado ? null : (
+                        <button
+                          onClick={cancelarEntrega}
+                          disabled={savingWinner}
+                          className="w-full bg-red-600 text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
+                          type="button"
+                        >
+                          {savingWinner ? "Cancelando..." : "Cancelar entrega (volver a disponible)"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {loading ? (
+                    <p className="text-gray-400 text-center py-6 font-bold">Cargando postulaciones...</p>
+                  ) : postulados.length === 0 ? (
+                    <p className="text-gray-400 text-center py-6 font-bold">Nadie se ha postulado todavía...</p>
+                  ) : (
+                    <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+                      {postulados.map((p) => {
+                        const nombre = p?.usuarios?.nombre || "Usuario";
+                        const foto = p?.usuarios?.foto_url || "";
+                        const fecha = formatDateTime(p?.created_at);
+
+                        return (
+                          <div key={p.id} className="bg-gray-50 rounded-3xl border border-gray-100 p-5">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-gray-200 shrink-0 flex items-center justify-center">
+                                  {foto ? (
+                                    <img
+                                      src={foto}
+                                      className="w-full h-full object-cover"
+                                      alt="avatar"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = "none";
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="font-black text-gray-500">
+                                      {String(nombre || "U").charAt(0).toUpperCase()}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="min-w-0">
+                                  <p className="font-black text-gray-900 truncate">{nombre}</p>
+                                  {p?.justificacion ? (
+                                    <p className="text-[13px] text-gray-600 mt-1 line-clamp-2">{p.justificacion}</p>
+                                  ) : (
+                                    <p className="text-[13px] text-gray-400 mt-1 italic">Sin justificación.</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {fecha ? (
+                                <p className="text-[11px] font-black text-gray-400 whitespace-nowrap">{fecha}</p>
+                              ) : null}
+                            </div>
+
+                            <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                              <button
+                                disabled={savingWinner}
+                                onClick={() => elegirGanador(p)}
+                                className="flex-1 bg-[#dfe8df] text-forest-green text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
+                                type="button"
+                              >
+                                {savingWinner ? "Seleccionando..." : "Elegir a este usuario"}
+                              </button>
+
+                              <button
+                                disabled={savingWinner}
+                                onClick={() => rechazarSolicitud(p?.id)}
+                                className="flex-1 bg-[#ffe1e1] text-red-700 text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
+                                type="button"
+                              >
+                                Rechazar solicitud
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+          )}
+        </div>
 
-                {/* ✅ BOTÓN CHAT GANADOR */}
-                <button
-                  onClick={handleOpenChatDonacion}
-                  disabled={savingWinner || isEntregado}
-                  className={`w-full text-[10px] font-black p-3 rounded-2xl uppercase disabled:opacity-50 ${
-                    isEntregado ? "bg-gray-200 text-gray-500" : "bg-forest-green text-white"
-                  }`}
-                  type="button"
-                  title={isEntregado ? "Chat cerrado por entrega" : "Abrir chat con el ganador"}
-                >
-                  {isEntregado ? "Chat cerrado (entregado)" : "Abrir chat con ganador"}
-                </button>
-
-                {isEntregado ? null : (
-                  <button
-                    onClick={marcarEntregado}
-                    disabled={savingWinner}
-                    className="w-full bg-gray-900 text-white text-[10px] font-black p-3 rounded-2xl uppercase disabled:opacity-50"
-                    type="button"
-                  >
-                    {savingWinner ? "Guardando..." : "Entregado (cerrar)"}
-                  </button>
-                )}
-
-                {isEntregado ? null : (
-                  <button
-                    onClick={cancelarEntrega}
-                    disabled={savingWinner}
-                    className="w-full bg-red-600 text-white text-[10px] font-black p-3 rounded-2xl uppercase disabled:opacity-50"
-                    type="button"
-                  >
-                    {savingWinner ? "Cancelando..." : "Cancelar entrega (volver a disponible)"}
-                  </button>
-                )}
-
-                <button
-                  onClick={onClose}
-                  className="mt-2 w-full text-gray-400 font-bold text-xs uppercase"
-                  type="button"
-                >
-                  Cerrar
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4 max-h-60 overflow-y-auto">
-                {loading ? (
-                  <p className="text-gray-400 text-center py-4 font-bold">Cargando postulaciones...</p>
-                ) : postulados.length === 0 ? (
-                  <p className="text-gray-400 text-center py-4">Nadie se ha postulado todavía...</p>
-                ) : (
-                  postulados.map((p) => {
-                    const nombre = p?.usuarios?.nombre || "Usuario";
-                    const foto = p?.usuarios?.foto_url || FALLBACK_SVG;
-
-                    return (
-                      <div key={p.id} className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                        <div className="flex items-center gap-3 mb-2">
-                          <img
-                            src={foto}
-                            className="w-8 h-8 rounded-full object-cover"
-                            alt="avatar"
-                            onError={(e) => {
-                              if (e.currentTarget.dataset.fallbackApplied) return;
-                              e.currentTarget.dataset.fallbackApplied = "1";
-                              e.currentTarget.src = FALLBACK_SVG;
-                            }}
-                          />
-                          <span className="font-bold text-sm">{nombre}</span>
-                        </div>
-
-                        {p?.justificacion ? (
-                          <p className="text-xs text-gray-600 italic">"{p.justificacion}"</p>
-                        ) : (
-                          <p className="text-xs text-gray-400 italic">Sin justificación.</p>
-                        )}
-
-                        <button
-                          disabled={savingWinner}
-                          onClick={() => elegirGanador(p)}
-                          className="mt-3 w-full bg-forest-green text-white text-[10px] font-black p-2 rounded-xl uppercase disabled:opacity-50"
-                          type="button"
-                        >
-                          {savingWinner ? "Seleccionando..." : "Elegir a este usuario"}
-                        </button>
-                      </div>
-                    );
-                  })
-                )}
-
-                <button
-                  onClick={onClose}
-                  disabled={savingWinner}
-                  className="mt-2 w-full text-gray-400 font-bold text-xs uppercase disabled:opacity-50"
-                  type="button"
-                >
-                  Cerrar
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="px-8 pb-8">
+          <button
+            onClick={onClose}
+            disabled={savingWinner}
+            className="w-full text-gray-400 font-black text-[11px] uppercase disabled:opacity-50"
+            type="button"
+          >
+            Cerrar
+          </button>
+        </div>
       </div>
     </div>
   );

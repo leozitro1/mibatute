@@ -1,12 +1,10 @@
 // src/supabase/profileService.js
 import { supabase } from "./supabaseClient";
 import { uploadImageKitImage } from "../imagekit/imageService";
-const PROFILE_MAX_ORIGINAL_MB = 3;
-const PROFILE_MAX_SIDE = 512;
-const PROFILE_FORMAT = "image/webp";
-const PROFILE_QUALITY = 0.72;
 
-// Limpia null/undefined y SOLO permite estas columnas
+const MAX_PROFILE_IMAGE_MB = 3;
+
+// Solo estas columnas se pueden escribir en DB
 const sanitizeProfilePayload = (profile) => {
   const allowed = ["nombre", "movil", "ciudad", "localidad", "direccion", "foto_url"];
   const payload = {};
@@ -17,7 +15,7 @@ const sanitizeProfilePayload = (profile) => {
   return payload;
 };
 
-// ✅ timeout helper para que NUNCA se quede colgado
+// timeout helper
 function withTimeout(promise, ms = 12000, label = "timeout") {
   let t;
   const timeoutPromise = new Promise((_, reject) => {
@@ -26,60 +24,48 @@ function withTimeout(promise, ms = 12000, label = "timeout") {
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(t));
 }
 
-// ✅ normaliza salida a tu forma { success, data, error }
 function ok(data) {
   return { success: true, data };
 }
-function fail(error, data = null) {
-  return { success: false, error, data };
+function fail(error, data = null, details = null) {
+  return { success: false, error, data, details };
 }
 
-async function optimizeProfileImage(file) {
-  if (!file) return file;
-  if (!file.type?.startsWith("image/")) throw new Error("Solo se permiten imágenes.");
-  if (file.size > PROFILE_MAX_ORIGINAL_MB * 1024 * 1024) {
-    throw new Error(`La foto supera ${PROFILE_MAX_ORIGINAL_MB}MB.`);
-  }
-  if (typeof document === "undefined") return file;
-
-  const url = URL.createObjectURL(file);
+/**
+ * ✅ IMPORTANTÍSIMO (para tu problema de anonimización):
+ * - NO usamos auth.user_metadata para rellenar nombre/movil/ciudad/etc
+ * - Si lo usas, "revive" datos reales aunque DB ya esté anonimizad@.
+ * - Solo permitimos usar auth metadata como fallback de foto_url (opcional).
+ */
+async function getAuthPhotoForUserId(userId) {
   try {
-    const img = new Image();
-    img.decoding = "async";
-    img.src = url;
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-    });
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
 
-    const scale = Math.min(1, PROFILE_MAX_SIDE / Math.max(img.width, img.height));
-    const width = Math.max(1, Math.round(img.width * scale));
-    const height = Math.max(1, Math.round(img.height * scale));
+    const u = data?.user;
+    if (!u?.id || String(u.id) !== String(userId)) return null;
 
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d", { alpha: false });
-    if (!ctx) throw new Error("No se pudo procesar la foto.");
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, 0, 0, width, height);
-
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, PROFILE_FORMAT, PROFILE_QUALITY));
-    if (!blob) throw new Error("No se pudo optimizar la foto.");
-    return new File([blob], "perfil.webp", { type: PROFILE_FORMAT });
-  } finally {
-    URL.revokeObjectURL(url);
+    const m = u.user_metadata || {};
+    const foto_url = m.foto_url ?? m.avatar_url ?? m.photo_url ?? "";
+    return { foto_url: String(foto_url || "").trim() };
+  } catch {
+    return null;
   }
 }
 
-// ✅ intenta leer perfil en varias tablas/columnas (por cambios de esquema)
+/**
+ * Detecta un perfil anonimizad@ según tu regla:
+ * - nombre o movil en "0000" (puedes ajustar si tu RPC usa otro marcador)
+ */
+function isAnonymizedRow(row) {
+  const nombre = String(row?.nombre ?? "").trim();
+  const movil = String(row?.movil ?? "").trim();
+  return nombre === "0000" || movil === "0000";
+}
+
 async function tryFetchProfile(userId) {
   const attempts = [
-    // tu caso actual
     { table: "usuarios", col: "id" },
-
-    // variantes comunes
     { table: "usuarios", col: "user_id" },
     { table: "profiles", col: "id" },
     { table: "profiles", col: "user_id" },
@@ -87,7 +73,7 @@ async function tryFetchProfile(userId) {
     { table: "users", col: "user_id" },
   ];
 
-  // columnas que queremos leer (si existen)
+  // ✅ Importante: solo leemos lo que realmente usamos en UI
   const selectCols = "id,nombre,movil,ciudad,localidad,direccion,foto_url";
 
   for (const a of attempts) {
@@ -96,28 +82,35 @@ async function tryFetchProfile(userId) {
         .from(a.table)
         .select(selectCols)
         .eq(a.col, userId)
-        .maybeSingle(); // ✅ no explota si no hay fila
+        .maybeSingle();
 
       if (error) {
-        // si la tabla/columna no existe o no tienes permisos, seguimos probando
-        // (esto te ayuda cuando cambiaste esquema y quedó algo viejo)
-        // ojo: RLS normalmente devuelve error rápido; igual lo logueamos.
         console.log(`[getProfile] ${a.table}.${a.col} error:`, error);
         continue;
       }
 
       if (data) {
+        // ✅ Si está anonimizad@, NO intentamos completar nada desde auth
+        // (ni foto_url) para evitar re-hidratar info.
+        if (!isAnonymizedRow(data)) {
+          // ✅ Solo completamos foto_url si falta (y solo desde auth metadata)
+          if (!data.foto_url) {
+            const meta = await getAuthPhotoForUserId(userId);
+            if (meta?.foto_url) data.foto_url = meta.foto_url;
+          }
+        }
+
         return ok(data);
       }
     } catch (e) {
       console.log(`[getProfile] ${a.table}.${a.col} catch:`, e);
-      continue;
     }
   }
 
-  // Si no existe fila en ninguna tabla, devolvemos success:true con data "vacía"
-  // (para que el perfil cargue igual y se pueda editar/crear)
-  return ok({
+  // ✅ Si no hay fila en DB:
+  // - NO rellenamos desde auth metadata (evita “revivir” datos)
+  // - devolvemos un perfil vacío
+  const empty = {
     id: userId,
     nombre: "",
     movil: "",
@@ -125,61 +118,105 @@ async function tryFetchProfile(userId) {
     localidad: "",
     direccion: "",
     foto_url: "",
-  });
+  };
+
+  // ⚠️ Antes intentabas auto-crear fila con datos desde auth metadata.
+  // Eso también puede romper tu anonimización si la fila se borró o no existía.
+  // Para tu caso, lo dejamos SIN auto insert por defecto.
+  //
+  // Si tú DE VERDAD necesitas auto-crear, dilo y lo reactivamos pero SIN metadata.
+
+  return ok(empty);
 }
 
 export const getProfile = async (userId) => {
   if (!userId) return fail("Falta userId", null);
 
   try {
-    // ✅ corta cuelgues reales de red/fetch
-    const res = await withTimeout(tryFetchProfile(userId), 12000, "getProfile-timeout");
-    return res;
+    return await withTimeout(tryFetchProfile(userId), 12000, "getProfile-timeout");
   } catch (e) {
-    // ✅ acá cae cuando se cuelga la request o hay un freeze
-    const msg = e?.message || "Error inesperado";
-    return fail(msg, null);
+    return fail(e?.message || "Error inesperado", null);
   }
 };
 
+async function updateThenInsertUsuarios(userId, payload) {
+  const selectCols = "id,nombre,movil,ciudad,localidad,direccion,foto_url";
+
+  const upd = await supabase
+    .from("usuarios")
+    .update(payload)
+    .eq("id", userId)
+    .select(selectCols)
+    .maybeSingle();
+
+  if (upd?.error) return { data: null, error: upd.error, stage: "update" };
+  if (upd?.data) return { data: upd.data, error: null, stage: "update" };
+
+  const ins = await supabase
+    .from("usuarios")
+    .insert([{ id: userId, ...payload }])
+    .select(selectCols)
+    .maybeSingle();
+
+  if (ins?.error) return { data: null, error: ins.error, stage: "insert" };
+  return { data: ins.data || null, error: null, stage: "insert" };
+}
+
 export const updateProfile = async (userId, profile, file = null) => {
-  if (!userId) return { success: false, error: "Falta userId" };
+  if (!userId) return fail("Falta userId");
 
   try {
-    let foto_url = profile?.foto_url || "";
+    let foto_url = String(profile?.foto_url || "").trim();
 
-    // 1) Si viene archivo, súbelo a Storage (con upsert)
+    // 1) Upload si hay file
     if (file) {
-      const optimizedFile = await optimizeProfileImage(file);
-      const ext = (optimizedFile.name?.split(".").pop() || "webp").toLowerCase();
-      const safeExt = ext.replace(/[^a-z0-9]/g, "") || "webp";
-      const uploadPromise = uploadImageKitImage({
-        file: optimizedFile,
-        fileName: `${userId}.${safeExt}`,
+      if (!file.type?.startsWith("image/")) return fail("Solo se permiten imágenes.");
+      if (file.size > MAX_PROFILE_IMAGE_MB * 1024 * 1024) {
+        return fail(`La foto pesa demasiado. Máximo permitido: ${MAX_PROFILE_IMAGE_MB}MB.`);
+      }
+
+      const upload = await uploadImageKitImage({
+        file,
         folder: `/mibatute/perfiles/${userId}`,
+        fileName: `${userId}-${Date.now()}-${file.name || "perfil.jpg"}`,
       });
 
-      const uploaded = await withTimeout(uploadPromise, 20000, "upload-timeout");
-      if (!uploaded?.success) return { success: false, error: uploaded?.error || "No se pudo subir la foto." };
-
-      foto_url = uploaded.thumbnailUrl || uploaded.url || "";
+      if (!upload.success) return fail(upload.error || "No se pudo subir la foto.");
+      foto_url = upload.thumbnailUrl || upload.url || "";
     }
 
-    // 2) Upsert en tabla usuarios (robusto: crea si no existe)
+    // 2) Guardar en usuarios
     const payload = sanitizeProfilePayload({ ...profile, foto_url });
 
-    const upsertPromise = supabase
-      .from("usuarios")
-      .upsert([{ id: userId, ...payload }], { onConflict: "id" })
-      .select("id,nombre,movil,ciudad,localidad,direccion,foto_url")
-      .single();
+    const res = await withTimeout(
+      updateThenInsertUsuarios(userId, payload),
+      12000,
+      "updateProfile-timeout"
+    );
 
-    const { data, error } = await withTimeout(upsertPromise, 12000, "updateProfile-timeout");
+    if (res?.error) {
+      console.log("[updateProfile] usuarios error:", res.error, "stage:", res.stage);
+      return fail(res.error.message || "Error guardando perfil", null, {
+        stage: res.stage,
+        code: res.error.code,
+        details: res.error.details,
+        hint: res.error.hint,
+      });
+    }
 
-    if (error) return { success: false, error: error.message };
+    /**
+     * ✅ CAMBIO CLAVE:
+     * Antes guardabas PII en auth.user_metadata (nombre/movil/ciudad/etc).
+     * Eso es EXACTAMENTE lo que hace que, después de anonimizar en DB,
+     * vuelvas a ver el nombre/teléfono reales al re-login.
+     *
+     * Para tu caso (privacidad/anonimización), NO sincronizamos PII a Auth.
+     * Si quieres, luego podemos guardar SOLO foto_url (pero por ahora lo dejamos limpio).
+     */
 
+    const data = res?.data || null;
     return { success: true, data, foto_url: data?.foto_url || foto_url };
   } catch (e) {
-    return { success: false, error: e?.message || "Error inesperado" };
+    return fail(e?.message || "Error inesperado");
   }
 };

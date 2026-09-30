@@ -1,9 +1,7 @@
 // src/components/ChatMessenger.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "../supabase/supabaseClient";
-
-const MAX_CHAT_MESSAGES = Number(import.meta.env.VITE_MAX_CHAT_MESSAGES || 50);
-const CHAT_SELECT = "id, articulo_id, buyer_id, seller_id, owner_id, usuario_id, status, last_message_at, created_at, updated_at";
+import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -170,15 +168,36 @@ async function fetchUserLite(userId) {
   return null;
 }
 
+// ✅ OPT: cache en memoria — evita query a usuarios en cada sendMessage
+const _blockCache = new Map(); // uid → { blocked, ts }
+const _BLOCK_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+async function isBlockedUser(uid) {
+  const id = String(uid || "").trim();
+  if (!id) return false;
+
+  const cached = _blockCache.get(id);
+  if (cached && Date.now() - cached.ts < _BLOCK_TTL_MS) return cached.blocked;
+
+  try {
+    const { data, error } = await supabase.from("usuarios").select("is_blocked").eq("id", id).maybeSingle();
+    const blocked = !error ? !!data?.is_blocked : false;
+    _blockCache.set(id, { blocked, ts: Date.now() });
+    return blocked;
+  } catch {
+    return false;
+  }
+}
+
 async function findChatRow({ articuloId, buyerId }) {
   if (!articuloId) return null;
 
   try {
-    let q = supabase.from("chats").select(CHAT_SELECT).eq("articulo_id", articuloId);
+    // ✅ OPT: columnas necesarias para chatRow
+    let q = supabase.from("chats").select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at").eq("articulo_id", articuloId);
     if (buyerId) q = q.eq("buyer_id", buyerId);
 
     const { data, error } = await q.order("created_at", { ascending: false }).maybeSingle();
-
     if (!error && data) return data;
 
     if (error?.message && /Could not find the 'buyer_id' column/i.test(error.message)) {
@@ -191,9 +210,10 @@ async function findChatRow({ articuloId, buyerId }) {
   }
 
   try {
+    // ✅ OPT: columnas mínimas (fallback sin buyerId)
     const { data, error } = await supabase
       .from("chats")
-      .select(CHAT_SELECT)
+      .select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at")
       .eq("articulo_id", articuloId)
       .order("created_at", { ascending: false })
       .maybeSingle();
@@ -206,39 +226,38 @@ async function findChatRow({ articuloId, buyerId }) {
   return null;
 }
 
-async function safeCreateChatRow({ articuloId, buyerId, meId }) {
-  if (!articuloId || !buyerId || !meId) return { data: null, error: { message: "Faltan datos para crear chat" } };
+/**
+ * ✅ Crea chat SOLO con buyer_id + seller_id + articulo_id
+ * buyerId: el comprador (usuario actual o el “otro” dependiendo del flujo)
+ * sellerId: dueño del artículo (article.owner_id / article.usuario_id / article.user_id)
+ */
+async function safeCreateChatRow({ articuloId, buyerId, sellerId }) {
+  if (!articuloId || !buyerId || !sellerId) {
+    return { data: null, error: { message: "Faltan datos para crear chat (articuloId/buyerId/sellerId)" } };
+  }
 
-  const base = { articulo_id: articuloId };
+  const payload = {
+    articulo_id: articuloId,
+    buyer_id: buyerId,
+    seller_id: sellerId,
+  };
 
-  const candidates = [
-    { ...base, buyer_id: buyerId, seller_id: meId },
-    { ...base, buyer_id: buyerId, owner_id: meId },
-    { ...base, buyer_id: buyerId, usuario_id: meId },
-    { ...base, usuario_id: buyerId, owner_id: meId },
-    { ...base, usuario_id: buyerId, seller_id: meId },
-  ];
-
-  let lastErr = null;
-
-  for (const payload of candidates) {
-    const { data, error } = await supabase.from("chats").insert(payload).select(CHAT_SELECT).maybeSingle();
+  try {
+    // ✅ OPT: solo columnas necesarias tras insert
+    const { data, error } = await supabase.from("chats").insert(payload).select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at").maybeSingle();
 
     if (!error && data?.id) return { data, error: null };
 
     if (error?.code === "23505" || /duplicate key value/i.test(error?.message || "") || error?.status === 409) {
+      // ya existe
       return { data: null, error: null };
     }
 
-    if (error?.code === "PGRST204" && /Could not find the '(.+?)' column of 'chats'/i.test(error.message || "")) {
-      lastErr = error;
-      continue;
-    }
-
-    lastErr = error;
+    // si RLS niega, lo tratamos arriba con uiError
+    return { data: null, error };
+  } catch (e) {
+    return { data: null, error: { message: e?.message || "No se pudo crear chat" } };
   }
-
-  return { data: null, error: lastErr || { message: "No se pudo crear chat (columnas no coinciden)" } };
 }
 
 /** ✅ clave de visto por usuario/chat */
@@ -278,8 +297,6 @@ export default function ChatMessenger({
   role,
   errorMessage,
   otherUserFallbackName = "Usuario",
-
-  // ✅ NUEVO: para que App pueda “refrescar” globos cuando se marca visto
   onSeenChange,
 }) {
   const [loading, setLoading] = useState(false);
@@ -294,9 +311,17 @@ export default function ChatMessenger({
   const [uiError, setUiError] = useState("");
   const [text, setText] = useState("");
 
+  // 🚩 Reporte de chat (simple)
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState("acoso");
+  const [reportDetails, setReportDetails] = useState("");
+  const [sendingReport, setSendingReport] = useState(false);
+
+  // ✅ bloqueo
+  const [meBlocked, setMeBlocked] = useState(false);
+
   const endRef = useRef(null);
   const listRef = useRef(null);
-
   const userCacheRef = useRef(new Map());
 
   const articuloId = useMemo(
@@ -304,11 +329,7 @@ export default function ChatMessenger({
     [article]
   );
 
-  const estado = useMemo(
-    () => normEstado(article?.estado ?? article?.status ?? ""),
-    [article?.estado, article?.status]
-  );
-
+  const estado = useMemo(() => normEstado(article?.estado ?? article?.status ?? ""), [article?.estado, article?.status]);
   const isEntregado = estado === "entregado";
 
   const chatClosed = useMemo(() => {
@@ -316,9 +337,19 @@ export default function ChatMessenger({
     return s === "closed";
   }, [chatRow?.status]);
 
-  const readOnly = isEntregado || chatClosed;
+  const readOnly = isEntregado || chatClosed || meBlocked;
 
   const title = useMemo(() => article?.titulo || article?.title || "Chat", [article]);
+
+  const sellerIdFromArticle = useMemo(() => {
+    return (
+      article?.owner_id ||
+      article?.usuario_id ||
+      article?.user_id ||
+      article?.seller_id ||
+      null
+    );
+  }, [article]);
 
   const resolvedOtherUserId = useMemo(() => {
     if (otherUserId) return otherUserId;
@@ -326,9 +357,9 @@ export default function ChatMessenger({
     if (!me) return null;
 
     const buyer = chatRow?.buyer_id || null;
-    const seller = chatRow?.seller_id || chatRow?.owner_id || chatRow?.usuario_id || null;
+    const seller = chatRow?.seller_id || null;
 
-    const artOwner = article?.owner_id || article?.usuario_id || article?.user_id || null;
+    const artOwner = sellerIdFromArticle;
     const artBuyer = article?.buyer_id || article?.buyerId || null;
 
     if (artBuyer && String(me) === String(artBuyer) && artOwner) return artOwner;
@@ -343,15 +374,13 @@ export default function ChatMessenger({
     userId,
     chatRow?.buyer_id,
     chatRow?.seller_id,
-    chatRow?.owner_id,
-    chatRow?.usuario_id,
-    article?.owner_id,
-    article?.usuario_id,
-    article?.user_id,
+    sellerIdFromArticle,
     article?.buyer_id,
     article?.buyerId,
   ]);
 
+  // Buyer “objetivo” del chat: si viene otherUserId lo usamos (flujo rescate/venta),
+  // si no, usamos buyer_id del artículo o del chat.
   const lookupBuyerId = useMemo(() => {
     return otherUserId || article?.buyer_id || article?.buyerId || chatRow?.buyer_id || null;
   }, [otherUserId, article?.buyer_id, article?.buyerId, chatRow?.buyer_id]);
@@ -401,6 +430,7 @@ export default function ChatMessenger({
     [userId, chatRow?.id, onSeenChange]
   );
 
+  // ✅ al abrir: reset + chequear bloqueo
   useEffect(() => {
     if (!isOpen) return;
 
@@ -411,6 +441,16 @@ export default function ChatMessenger({
 
     setChatRow(chat || null);
     setUiError(String(errorMessage || "").trim());
+    setMeBlocked(false);
+
+    // check bloqueo
+    (async () => {
+      const blocked = await isBlockedUser(userId);
+      setMeBlocked(blocked);
+      if (blocked) {
+        setUiError("🚫 Tu cuenta está BLOQUEADA. No puedes usar chats por el momento.");
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
@@ -464,22 +504,39 @@ export default function ChatMessenger({
     if (!isOpen) return;
     if (!articuloId) return;
 
+    // ✅ si está bloqueado, ni intentes
+    const blocked = await isBlockedUser(userId);
+    setMeBlocked(blocked);
+    if (blocked) {
+      setChatRow(null);
+      setMessages([]);
+      setUiError("🚫 Tu cuenta está BLOQUEADA. No puedes usar chats por el momento.");
+      return;
+    }
+
     try {
       setLoading(true);
 
       let row = await findChatRow({ articuloId, buyerId: lookupBuyerId });
 
-      if (!row?.id && lookupBuyerId && userId) {
+      // ✅ si no existe, lo creamos con buyer/seller reales
+      if (!row?.id && lookupBuyerId && sellerIdFromArticle) {
         const createRes = await safeCreateChatRow({
           articuloId,
           buyerId: lookupBuyerId,
-          meId: userId,
+          sellerId: sellerIdFromArticle,
         });
 
         row = await findChatRow({ articuloId, buyerId: lookupBuyerId });
 
         if (!row?.id && createRes?.error) {
           console.log("Warn creando chat:", createRes.error);
+
+          // si fue RLS, mostramos mensaje claro
+          const msg = String(createRes?.error?.message || "");
+          if (/row level security/i.test(msg) || /permission/i.test(msg) || /RLS/i.test(msg)) {
+            setUiError("No tienes permiso para abrir este chat (RLS).");
+          }
         }
       }
 
@@ -492,7 +549,8 @@ export default function ChatMessenger({
           );
         }
       } else {
-        setUiError("");
+        // si ya hay chat, limpiamos errores (si no estás bloqueado)
+        if (!blocked) setUiError("");
       }
     } catch (e) {
       console.log("No se pudo asegurar chatRow:", e?.message || e);
@@ -503,7 +561,7 @@ export default function ChatMessenger({
     } finally {
       setLoading(false);
     }
-  }, [isOpen, articuloId, lookupBuyerId, userId, uiError]);
+  }, [isOpen, articuloId, lookupBuyerId, userId, sellerIdFromArticle, uiError]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -526,27 +584,36 @@ export default function ChatMessenger({
       return;
     }
 
+    // ✅ si está bloqueado, no leemos
+    if (meBlocked) {
+      setMessages([]);
+      return;
+    }
+
     let alive = true;
 
     (async () => {
       setLoading(true);
 
+      // ✅ OPT: solo columnas necesarias para renderizar mensajes
       const { data, error } = await supabase
         .from("chat_messages")
-        .select("id, chat_id, sender_id, body, message, content, text, mensaje, created_at")
+        .select("id,chat_id,sender_id,body,message,content,text,mensaje,created_at")
         .eq("chat_id", chatId)
-        .order("created_at", { ascending: false })
-        .limit(MAX_CHAT_MESSAGES);
+        .order("created_at", { ascending: true });
 
       if (!alive) return;
 
       if (!error && Array.isArray(data)) {
-        setMessages([...data].reverse());
+        setMessages(data);
         setTimeout(() => scrollToBottom(false), 0);
-
-        // ✅ al cargar: marcar visto
         markSeenUpToLatest(data);
       } else {
+        // si es RLS, muestra mensaje
+        const msg = String(error?.message || "");
+        if (/row level security/i.test(msg) || /permission/i.test(msg)) {
+          setUiError("No tienes permiso para ver este chat (RLS).");
+        }
         setMessages([]);
       }
 
@@ -556,13 +623,14 @@ export default function ChatMessenger({
     return () => {
       alive = false;
     };
-  }, [isOpen, chatRow?.id, scrollToBottom, markSeenUpToLatest]);
+  }, [isOpen, chatRow?.id, scrollToBottom, markSeenUpToLatest, meBlocked]);
 
   // ✅ realtime: INSERT mensajes
   useEffect(() => {
     if (!isOpen) return;
     const chatId = chatRow?.id;
     if (!chatId) return;
+    if (meBlocked) return;
 
     const channel = supabase
       .channel(`chat_messages_${chatId}`)
@@ -574,15 +642,13 @@ export default function ChatMessenger({
           if (!row) return;
 
           setMessages((prev) => {
-            const exists = prev.some((m) => String(m.id) === String(row.id));
-            if (exists) return prev;
-
-            const next = [...prev, row];
-
-            // ✅ si estoy en el chat: marcar visto inmediatamente
-            // (aunque sea del otro usuario)
+            if (prev.some((m) => !m._optimistic && String(m.id) === String(row.id))) return prev;
+            // Reemplazar optimista del mismo sender sin parpadeo
+            const hasOptimistic = prev.some((m) => m._optimistic && String(m.sender_id) === String(row.sender_id));
+            const next = hasOptimistic
+              ? prev.map((m) => (m._optimistic && String(m.sender_id) === String(row.sender_id)) ? row : m)
+              : [...prev, row];
             markSeenUpToLatest(next);
-
             return next;
           });
 
@@ -594,7 +660,35 @@ export default function ChatMessenger({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isOpen, chatRow?.id, scrollToBottom, markSeenUpToLatest]);
+  }, [isOpen, chatRow?.id, scrollToBottom, markSeenUpToLatest, meBlocked]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const chatId = chatRow?.id;
+    if (!chatId) return;
+
+    const channel = supabase
+      .channel(`chat_deleted_${chatId}`)
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "chats", filter: `id=eq.${chatId}` },
+        () => {
+          setMessages([]);
+          setChatRow(null);
+          setUiError("Este chat fue eliminado.");
+          try {
+            onClose?.();
+          } catch {
+            // ignore
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isOpen, chatRow?.id, onClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -607,6 +701,14 @@ export default function ChatMessenger({
   const sendMessage = async () => {
     if (readOnly) return;
 
+    // ✅ check bloqueo justo antes de enviar
+    const blocked = await isBlockedUser(userId);
+    setMeBlocked(blocked);
+    if (blocked) {
+      setUiError("🚫 Tu cuenta está BLOQUEADA. No puedes enviar mensajes.");
+      return;
+    }
+
     const chatId = chatRow?.id;
     if (!chatId) return alert("No se encontró chat_id para enviar mensajes.");
     if (!userId) return alert("No se encontró userId para enviar mensajes.");
@@ -614,8 +716,38 @@ export default function ChatMessenger({
     const bodyText = String(text || "").trim();
     if (!bodyText) return;
 
+    // ✅ SOLO filtro de insultos/ofensivo (SE PERMITEN teléfonos/WhatsApp/correos/links)
+    const v = detectarContenidoNoPermitido(bodyText);
+
+    // intentamos detectar “ofensivo” de forma robusta (por si cambian nombres de flags)
+    const hasOffensive =
+      !!(v?.hasBadWords ?? v?.hasOffensive ?? v?.hasInsult ?? v?.hasProfanity) ||
+      (!!v?.hasViolation && !v?.hasContact); // fallback: si la violación NO es contacto, asumimos ofensivo
+
+    if (hasOffensive) {
+      try {
+        setText(enmascararContenido(bodyText));
+      } catch {}
+      alert("🚫 Tu mensaje contiene lenguaje ofensivo. Por favor ajústalo para poder enviarlo.");
+      return;
+    }
+
     try {
       setSending(true);
+
+      // Optimista: aparece inmediatamente
+      const optimisticId = `optimistic-${Date.now()}`;
+      const optimisticMsg = {
+        id: optimisticId,
+        chat_id: chatId,
+        sender_id: userId,
+        body: bodyText, message: bodyText, content: bodyText, text: bodyText, mensaje: bodyText,
+        created_at: new Date().toISOString(),
+        _optimistic: true,
+      };
+      setMessages((prev) => [...prev, optimisticMsg]);
+      setText("");
+      setTimeout(() => scrollToBottom(true), 0);
 
       const { error } = await safeInsertChatMessage({
         chat_id: chatId,
@@ -624,15 +756,19 @@ export default function ChatMessenger({
       });
 
       if (error) {
+        // Revertir si falló
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setText(bodyText);
         console.log("Error insert chat_messages:", error);
-        alert("No se pudo enviar. Revisa la consola.");
+        const msg = String(error?.message || "");
+        if (/row level security/i.test(msg) || /permission/i.test(msg)) {
+          alert("🚫 No tienes permiso para enviar mensajes (RLS).");
+        } else {
+          alert("No se pudo enviar. Revisa la consola.");
+        }
         return;
       }
-
-      await supabase.from("chats").update({ last_message_at: new Date().toISOString() }).eq("id", chatId);
-
-      setText("");
-      setTimeout(() => scrollToBottom(true), 0);
+      // El realtime reemplazará el optimista directamente (sin parpadeo)
     } catch (e) {
       console.log(e);
       alert("No se pudo enviar el mensaje.");
@@ -645,6 +781,58 @@ export default function ChatMessenger({
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       if (!sending) sendMessage();
+    }
+  };
+
+  const sendChatReport = async () => {
+    try {
+      if (!userId || !otherUserId) {
+        alert("No se pudo identificar al usuario.");
+        return;
+      }
+      const details = String(reportDetails || "").trim();
+      if (details.length < 5) {
+        alert("Escribe un poco más de detalle (mínimo 5 caracteres).");
+        return;
+      }
+      setSendingReport(true);
+
+      const context = (Array.isArray(messages) ? messages : [])
+        .slice(-20)
+        .map((m) => ({
+          id: m?.id,
+          created_at: m?.created_at,
+          sender_id: m?.sender_id,
+          body: m?.bodyText ?? m?.message ?? m?.content ?? m?.text ?? m?.mensaje ?? "",
+        }));
+
+      const payload = {
+        reporter_id: userId,
+        reported_user_id: otherUserId,
+        chat_id: chat?.id || null,
+        articulo_id: article?.id || null,
+        reason: reportReason,
+        details,
+        context,
+      };
+
+      const { error } = await supabase.from("chat_reports").insert(payload);
+
+      if (error) {
+        console.log("sendChatReport error:", error);
+        alert("No se pudo enviar la denuncia. Revisa consola.");
+        return;
+      }
+
+      alert("Denuncia enviada. Gracias por reportar.");
+      setShowReport(false);
+      setReportDetails("");
+      setReportReason("acoso");
+    } catch (e) {
+      console.log(e);
+      alert("No se pudo enviar la denuncia.");
+    } finally {
+      setSendingReport(false);
     }
   };
 
@@ -689,7 +877,7 @@ export default function ChatMessenger({
 
           {readOnly ? (
             <span className="text-[10px] font-black uppercase px-3 py-2 rounded-2xl bg-gray-100 text-gray-600">
-              Solo lectura
+              {meBlocked ? "Bloqueado" : "Solo lectura"}
             </span>
           ) : null}
         </div>
@@ -721,7 +909,7 @@ export default function ChatMessenger({
         {String(uiError || "").trim() ? (
           <div className="px-4 pt-4">
             <div className="rounded-3xl border border-yellow-200 bg-yellow-50 p-4">
-              <p className="text-xs font-black uppercase text-yellow-800">No se pudo abrir el chat</p>
+              <p className="text-xs font-black uppercase text-yellow-800">Aviso</p>
               <p className="text-sm text-yellow-900 mt-1 font-bold leading-snug">{uiError}</p>
 
               <div className="mt-3 flex gap-2">
@@ -729,6 +917,8 @@ export default function ChatMessenger({
                   type="button"
                   onClick={ensureChatRow}
                   className="px-4 py-2 rounded-2xl bg-gray-900 text-white text-[10px] font-black uppercase"
+                  disabled={meBlocked}
+                  title={meBlocked ? "Cuenta bloqueada" : "Reintentar"}
                 >
                   Reintentar abrir chat
                 </button>
@@ -748,6 +938,12 @@ export default function ChatMessenger({
         <div ref={listRef} className="flex-1 overflow-auto px-4 py-4 bg-gray-50">
           {loading ? (
             <div className="py-10 text-center text-gray-500 font-bold">Cargando chat...</div>
+          ) : meBlocked ? (
+            <div className="py-10 text-center text-gray-500 font-bold">
+              🚫 Tu cuenta está bloqueada.
+              <br />
+              <span className="text-xs font-bold text-gray-400">No puedes usar chats por el momento.</span>
+            </div>
           ) : !chatRow?.id ? (
             <div className="py-10 text-center text-gray-500 font-bold">
               Este chat ya no existe o no tienes permiso.
@@ -845,7 +1041,9 @@ export default function ChatMessenger({
         <div className="sticky bottom-0 border-t border-gray-100 bg-white px-4 py-3">
           {readOnly ? (
             <div className="text-center text-xs font-bold text-gray-500">
-              Este chat está en solo lectura. No se pueden enviar más mensajes.
+              {meBlocked
+                ? "Tu cuenta está bloqueada. No puedes enviar mensajes."
+                : "Este chat está en solo lectura. No se pueden enviar más mensajes."}
             </div>
           ) : (
             <div className="flex items-end gap-2">
@@ -869,6 +1067,74 @@ export default function ChatMessenger({
           )}
         </div>
       </div>
+
+      {/* MODAL DENUNCIA CHAT */}
+      {showReport && (
+        <div className="fixed inset-0 z-[500] bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between">
+              <div>
+                <div className="text-xs font-black uppercase text-gray-500">Denunciar usuario</div>
+                <div className="font-black text-gray-900 text-sm mt-1">¿Qué pasó en el chat?</div>
+              </div>
+              <button
+                type="button"
+                className="p-2 rounded-xl hover:bg-gray-100"
+                onClick={() => setShowReport(false)}
+                title="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="text-[11px] font-black uppercase text-gray-500">Motivo</label>
+                <select
+                  className="mt-1 w-full border border-gray-200 rounded-2xl px-3 py-2 text-sm"
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                >
+                  <option value="acoso">Acoso</option>
+                  <option value="estafa">Estafa</option>
+                  <option value="ofensivo">Lenguaje ofensivo</option>
+                  <option value="spam">Spam</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-black uppercase text-gray-500">Descripción</label>
+                <textarea
+                  className="mt-1 w-full border border-gray-200 rounded-2xl px-3 py-2 text-sm min-h-[90px]"
+                  value={reportDetails}
+                  onChange={(e) => setReportDetails(e.target.value)}
+                  placeholder="Cuéntanos qué pasó (se adjuntan los últimos 20 mensajes automáticamente)."
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  className="flex-1 py-2 rounded-2xl border border-gray-200 font-black text-sm hover:bg-gray-50"
+                  onClick={() => setShowReport(false)}
+                  disabled={sendingReport}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 py-2 rounded-2xl bg-red-600 text-white font-black text-sm hover:opacity-90 disabled:opacity-50"
+                  onClick={sendChatReport}
+                  disabled={sendingReport}
+                >
+                  {sendingReport ? "Enviando..." : "Enviar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

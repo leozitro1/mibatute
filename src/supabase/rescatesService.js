@@ -6,16 +6,15 @@ export async function obtenerMisRescates(userId) {
     if (!userId) return { data: [], error: null };
 
     // 1️⃣ Regalos / Donaciones (postulaciones)
+    // ✅ OPT: columnas mínimas para el render de rescates (sin select *)
     const { data: postulaciones, error: errPost } = await supabase
       .from("postulaciones")
       .select(
-        `
-        id,
-        articulo_id,
-        created_at,
-        justificacion,
-        articulo:articulos (*)
-      `
+        `id,articulo_id,created_at,justificacion,
+         articulo:articulos(id,titulo,title,modo,mode,tipo,estado,status,
+           ciudad,city,localidad_es,locality,precio,price,
+           usuario_id,owner_id,buyer_id,ganador_id,winner_id,recipient_id,
+           image_url,imagen_url_principal,imagenes,updated_at,created_at)`
       )
       .eq("usuario_id", userId);
 
@@ -29,30 +28,30 @@ export async function obtenerMisRescates(userId) {
     const tryChats = async (mode) => {
       // modo principal
       if (mode === "buyer_id") {
-        return await supabase
+        // ✅ OPT: columnas mínimas
+      return await supabase
           .from("chats")
           .select(
-            `
-            id,
-            articulo_id,
-            created_at,
-            articulo:articulos (*)
-          `
+            `id,articulo_id,created_at,
+             articulo:articulos(id,titulo,title,modo,mode,tipo,estado,status,
+               ciudad,city,localidad_es,locality,precio,price,
+               usuario_id,owner_id,buyer_id,ganador_id,winner_id,recipient_id,
+               image_url,imagen_url_principal,imagenes,updated_at,created_at)`
           )
           .eq("buyer_id", userId);
       }
 
       // fallback: algunos esquemas usan usuario_id para el comprador
       if (mode === "usuario_id") {
-        return await supabase
+        // ✅ OPT: columnas mínimas (fallback usuario_id)
+      return await supabase
           .from("chats")
           .select(
-            `
-            id,
-            articulo_id,
-            created_at,
-            articulo:articulos (*)
-          `
+            `id,articulo_id,created_at,
+             articulo:articulos(id,titulo,title,modo,mode,tipo,estado,status,
+               ciudad,city,localidad_es,locality,precio,price,
+               usuario_id,owner_id,buyer_id,ganador_id,winner_id,recipient_id,
+               image_url,imagen_url_principal,imagenes,updated_at,created_at)`
           )
           .eq("usuario_id", userId);
       }

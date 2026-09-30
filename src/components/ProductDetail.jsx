@@ -1,7 +1,9 @@
 // src/components/ProductDetail.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, MapPin, ShieldCheck, Lock } from "lucide-react";
+import { X, MapPin, ShieldCheck, Lock, Flag } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
+
+import { detectarContenidoNoPermitido, buildViolationMessage } from "../utils/contentFilter";
 
 const FALLBACK_IMAGE =
   "data:image/svg+xml;utf8," +
@@ -13,6 +15,16 @@ const FALLBACK_IMAGE =
     </text>
   </svg>
 `);
+
+// ✅ NUEVO: Formatear nombre público (Primer nombre + inicial del apellido)
+function formatPublicName(fullName) {
+  if (!fullName) return "Usuario";
+  const parts = String(fullName).trim().split(/\s+/);
+  const firstName = parts[0] || "Usuario";
+  if (parts.length === 1) return firstName;
+  const lastInitial = (parts[1] || "").slice(0, 1).toUpperCase();
+  return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+}
 
 function buildImages(item) {
   const out = [];
@@ -29,9 +41,7 @@ function buildImages(item) {
   }
 
   if (Array.isArray(item?.articulo_imagenes)) {
-    const sorted = [...item.articulo_imagenes].sort(
-      (a, b) => (a?.position ?? 0) - (b?.position ?? 0)
-    );
+    const sorted = [...item.articulo_imagenes].sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0));
     for (const it of sorted) {
       const u = it?.url;
       if (typeof u === "string" && u.trim()) out.push(u.trim());
@@ -46,7 +56,6 @@ function getArticuloId(item) {
   return item?.id || item?.articulo_id || item?.uuid || item?.product_id || null;
 }
 
-// ✅ detecta si es URL completa
 function isHttpUrl(v) {
   const s = String(v || "").trim();
   return s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:");
@@ -55,40 +64,125 @@ function isHttpUrl(v) {
 async function resolvePhotoUrlMaybe(storageValue) {
   const raw = String(storageValue || "").trim();
   if (!raw) return "";
-  return isHttpUrl(raw) ? raw : "";
+
+  if (isHttpUrl(raw)) return raw;
+  return "";
 }
 
-// ✅ UNIFICACIÓN: regalo -> donacion
 function normalizeTipo(v) {
   const s = String(v || "").toLowerCase().trim();
   if (!s) return "donacion";
   if (s.includes("venta")) return "venta";
   if (s.includes("don")) return "donacion";
-  if (s.includes("regal")) return "donacion"; // ✅ antes "regalo"
+  if (s.includes("regal")) return "donacion";
   return s;
 }
 
-// ✅ Normaliza estado EN/ES
 function normalizeEstado(v) {
   const s = String(v || "").toLowerCase().trim();
+
   if (s === "available") return "disponible";
   if (s === "reserved") return "reservado";
   if (s === "delivered") return "entregado";
+
+  // ✅ NUEVO: estados de moderación
+  if (s === "reviewing" || s === "en_revision" || s === "en revisión") return "en_revision";
+
+  // normal
   return s || "disponible";
 }
 
-export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user }) {
+function getCategory(item) {
+  return String(item?.category ?? item?.categoria ?? "").trim();
+}
+function getSubcategory(item) {
+  return String(item?.subcategory ?? item?.subcategoria ?? "").trim();
+}
+function formatCOP(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "";
+  try {
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      maximumFractionDigits: 0,
+    }).format(n);
+  } catch {
+    return `$ ${Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+  }
+}
+
+function clampInt(v, min, max) {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return null;
+  return Math.min(max, Math.max(min, n));
+}
+
+function getConditionScore(item) {
+  const raw =
+    item?.estado_producto ??
+    item?.estadoProducto ??
+    item?.conditionScore ??
+    item?.condition_score ??
+    item?.estado_condicion ??
+    item?.estado;
+  const n = clampInt(raw, 1, 10);
+  return n;
+}
+
+function conditionMeta(score) {
+  const s = clampInt(score, 1, 10);
+  if (!s) return null;
+
+  if (s <= 3)
+    return { label: "Muy deteriorado", cls: "bg-red-100 text-red-800 border-red-200" };
+  if (s <= 6)
+    return { label: "Uso medio", cls: "bg-yellow-100 text-yellow-900 border-yellow-200" };
+  if (s <= 8)
+    return { label: "Buen estado", cls: "bg-emerald-100 text-emerald-900 border-emerald-200" };
+  return { label: "Casi nuevo", cls: "bg-green-100 text-green-900 border-green-200" };
+}
+
+export default function ProductDetail({
+  item,
+  isOpen,
+  onClose,
+  onSolicitar,
+  user,
+  onCategoryClick,
+  onSubcategoryClick,
+}) {
+  const publicName = formatPublicName(item?.owner_name || item?.owner?.name || item?.anunciante || item?.usuario_nombre);
+
   const [message, setMessage] = useState("");
+  const [msgContactError, setMsgContactError] = useState(null); // ✅ validación contacto en vivo
+  const [reserveConfirmOpen, setReserveConfirmOpen] = useState(false); // ✅ modal confirmación reserva
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
 
-  // ✅ estado para bloquear si ya aplicó (sin parpadeo)
   const [checkingApplied, setCheckingApplied] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  const [hasBeenRejected, setHasBeenRejected] = useState(false);
+  const [rateLimitInfo, setRateLimitInfo] = useState(null); // { h, m, msg }
+  const [creditosSaldo, setCreditosSaldo] = useState(null);
+  const [usandoCreditoExtra, setUsandoCreditoExtra] = useState(false);
 
-  // ✅ resolver vendedor aunque item no traiga foto/nombre
   const [ownerNameResolved, setOwnerNameResolved] = useState("");
   const [ownerPhotoResolved, setOwnerPhotoResolved] = useState("");
+  const [ownerReputacion, setOwnerReputacion] = useState(null); // { promedio, total }
+  const [calificarModal, setCalificarModal] = useState(null);
+  const [calificarEstrellas, setCalificarEstrellas] = useState(0);
+  const [calificarHover, setCalificarHover] = useState(0);
+  const [calificarLoading, setCalificarLoading] = useState(false);
+  const [yaCalifiqueItem, setYaCalifiqueItem] = useState(false);
+
+  const [stableOwnerPhoto, setStableOwnerPhoto] = useState("");
+
+  // Report modal
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("Contenido prohibido");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reportSending, setReportSending] = useState(false);
 
   const submitLock = useRef(false);
 
@@ -104,23 +198,28 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
     item?.usuarios?.nombre ||
     "";
 
-  const ownerPhotoRaw =
-    item?.owner_photo ||
-    item?.vendedor?.foto_url ||
-    item?.usuarios?.foto_url ||
-    "";
+  const ownerPhotoRaw = item?.owner_photo || item?.vendedor?.foto_url || item?.usuarios?.foto_url || "";
 
   const tipoNorm = normalizeTipo(item?.tipo ?? item?.mode ?? "donacion");
   const estadoNorm = normalizeEstado(item?.estado ?? item?.status ?? "disponible");
+  const isReviewing = estadoNorm === "en_revision";
+
+  const priceRaw = item?.price ?? item?.precio ?? item?.valor ?? 0;
+  const priceCOP = formatCOP(priceRaw);
+  const showPrice = tipoNorm === "venta" && Number(priceRaw) > 0;
+
+  const isUnderReview = estadoNorm === "en_revision";
 
   const ciudad = item?.ciudad ?? item?.city ?? "";
   const localidad = item?.localidad_es ?? item?.locality ?? "";
   const locationText =
-    item?.location ||
-    (localidad && ciudad ? `${localidad}, ${ciudad}` : localidad || ciudad || "Ubicación");
+    item?.location || (localidad && ciudad ? `${localidad}, ${ciudad}` : localidad || ciudad || "Ubicación");
 
   const isAvailable = estadoNorm === "disponible";
-  const isGift = tipoNorm !== "venta"; // ✅ donación (unificado)
+  const isPausado = !!(item?.pausado);
+  const isGift = tipoNorm !== "venta";
+
+  const articuloId = getArticuloId(item);
 
   const isOwner = useMemo(() => {
     if (!user?.id || !ownerId) return false;
@@ -133,30 +232,32 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
   const isWinner = !!user?.id && !!winnerId && user.id === winnerId;
   const isBuyer = !!user?.id && !!buyerId && user.id === buyerId;
 
-  // ✅ chat visible para involucrados cuando: reservado o entregado
   const canSeeChat =
-    (estadoNorm === "reservado" || estadoNorm === "entregado") &&
-    (isOwner || (isGift ? isWinner : isBuyer));
+    (estadoNorm === "reservado" || estadoNorm === "entregado") && (isOwner || (isGift ? isWinner : isBuyer));
 
   const images = useMemo(() => buildImages(item), [item]);
   const mainImage = images[activeImg] || images[0] || FALLBACK_IMAGE;
 
-  // ✅ reset al abrir / cambiar item
   useEffect(() => {
     setMessage("");
     setIsSubmitting(false);
     setActiveImg(0);
     submitLock.current = false;
 
-    // ✅ evita parpadeo: arrancamos "verificando"
     setHasApplied(false);
     setCheckingApplied(true);
 
     setOwnerNameResolved("");
+
     setOwnerPhotoResolved("");
+    setStableOwnerPhoto("");
+
+    setReportOpen(false);
+    setReportReason("Contenido prohibido");
+    setReportDetails("");
+    setReportSending(false);
   }, [isOpen, item?.id]);
 
-  // ✅ resolver vendedor (nombre + foto)
   useEffect(() => {
     if (!isOpen) return;
     if (!item) return;
@@ -168,12 +269,12 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
       const photoFromItem = String(ownerPhotoRaw || "").trim();
 
       const photoResolvedFromItem = await resolvePhotoUrlMaybe(photoFromItem);
-
       if (!alive) return;
 
       if (nameFromItem || photoResolvedFromItem) {
         setOwnerNameResolved(nameFromItem);
         setOwnerPhotoResolved(photoResolvedFromItem);
+        if (photoResolvedFromItem) setStableOwnerPhoto(photoResolvedFromItem);
       }
 
       if (!ownerId) return;
@@ -181,17 +282,13 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
 
       try {
         const { data, error } = await supabase
-          .from("usuarios") // ✅ ajusta si tu tabla se llama diferente
+          .from("usuarios")
           .select("id, nombre, foto_url")
           .eq("id", ownerId)
           .maybeSingle();
 
         if (!alive) return;
-
-        if (error) {
-          console.log("Error cargando perfil vendedor:", error);
-          return;
-        }
+        if (error) return;
 
         const nombreDb = String(data?.nombre || "").trim();
         const fotoDb = String(data?.foto_url || "").trim();
@@ -201,9 +298,8 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
 
         setOwnerNameResolved((prev) => prev || nombreDb);
         setOwnerPhotoResolved((prev) => prev || fotoDbResolved);
-      } catch (e) {
-        console.log("Error inesperado cargando vendedor:", e);
-      }
+        if (fotoDbResolved) setStableOwnerPhoto(fotoDbResolved);
+      } catch {}
     })();
 
     return () => {
@@ -211,26 +307,52 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
     };
   }, [isOpen, item, ownerId, ownerNameRaw, ownerPhotoRaw]);
 
-  // ✅ verificar si ya existe postulación del usuario para este artículo (sin flicker)
   useEffect(() => {
     if (!isOpen) return;
     if (!item) return;
 
-    const articuloId = getArticuloId(item);
+    if (isUnderReview) {
+      setCheckingApplied(false);
+      setHasApplied(false);
+      setHasBeenRejected(false);
+      return;
+    }
 
-    // si no aplica, dejamos checkingApplied en false
     if (!articuloId || !isGift || !isAvailable || !user?.id || user.id === ownerId) {
       setCheckingApplied(false);
       setHasApplied(false);
+      setHasBeenRejected(false);
       return;
     }
+
+    // Cargar saldo de créditos
+    supabase.from("cupos").select("saldo").eq("usuario_id", user.id).maybeSingle()
+      .then(({ data }) => setCreditosSaldo(data?.saldo ?? 0));
 
     let alive = true;
 
     (async () => {
       try {
         setCheckingApplied(true);
+        setRateLimitInfo(null);
 
+        // Verificar si fue rechazado
+        const { data: rechData } = await supabase
+          .from("postulaciones_rechazadas")
+          .select("id")
+          .eq("articulo_id", articuloId)
+          .eq("usuario_id", user.id)
+          .limit(1);
+
+        if (!alive) return;
+
+        if (Array.isArray(rechData) && rechData.length > 0) {
+          setHasBeenRejected(true);
+          setHasApplied(false);
+          return;
+        }
+
+        // Verificar si ya se postuló
         const { data, error } = await supabase
           .from("postulaciones")
           .select("id")
@@ -241,15 +363,15 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
         if (!alive) return;
 
         if (error) {
-          console.log("Error verificando postulación existente:", error);
           setHasApplied(false);
+          setHasBeenRejected(false);
           return;
         }
 
+        setHasBeenRejected(false);
         setHasApplied(Array.isArray(data) && data.length > 0);
-      } catch (e) {
+      } catch {
         if (!alive) return;
-        console.log("Error inesperado verificando postulación:", e);
         setHasApplied(false);
       } finally {
         if (!alive) return;
@@ -260,12 +382,85 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
     return () => {
       alive = false;
     };
-  }, [isOpen, item?.id, user?.id, ownerId, isGift, isAvailable]);
+  }, [isOpen, item?.id, user?.id, ownerId, isGift, isAvailable, articuloId, isUnderReview]);
+
+  // Cargar reputación del vendedor
+  useEffect(() => {
+    if (!isOpen || !ownerId) { setOwnerReputacion(null); return; }
+    supabase.from("reputacion").select("estrellas").eq("reviewed_id", ownerId)
+      .then(({ data }) => {
+        if (!data) { setOwnerReputacion({ promedio: 0, total: 0 }); return; }
+        const total = data.length;
+        const promedio = total > 0 ? data.reduce((s, r) => s + r.estrellas, 0) / total : 0;
+        setOwnerReputacion({ promedio: Math.round(promedio * 10) / 10, total });
+      });
+    // ¿Ya calificó este item?
+    if (user?.id && articuloId) {
+      supabase.from("reputacion").select("id").eq("reviewer_id", user.id).eq("articulo_id", articuloId).limit(1)
+        .then(({ data }) => setYaCalifiqueItem(!!(data && data.length > 0)));
+    }
+  }, [isOpen, ownerId]);
+
+  const enviarCalificacionPD = async () => {
+    if (!calificarModal || calificarEstrellas < 1 || !user?.id) return;
+    setCalificarLoading(true);
+    try {
+      await supabase.from("reputacion").insert({
+        reviewer_id: user.id,
+        reviewed_id: calificarModal.reviewedId,
+        articulo_id: calificarModal.articuloId,
+        estrellas: calificarEstrellas,
+      });
+      setYaCalifiqueItem(true);
+      setCalificarModal(null);
+      setCalificarEstrellas(0);
+      // Refrescar reputación del owner
+      if (ownerId) {
+        supabase.from("reputacion").select("estrellas").eq("reviewed_id", ownerId)
+          .then(({ data }) => {
+            if (!data) return;
+            const total = data.length;
+            const promedio = total > 0 ? data.reduce((s, r) => s + r.estrellas, 0) / total : 0;
+            setOwnerReputacion({ promedio: Math.round(promedio * 10) / 10, total });
+          });
+      }
+    } catch (e) { alert("No se pudo enviar la calificación."); }
+    finally { setCalificarLoading(false); }
+  };
+
+  const usarCreditoYPostular = async () => {
+    if (!user?.id || (creditosSaldo ?? 0) < 1) return;
+    setUsandoCreditoExtra(true);
+    try {
+      // Descontar crédito
+      await supabase.from("cupos").update({ saldo: (creditosSaldo - 1), updated_at: new Date().toISOString() }).eq("usuario_id", user.id);
+      await supabase.from("cupos_historial").insert({ usuario_id: user.id, cantidad: -1, concepto: "cupo_donacion" });
+      await supabase.from("cupos_extra_donacion").insert({ usuario_id: user.id });
+      setCreditosSaldo(s => Math.max(0, (s ?? 1) - 1));
+      setRateLimitInfo(null);
+      // Reenviar la postulación
+      const text = message.trim();
+      setIsSubmitting(true);
+      const res = await onSolicitar?.(item, text);
+      if (res && res.success === false) {
+        throw new Error(res.error || "No se pudo enviar.");
+      }
+      setHasApplied(true);
+      setMessage("");
+      safeClose();
+    } catch (e) {
+      alert("No se pudo procesar. Intenta de nuevo.");
+    } finally {
+      setUsandoCreditoExtra(false);
+      setIsSubmitting(false);
+      submitLock.current = false;
+    }
+  };
 
   if (!isOpen || !item) return null;
 
   const safeClose = () => {
-    if (isSubmitting) return;
+    if (isSubmitting || reportSending) return;
     onClose?.();
   };
 
@@ -281,8 +476,23 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
       return;
     }
 
+    if (!user?.email_confirmed_at) {
+      alert("Debes verificar tu correo electrónico antes de postularte.\n\nRevisa tu bandeja de entrada y haz clic en el enlace de confirmación.");
+      submitLock.current = false;
+      return;
+    }
+
     if (isOwner) {
       alert("Esta es tu publicación. No puedes postularte a tu propio artículo.");
+      submitLock.current = false;
+      return;
+    }
+
+    if (isUnderReview) {
+      alert("Este artículo está EN REVISIÓN por moderación. Por ahora no se puede solicitar.");
+    }
+    if (isPausado) {
+      alert("Esta publicación está pausada. El dueño no acepta solicitudes por ahora.");
       submitLock.current = false;
       return;
     }
@@ -299,6 +509,13 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
       return;
     }
 
+    const v = detectarContenidoNoPermitido(text);
+    if (v?.hasViolation) {
+      alert(buildViolationMessage(v) || "Contenido no permitido.");
+      submitLock.current = false;
+      return;
+    }
+
     if (text.length < 10) {
       submitLock.current = false;
       return;
@@ -306,11 +523,18 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
 
     try {
       setIsSubmitting(true);
-      await onSolicitar?.(item, text);
+      const res = await onSolicitar?.(item, text);
+      if (res && res.success === false) {
+        if (res.code === "RATE_LIMIT_REACHED" && res.meta) {
+          setRateLimitInfo({ h: res.meta.h, m: res.meta.m, msg: res.error });
+          setIsSubmitting(false);
+          submitLock.current = false;
+          return;
+        }
+        throw new Error(res.error || "No se pudo enviar tu solicitud.");
+      }
 
-      // ✅ marca inmediatamente como aplicado (evita que vuelva a aparecer el form)
       setHasApplied(true);
-
       setMessage("");
       safeClose();
     } catch (error) {
@@ -338,6 +562,12 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
       return;
     }
 
+    if (isUnderReview) {
+      alert("Este artículo está EN REVISIÓN por moderación. Por ahora no se puede reservar.");
+      submitLock.current = false;
+      return;
+    }
+
     if (!isAvailable) {
       submitLock.current = false;
       return;
@@ -355,18 +585,78 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
     }
   };
 
+  const handleSubmitReport = async () => {
+    if (reportSending) return;
+
+    if (!user?.id) {
+      alert("Debes iniciar sesión para reportar.");
+      return;
+    }
+    if (!articuloId) {
+      alert("No se pudo identificar el artículo para reportar.");
+      return;
+    }
+    if (isOwner) {
+      alert("No puedes reportar tu propia publicación.");
+      return;
+    }
+
+    const reason = String(reportReason || "").trim();
+    if (!reason) {
+      alert("Selecciona un motivo.");
+      return;
+    }
+
+    try {
+      setReportSending(true);
+
+      const { error: ensureErr } = await supabase.rpc("ensure_usuario_row", { p_uid: user.id });
+      if (ensureErr) {
+        console.error("ensure_usuario_row error:", ensureErr);
+        alert("No se pudo preparar tu usuario para reportar. Intenta de nuevo.");
+        return;
+      }
+
+      const payload = {
+        reporter_user_id: user.id,
+        target_type: "articulo",
+        target_id: articuloId,
+        reason,
+        details: String(reportDetails || "").trim() || null,
+      };
+
+      const { error } = await supabase.from("reports").insert([payload]);
+      if (error) throw error;
+
+      alert("✅ Gracias. Recibimos tu reporte y lo revisaremos.");
+      setReportOpen(false);
+      setReportDetails("");
+      setReportReason("Contenido prohibido");
+    } catch (e) {
+      console.error("Error creando reporte:", e);
+      alert(e?.message || "No se pudo enviar el reporte. Intenta de nuevo.");
+    } finally {
+      setReportSending(false);
+    }
+  };
+
   const titulo = item?.titulo ?? item?.title ?? "Sin título";
   const descripcion = item?.descripcion ?? item?.description ?? "";
 
-  const ownerName = ownerNameResolved || "Vendedor";
-  const ownerPhoto = ownerPhotoResolved || "";
+  const conditionScore = getConditionScore(item);
+  const condition = conditionMeta(conditionScore);
 
-  const tipoBadgeStyles =
-    tipoNorm === "donacion"
-      ? "bg-blue-100 text-blue-700"
-      : "bg-gray-800 text-white";
+  const ownerName = ownerNameResolved ? formatPublicName(ownerNameResolved) : "Vendedor";
+  const ownerPhoto = stableOwnerPhoto || ownerPhotoResolved || "";
+
+  const tipoBadgeStyles = tipoNorm === "donacion" ? "bg-blue-100 text-blue-700" : "bg-gray-800 text-white";
+
+  const cat = getCategory(item);
+  const sub = getSubcategory(item);
+  const hasCatTrail = !!(cat || sub);
 
   return (
+    <>
     <div
       className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[120] flex items-center justify-center p-4"
       onClick={safeClose}
@@ -378,16 +668,44 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
         {/* IZQUIERDA */}
         <div className="md:w-1/2 bg-gray-100 relative flex flex-col">
           <div className="relative flex-1 min-h-[260px]">
-            <img
-              src={mainImage}
-              alt={titulo}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                if (e.currentTarget.dataset.fallbackApplied) return;
-                e.currentTarget.dataset.fallbackApplied = "1";
-                e.currentTarget.src = FALLBACK_IMAGE;
-              }}
-            />
+            <>
+              {/* ✅ SIN BLUR: fondo gris suave limpio */}
+              <div className="absolute inset-0 bg-gray-100" aria-hidden="true" />
+
+              {isReviewing && (
+  <div className="absolute inset-0 flex items-center justify-center z-20">
+    <div className="flex items-center gap-3 px-6 py-4 rounded-2xl border border-white/30 bg-black/50 backdrop-blur-sm shadow-2xl">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 3L22 21H2L12 3Z" stroke="#FACC15" strokeWidth="1.5" strokeLinejoin="round"/>
+        <line x1="12" y1="10" x2="12" y2="15" stroke="#FACC15" strokeWidth="1.5" strokeLinecap="round"/>
+        <circle cx="12" cy="18" r="1" fill="#FACC15"/>
+      </svg>
+      <span style={{letterSpacing: "0.18em", fontWeight: 400}} className="text-white text-xl uppercase">
+        En revisión
+      </span>
+    </div>
+  </div>
+)}
+
+              {/* (opcional) sombra suave para separar la imagen del fondo */}
+              <div className="absolute inset-0 bg-black/10 z-10" />
+
+              {/* Imagen principal (cuadrada) */}
+              <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
+                <div className="w-full max-w-[560px] aspect-square rounded-3xl overflow-hidden bg-gray-200 shadow-xl relative">
+                  <img
+                    src={mainImage}
+                    alt={titulo}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      if (e.currentTarget.dataset.fallbackApplied) return;
+                      e.currentTarget.dataset.fallbackApplied = "1";
+                      e.currentTarget.src = FALLBACK_IMAGE;
+                    }}
+                  />
+                </div>
+              </div>
+            </>
 
             <button
               onClick={safeClose}
@@ -397,12 +715,29 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
               <X size={20} />
             </button>
 
-            {!isAvailable && (
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                <div className="bg-white/90 rounded-2xl px-4 py-3 flex items-center gap-2 font-black text-gray-800">
-                  <Lock size={18} className="text-forest-green" />
-                  Este artículo está {estadoNorm}
-                </div>
+            {/* overlay si no disponible o si en revisión */}
+            {(!isAvailable || isUnderReview) && (
+              <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4">
+                {isUnderReview ? (
+                  <div className="flex flex-col items-center gap-3 select-none">
+                    <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M26 6L48 44H4L26 6Z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
+                      <line x1="26" y1="22" x2="26" y2="33" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                      <circle cx="26" cy="38.5" r="1.8" fill="white"/>
+                    </svg>
+                    <div className="text-center">
+                      <p style={{letterSpacing:"0.22em", fontWeight:300}} className="text-white/70 text-[10px] uppercase">artículo</p>
+                      <p style={{letterSpacing:"0.28em", fontWeight:300}} className="text-white text-[15px] uppercase mt-1">en revisión</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 bg-white/15 border border-white/30 rounded-2xl px-4 py-2 backdrop-blur-sm">
+                    <Lock size={14} className="text-white/80" />
+                    <span style={{letterSpacing:"0.2em", fontWeight:300}} className="text-white text-xs uppercase">
+                      {String(estadoNorm).replace("_"," ")}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -439,32 +774,94 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
         {/* DERECHA */}
         <div className="md:w-1/2 p-8 flex flex-col overflow-y-auto">
           <div className="flex justify-between items-start mb-4">
-            <span
-              className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${tipoBadgeStyles}`}
-            >
+            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${tipoBadgeStyles}`}>
               {tipoNorm === "donacion" ? "donacion" : "venta"}
             </span>
 
-            <button
-              onClick={safeClose}
-              className="hidden md:block p-1 hover:bg-gray-100 rounded-full"
-              type="button"
-            >
+            <button onClick={safeClose} className="hidden md:block p-1 hover:bg-gray-100 rounded-full" type="button">
               <X size={24} className="text-gray-400" />
             </button>
           </div>
 
+          {/* ✅ AVISO EN REVISION */}
+          {isUnderReview && (
+            <div className="mb-4 bg-yellow-50 border border-yellow-100 rounded-2xl p-4">
+              <p className="text-sm font-black text-yellow-900">🚧 Publicación en revisión</p>
+              <p className="text-xs text-yellow-900/80 font-bold mt-1">
+                Moderación está revisando este anuncio. Por ahora no se puede solicitar ni reservar.
+              </p>
+              <button onClick={safeClose} className="mt-3 w-full bg-gray-900 text-white py-3 rounded-2xl font-black" type="button">
+                CERRAR
+              </button>
+            </div>
+          )}
+
+          {/* CATEGORÍA / SUBCATEGORÍA CLICKEABLE */}
+          {hasCatTrail && (
+            <div className="mb-2">
+              <div className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-gray-50 border border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!cat) return;
+                    onCategoryClick?.(cat);
+                  }}
+                  className={`text-[10px] font-black uppercase tracking-widest ${cat ? "text-forest-green hover:underline" : "text-gray-500"}`}
+                  title={cat ? `Ver ${cat}` : "Sin categoría"}
+                >
+                  {cat || "Sin categoría"}
+                </button>
+
+                {sub ? (
+                  <>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">›</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSubcategoryClick?.(cat || "", sub);
+                      }}
+                      className="text-[10px] font-black uppercase tracking-widest text-forest-green hover:underline"
+                      title={`Ver ${cat ? `${cat} / ` : ""}${sub}`}
+                    >
+                      {sub}
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          )}
+
           <h1 className="text-2xl font-black text-gray-800 mb-2 leading-tight">{titulo}</h1>
+
+          {condition ? (
+            <div className="mb-3">
+              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${condition.cls}`}>
+                <span className="text-xs font-black">⭐</span>
+                <span className="text-xs font-black">{conditionScore}/10</span>
+                <span className="text-[10px] font-black uppercase tracking-widest">{condition.label}</span>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex items-center gap-2 text-gray-500 text-sm mb-6">
             <MapPin size={16} className="text-forest-green" />
             <span className="font-bold">{locationText}</span>
           </div>
 
+          {showPrice && (
+            <div className="mb-6">
+              <div className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-forest-green/10 border border-forest-green/20">
+                <span className="text-[10px] font-black uppercase tracking-widest text-forest-green">Precio</span>
+                <span className="text-lg font-black text-gray-900">{priceCOP}</span>
+              </div>
+              <p className="mt-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                Pago se coordina con el vendedor
+              </p>
+            </div>
+          )}
+
           <div className="bg-smoke-white p-4 rounded-2xl mb-6">
-            <h3 className="text-xs font-black text-gray-400 uppercase mb-2">
-              Descripción del tesoro
-            </h3>
+            <h3 className="text-xs font-black text-gray-400 uppercase mb-2">Descripción del tesoro</h3>
             <p className="text-gray-600 text-sm leading-relaxed italic">
               {String(descripcion || "").trim()
                 ? `"${String(descripcion).trim()}"`
@@ -489,13 +886,39 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
               )}
             </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-black text-gray-800 truncate">{ownerName}</p>
               <div className="flex items-center gap-1 text-[10px] text-gray-500 font-bold uppercase">
                 <ShieldCheck size={12} className="text-forest-green" />
                 Vendedor verificado
               </div>
+              {ownerReputacion !== null && (
+                <div className="flex items-center gap-0.5 mt-1">
+                  {[1,2,3,4,5].map(s => (
+                    <svg key={s} width="12" height="12" viewBox="0 0 24 24" fill={ownerReputacion.total > 0 && s <= Math.round(ownerReputacion.promedio) ? "#FBBF24" : "#E5E7EB"} xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                  ))}
+                  {ownerReputacion.total > 0 && (
+                    <span className="text-[10px] text-gray-500 ml-1">
+                      {ownerReputacion.promedio.toFixed(1)} <span className="text-gray-400">({ownerReputacion.total})</span>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
+
+            {!isOwner && (
+              <button
+                type="button"
+                onClick={() => setReportOpen(true)}
+                className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-2xl border border-gray-200 text-gray-700 font-black text-[10px] uppercase tracking-widest hover:bg-gray-50"
+                title="Reportar publicación"
+              >
+                <Flag size={14} />
+                Reportar
+              </button>
+            )}
           </div>
 
           {isOwner && (
@@ -506,33 +929,44 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
             </div>
           )}
 
-          {!isAvailable && (
+          {!isAvailable && !isUnderReview && (
             <div className="mt-4 bg-gray-50 border border-gray-100 rounded-2xl p-4">
               <p className="text-sm text-gray-600 font-bold">
                 Este artículo está <span className="uppercase">{estadoNorm}</span>.
               </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Ya no se aceptan nuevas solicitudes / reservas por ahora.
-              </p>
+              <p className="text-xs text-gray-500 mt-1">Ya no se aceptan nuevas solicitudes / reservas por ahora.</p>
 
-              <button
-                onClick={safeClose}
-                className="mt-3 w-full bg-gray-900 text-white py-3 rounded-2xl font-black"
-                type="button"
-              >
+              <button onClick={safeClose} className="mt-3 w-full bg-gray-900 text-white py-3 rounded-2xl font-black" type="button">
                 CERRAR
               </button>
             </div>
           )}
 
-          {/* ✅ DONACIÓN / SOLICITUD (sin parpadeo) */}
-          {isGift && isAvailable && !isOwner && (
+          {isPausado && !isOwner && (
+            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-2xl p-4 flex items-start gap-3">
+              <span className="text-yellow-500 text-lg mt-0.5">⏸</span>
+              <div>
+                <p className="text-sm font-black text-yellow-900">Publicación pausada</p>
+                <p className="text-xs text-yellow-800 font-bold mt-0.5">El dueño no acepta ofertas ni solicitudes por ahora.</p>
+              </div>
+            </div>
+          )}
+
+          {isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
             <div className="mt-6 space-y-4 border-t pt-6">
               {checkingApplied ? (
                 <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
-                  <p className="text-xs font-black text-gray-600 uppercase">
-                    Verificando tu solicitud…
+                  <p className="text-xs font-black text-gray-600 uppercase">Verificando tu solicitud…</p>
+                </div>
+              ) : hasBeenRejected ? (
+                <div className="bg-red-50 border border-red-200 p-4 rounded-2xl">
+                  <p className="text-sm font-black text-red-700">🚫 Tu solicitud fue rechazada.</p>
+                  <p className="text-xs text-red-600 mt-1 font-medium leading-relaxed">
+                    El donante decidió no elegirte para este artículo. Puedes postularte a otras donaciones.
                   </p>
+                  <button onClick={safeClose} className="mt-3 w-full bg-red-600 text-white py-3 rounded-2xl font-black hover:bg-red-700 transition" type="button">
+                    Cerrar
+                  </button>
                 </div>
               ) : hasApplied ? (
                 <div className="bg-forest-green/10 border border-forest-green/20 p-4 rounded-2xl">
@@ -541,12 +975,52 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
                     Puedes ver el estado en <span className="uppercase">Mis Rescates</span>.
                   </p>
 
-                  <button
-                    onClick={safeClose}
-                    className="mt-3 w-full bg-gray-900 text-white py-3 rounded-2xl font-black"
-                    type="button"
-                  >
+                  <button onClick={safeClose} className="mt-3 w-full bg-gray-900 text-white py-3 rounded-2xl font-black" type="button">
                     CERRAR
+                  </button>
+                </div>
+              ) : rateLimitInfo ? (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl space-y-3">
+                  <p className="text-sm font-black text-amber-800">⏳ Límite de postulaciones alcanzado</p>
+                  <p className="text-xs text-amber-700 font-medium leading-relaxed">
+                    Solo puedes postularte a <strong>2 donaciones cada 6 horas</strong> para evitar acaparamiento.
+                  </p>
+
+                  {/* Opción esperar */}
+                  <div className="bg-white border border-amber-200 rounded-2xl px-4 py-3">
+                    <p className="text-xs font-black text-amber-800 uppercase tracking-wide mb-0.5">🕐 Esperar</p>
+                    <p className="text-xs text-amber-700 font-medium">
+                      Tu próximo cupo libera en{" "}
+                      <strong>{rateLimitInfo.h > 0 ? `${rateLimitInfo.h}h ${rateLimitInfo.m}m` : `${rateLimitInfo.m} min`}</strong>.
+                    </p>
+                  </div>
+
+                  {/* Opción usar crédito */}
+                  <div className="bg-white border border-amber-200 rounded-2xl px-4 py-3">
+                    <p className="text-xs font-black text-amber-800 uppercase tracking-wide mb-0.5">🪙 Usar 1 crédito</p>
+                    {(creditosSaldo ?? 0) > 0 ? (
+                      <>
+                        <p className="text-xs text-amber-700 font-medium mb-2">
+                          Tienes <strong>{creditosSaldo}</strong> crédito{creditosSaldo !== 1 ? "s" : ""}. Postulate ahora descontando 1.
+                        </p>
+                        <button
+                          type="button"
+                          disabled={usandoCreditoExtra}
+                          onClick={usarCreditoYPostular}
+                          className="w-full bg-amber-500 text-white py-2.5 rounded-2xl font-black text-sm hover:bg-amber-600 transition disabled:opacity-50"
+                        >
+                          {usandoCreditoExtra ? "Procesando..." : "🪙 Postularme con 1 crédito"}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-xs text-amber-700 font-medium">
+                        No tienes créditos. Recarga desde tu perfil.
+                      </p>
+                    )}
+                  </div>
+
+                  <button onClick={safeClose} className="w-full bg-gray-200 text-gray-700 py-2.5 rounded-2xl font-black text-sm hover:bg-gray-300 transition" type="button">
+                    Cancelar
                   </button>
                 </div>
               ) : (
@@ -558,11 +1032,29 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
                   <textarea
                     maxLength={140}
                     value={message}
-                    onChange={(e) => setMessage(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMessage(val);
+                      const v = detectarContenidoNoPermitido(val.trim());
+                      setMsgContactError(v?.hasViolation ? (buildViolationMessage(v) || "Contenido no permitido.") : null);
+                    }}
                     placeholder="Ej: Soy artesano y me sirve para una escultura..."
-                    className="w-full border-2 border-gray-100 rounded-2xl p-4 text-sm outline-none focus:border-forest-green h-24 resize-none"
+                    className={`w-full border-2 rounded-2xl p-4 text-sm outline-none h-24 resize-none ${
+                      msgContactError ? "border-red-400 focus:border-red-400" : "border-gray-100 focus:border-forest-green"
+                    }`}
                     disabled={isSubmitting}
                   />
+
+                  {msgContactError ? (
+                    <p className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                      <span>⛔</span>
+                      <span>{msgContactError}</span>
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-amber-700 font-medium">
+                      🔒 No incluyas datos de contacto
+                    </p>
+                  )}
 
                   <div className="flex justify-between items-center text-[10px] font-bold text-gray-400">
                     <span>Mínimo 10 caracteres</span>
@@ -570,7 +1062,7 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
                   </div>
 
                   <button
-                    disabled={isSubmitting || message.trim().length < 10}
+                    disabled={isSubmitting || message.trim().length < 10 || !!msgContactError}
                     onClick={handleSendRequest}
                     className="w-full bg-forest-green text-white py-4 rounded-2xl font-black disabled:opacity-50 disabled:cursor-not-allowed"
                     type="button"
@@ -586,11 +1078,10 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
             </div>
           )}
 
-          {/* ✅ VENTA / RESERVA */}
-          {!isGift && isAvailable && !isOwner && (
+          {!isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
             <div className="mt-auto space-y-3 pt-6 border-t">
               <button
-                onClick={handleReserve}
+                onClick={() => setReserveConfirmOpen(true)}
                 disabled={isSubmitting}
                 className="w-full bg-forest-green text-white py-4 rounded-2xl font-black text-lg hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-50"
                 type="button"
@@ -598,24 +1089,235 @@ export default function ProductDetail({ item, isOpen, onClose, onSolicitar, user
                 {isSubmitting ? "RESERVANDO..." : "RESERVAR"}
               </button>
 
-              <p className="text-[10px] text-center text-gray-400 font-bold uppercase tracking-tighter">
+              <p className="text-[10px] text-center text-gray-400 font-bold uppercase tracking-widest">
                 Reserva primero y coordina el pago con el vendedor.
               </p>
             </div>
           )}
 
           {canSeeChat && (
-            <div className="mt-8 animate-in slide-in-from-bottom-4">
+            <div className="mt-8 animate-in slide-in-from-bottom-4 space-y-3">
               <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
                 <p className="text-sm font-bold text-gray-700">Chat privado habilitado ✅</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Solo tú y la otra parte pueden ver este chat.
-                </p>
+                <p className="text-xs text-gray-500 mt-1">Solo tú y la otra parte pueden ver este chat.</p>
               </div>
+              {/* Calificar al vendedor cuando entregado (comprador o ganador) */}
+              {estadoNorm === "entregado" && !isOwner && !yaCalifiqueItem && ownerId && (
+                <button type="button"
+                  onClick={() => { setCalificarModal({ reviewedId: ownerId, articuloId, rol: "ganador" }); setCalificarEstrellas(0); }}
+                  className="w-full py-3 rounded-2xl bg-forest-green text-white font-black text-sm flex items-center justify-center gap-2 hover:brightness-110 transition">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                  Calificar al vendedor
+                </button>
+              )}
             </div>
           )}
         </div>
+
+        {/* MODAL CALIFICAR */}
+        {calificarModal && (
+          <div className="absolute inset-0 z-[150] flex items-center justify-center bg-black/50 px-4">
+            <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Reputación</p>
+              <h3 className="text-lg font-black text-gray-900 mb-1">Califica tu experiencia</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                {calificarModal.rol === "vendedor" ? "¿Cómo fue la experiencia con el comprador?" : "¿Cómo fue la experiencia con el vendedor/donante?"}
+              </p>
+              <div className="flex justify-center gap-2 mb-4">
+                {[1,2,3,4,5].map(s => {
+                  const activa = s <= (calificarHover || calificarEstrellas);
+                  return (
+                    <button key={s} type="button"
+                      onMouseEnter={() => setCalificarHover(s)}
+                      onMouseLeave={() => setCalificarHover(0)}
+                      onClick={() => setCalificarEstrellas(s)}
+                      className="p-1 transition-transform hover:scale-110 focus:outline-none">
+                      <svg width="36" height="36" viewBox="0 0 24 24"
+                        fill={activa ? "#1a7a4a" : "none"}
+                        stroke={activa ? "#1a7a4a" : "#D1D5DB"}
+                        strokeWidth="1.5"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinejoin="round" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-center text-xs font-black text-gray-400 uppercase tracking-wide mb-5">
+                {calificarEstrellas === 0 && "Selecciona una calificación"}
+                {calificarEstrellas === 1 && "😕 Mala experiencia"}
+                {calificarEstrellas === 2 && "😐 Regular"}
+                {calificarEstrellas === 3 && "🙂 Buena"}
+                {calificarEstrellas === 4 && "😊 Muy buena"}
+                {calificarEstrellas === 5 && "🤩 Excelente"}
+              </p>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => { setCalificarModal(null); setCalificarEstrellas(0); }}
+                  className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm hover:bg-gray-200 transition">
+                  Ahora no
+                </button>
+                <button type="button" disabled={calificarEstrellas < 1 || calificarLoading} onClick={enviarCalificacionPD}
+                  className="flex-1 py-3 rounded-2xl bg-forest-green text-white font-black text-sm hover:brightness-110 transition disabled:opacity-30">
+                  {calificarLoading ? "Enviando..." : "Enviar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL REPORTAR */}
+        {reportOpen && (
+          <div
+            className="absolute inset-0 z-[130] bg-black/60 flex items-center justify-center p-4"
+            onClick={() => {
+              if (reportSending) return;
+              setReportOpen(false);
+            }}
+          >
+            <div
+              className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 animate-in zoom-in duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Reportar publicación</p>
+                  <h3 className="text-lg font-black text-gray-900 mt-1 leading-tight">¿Qué problema encontraste?</h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (reportSending) return;
+                    setReportOpen(false);
+                  }}
+                  className="p-2 rounded-full hover:bg-gray-100"
+                  title="Cerrar"
+                >
+                  <X size={18} className="text-gray-500" />
+                </button>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
+                    Motivo
+                  </label>
+                  <select
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-forest-green bg-white"
+                    disabled={reportSending}
+                  >
+                    <option>Contenido prohibido</option>
+                    <option>Fraude / estafa</option>
+                    <option>Venta de producto ilegal</option>
+                    <option>Lenguaje ofensivo</option>
+                    <option>Spam</option>
+                    <option>Otro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
+                    Detalle (opcional)
+                  </label>
+                  <textarea
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    className="w-full border-2 border-gray-100 rounded-2xl p-4 text-sm outline-none focus:border-forest-green h-28 resize-none"
+                    placeholder="Cuéntanos brevemente qué viste para que moderación lo revise más rápido."
+                    disabled={reportSending}
+                    maxLength={400}
+                  />
+                  <div className="mt-1 text-[10px] text-gray-400 font-bold text-right">
+                    {reportDetails.length}/400
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (reportSending) return;
+                      setReportOpen(false);
+                    }}
+                    className="flex-1 border border-gray-200 rounded-2xl py-3 font-black text-sm text-gray-700 hover:bg-gray-50"
+                    disabled={reportSending}
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSubmitReport}
+                    className="flex-1 bg-gray-900 text-white rounded-2xl py-3 font-black text-sm hover:opacity-95 disabled:opacity-50"
+                    disabled={reportSending}
+                  >
+                    {reportSending ? "ENVIANDO..." : "ENVIAR REPORTE"}
+                  </button>
+                </div>
+
+                <p className="text-[10px] text-gray-400 font-bold text-center uppercase tracking-widest">
+                  Gracias por ayudar a mantener Mi Batute seguro.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
+
+    {/* ✅ Modal confirmación de reserva */}
+    {reserveConfirmOpen && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        <div
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={() => { if (!isSubmitting) setReserveConfirmOpen(false); }}
+        />
+        <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden">
+
+          <div className="bg-forest-green px-6 pt-6 pb-5 text-white">
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-75">Confirmación</p>
+            <h3 className="text-lg font-black mt-1 leading-snug">¿Confirmas la reserva?</h3>
+          </div>
+
+          <div className="px-6 py-5 space-y-3">
+            <p className="text-sm text-gray-700 font-medium leading-relaxed">
+              Al reservar este producto te comprometes a seguir la negociación cumpliendo con los términos de mibatute.com.
+            </p>
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+              <span className="text-base mt-0.5">⚠️</span>
+              <p className="text-xs text-amber-800 font-bold leading-snug">
+                El artículo ya no se mostrará en la página una vez reservado para la compra.
+              </p>
+            </div>
+          </div>
+
+          <div className="px-6 pb-6 flex gap-3">
+            <button
+              type="button"
+              onClick={() => setReserveConfirmOpen(false)}
+              disabled={isSubmitting}
+              className="flex-1 py-3 rounded-2xl border-2 border-gray-200 text-gray-700 text-sm font-black uppercase tracking-wide hover:bg-gray-50 transition disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => {
+                setReserveConfirmOpen(false);
+                handleReserve();
+              }}
+              className="flex-1 py-3 rounded-2xl bg-forest-green text-white text-sm font-black uppercase tracking-wide hover:opacity-90 transition disabled:opacity-50"
+            >
+              {isSubmitting ? "Reservando..." : "Sí, comprar"}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    )}
+    </>
   );
 }

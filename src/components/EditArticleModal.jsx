@@ -134,6 +134,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
       locality: formData.localidad_es || "",
       category: formData.categoria || "",
       image_url: formData.imagen_url_principal || "",
+
     };
 
     const result = await updateArticle(article.id, payload, null);

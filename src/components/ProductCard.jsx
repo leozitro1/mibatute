@@ -34,6 +34,29 @@ function normStatus(status) {
   return s || "disponible";
 }
 
+
+// ===================== Estado del producto (1–10) =====================
+function clampInt(n, min, max) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return null;
+  const v = Math.round(x);
+  if (v < min) return min;
+  if (v > max) return max;
+  return v;
+}
+
+function conditionMeta(score10) {
+  const s = clampInt(score10, 1, 10);
+  if (s === null) return null;
+
+  // Rangos: 1–3 rojo, 4–6 amarillo, 7–8 verde, 9–10 verde fuerte
+  if (s <= 3) return { score: s, label: "Muy deteriorado", cls: "bg-red-100 text-red-800 border border-red-200" };
+  if (s <= 6) return { score: s, label: "Uso medio", cls: "bg-yellow-100 text-yellow-900 border border-yellow-200" };
+  if (s <= 8) return { score: s, label: "Buen estado", cls: "bg-green-100 text-green-800 border border-green-200" };
+  return { score: s, label: "Casi nuevo", cls: "bg-emerald-100 text-emerald-800 border border-emerald-200" };
+}
+
+
 function pickImageSrc(image) {
   if (typeof image === "string" && image.trim() !== "") return image.trim();
 
@@ -98,6 +121,11 @@ export default function ProductCard({
   location,
   mode,
   price,
+  // ✅ NUEVO: estado del producto (1–10)
+  conditionScore,
+  condition,
+  estadoProducto,
+
   image, // string | string[] | [{url}]
   isFeatured,
   status = "disponible",
@@ -106,6 +134,11 @@ export default function ProductCard({
   interestedCount = 0,
   interestedMax = 10,
   interestedRemaining,
+
+  // ✅ NUEVO: interacción (lista abre detalle/chat)
+  onClick, // function
+  isUserBlocked = false, // si true: no deja abrir ni detalle/chat
+  onBlockedClick, // opcional: callback para mostrar toast/modal
 }) {
   const modeNorm = normMode(mode);
 
@@ -120,7 +153,17 @@ export default function ProductCard({
   const isDelivered = statusNorm === "entregado";
   const isLocked = isReserved || isDelivered;
 
+  // ✅ bloqueo total del card (por sanción “bloqueado”)
+  const isDisabled = isLocked || !!isUserBlocked;
+
   const imageSrc = pickImageSrc(image);
+
+  // ✅ estado del producto (1–10) para badge en card
+  const conditionInfo = conditionMeta(
+    conditionScore ?? condition ?? estadoProducto
+  );
+  const showCondition = !!conditionInfo;
+
   const formattedPrice = formatPrice(modeNorm, price);
 
   const lockLabel = isDelivered ? "Entregado" : isReserved ? "Reservado" : "";
@@ -144,18 +187,62 @@ export default function ProductCard({
   // ✅ etiqueta compacta para el badge (clara)
   const badgeText = isFull ? "Cupo lleno" : `${count}/${max}`;
 
+  const blockedMsg =
+    "🚫 Tu cuenta está BLOQUEADA. No puedes abrir artículos ni acceder a chats por el momento.";
+
+  const handleBlocked = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (typeof onBlockedClick === "function") return onBlockedClick();
+    alert(blockedMsg);
+  };
+
+  const handleCardClick = (e) => {
+    if (!onClick) return;
+    if (isUserBlocked) return handleBlocked(e);
+    if (isLocked) return; // reservado/entregado: no abre
+    onClick();
+  };
+
+  const handleWantClick = (e) => {
+    // el botón también abre (si lo usas así)
+    if (isUserBlocked) return handleBlocked(e);
+    if (isLocked) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // ✅ si el card tiene onClick, reutilizamos
+    if (onClick) {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick();
+    }
+  };
+
   return (
     <div
+      onClick={handleCardClick}
       className={`relative bg-white rounded-xl overflow-hidden border ${
         isFeatured ? "border-treasure-gold border-2 shadow-md" : "border-gray-200 shadow-sm"
-      } hover:shadow-lg transition ${isLocked ? "cursor-default" : "cursor-pointer"}`}
-      aria-disabled={isLocked}
+      } hover:shadow-lg transition ${isDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+      aria-disabled={isDisabled}
+      title={isUserBlocked ? "Cuenta bloqueada" : isLocked ? "No disponible" : ""}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (!onClick) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleCardClick(e);
+        }
+      }}
     >
       <div className="relative h-48">
         <img
           src={imageSrc}
           alt={title || "Artículo"}
-          className={`w-full h-full object-cover ${isLocked ? "opacity-90" : ""}`}
+          className={`w-full h-full object-cover ${isDisabled ? "opacity-90" : ""}`}
           loading="lazy"
           onError={(e) => {
             if (e.currentTarget.dataset.fallbackApplied) return;
@@ -178,7 +265,22 @@ export default function ProductCard({
           </span>
         )}
 
-        {/* ✅ Badge “interesados” (solo donación/regalo) */}
+
+        {/* ✅ Estado del producto (1–10) */}
+        {showCondition && (
+          <div
+            className={`absolute ${isFeatured ? "top-10" : "top-2"} right-2 z-20`}
+            title={`Estado ${conditionInfo.score}/10 · ${conditionInfo.label}`}
+            aria-label={`Estado ${conditionInfo.score} de 10, ${conditionInfo.label}`}
+          >
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow ${conditionInfo.cls}`}>
+              <span aria-hidden>★</span>
+              {conditionInfo.score}/10
+            </span>
+          </div>
+        )}
+
+{/* ✅ Badge “interesados” (solo donación/regalo) */}
         {showInterested && (
           <div className="absolute bottom-2 right-2 z-20" title={interestedTooltip} aria-label={interestedTooltip}>
             <span
@@ -192,11 +294,22 @@ export default function ProductCard({
           </div>
         )}
 
+        {/* ✅ overlay por reservado/entregado */}
         {isLocked && (
           <div className="absolute inset-0 bg-white/65 backdrop-blur-[2px] flex items-center justify-center z-10">
             <span className="bg-gray-900 text-white px-4 py-2 rounded-full font-black text-xs uppercase shadow-lg flex items-center gap-2">
               <Lock size={14} />
               {lockLabel}
+            </span>
+          </div>
+        )}
+
+        {/* ✅ overlay por bloqueado */}
+        {isUserBlocked && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] flex items-center justify-center z-10">
+            <span className="bg-red-600 text-white px-4 py-2 rounded-full font-black text-xs uppercase shadow-lg flex items-center gap-2">
+              <Lock size={14} />
+              Bloqueado
             </span>
           </div>
         )}
@@ -221,15 +334,24 @@ export default function ProductCard({
 
           <button
             type="button"
-            disabled={isLocked}
+            disabled={isDisabled}
+            onClick={handleWantClick}
             className={`px-3 py-1 rounded-md text-xs font-bold transition ${
-              isLocked
+              isDisabled
                 ? "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
                 : "text-forest-green border border-forest-green hover:bg-forest-green hover:text-white"
             }`}
-            title={isDelivered ? "Este artículo ya fue entregado" : isReserved ? "Este artículo está reservado" : "Lo quiero"}
+            title={
+              isUserBlocked
+                ? "Cuenta bloqueada"
+                : isDelivered
+                ? "Este artículo ya fue entregado"
+                : isReserved
+                ? "Este artículo está reservado"
+                : "Lo quiero"
+            }
           >
-            {isDelivered ? "Finalizado" : isReserved ? "En proceso" : "Lo quiero"}
+            {isUserBlocked ? "Bloqueado" : isDelivered ? "Finalizado" : isReserved ? "En proceso" : "Lo quiero"}
           </button>
         </div>
 
