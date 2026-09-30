@@ -22,7 +22,7 @@ const FALLBACK_IMG =
   </svg>
 `);
 
-export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuccess }) {
+export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuccess, categories = [] }) {
   const [loading, setLoading] = useState(false);
 
   // ✅ Form (alineado a migración ES)
@@ -32,6 +32,10 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
     ciudad: "",
     localidad_es: "", // ✅ antes estaba "localidad" (esa columna NO existe)
     categoria: "",
+    subcategoria: "",
+    tipo: "donacion",
+    price: "",
+    is_featured: false,
     imagen_url_principal: "",
   });
 
@@ -99,6 +103,10 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
       ciudad,
       localidad_es,
       categoria,
+      subcategoria: article.subcategory || article.subcategoria || "",
+      tipo: article.mode || article.tipo || "donacion",
+      price: article.price ?? "",
+      is_featured: !!article.is_featured,
       imagen_url_principal: imagenUrl,
     });
 
@@ -119,13 +127,13 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
 
     // ✅ Payload “doble” (ES + EN) para migración segura
     const payload = {
+      ...formData,
       // Español (nuevo)
       titulo: formData.titulo?.trim() || "",
       descripcion: formData.descripcion?.trim() || "",
       ciudad: formData.ciudad || "",
       localidad_es: formData.localidad_es || "",
       categoria: formData.categoria || "",
-      imagen_url_principal: formData.imagen_url_principal || "",
 
       // Inglés (legacy / compat)
       title: formData.titulo?.trim() || "",
@@ -133,7 +141,6 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
       city: formData.ciudad || "",
       locality: formData.localidad_es || "",
       category: formData.categoria || "",
-      image_url: formData.imagen_url_principal || "",
 
     };
 
@@ -141,8 +148,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
 
     if (result?.success) {
       alert("¡Cambios guardados!");
-      onUpdateSuccess?.();
-      await refreshArticle(article.id);
+      await onUpdateSuccess?.(result.data);
       onClose?.();
     } else {
       alert("Error al actualizar: " + (result?.error || "Error"));
@@ -362,8 +368,40 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
             />
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="text-xs font-bold text-gray-600">Categoría
+              <select required value={formData.categoria} className="w-full p-3 rounded-lg bg-gray-50"
+                onChange={e => setFormData(p => ({ ...p, categoria: e.target.value, subcategoria: "" }))}>
+                <option value="">Selecciona...</option>
+                {categories.map(c => <option key={c.key} value={c.key}>{c.key}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-bold text-gray-600">Subcategoría
+              <select required value={formData.subcategoria} className="w-full p-3 rounded-lg bg-gray-50"
+                onChange={e => setFormData(p => ({ ...p, subcategoria: e.target.value }))}>
+                <option value="">Selecciona...</option>
+                {(categories.find(c => c.key === formData.categoria)?.subs || []).map(s => <option key={s}>{s}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-bold text-gray-600">Modalidad
+              <select value={formData.tipo} className="w-full p-3 rounded-lg bg-gray-50"
+                onChange={e => setFormData(p => ({ ...p, tipo: e.target.value }))}>
+                <option value="donacion">Donación</option><option value="venta">Venta</option>
+              </select>
+            </label>
+            {formData.tipo === "venta" && <label className="text-xs font-bold text-gray-600">Precio (COP)
+              <input required type="number" min="1" max="500000" step="1" value={formData.price}
+                className="w-full p-3 rounded-lg bg-gray-50"
+                onChange={e => setFormData(p => ({ ...p, price: e.target.value }))} />
+            </label>}
+          </div>
+          <label className="flex items-center gap-2 text-sm font-bold text-gray-600">
+            <input type="checkbox" checked={formData.is_featured}
+              onChange={e => setFormData(p => ({ ...p, is_featured: e.target.checked }))} /> Destacado
+          </label>
+
           {/* Ciudad / Localidad */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Ciudad</label>
               <select
@@ -407,7 +445,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
           {/* Guardar */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || addingBusy || !!imgBusyId || refreshBusy}
             className="w-full bg-forest-green text-white p-4 rounded-2xl font-black uppercase tracking-widest hover:brightness-110 transition disabled:opacity-50 flex justify-center items-center gap-2"
           >
             {loading ? <Loader2 className="animate-spin" /> : "Guardar Cambios"}

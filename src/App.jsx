@@ -18,6 +18,7 @@ import FeaturedTicker from "./components/FeaturedTicker";
 import HowItWorks from "./components/HowItWorks";
 import ManageArticleModal from "./components/ManageArticleModal";
 import EditArticleModal from "./components/EditArticleModal";
+import { deleteArticleImages } from "./supabase/articleService";
 import ChatMessenger from "./components/ChatMessenger";
 
 import { COLOMBIA_DATA } from "./data/locations";
@@ -1408,6 +1409,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     if (!ok) return;
 
     try {
+      const cleanup = await deleteArticleImages(articleId);
+      if (!cleanup.success) throw new Error(cleanup.error);
       try {
         const { data: chats, error: chErr } = await supabase.from("chats").select("id").eq("articulo_id", articleId);
         if (!chErr && Array.isArray(chats) && chats.length) {
@@ -1448,7 +1451,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       // ✅ setProducts ya filtra el artículo localmente — sin full reload
     } catch (e) {
       console.error("DELETE ERROR:", e);
-      alert("No se pudo eliminar. (Revisa RLS/policies en Supabase).");
+      alert("No se pudo eliminar: " + (e?.message || "Error inesperado"));
       throw e;
     }
   };
@@ -1468,6 +1471,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       const isOwner = uid && ownerId && String(uid) === String(ownerId);
       const isWinner = uid && ganadorId && String(uid) === String(ganadorId);
       const isBuyer = uid && buyerId && String(uid) === String(buyerId);
+
+      if (estadoActual === "pausado") return false;
 
       if (estadoActual === "entregado") return !!(isOwner || isWinner || isBuyer);
       if (estadoActual === "reservado" && tipo === "venta") return !!(isOwner || isBuyer);
@@ -2094,6 +2099,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
             />
 
             <EditArticleModal
+              categories={CATEGORY_TREE}
               isOpen={isEditOpen}
               article={editArticle}
               onClose={() => {

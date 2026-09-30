@@ -508,7 +508,7 @@ export default function AdminPage() {
       const { data, error } = await supabase
         .from("articulos")
         .select(
-          "id, titulo, title, descripcion, description, estado, status, city, ciudad, locality, localidad_es, imagen_url_principal, image_url, imagenes"
+          "id, titulo, title, description, estado, status, city, locality, imagen_url_principal, image_url, imagenes"
         )
         .eq("id", articleId)
         .maybeSingle();

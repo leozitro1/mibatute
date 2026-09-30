@@ -1793,7 +1793,7 @@ export default function UserProfile({
           .from("articulos")
           .select(
             `id, titulo, title, mode, tipo, estado, status,
-             city, locality,
+             city, locality, description,
              price, usuario_id, owner_id, buyer_id,
              ganador_id, winner_id, recipient_id,
              reserved_at, updated_at, created_at,
@@ -2502,19 +2502,26 @@ export default function UserProfile({
     const id = getArticuloId(art);
     if (!id) return;
     const current = articuloOverridesById.get(String(id)) || art;
-    const next = !current?.pausado;
+    const estado = String(current?.estado || current?.status || "disponible").toLowerCase();
+    if (!["disponible", "pausado"].includes(estado)) return;
+    const next = estado !== "pausado";
+    const nextEstado = next ? "pausado" : "disponible";
     try {
       const { error } = await supabase
         .from("articulos")
-        .update({ pausado: next })
-        .eq("id", id);
+        .update({ estado: nextEstado, status: nextEstado })
+        .eq("id", id)
+        .eq("owner_id", user.id)
+        .select("id")
+        .single();
       if (error) throw error;
       setArticuloOverridesById((prev) => {
         const m = new Map(prev);
         const base = m.get(String(id)) || art;
-        m.set(String(id), { ...base, pausado: next });
+        m.set(String(id), { ...base, estado: nextEstado, status: nextEstado, pausado: next });
         return m;
       });
+      onArticuloReservado?.({ ...art, estado: nextEstado, status: nextEstado, pausado: next });
     } catch (e) {
       console.error("togglePausado error:", e);
       alert("No se pudo " + (next ? "pausar" : "reactivar") + " la publicación.");
@@ -3189,7 +3196,7 @@ export default function UserProfile({
                         cargandoSolicitudes && selectedId && selectedId === currentId;
 
                       const isEntregado = estado === "entregado";
-      const isPausado = !!(getArtEffective(art0)?.pausado || articuloOverridesById.get(String(getArticuloId(getArtEffective(art0))))?.pausado);
+      const isPausado = String(art?.estado || art?.status || "").toLowerCase() === "pausado";
                       const isReservado = estado === "reservado";
                       const reservadoAt = art?.updated_at ? new Date(art.updated_at) : null;
                       const diasDesdeReserva = reservadoAt ? Math.floor((Date.now() - reservadoAt.getTime()) / 86400000) : 0;
@@ -3402,7 +3409,7 @@ export default function UserProfile({
                               </button>
                             ) : null}
 
-                            {!isReservado && (
+                            {!isReservado && !isEntregado && (
                             <button
                               type="button"
                               onPointerDown={(e) => e.stopPropagation()}

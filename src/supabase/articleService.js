@@ -179,12 +179,27 @@ async function rpcOwnerUpdateArticulo(articleId, updates = {}) {
 }
 
 async function removeStorageFiles(paths = []) {
-  const clean = Array.from(paths || []).filter(Boolean);
+  const clean = Array.from(paths || []).map(x => x?.file_id).filter(Boolean);
   if (!clean.length) return { success: true };
+  try {
+    const { data } = await supabase.auth.getSession();
+    const res = await fetch("/api/imagekit-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${data?.session?.access_token || ""}` },
+      body: JSON.stringify({ fileIds: clean }),
+    });
+    const body = await res.json();
+    return res.ok ? { success: true } : { success: false, error: body.error };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
 
-  // Las imágenes nuevas viven en ImageKit. Evitamos llamadas a Supabase Storage
-  // desde el cliente; la limpieza remota se puede hacer luego con endpoint admin.
-  return { success: true };
+export async function deleteArticleImages(articleId) {
+  const { data, error } = await supabase.from("articulo_imagenes")
+    .select("file_id").eq("articulo_id", articleId);
+  if (error) return { success: false, error: error.message };
+  return removeStorageFiles(data);
 }
 
 /**
@@ -256,13 +271,13 @@ export async function getArticleWithImages(articleId) {
   const { data, error } = await supabase
     .from("articulos")
     .select(
-      `id,titulo,title,modo,mode,tipo,estado,status,
-       ciudad,city,localidad_es,locality,categoria,category,subcategoria,subcategory,
-       descripcion,description,precio,price,
+      `id,titulo,title,mode,tipo,estado,status,
+       city,locality,categoria,category,subcategoria,subcategory,
+       description,price,
        owner_id,usuario_id,buyer_id,ganador_id,winner_id,recipient_id,
-       image_url,imagen_url_principal,imagenes,is_featured,destacado,isFeatured,
-       estado_producto,created_at,updated_at,delivered_at,
-       articulo_imagenes:articulo_imagenes(id,url,path,position,created_at)`
+       image_url,imagen_url_principal,imagenes,is_featured,
+       created_at,updated_at,delivered_at,
+       articulo_imagenes:articulo_imagenes(id,url,path,file_id,position,created_at)`
     )
     .eq("id", articleId)
     .order("position", { foreignTable: "articulo_imagenes", ascending: true })
@@ -292,10 +307,9 @@ async function syncArticleImagesArray(articleId) {
 
     // ✅ OPT: un solo UPDATE en vez de 3 separados
     const updatePayload = { imagenes: urls };
-    if (first) {
-      updatePayload.image_url = first;
-      updatePayload.imagen_url_principal = first;
-    }
+    updatePayload.image_url = first;
+    updatePayload.imagen_url = first;
+    updatePayload.imagen_url_principal = first;
     await supabase.from("articulos").update(updatePayload).eq("id", articleId);
 
     return { success: true, urls };
@@ -553,7 +567,7 @@ export async function addArticleImages(articleId, newFiles, ownerId = null) {
     const fail = results.find((r) => !r?.success);
 
     if (fail) {
-      await removeStorageFiles(ok.map((x) => x.path));
+      await removeStorageFiles(ok);
       return { success: false, error: fail.error || "Error subiendo una imagen" };
     }
 
@@ -561,7 +575,7 @@ export async function addArticleImages(articleId, newFiles, ownerId = null) {
 
     const ins = await insertArticleImages({ articuloId: articleId, ownerId, images: uploaded });
     if (!ins.success) {
-      await removeStorageFiles(uploaded.map((x) => x.path));
+      await removeStorageFiles(uploaded);
       return ins;
     }
 
@@ -583,7 +597,7 @@ export async function replaceArticleImage(imageId, newFile, ownerId) {
 
     const { data: oldImg, error: rErr } = await supabase
       .from("articulo_imagenes")
-      .select("id, articulo_id, path")
+      .select("id, articulo_id, url,path,file_id,position")
       .eq("id", imageId)
       .single();
 
@@ -601,11 +615,18 @@ export async function replaceArticleImage(imageId, newFile, ownerId) {
       .single();
 
     if (uErr) {
-      await removeStorageFiles([up.path]);
+      await removeStorageFiles([up]);
       return { success: false, error: uErr.message };
     }
 
-    if (oldImg?.path) await removeStorageFiles([oldImg.path]);
+    const cleanup = await removeStorageFiles([oldImg]);
+    if (!cleanup.success) {
+      const { error: rollbackError } = await supabase.from("articulo_imagenes")
+        .update({ url: oldImg.url, path: oldImg.path, file_id: oldImg.file_id }).eq("id", imageId);
+      if (!rollbackError) await removeStorageFiles([up]);
+      if (oldImg.articulo_id) await syncArticleImagesArray(oldImg.articulo_id);
+      return { success: false, error: cleanup.error };
+    }
     if (oldImg?.articulo_id) await syncArticleImagesArray(oldImg.articulo_id);
 
     return { success: true, data };
@@ -623,18 +644,17 @@ export async function deleteArticleImage(imageId) {
 
     const { data: img, error: rErr } = await supabase
       .from("articulo_imagenes")
-      .select("id,articulo_id,path,position")
+      .select("id,articulo_id,path,file_id,position")
       .eq("id", imageId)
       .single();
 
     if (rErr) return { success: false, error: rErr.message };
     if (!img?.path) return { success: false, error: "No se encontró path de la imagen" };
 
+    const del = await removeStorageFiles([img]);
+    if (!del.success) return del;
     const { error: dErr } = await supabase.from("articulo_imagenes").delete().eq("id", imageId);
     if (dErr) return { success: false, error: dErr.message };
-
-    const del = await removeStorageFiles([img.path]);
-    if (!del.success) return { success: true, warning: del.error };
 
     await normalizeImagePositions(img.articulo_id);
     await syncArticleImagesArray(img.articulo_id);
@@ -698,99 +718,35 @@ async function normalizeImagePositions(articleId) {
 export async function updateArticle(articleId, formData = {}, file = null) {
   try {
     if (!articleId) return { success: false, error: "articleId es requerido" };
-
-    const rawMode = formData?.tipo ?? formData?.mode;
-
-    const updates = {
-      title: formData?.titulo ?? formData?.title ?? null,
-      description: formData?.descripcion ?? formData?.description ?? null,
-      city: formData?.ciudad ?? formData?.city ?? null,
-      locality: formData?.localidad_es ?? formData?.localidad ?? formData?.locality ?? null,
-      category: formData?.categoria ?? formData?.category ?? null,
-      mode: rawMode !== undefined ? normalizeMode(rawMode) : null,
-      // price: si editas precio en tu modal, lo agregamos aquí
-      price: null,
-      // image_url: lo dejamos null; se setea con syncArticleImagesArray al final
-      image_url: null,
-      // ✅ Destacado (editar)
-      destacado: formData?.destacado ?? formData?.is_featured ?? formData?.isFeatured ?? formData?.featured ?? null,
-      is_featured: formData?.is_featured ?? formData?.destacado ?? formData?.isFeatured ?? formData?.featured ?? null,
-      isFeatured: formData?.isFeatured ?? formData?.is_featured ?? formData?.destacado ?? formData?.featured ?? null,
-      featured: formData?.featured ?? formData?.isFeatured ?? formData?.is_featured ?? formData?.destacado ?? null,
-
-    };
-
-
-
-    // ✅ helper: update directo tolerante a columnas faltantes (para destacado)
-    const safeDirectUpdate = async (patch) => {
-      let p = { ...(patch || {}) };
-      const run = async () => {
-        // ✅ OPT: select mínimo tras update de destacado
-        return await supabase.from("articulos").update(p).eq("id", articleId).select("id").maybeSingle();
-      };
-
-      let { data, error } = await run();
-
-      while (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
-        const mm = error.message.match(/Could not find the '(.+?)' column/i);
-        const missing = mm?.[1];
-        if (missing && Object.prototype.hasOwnProperty.call(p, missing)) {
-          delete p[missing];
-          ({ data, error } = await run());
-        } else {
-          break;
-        }
-      }
-
-      return { data, error };
-    };
-    // ✅ Actualización segura por RPC
-    const r = await rpcOwnerUpdateArticulo(articleId, updates);
-    if (!r.success) return { success: false, error: r.error };
-
-
-    // ✅ Si el caller envió destacado, actualízalo por update directo (RPC legacy no lo soporta)
-    const wantFeatured =
-      updates?.destacado !== null ||
-      updates?.is_featured !== null ||
-      updates?.isFeatured !== null ||
-      updates?.featured !== null;
-
-    if (wantFeatured) {
-      const featuredBool = !!(updates?.isFeatured ?? updates?.is_featured ?? updates?.destacado ?? updates?.featured);
-      const { error: featErr } = await safeDirectUpdate({
-        destacado: featuredBool,
-        is_featured: featuredBool,
-        isFeatured: featuredBool,
-        featured: featuredBool,
-      });
-      if (featErr) {
-        console.log("updateArticle: featured update warn:", featErr?.message || featErr);
-      }
+    const { data: auth } = await supabase.auth.getSession();
+    const uid = auth?.session?.user?.id;
+    if (!uid) return { success: false, error: "Debes iniciar sesion." };
+    const mode = normalizeMode(formData.tipo ?? formData.mode);
+    const price = mode === "venta" ? Number(formData.price) : null;
+    if (mode === "venta" && (!Number.isFinite(price) || price <= 0 || price > 500000)) {
+      return { success: false, error: "El precio debe estar entre 1 y 500.000 COP." };
     }
-
-    // ✅ Si viene nueva imagen, la agregamos (esto toca articulo_imagenes, no articulos)
+    const title = (formData.titulo ?? formData.title ?? "").trim();
+    const description = (formData.descripcion ?? formData.description ?? "").trim();
+    const category = formData.categoria ?? formData.category;
+    const subcategory = formData.subcategoria ?? formData.subcategory;
+    if (!title || !description || !category || !subcategory) {
+      return { success: false, error: "Completa titulo, descripcion, categoria y subcategoria." };
+    }
+    const { data, error } = await supabase.from("articulos").update({
+      title, titulo: title, description, category, categoria: category,
+      subcategory, subcategoria: subcategory, mode, tipo: mode, price,
+      city: formData.ciudad ?? formData.city,
+      locality: formData.localidad_es ?? formData.locality,
+      is_featured: !!formData.is_featured,
+    }).eq("id", articleId).eq("owner_id", uid)
+      .in("status", ["disponible", "pausado"]).select("id").single();
+    if (error || !data) return { success: false, error: error?.message || "No se pudo actualizar el articulo." };
     if (file) {
-      // obtenemos owner_id para subir al folder correcto
-      const { data: art, error: artErr } = await supabase
-        .from("articulos")
-        .select("owner_id")
-        .eq("id", articleId)
-        .single();
-      if (artErr) return { success: false, error: artErr.message };
-
-      const ownerId = art?.owner_id || null;
-      const add = await addArticleImages(articleId, [file], ownerId);
-      if (!add.success) return add;
+      const added = await addArticleImages(articleId, [file], uid);
+      if (!added.success) return added;
     }
-
-    await syncArticleImagesArray(articleId);
-
-    const fresh = await getArticleWithImages(articleId);
-    if (!fresh.success) return fresh;
-
-    return { success: true, data: fresh.data };
+    return getArticleWithImages(articleId);
   } catch (err) {
     return { success: false, error: err?.message || "Error inesperado" };
   }

@@ -216,7 +216,7 @@ export default function ProductDetail({
     item?.location || (localidad && ciudad ? `${localidad}, ${ciudad}` : localidad || ciudad || "Ubicación");
 
   const isAvailable = estadoNorm === "disponible";
-  const isPausado = !!(item?.pausado);
+  const isPausado = String(item?.estado || item?.status || "").toLowerCase() === "pausado" || !!item?.pausado;
   const isGift = tipoNorm !== "venta";
 
   const articuloId = getArticuloId(item);
