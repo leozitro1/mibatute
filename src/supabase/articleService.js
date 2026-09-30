@@ -1,6 +1,7 @@
 // src/supabase/articleService.js
 import { supabase } from "./supabaseClient";
 import { uploadImageKitImage } from "../imagekit/imageService";
+import { queryArticlesWithCondition } from "./articleQuery";
 
 const MAX_IMAGES = 4;
 
@@ -268,9 +269,7 @@ async function setArticlePrimaryImages(articleId, urls = []) {
  */
 export async function getArticleWithImages(articleId) {
   // ✅ OPT: columnas explícitas en vez de * (evita traer todo el row en cada edit)
-  const { data, error } = await supabase
-    .from("articulos")
-    .select(
+  const { data, error } = await queryArticlesWithCondition(
       `id,titulo,title,mode,tipo,estado,status,
        city,locality,categoria,category,subcategoria,subcategory,
        description,price,
@@ -278,10 +277,10 @@ export async function getArticleWithImages(articleId) {
        image_url,imagen_url_principal,imagenes,is_featured,
        created_at,updated_at,delivered_at,
        articulo_imagenes:articulo_imagenes(id,url,path,file_id,position,created_at)`
-    )
+    , columns => supabase.from("articulos").select(columns)
     .eq("id", articleId)
     .order("position", { foreignTable: "articulo_imagenes", ascending: true })
-    .single();
+    .single());
 
   if (error) return { success: false, error: error.message };
   return { success: true, data };
@@ -730,6 +729,10 @@ export async function updateArticle(articleId, formData = {}, file = null) {
     const description = (formData.descripcion ?? formData.description ?? "").trim();
     const category = formData.categoria ?? formData.category;
     const subcategory = formData.subcategoria ?? formData.subcategory;
+    const condition = formData.estado_producto == null ? null : Number(formData.estado_producto);
+    if (condition !== null && (!Number.isInteger(condition) || condition < 1 || condition > 10)) {
+      return { success: false, error: "Selecciona un estado valido." };
+    }
     if (!title || !description || !category || !subcategory) {
       return { success: false, error: "Completa titulo, descripcion, categoria y subcategoria." };
     }
@@ -739,9 +742,12 @@ export async function updateArticle(articleId, formData = {}, file = null) {
       city: formData.ciudad ?? formData.city,
       locality: formData.localidad_es ?? formData.locality,
       is_featured: !!formData.is_featured,
+      ...(condition !== null ? { estado_producto: condition } : {}),
     }).eq("id", articleId).eq("owner_id", uid)
       .in("status", ["disponible", "pausado"]).select("id").single();
-    if (error || !data) return { success: false, error: error?.message || "No se pudo actualizar el articulo." };
+    if (error || !data) return { success: false, error: /estado_producto/.test(error?.message || "")
+      ? "Falta habilitar estado_producto en Supabase. Ejecuta la migracion del estado del articulo."
+      : error?.message || "No se pudo actualizar el articulo." };
     if (file) {
       const added = await addArticleImages(articleId, [file], uid);
       if (!added.success) return added;

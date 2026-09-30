@@ -19,6 +19,7 @@ import HowItWorks from "./components/HowItWorks";
 import ManageArticleModal from "./components/ManageArticleModal";
 import EditArticleModal from "./components/EditArticleModal";
 import { deleteArticleImages } from "./supabase/articleService";
+import { queryArticlesWithCondition } from "./supabase/articleQuery";
 import ChatMessenger from "./components/ChatMessenger";
 
 import { COLOMBIA_DATA } from "./data/locations";
@@ -934,11 +935,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   const load = useCallback(async () => {
     // ✅ Solo columnas necesarias para el listado — sin select("*")
-    let query = supabase
-      .from("articulos")
-      .select(
+    const { data, error } = await queryArticlesWithCondition(
         `id, titulo, title, mode, tipo, estado, status,
-         city, locality,
+         city, locality, description,
          price, usuario_id, owner_id, buyer_id,
          ganador_id, winner_id, recipient_id,
          reserved_at, updated_at, created_at,
@@ -951,12 +950,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
          articulo_imagenes:articulo_imagenes (
            id, url, position
          )`
-      );
-
-    const { data, error } = await query
+      , columns => supabase.from("articulos").select(columns)
       .order("created_at", { ascending: false })
       .order("position", { foreignTable: "articulo_imagenes", ascending: true })
-      .limit(HOME_QUERY_LIMIT);
+      .limit(HOME_QUERY_LIMIT));
 
     if (error) {
       console.error("Error cargando articulos:", error);

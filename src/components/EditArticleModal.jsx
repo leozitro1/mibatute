@@ -8,7 +8,8 @@ import {
   replaceArticleImage,
 } from "../supabase/articleService";
 import { LOCATIONS } from "../data/locations";
-import { X, Camera, Loader2, Trash2, Plus, RefreshCw } from "lucide-react";
+import { X, Camera, Loader2, Trash2, Plus, RefreshCw, Star } from "lucide-react";
+import { getEditableArticle } from "./editArticleData";
 
 const FALLBACK_IMG =
   "data:image/svg+xml;utf8," +
@@ -36,6 +37,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
     tipo: "donacion",
     price: "",
     is_featured: false,
+    estado_producto: null,
     imagen_url_principal: "",
   });
 
@@ -81,38 +83,21 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
 
   useEffect(() => {
     if (!article || !isOpen) return;
-
-    // ✅ cargar datos del form con fallback ES/EN
-    const titulo = article.titulo ?? article.title ?? "";
-    const descripcion = article.descripcion ?? article.description ?? "";
-    const ciudad = article.ciudad ?? article.city ?? "";
-    const localidad_es = article.localidad_es ?? article.locality ?? ""; // ✅
-    const categoria = article.categoria ?? article.category ?? "";
-
-    const imagenUrl =
-      article.imagen_url_principal ??
-      article.imagen_url ??
-      article.image_url ??
-      (Array.isArray(article.imagenes) ? article.imagenes[0] : "") ??
-      (Array.isArray(article.articulo_imagenes) ? article.articulo_imagenes?.[0]?.url : "") ??
-      "";
-
-    setFormData({
-      titulo,
-      descripcion,
-      ciudad,
-      localidad_es,
-      categoria,
-      subcategoria: article.subcategory || article.subcategoria || "",
-      tipo: article.mode || article.tipo || "donacion",
-      price: article.price ?? "",
-      is_featured: !!article.is_featured,
-      imagen_url_principal: imagenUrl,
-    });
-
-    // traer artículo completo con imágenes
+    let alive = true;
+    setFormData(getEditableArticle(article));
     setFullArticle(null);
-    refreshArticle(article.id);
+    setRefreshBusy(true);
+    getArticleWithImages(article.id).then(res => {
+      if (!alive) return;
+      if (res.success) {
+        setFullArticle(res.data);
+        setFormData(getEditableArticle(res.data));
+      } else {
+        alert("No se pudo cargar la publicación: " + res.error);
+      }
+      setRefreshBusy(false);
+    });
+    return () => { alive = false; };
   }, [article, isOpen]);
 
   if (!isOpen) return null;
@@ -346,6 +331,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
             </p>
           </div>
 
+          <fieldset disabled={refreshBusy || loading} className="space-y-6 disabled:opacity-60">
           {/* Título */}
           <div>
             <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Título</label>
@@ -400,6 +386,27 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
               onChange={e => setFormData(p => ({ ...p, is_featured: e.target.checked }))} /> Destacado
           </label>
 
+          <div>
+            <p className="text-xs font-bold text-gray-600 mb-2">Estado del producto</p>
+            <div className="flex items-center gap-1" role="group" aria-label="Estado del producto">
+              {[1, 2, 3, 4, 5].map(star => {
+                const fill = Math.max(0, Math.min(1, Number(formData.estado_producto || 0) / 2 - star + 1));
+                return <button key={star} type="button" title={`${star} de 5 estrellas`}
+                  aria-label={`${star} de 5 estrellas`} aria-pressed={formData.estado_producto === star * 2}
+                  className="relative w-9 h-9 shrink-0 text-amber-500 rounded-lg hover:bg-amber-50 focus-visible:outline-2"
+                  onClick={() => setFormData(p => ({ ...p, estado_producto: star * 2 }))}>
+                  <Star size={26} className="absolute top-1.5 left-1.5" />
+                  <span className="absolute top-1.5 left-1.5 overflow-hidden" style={{ width: `${26 * fill}px` }}>
+                    <Star size={26} fill="currentColor" className="max-w-none" />
+                  </span>
+                </button>;
+              })}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {formData.estado_producto == null ? "Sin calificar" : `${Number(formData.estado_producto) / 2}/5`}
+            </p>
+          </div>
+
           {/* Ciudad / Localidad */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -442,6 +449,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
             </div>
           </div>
 
+          </fieldset>
           {/* Guardar */}
           <button
             type="submit"

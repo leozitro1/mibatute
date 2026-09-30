@@ -1,4 +1,5 @@
 // src/components/UserProfile.jsx
+import { queryArticlesWithCondition } from "../supabase/articleQuery";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { getProfile, updateProfile } from "../supabase/profileService";
 import {
@@ -1789,9 +1790,7 @@ export default function UserProfile({
     (async () => {
       setProfileProductsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from("articulos")
-          .select(
+        const { data, error } = await queryArticlesWithCondition(
             `id, titulo, title, mode, tipo, estado, status,
              city, locality, description,
              price, usuario_id, owner_id, buyer_id,
@@ -1806,11 +1805,11 @@ export default function UserProfile({
              articulo_imagenes:articulo_imagenes (
                id, url, position
              )`
-          )
+          , columns => supabase.from("articulos").select(columns)
           .or(`owner_id.eq.${user.id},usuario_id.eq.${user.id}`)
           .order("created_at", { ascending: false })
           .order("position", { foreignTable: "articulo_imagenes", ascending: true })
-          .limit(PROFILE_PUBLICATIONS_LIMIT);
+          .limit(PROFILE_PUBLICATIONS_LIMIT));
 
         if (!alive) return;
 
