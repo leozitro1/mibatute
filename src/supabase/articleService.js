@@ -216,10 +216,36 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
   }));
 
   // ✅ OPT: columnas mínimas tras insert de imágenes
-  const { data, error } = await supabase.from("articulo_imagenes").insert(rows).select("id,url,path,file_id,position");
+  let { data, error } = await supabase.from("articulo_imagenes").insert(rows).select("id,url,path,file_id,position");
+
+  if (error?.message && /file_id/i.test(error.message)) {
+    const rowsWithoutFileId = rows.map(({ file_id, ...row }) => row);
+    ({ data, error } = await supabase
+      .from("articulo_imagenes")
+      .insert(rowsWithoutFileId)
+      .select("id,url,path,position"));
+  }
+
   if (error) return { success: false, error: error.message };
 
   return { success: true, data };
+}
+
+async function setArticlePrimaryImages(articleId, urls = []) {
+  const cleanUrls = Array.from(urls || []).filter(Boolean);
+  const first = cleanUrls[0] || "";
+  if (!articleId || !first) return { success: true };
+
+  const payload = {
+    image_url: first,
+    imagen_url: first,
+    imagen_url_principal: first,
+    imagenes: cleanUrls,
+  };
+
+  const { error } = await supabase.from("articulos").update(payload).eq("id", articleId);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
 }
 
 /**
@@ -361,20 +387,53 @@ export async function publishArticle({ formData, files, user }) {
 
     for (const r of results) uploaded.push({ url: r.url, path: r.path, file_id: r.file_id || null });
 
+    const uploadedUrls = uploaded.map((x) => x.url).filter(Boolean);
+    await setArticlePrimaryImages(articulo.id, uploadedUrls);
+
     const ins = await insertArticleImages({
       articuloId: articulo.id,
       ownerId: user.id,
       images: uploaded,
     });
 
-    if (!ins.success) throw new Error(ins.error);
+    if (!ins.success) {
+      console.warn("No se pudo guardar articulo_imagenes; se conserva el artículo con imagen principal:", ins.error);
+      return {
+        success: true,
+        data: {
+          ...payload,
+          id: articulo.id,
+          imagenes: uploadedUrls,
+          image_url: uploadedUrls[0] || "",
+          imagen_url: uploadedUrls[0] || "",
+          imagen_url_principal: uploadedUrls[0] || "",
+          articulo_imagenes: [],
+          created_at: new Date().toISOString(),
+        },
+        warning: ins.error,
+      };
+    }
 
     await syncArticleImagesArray(articulo.id);
 
-    return { success: true, data: { ...articulo, images: ins.data } };
+    return {
+      success: true,
+      data: {
+        ...payload,
+        id: articulo.id,
+        imagenes: uploadedUrls,
+        image_url: uploadedUrls[0] || "",
+        imagen_url: uploadedUrls[0] || "",
+        imagen_url_principal: uploadedUrls[0] || "",
+        articulo_imagenes: ins.data || [],
+        images: ins.data || [],
+        created_at: new Date().toISOString(),
+      },
+    };
   } catch (e) {
-    await removeStorageFiles(uploaded.map((x) => x.path));
-    await supabase.from("articulos").delete().eq("id", articulo.id);
+    if (!uploaded.length) {
+      await supabase.from("articulos").delete().eq("id", articulo.id);
+    }
     return { success: false, error: e?.message || "Error publicando artículo" };
   }
 }
