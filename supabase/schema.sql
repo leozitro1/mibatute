@@ -448,9 +448,10 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.usuarios (id, nombre, movil, ciudad, localidad)
+  insert into public.usuarios (id, email, nombre, movil, ciudad, localidad)
   values (
     new.id,
+    coalesce(new.email, ''),
     coalesce(new.raw_user_meta_data->>'nombre', ''),
     coalesce(new.raw_user_meta_data->>'movil', ''),
     coalesce(new.raw_user_meta_data->>'ciudad', new.raw_user_meta_data->>'city', ''),
@@ -464,6 +465,7 @@ begin
   )
   on conflict (id) do update
   set
+    email = coalesce(excluded.email, public.usuarios.email, ''),
     nombre = excluded.nombre,
     movil = excluded.movil,
     ciudad = excluded.ciudad,

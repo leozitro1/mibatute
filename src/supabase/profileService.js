@@ -6,7 +6,7 @@ const MAX_PROFILE_IMAGE_MB = 3;
 
 // Solo estas columnas se pueden escribir en DB
 const sanitizeProfilePayload = (profile) => {
-  const allowed = ["nombre", "movil", "ciudad", "localidad", "direccion", "foto_url"];
+  const allowed = ["email", "nombre", "movil", "ciudad", "localidad", "direccion", "foto_url"];
   const payload = {};
   for (const k of allowed) {
     const v = profile?.[k];

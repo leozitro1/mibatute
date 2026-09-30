@@ -36,6 +36,7 @@ export const ensureUsuarioRow = async (user, extraData = {}) => {
   // ✅ CLAVE: usar "id" como PK (como ya lo haces en profileService.js)
   const row = {
     id: uid,
+    email: String(user?.email || "").trim().toLowerCase() || null,
     nombre,
     movil,
     ciudad,

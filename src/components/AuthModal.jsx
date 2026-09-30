@@ -13,7 +13,7 @@ import { LOCATIONS } from "../data/locations";
 
 // ✅ Limpia payload y SOLO permite estas columnas en usuarios
 const sanitizeUsuariosPayload = (obj) => {
-  const allowed = ["nombre", "movil", "ciudad", "localidad", "direccion", "foto_url"];
+  const allowed = ["email", "nombre", "movil", "ciudad", "localidad", "direccion", "foto_url"];
   const payload = {};
   for (const k of allowed) {
     const v = obj?.[k];
@@ -26,6 +26,7 @@ const sanitizeUsuariosPayload = (obj) => {
 const buildProfileFromAuthMeta = (authUser, fallbackForm = {}) => {
   const m = authUser?.user_metadata || {};
   return {
+    email: String(authUser?.email || fallbackForm?.email || "").trim().toLowerCase(),
     nombre: String(m?.nombre || fallbackForm?.nombre || "").trim(),
     movil: String(m?.movil || fallbackForm?.movil || "").trim(),
     ciudad: String(m?.ciudad || m?.city || fallbackForm?.ciudad || "").trim(),
@@ -211,6 +212,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
               await syncUsuariosFromAuthUser(data.user, {
                 nombre: nombreClean,
                 movil: movilClean,
+                email: emailClean,
                 ciudad,
                 localidad,
               });
@@ -262,6 +264,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
           const sync = await syncUsuariosFromAuthUser(data.user, {
             nombre: nombre.trim(),
             movil: movil.trim(),
+            email: email.trim(),
             ciudad,
             localidad,
           });
