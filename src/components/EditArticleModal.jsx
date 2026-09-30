@@ -108,7 +108,13 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
       setLoading(false);
       return alert("Selecciona ciudad y localidad.");
     }
-    const payload = { ...formData, estado_producto: formData.conditionScore };
+    const originalMode = getEditableArticle(fullArticle || article).mode;
+    const payload = {
+      ...formData,
+      mode: originalMode,
+      tipo: originalMode,
+      estado_producto: formData.conditionScore,
+    };
 
     const result = await updateArticle(article.id, payload, null);
 
@@ -313,7 +319,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
           </div>
 
           <ArticleFields formData={formData} setFormData={setFormData} categories={categories}
-            disabled={refreshBusy || loading || addingBusy || !!imgBusyId} />
+            disabled={refreshBusy || loading || addingBusy || !!imgBusyId} lockMode />
           {/* Guardar */}
           <button
             type="submit"

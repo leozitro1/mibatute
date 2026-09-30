@@ -12,7 +12,7 @@ function conditionMeta(raw) {
 }
 
 
-export default function ArticleFields({ formData, setFormData, categories, disabled = false }) {
+export default function ArticleFields({ formData, setFormData, categories, disabled = false, lockMode = false }) {
   const CATEGORY_TREE = categories;
   const CATEGORY_OPTIONS = categories.map(c => c.key);
   const getSubsForCategory = (tree, category) => tree.find(c => c.key === category)?.subs || [];
@@ -90,7 +90,7 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                     setFormData((prev) => ({ ...prev, mode: m, price: m === "venta" ? prev.price : "" }));
                   }}
                   className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
-                  disabled={disabled}
+                  disabled={disabled || lockMode}
                 >
                   <option value="donacion">Donación</option>
                   <option value="venta">Venta</option>
