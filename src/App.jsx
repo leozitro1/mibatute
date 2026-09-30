@@ -25,6 +25,13 @@ import { supabase } from "./supabase/supabaseClient";
 
 
 import { crearPostulacionConLimite } from "./supabase/solicitudesService";
+
+const HOME_QUERY_LIMIT = 24;
+const NOTIFICATION_POST_LIMIT = 80;
+const NOTIFICATION_MESSAGE_LIMIT = 100;
+const INTERESTED_COUNT_LIMIT = 200;
+const HOME_REFRESH_MS = 10 * 60 * 1000;
+const ENABLE_BACKGROUND_REALTIME = false;
 /**
  * ✅ Árbol categorías + subcategorías
  */
@@ -126,7 +133,7 @@ async function safeUpdateArticulos(articleId, patch) {
   let payload = { ...(patch || {}) };
 
   const run = async () => {
-    return await supabase.from("articulos").update(payload).eq("id", articleId).select("*").maybeSingle();
+    return await supabase.from("articulos").update(payload).eq("id", articleId).select("id").maybeSingle();
   };
 
   let { data, error } = await run();
@@ -289,7 +296,7 @@ export default function App() {
   const readChatByArticuloAndBuyer = async ({ articuloId, buyerId }) => {
     const { data, error } = await supabase
       .from("chats")
-      .select("*")
+      .select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at,last_message_at")
       .eq("articulo_id", articuloId)
       .eq("buyer_id", buyerId)
       .maybeSingle();
@@ -300,7 +307,7 @@ export default function App() {
   const readChatByArticuloAndMember = async ({ articuloId, uid }) => {
     let res = await supabase
       .from("chats")
-      .select("*")
+      .select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at,last_message_at")
       .eq("articulo_id", articuloId)
       .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
       .maybeSingle();
@@ -308,7 +315,7 @@ export default function App() {
     if (res?.error?.message && /Could not find the 'seller_id' column/i.test(res.error.message)) {
       res = await supabase
         .from("chats")
-        .select("*")
+        .select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at,last_message_at")
         .eq("articulo_id", articuloId)
         .or(`buyer_id.eq.${uid},owner_id.eq.${uid}`)
         .maybeSingle();
@@ -317,7 +324,7 @@ export default function App() {
     if (res?.error?.message && /Could not find the 'owner_id' column/i.test(res.error.message)) {
       res = await supabase
         .from("chats")
-        .select("*")
+        .select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at,last_message_at")
         .eq("articulo_id", articuloId)
         .or(`buyer_id.eq.${uid},usuario_id.eq.${uid}`)
         .maybeSingle();
@@ -502,7 +509,7 @@ export default function App() {
           .select("id, articulo_id, created_at")
           .in("articulo_id", myArticuloIds)
           .order("created_at", { ascending: false })
-          .limit(500);
+          .limit(NOTIFICATION_POST_LIMIT);
 
         if (!postErr && Array.isArray(posts)) {
           for (const p of posts) {
@@ -561,7 +568,7 @@ export default function App() {
           .select("id, chat_id, sender_id, created_at")
           .in("chat_id", chatIds)
           .order("created_at", { ascending: false })
-          .limit(800);
+          .limit(NOTIFICATION_MESSAGE_LIMIT);
 
         if (!msgErr && Array.isArray(msgs)) {
           const chatById = Object.fromEntries(chats.map((c) => [String(c.id), c]));
@@ -882,7 +889,7 @@ export default function App() {
 // 1) intenta DB pero SIN romper si no hay fila o RLS
 const dbRes = await supabase
   .from("usuarios")
-  .select("*")
+  .select("id,nombre,movil,ciudad,localidad,direccion,foto_url,is_blocked,bloqueado,blocked,estado,status,rol,role")
   .eq("id", verifiedUser.id)
   .maybeSingle();
 
@@ -947,7 +954,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
          )`
       )
       .order("created_at", { ascending: false })
-      .order("position", { foreignTable: "articulo_imagenes", ascending: true });
+      .order("position", { foreignTable: "articulo_imagenes", ascending: true })
+      .limit(HOME_QUERY_LIMIT);
 
     if (error) {
       console.error("Error cargando articulos:", error);
@@ -1002,7 +1010,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
             .from("postulaciones")
             .select("articulo_id")
             .in("articulo_id", ch)
-            .limit(2000);
+            .limit(INTERESTED_COUNT_LIMIT);
 
           if (postErr) break;
           if (Array.isArray(posts)) {
@@ -1032,7 +1040,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   // ✅ Carga inicial única — sin polling agresivo
   // Se recarga solo cuando el usuario vuelve a la pestaña (visibilitychange)
-  // y solo si pasaron más de 3 minutos desde la última carga
+  // y solo si pasó suficiente tiempo para ahorrar lecturas
   const lastLoadRef = useRef(0);
 
   useEffect(() => {
@@ -1051,8 +1059,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
         const elapsed = Date.now() - lastLoadRef.current;
-        // Recarga solo si pasaron más de 3 minutos
-        if (elapsed > 3 * 60 * 1000) {
+        if (elapsed > HOME_REFRESH_MS) {
           run();
         }
       }
@@ -1075,6 +1082,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   // ✅ Suscripción realtime: depende SOLO de currentUser.id
   // Usa productsRef para leer products sin rehacer el canal en cada refresh
   useEffect(() => {
+    if (!ENABLE_BACKGROUND_REALTIME) return;
+
     const uid = getActiveUid();
 
     if (rtRef.current.channel) {

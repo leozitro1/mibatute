@@ -36,6 +36,8 @@ import { obtenerMisRescates } from "../supabase/rescatesService";
 // ✅ para cancelar postulación directamente + actualizar entrega
 import { supabase } from "../supabase/supabaseClient";
 
+const ENABLE_PROFILE_REALTIME = false;
+
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
@@ -1147,6 +1149,7 @@ export default function UserProfile({
 
   // ✅ REALTIME bloqueo / desbloqueo instantáneo
   useEffect(() => {
+    if (!ENABLE_PROFILE_REALTIME) return;
     if (!user?.id) return;
 
     const channel = supabase
@@ -1932,6 +1935,7 @@ export default function UserProfile({
 
   // ✅ REALTIME: mensajes + solicitudes en vivo
   useEffect(() => {
+    if (!ENABLE_PROFILE_REALTIME) return;
     if (!user?.id) return;
 
     const channel = supabase

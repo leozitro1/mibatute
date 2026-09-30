@@ -5,6 +5,8 @@ import { ACTIVE_COLOMBIA_DATA } from "../data/locations";
 import { supabase } from "../supabase/supabaseClient";
 
 const logoMiBatute = "/logo.png";
+const MODERATION_REFRESH_MS = 10 * 60 * 1000;
+const ENABLE_NAVBAR_MODERATION_REALTIME = false;
 
 function Badge({ count = 0 }) {
   const n = Number(count || 0);
@@ -291,6 +293,7 @@ export default function Navbar({
   }, [banUntil]);
 
   useEffect(() => {
+    if (!ENABLE_NAVBAR_MODERATION_REALTIME) return;
     if (!user?.id) return;
 
     const channel = supabase
@@ -326,8 +329,17 @@ export default function Navbar({
     if (!user?.id) return;
     const id = setInterval(() => {
       loadModerationState();
-    }, 5000);
+    }, MODERATION_REFRESH_MS);
     return () => clearInterval(id);
+  }, [user?.id, loadModerationState]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") loadModerationState();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, [user?.id, loadModerationState]);
 
   const handleLogoClick = () => {

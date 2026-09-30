@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "../supabase/supabaseClient";
 import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
 
+const CHAT_INITIAL_MESSAGE_LIMIT = 50;
+
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
@@ -600,14 +602,16 @@ export default function ChatMessenger({
         .from("chat_messages")
         .select("id,chat_id,sender_id,body,message,content,text,mensaje,created_at")
         .eq("chat_id", chatId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(CHAT_INITIAL_MESSAGE_LIMIT);
 
       if (!alive) return;
 
       if (!error && Array.isArray(data)) {
-        setMessages(data);
+        const ordered = [...data].reverse();
+        setMessages(ordered);
         setTimeout(() => scrollToBottom(false), 0);
-        markSeenUpToLatest(data);
+        markSeenUpToLatest(ordered);
       } else {
         // si es RLS, muestra mensaje
         const msg = String(error?.message || "");
