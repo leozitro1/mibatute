@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { X, Trash2 } from "lucide-react";
 import Cropper from "react-easy-crop";
-import { LOCATIONS } from "../data/locations";
 import { publishArticle } from "../supabase/articleService";
+import ArticleFields from "./ArticleFields";
+import { detectContactoProhibido } from "./articleValidation";
 
 /**
  * ✅ fallback por si NO llega props.categories
@@ -36,13 +37,6 @@ function bytesToMB(b) {
   return Math.round((b / (1024 * 1024)) * 100) / 100;
 }
 
-function conditionMeta(raw) {
-  const v = Math.max(1, Math.min(10, Number(raw) || 1));
-  if (v <= 3) return { label: "Muy deteriorado", cls: "bg-red-50 text-red-700 border-red-200" };
-  if (v <= 6) return { label: "Uso medio", cls: "bg-yellow-50 text-yellow-800 border-yellow-200" };
-  if (v <= 8) return { label: "Buen estado", cls: "bg-green-50 text-green-700 border-green-200" };
-  return { label: "Casi nuevo", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
-}
 
 function normalizeMode(v) {
   const s = String(v || "").toLowerCase().trim();
@@ -54,68 +48,6 @@ function normalizeMode(v) {
   return "donacion";
 }
 
-// ✅ Detecta datos de contacto prohibidos en la descripción
-const PALABRAS_CLAVE_CONTACTO = [
-  // WhatsApp y variantes
-  "whatsapp", "whats app", "wsp", "wasap", "whatsap", "wassap", "wasp",
-  // Llamadas
-  "llamame", "llamame", "llama al", "llamar al", "llame al", "comunicate",
-  "comuniquese", "comunicarse", "contactame", "contactame", "contactarse",
-  // Redes sociales
-  "facebook", "instagram", "telegram", "tiktok", "twitter", "snapchat",
-  "youtube", "linkedin", "discord", " fb ", "fb.", "fb:", "/fb", "@fb",
-  // Email
-  "correo", "email", "e-mail", "gmail", "hotmail", "yahoo", "outlook",
-  "correo electronico", "mi correo", "mi email",
-  // Celular / número
-  "mi numero", "mi cel", "mi celular", "al cel", "al celular",
-  "mi telefono", "al telefono", "numero de cel", "numero de telefono",
-  "cel:", "tel:", "celular:", "telefono:", "contacto:",
-  // Escribir / mensajear
-  "escribeme", "escribe al", "manda mensaje", "mandame mensaje",
-  "enviame mensaje", "mensaje al", "mensaje por",
-  // URLs y links
-  "http://", "https://", "www.", ".com", ".net", ".co/", "bit.ly",
-  "tinyurl", "goo.gl", "t.me/", "wa.me/", "wa.link",
-];
-
-const NUMERO_PALABRAS = [
-  "cero","uno","dos","tres","cuatro","cinco",
-  "seis","siete","ocho","nueve","diez",
-];
-
-function detectContactoProhibido(texto = "") {
-  const t = (texto || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-  // 1) Email con @
-  if (/@[a-z0-9]/i.test(t)) {
-    return "No puedes incluir correos electrónicos en la descripción.";
-  }
-
-  // 2) Palabras clave de contacto
-  for (const kw of PALABRAS_CLAVE_CONTACTO) {
-    if (t.includes(kw)) {
-      return `No puedes incluir formas de contacto externo (detectado: "${kw}"). Usa el chat de la plataforma.`;
-    }
-  }
-
-  // 3) Número de teléfono: 7+ dígitos seguidos (con separadores opcionales)
-  // Excluye años (4 dígitos solos) y precios cortos
-  if (/(?<![\d])\d[\d\s.\-]{5,}\d(?![\d])/.test(t)) {
-    return "No puedes incluir números de teléfono en la descripción.";
-  }
-
-  // 4) Número escrito en letras: 4+ palabras numéricas consecutivas
-  const regexPalabrasNum = new RegExp(
-    "(" + NUMERO_PALABRAS.join("|") + ")(\\s+(" + NUMERO_PALABRAS.join("|") + ")){3,}",
-    "i"
-  );
-  if (regexPalabrasNum.test(t)) {
-    return "No puedes escribir números de teléfono con letras en la descripción.";
-  }
-
-  return null;
-}
 
 function getSubsForCategory(categoryTree, category) {
   const found = (categoryTree || []).find((c) => String(c.key) === String(category));
@@ -196,7 +128,6 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
   const [files, setFiles] = useState([]); // File[]
   const [previews, setPreviews] = useState([]); // string[]
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [descError, setDescError] = useState(null); // ✅ validación contacto
 
   // ====== Crop Queue ======
   const [cropQueue, setCropQueue] = useState([]); // File[]
@@ -236,11 +167,6 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [isCropping, setIsCropping] = useState(false);
 
-  const modeNorm = normalizeMode(formData.mode);
-  const priceNumber = Number(formData.price);
-  const isVenta = modeNorm === "venta";
-  const isPriceNumberValid = Number.isFinite(priceNumber) && priceNumber > 0;
-  const exceedsMaxVenta = isVenta && isPriceNumberValid && priceNumber > MAX_VENTA_COP;
 
   const cleanupPreviews = (urls = []) => {
     (urls || []).forEach((u) => {
@@ -294,13 +220,6 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentCity, isOpen]);
 
-  const localities = useMemo(() => {
-    return formData.city ? LOCATIONS[formData.city] || [] : [];
-  }, [formData.city]);
-
-  const subOptions = useMemo(() => {
-    return getSubsForCategory(CATEGORY_TREE, formData.category);
-  }, [CATEGORY_TREE, formData.category]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -473,7 +392,6 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     // ✅ Validar que la descripción no tenga datos de contacto
     const contactError = detectContactoProhibido(formData.description);
     if (contactError) {
-      setDescError(contactError);
       return;
     }
 
@@ -589,185 +507,8 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
               </div>
             </div>
 
-            {/* Título */}
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">¿Qué quieres publicar?</label>
-              <input
-                required
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                type="text"
-                placeholder="Ej: Licuadora funcionando / repuestos..."
-                className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none focus:border-forest-green"
-                disabled={isSubmitting || isCropping || cropOpen}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              {/* Categoría (macro) */}
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Categoría</label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => {
-                    const nextCategory = e.target.value;
-                    const subs = getSubsForCategory(CATEGORY_TREE, nextCategory);
-                    setFormData((prev) => ({
-                      ...prev,
-                      category: nextCategory,
-                      subcategory: subs[0] || "",
-                    }));
-                  }}
-                  className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
-                  disabled={isSubmitting || isCropping || cropOpen}
-                >
-                  {CATEGORY_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Subcategoría */}
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Subcategoría</label>
-                <select
-                  value={formData.subcategory}
-                  onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
-                  className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
-                  disabled={isSubmitting || isCropping || cropOpen}
-                >
-                  {subOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Modo + precio */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Tipo</label>
-                <select
-                  value={formData.mode}
-                  onChange={(e) => {
-                    const m = normalizeMode(e.target.value);
-                    setFormData((prev) => ({ ...prev, mode: m, price: m === "venta" ? prev.price : "" }));
-                  }}
-                  className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
-                  disabled={isSubmitting || isCropping || cropOpen}
-                >
-                  <option value="donacion">Donación</option>
-                  <option value="venta">Venta</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Precio (solo si es venta)</label>
-                <input
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  type="number"
-                  placeholder="Ej: 20000"
-                  className={`w-full border-2 rounded-xl p-3 outline-none ${
-                    exceedsMaxVenta ? "border-red-300" : "border-gray-100"
-                  }`}
-                  disabled={isSubmitting || isCropping || cropOpen || normalizeMode(formData.mode) !== "venta"}
-                />
-                {exceedsMaxVenta && (
-                  <p className="text-[11px] mt-1 text-red-600">Tope: ${MAX_VENTA_COP.toLocaleString("es-CO")} COP</p>
-                )}
-              </div>
-            </div>
-
-            {/* Ciudad / localidad */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Ciudad</label>
-                <select
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value, locality: "" })}
-                  className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
-                  disabled={isSubmitting || isCropping || cropOpen}
-                >
-                  <option value="">Selecciona...</option>
-                  {Object.keys(LOCATIONS).map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Localidad</label>
-                <select
-                  value={formData.locality}
-                  onChange={(e) => setFormData({ ...formData, locality: e.target.value })}
-                  className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
-                  disabled={isSubmitting || isCropping || cropOpen || !formData.city}
-                >
-                  <option value="">Selecciona...</option>
-                  {localities.map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Condición */}
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Estado del producto (1-10)</label>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={formData.conditionScore}
-                onChange={(e) => setFormData({ ...formData, conditionScore: Number(e.target.value) })}
-                className="w-full"
-                disabled={isSubmitting || isCropping || cropOpen}
-              />
-              {(() => {
-                const meta = conditionMeta(formData.conditionScore);
-                return (
-                  <div className={`inline-flex items-center px-2 py-1 border rounded-lg text-xs ${meta.cls}`}>
-                    {meta.label} ({formData.conditionScore}/10)
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Descripción */}
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Descripción</label>
-              <p className="mb-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 font-medium leading-snug">
-                🔒 <strong>No incluyas datos de contacto</strong> (teléfonos, correos, redes sociales). Esto es por tu seguridad y la de la comunidad. Tu cuenta podría ser bloqueada.
-              </p>
-              <textarea
-                value={formData.description}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setFormData({ ...formData, description: val });
-                  setDescError(detectContactoProhibido(val));
-                }}
-                placeholder="Describe el artículo, estado, detalles..."
-                className={`w-full border-2 rounded-xl p-3 outline-none min-h-[110px] ${
-                  descError ? "border-red-400 focus:ring-2 focus:ring-red-300" : "border-gray-100"
-                }`}
-                disabled={isSubmitting || isCropping || cropOpen}
-              />
-              {descError && (
-                <p className="mt-1 text-xs font-bold text-red-600 flex items-start gap-1">
-                  <span>⛔</span>
-                  <span>{descError}</span>
-                </p>
-              )}
-            </div>
+            <ArticleFields formData={formData} setFormData={setFormData} categories={CATEGORY_TREE}
+              disabled={isSubmitting || isCropping || cropOpen} />
 
             {/* Botón publicar */}
             <button

@@ -5,10 +5,10 @@ import { queryArticlesWithCondition } from "../src/supabase/articleQuery.js";
 
 test("editor uses stored title and description when legacy fields are empty", () => {
   const form = getEditableArticle({ titulo: "", title: "Guitarra", descripcion: "", description: "Buen estado", estado_producto: 7 });
-  assert.equal(form.titulo, "Guitarra");
-  assert.equal(form.descripcion, "Buen estado");
-  assert.equal(form.estado_producto, 7);
-  assert.equal(getEditableArticle({ titulo: "Mesa", descripcion: "Madera" }).titulo, "Mesa");
+  assert.equal(form.title, "Guitarra");
+  assert.equal(form.description, "Buen estado");
+  assert.equal(form.conditionScore, 7);
+  assert.equal(getEditableArticle({ titulo: "Mesa", descripcion: "Madera" }).title, "Mesa");
 });
 
 test("article condition query preserves readable listings before migration", async () => {

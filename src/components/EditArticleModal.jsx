@@ -7,8 +7,9 @@ import {
   deleteArticleImage,
   replaceArticleImage,
 } from "../supabase/articleService";
-import { LOCATIONS } from "../data/locations";
-import { X, Camera, Loader2, Trash2, Plus, RefreshCw, Star } from "lucide-react";
+import { X, Camera, Loader2, Trash2, Plus, RefreshCw } from "lucide-react";
+import ArticleFields from "./ArticleFields";
+import { detectContactoProhibido } from "./articleValidation";
 import { getEditableArticle } from "./editArticleData";
 
 const FALLBACK_IMG =
@@ -27,19 +28,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
   const [loading, setLoading] = useState(false);
 
   // ✅ Form (alineado a migración ES)
-  const [formData, setFormData] = useState({
-    titulo: "",
-    descripcion: "",
-    ciudad: "",
-    localidad_es: "", // ✅ antes estaba "localidad" (esa columna NO existe)
-    categoria: "",
-    subcategoria: "",
-    tipo: "donacion",
-    price: "",
-    is_featured: false,
-    estado_producto: null,
-    imagen_url_principal: "",
-  });
+  const [formData, setFormData] = useState(() => getEditableArticle());
 
   // imágenes (gestión)
   const [fullArticle, setFullArticle] = useState(null);
@@ -110,24 +99,16 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
 
     setLoading(true);
 
-    // ✅ Payload “doble” (ES + EN) para migración segura
-    const payload = {
-      ...formData,
-      // Español (nuevo)
-      titulo: formData.titulo?.trim() || "",
-      descripcion: formData.descripcion?.trim() || "",
-      ciudad: formData.ciudad || "",
-      localidad_es: formData.localidad_es || "",
-      categoria: formData.categoria || "",
-
-      // Inglés (legacy / compat)
-      title: formData.titulo?.trim() || "",
-      description: formData.descripcion?.trim() || "",
-      city: formData.ciudad || "",
-      locality: formData.localidad_es || "",
-      category: formData.categoria || "",
-
-    };
+    const contactError = detectContactoProhibido(formData.description);
+    if (contactError) {
+      setLoading(false);
+      return alert(contactError);
+    }
+    if (!formData.city || !formData.locality) {
+      setLoading(false);
+      return alert("Selecciona ciudad y localidad.");
+    }
+    const payload = { ...formData, estado_producto: formData.conditionScore };
 
     const result = await updateArticle(article.id, payload, null);
 
@@ -331,125 +312,8 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
             </p>
           </div>
 
-          <fieldset disabled={refreshBusy || loading} className="space-y-6 disabled:opacity-60">
-          {/* Título */}
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Título</label>
-            <input
-              value={formData.titulo || ""}
-              onChange={(e) => setFormData((p) => ({ ...p, titulo: e.target.value }))}
-              className="w-full p-3 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-forest-green"
-              required
-            />
-          </div>
-
-          {/* Descripción */}
-          <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Descripción</label>
-            <textarea
-              value={formData.descripcion || ""}
-              onChange={(e) => setFormData((p) => ({ ...p, descripcion: e.target.value }))}
-              className="w-full p-3 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-forest-green h-24 resize-none"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="text-xs font-bold text-gray-600">Categoría
-              <select required value={formData.categoria} className="w-full p-3 rounded-lg bg-gray-50"
-                onChange={e => setFormData(p => ({ ...p, categoria: e.target.value, subcategoria: "" }))}>
-                <option value="">Selecciona...</option>
-                {categories.map(c => <option key={c.key} value={c.key}>{c.key}</option>)}
-              </select>
-            </label>
-            <label className="text-xs font-bold text-gray-600">Subcategoría
-              <select required value={formData.subcategoria} className="w-full p-3 rounded-lg bg-gray-50"
-                onChange={e => setFormData(p => ({ ...p, subcategoria: e.target.value }))}>
-                <option value="">Selecciona...</option>
-                {(categories.find(c => c.key === formData.categoria)?.subs || []).map(s => <option key={s}>{s}</option>)}
-              </select>
-            </label>
-            <label className="text-xs font-bold text-gray-600">Modalidad
-              <select value={formData.tipo} className="w-full p-3 rounded-lg bg-gray-50"
-                onChange={e => setFormData(p => ({ ...p, tipo: e.target.value }))}>
-                <option value="donacion">Donación</option><option value="venta">Venta</option>
-              </select>
-            </label>
-            {formData.tipo === "venta" && <label className="text-xs font-bold text-gray-600">Precio (COP)
-              <input required type="number" min="1" max="500000" step="1" value={formData.price}
-                className="w-full p-3 rounded-lg bg-gray-50"
-                onChange={e => setFormData(p => ({ ...p, price: e.target.value }))} />
-            </label>}
-          </div>
-          <label className="flex items-center gap-2 text-sm font-bold text-gray-600">
-            <input type="checkbox" checked={formData.is_featured}
-              onChange={e => setFormData(p => ({ ...p, is_featured: e.target.checked }))} /> Destacado
-          </label>
-
-          <div>
-            <p className="text-xs font-bold text-gray-600 mb-2">Estado del producto</p>
-            <div className="flex items-center gap-1" role="group" aria-label="Estado del producto">
-              {[1, 2, 3, 4, 5].map(star => {
-                const fill = Math.max(0, Math.min(1, Number(formData.estado_producto || 0) / 2 - star + 1));
-                return <button key={star} type="button" title={`${star} de 5 estrellas`}
-                  aria-label={`${star} de 5 estrellas`} aria-pressed={formData.estado_producto === star * 2}
-                  className="relative w-9 h-9 shrink-0 text-amber-500 rounded-lg hover:bg-amber-50 focus-visible:outline-2"
-                  onClick={() => setFormData(p => ({ ...p, estado_producto: star * 2 }))}>
-                  <Star size={26} className="absolute top-1.5 left-1.5" />
-                  <span className="absolute top-1.5 left-1.5 overflow-hidden" style={{ width: `${26 * fill}px` }}>
-                    <Star size={26} fill="currentColor" className="max-w-none" />
-                  </span>
-                </button>;
-              })}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {formData.estado_producto == null ? "Sin calificar" : `${Number(formData.estado_producto) / 2}/5`}
-            </p>
-          </div>
-
-          {/* Ciudad / Localidad */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Ciudad</label>
-              <select
-                value={formData.ciudad || ""}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, ciudad: e.target.value, localidad_es: "" }))
-                }
-                className="w-full p-3 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-forest-green"
-              >
-                <option value="" disabled>
-                  Selecciona...
-                </option>
-                {Object.keys(LOCATIONS).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Localidad</label>
-              <select
-                value={formData.localidad_es || ""}
-                onChange={(e) => setFormData((p) => ({ ...p, localidad_es: e.target.value }))}
-                className="w-full p-3 rounded-2xl bg-gray-50 border-none focus:ring-2 focus:ring-forest-green"
-                disabled={!formData.ciudad}
-              >
-                <option value="" disabled>
-                  Selecciona...
-                </option>
-                {(LOCATIONS[formData.ciudad] || []).map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          </fieldset>
+          <ArticleFields formData={formData} setFormData={setFormData} categories={categories}
+            disabled={refreshBusy || loading || addingBusy || !!imgBusyId} />
           {/* Guardar */}
           <button
             type="submit"

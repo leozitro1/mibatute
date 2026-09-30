@@ -1,15 +1,15 @@
 export function getEditableArticle(article = {}) {
   const mode = String(article.mode || article.tipo || "donacion").toLowerCase();
   return {
-    titulo: article.title || article.titulo || "",
-    descripcion: article.description || article.descripcion || "",
-    ciudad: article.city || article.ciudad || "",
-    localidad_es: article.locality || article.localidad_es || "",
-    categoria: article.category || article.categoria || "",
-    subcategoria: article.subcategory || article.subcategoria || "",
-    tipo: mode.includes("venta") ? "venta" : "donacion",
+    title: article.title || article.titulo || "",
+    description: article.description || article.descripcion || "",
+    city: article.city || article.ciudad || "",
+    locality: article.locality || article.localidad_es || "",
+    category: article.category || article.categoria || "",
+    subcategory: article.subcategory || article.subcategoria || "",
+    mode: mode.includes("venta") ? "venta" : "donacion",
     price: article.price ?? article.precio ?? "",
     is_featured: !!(article.is_featured ?? article.isFeatured),
-    estado_producto: article.estado_producto ?? null,
+    conditionScore: article.estado_producto ?? 8,
   };
 }

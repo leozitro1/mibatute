@@ -733,8 +733,8 @@ export async function updateArticle(articleId, formData = {}, file = null) {
     if (condition !== null && (!Number.isInteger(condition) || condition < 1 || condition > 10)) {
       return { success: false, error: "Selecciona un estado valido." };
     }
-    if (!title || !description || !category || !subcategory) {
-      return { success: false, error: "Completa titulo, descripcion, categoria y subcategoria." };
+    if (!title || !category || !subcategory) {
+      return { success: false, error: "Completa titulo, categoria y subcategoria." };
     }
     const { data, error } = await supabase.from("articulos").update({
       title, titulo: title, description, category, categoria: category,
