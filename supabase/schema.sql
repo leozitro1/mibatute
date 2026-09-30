@@ -794,3 +794,19 @@ drop policy if exists "Mensajes sistema propios" on public.system_message_receip
 create policy "Mensajes sistema propios"
 on public.system_message_receipts for select
 using (auth.uid() = user_id);
+
+-- Base API grants required by PostgREST. RLS policies above still decide
+-- which rows each role can read or modify.
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant select on all tables in schema public to anon;
+grant usage, select on all sequences in schema public to anon, authenticated;
+
+alter default privileges in schema public
+grant select, insert, update, delete on tables to authenticated;
+
+alter default privileges in schema public
+grant select on tables to anon;
+
+alter default privileges in schema public
+grant usage, select on sequences to anon, authenticated;
