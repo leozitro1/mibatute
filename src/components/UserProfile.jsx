@@ -1397,17 +1397,7 @@ export default function UserProfile({
         const { data, error } = await obtenerMisRescates(user.id);
         if (error) throw error;
         if (!alive) return;
-        const visible = (data || []).filter(row => {
-          const art = row.articulo;
-          const estado = normEstado(art.estado || art.status || "");
-          if (!isVentaArticulo(art)) {
-            const winner = art.ganador_id || art.winner_id || art.recipient_id;
-            return !(["reservado", "entregado"].includes(estado) && winner)
-              || String(winner) === String(user.id);
-          }
-          return String(art.buyer_id || "") === String(user.id)
-            && ["reservado", "entregado", "en_revision"].includes(estado);
-        });
+        const visible = data || [];
         setRescates(visible);
         await loadUnreadRef.current?.(visible.map(row => row.articulo_id));
       } catch (error) {

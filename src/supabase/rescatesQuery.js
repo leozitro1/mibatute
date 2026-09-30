@@ -3,6 +3,23 @@ export const RESCATE_ARTICLE_COLUMNS = `id,title,mode,estado,status,city,localit
   image_url,imagen_url_principal,imagenes,updated_at,created_at,
   articulo_imagenes(id,url,position)`;
 
+export function isRescateVisible(row, userId) {
+  const article = row?.articulo;
+  if (!article || !userId) return false;
+  const status = String(article.estado || article.status || "disponible").toLowerCase().trim();
+  const isSale = String(article.mode || article.tipo || "").toLowerCase().includes("venta");
+  if (!isSale) {
+    const winner = article.ganador_id || article.winner_id || article.recipient_id;
+    return !(["reservado", "entregado"].includes(status) && winner)
+      || String(winner) === String(userId);
+  }
+  const buyer = article.buyer_id;
+  if (String(buyer || "") === String(userId)) return true;
+  const requested = ["postulaciones", "chats"].includes(row._source);
+  return requested && (["disponible", "pausado", "en_revision"].includes(status)
+    || (status === "reservado" && !buyer));
+}
+
 export async function queryMisRescates(client, userId) {
   if (!userId) return { data: [], error: null };
 
@@ -39,7 +56,8 @@ export async function queryMisRescates(client, userId) {
     else articles.set(key, { ...previous, articulo: row.articulo });
   }
   return {
-    data: [...articles.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
+    data: [...articles.values()].filter(row => isRescateVisible(row, userId))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
     error: null,
   };
 }

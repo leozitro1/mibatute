@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { queryMisRescates } from "../src/supabase/rescatesQuery.js";
+import { queryMisRescates, isRescateVisible } from "../src/supabase/rescatesQuery.js";
 
 function mockClient(results, calls = []) {
   return {
@@ -61,4 +61,28 @@ test("missing user does not query another user's rescues", async () => {
   const calls = [];
   assert.deepEqual(await queryMisRescates(mockClient({}, calls), null), { data: [], error: null });
   assert.equal(calls.length, 0);
+});
+
+test("sales contacted or applied to appear before assigning a buyer", async () => {
+  const result = await queryMisRescates(mockClient({
+    chats: { data: [{ id: "c1", articulo_id: "s1", created_at: "2026-09-30",
+      articulo: { id: "s1", mode: "venta", status: "disponible", buyer_id: null } }] },
+    postulaciones: { data: [{ id: "p1", articulo_id: "s2", created_at: "2026-09-29",
+      articulo: { id: "s2", mode: "venta", status: "disponible", buyer_id: null } }] },
+  }), "u1");
+  assert.deepEqual(result.data.map(row => row.articulo_id), ["s1", "s2"]);
+});
+
+test("a reservation without a buyer remains visible to its requester", () => {
+  assert.equal(isRescateVisible({ _source: "chats",
+    articulo: { mode: "venta", status: "reservado", buyer_id: null } }, "u1"), true);
+});
+
+test("reservations assigned to another buyer or donation winner stay excluded", () => {
+  for (const status of ["reservado", "entregado"]) {
+    assert.equal(isRescateVisible({ _source: "chats",
+      articulo: { mode: "venta", status, buyer_id: "u2" } }, "u1"), false);
+    assert.equal(isRescateVisible({ _source: "postulaciones",
+      articulo: { mode: "donacion", status, recipient_id: "u2" } }, "u1"), false);
+  }
 });
