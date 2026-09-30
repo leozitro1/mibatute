@@ -735,13 +735,33 @@ export default function App() {
           return;
         }
 
-        let merged = { ...sbUser };
+        const { data: verified, error: verifyError } = await supabase.auth.getUser();
+        const verifiedUser = verified?.user || null;
+
+        if (verifyError || !verifiedUser || verifiedUser.id !== sbUser.id) {
+          await supabase.auth.signOut();
+          if (!alive) return;
+          setCurrentUser(null);
+          setCurrentView("home");
+          setSelectedProduct(null);
+          setIsPublishOpen(false);
+          setIsAuthOpen(false);
+          setIsManageOpen(false);
+          setManageArticle(null);
+          setIsEditOpen(false);
+          setEditArticle(null);
+          setChatOpen(null);
+          setLoading(false);
+          return;
+        }
+
+        let merged = { ...verifiedUser };
         const { data, error } = await supabase
           .from("usuarios")
           .select("id,nombre,movil,ciudad,localidad,direccion,foto_url")
-          .eq("id", sbUser.id)
+          .eq("id", verifiedUser.id)
           .single();
-        if (!error && data) merged = { ...sbUser, ...data };
+        if (!error && data) merged = { ...verifiedUser, ...data };
 
         if (!alive) return;
         setCurrentUser(merged);
