@@ -933,7 +933,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   const load = useCallback(async () => {
     // ✅ Solo columnas necesarias para el listado — sin select("*")
-    const { data, error } = await supabase
+    let query = supabase
       .from("articulos")
       .select(
         `id, titulo, title, modo, mode, tipo, estado, status,
@@ -953,6 +953,13 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
            id, url, position
          )`
       )
+      .eq("city", selectedCity);
+
+    if (selectedLocality !== "Todas") {
+      query = query.eq("locality", selectedLocality);
+    }
+
+    const { data, error } = await query
       .order("created_at", { ascending: false })
       .order("position", { foreignTable: "articulo_imagenes", ascending: true })
       .limit(HOME_QUERY_LIMIT);
@@ -1036,7 +1043,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       const updated = normalized.find((x) => x.id === prev.id);
       return updated ? { ...prev, ...updated } : prev;
     });
-  }, []);
+  }, [selectedCity, selectedLocality]);
 
   // ✅ Carga inicial única — sin polling agresivo
   // Se recarga solo cuando el usuario vuelve a la pestaña (visibilitychange)
