@@ -675,6 +675,11 @@ export default function ChatMessenger({
       .channel(`chat_deleted_${chatId}`)
       .on(
         "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "chats", filter: `id=eq.${chatId}` },
+        ({ new: updatedChat }) => setChatRow(previous => ({ ...previous, ...updatedChat }))
+      )
+      .on(
+        "postgres_changes",
         { event: "DELETE", schema: "public", table: "chats", filter: `id=eq.${chatId}` },
         () => {
           setMessages([]);
@@ -738,6 +743,15 @@ export default function ChatMessenger({
 
     try {
       setSending(true);
+
+      const { data: currentChat, error: chatError } = await supabase.from("chats")
+        .select("id,status").eq("id", chatId).single();
+      if (chatError || !currentChat) throw chatError || new Error("El chat ya no esta disponible.");
+      if (currentChat.status === "closed") {
+        setChatRow(previous => ({ ...previous, ...currentChat }));
+        setUiError("Esta transaccion termino. El chat esta disponible en solo lectura.");
+        return;
+      }
 
       // Optimista: aparece inmediatamente
       const optimisticId = `optimistic-${Date.now()}`;

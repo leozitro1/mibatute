@@ -442,8 +442,8 @@ export default function ProductDetail({
       const text = message.trim();
       setIsSubmitting(true);
       const res = await onSolicitar?.(item, text);
-      if (res && res.success === false) {
-        throw new Error(res.error || "No se pudo enviar.");
+      if (!res?.success) {
+        throw new Error(res?.error || "No se pudo enviar.");
       }
       setHasApplied(true);
       setMessage("");
@@ -490,6 +490,8 @@ export default function ProductDetail({
 
     if (isUnderReview) {
       alert("Este artículo está EN REVISIÓN por moderación. Por ahora no se puede solicitar.");
+      submitLock.current = false;
+      return;
     }
     if (isPausado) {
       alert("Esta publicación está pausada. El dueño no acepta solicitudes por ahora.");
@@ -524,14 +526,14 @@ export default function ProductDetail({
     try {
       setIsSubmitting(true);
       const res = await onSolicitar?.(item, text);
-      if (res && res.success === false) {
-        if (res.code === "RATE_LIMIT_REACHED" && res.meta) {
+      if (!res?.success) {
+        if (res?.code === "RATE_LIMIT_REACHED" && res.meta) {
           setRateLimitInfo({ h: res.meta.h, m: res.meta.m, msg: res.error });
           setIsSubmitting(false);
           submitLock.current = false;
           return;
         }
-        throw new Error(res.error || "No se pudo enviar tu solicitud.");
+        throw new Error(res?.error || "No se pudo enviar tu solicitud.");
       }
 
       setHasApplied(true);
@@ -539,7 +541,7 @@ export default function ProductDetail({
       safeClose();
     } catch (error) {
       console.error("Error al postular:", error);
-      alert("No se pudo enviar tu solicitud. Intenta de nuevo.");
+      alert(error?.message || "No se pudo enviar tu solicitud. Intenta de nuevo.");
     } finally {
       setIsSubmitting(false);
       submitLock.current = false;
@@ -575,10 +577,11 @@ export default function ProductDetail({
 
     try {
       setIsSubmitting(true);
-      await onSolicitar?.(item, "");
+      const result = await onSolicitar?.(item, "");
+      if (!result?.success) throw new Error(result?.error || "No se pudo confirmar la compra.");
     } catch (e) {
       console.error("Error reservando:", e);
-      alert("No se pudo reservar. Intenta de nuevo.");
+      alert(e?.message || "No se pudo reservar. Intenta de nuevo.");
     } finally {
       setIsSubmitting(false);
       submitLock.current = false;

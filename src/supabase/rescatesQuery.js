@@ -20,6 +20,19 @@ export function isRescateVisible(row, userId) {
     || (status === "reservado" && !buyer));
 }
 
+export function canOpenRescateChat(row, userId, hasChat = false) {
+  const article = row?.articulo;
+  if (!article || !userId) return false;
+  const status = String(article.estado || article.status || "disponible").toLowerCase().trim();
+  if (status === "en_revision") return false;
+  if (String(article.mode || article.tipo || "").toLowerCase().includes("venta")) {
+    return isRescateVisible(row, userId) && (!!row._chatId || hasChat
+      || String(article.buyer_id || "") === String(userId));
+  }
+  const winner = article.ganador_id || article.winner_id || article.recipient_id;
+  return String(winner || "") === String(userId) && ["reservado", "entregado"].includes(status);
+}
+
 export async function queryMisRescates(client, userId) {
   if (!userId) return { data: [], error: null };
 
@@ -27,7 +40,7 @@ export async function queryMisRescates(client, userId) {
     .select(`id,articulo_id,created_at,justificacion,articulo:articulos(${RESCATE_ARTICLE_COLUMNS})`)
     .eq("usuario_id", userId);
   const chats = await client.from("chats")
-    .select(`id,articulo_id,created_at,articulo:articulos(${RESCATE_ARTICLE_COLUMNS})`)
+    .select(`id,articulo_id,created_at,status,articulo:articulos(${RESCATE_ARTICLE_COLUMNS})`)
     .eq("buyer_id", userId);
   const purchases = await client.from("articulos")
     .select(RESCATE_ARTICLE_COLUMNS).eq("buyer_id", userId);
@@ -38,7 +51,7 @@ export async function queryMisRescates(client, userId) {
 
   const rows = [
     ...(posts.data || []).map(row => ({ ...row, _source: "postulaciones" })),
-    ...(chats.data || []).map(row => ({ ...row, _source: "chats" })),
+    ...(chats.data || []).map(row => ({ ...row, _source: "chats", _chatId: row.id, _chatStatus: row.status })),
     ...(purchases.data || []).map(article => ({
       id: article.id,
       articulo_id: article.id,
@@ -53,7 +66,8 @@ export async function queryMisRescates(client, userId) {
     const key = String(row.articulo_id);
     const previous = articles.get(key);
     if (!previous) articles.set(key, row);
-    else articles.set(key, { ...previous, articulo: row.articulo });
+    else articles.set(key, { ...previous, articulo: row.articulo,
+      _chatId: row._chatId || previous._chatId, _chatStatus: row._chatStatus || previous._chatStatus });
   }
   return {
     data: [...articles.values()].filter(row => isRescateVisible(row, userId))

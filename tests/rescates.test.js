@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { queryMisRescates, isRescateVisible } from "../src/supabase/rescatesQuery.js";
+import { queryMisRescates, isRescateVisible, canOpenRescateChat } from "../src/supabase/rescatesQuery.js";
 
 function mockClient(results, calls = []) {
   return {
@@ -85,4 +85,26 @@ test("reservations assigned to another buyer or donation winner stay excluded", 
     assert.equal(isRescateVisible({ _source: "postulaciones",
       articulo: { mode: "donacion", status, recipient_id: "u2" } }, "u1"), false);
   }
+});
+
+test("chat metadata survives merging an application, chat and purchase", async () => {
+  const article = { id: "s1", mode: "venta", estado: "reservado", buyer_id: "u1" };
+  const result = await queryMisRescates(mockClient({
+    postulaciones: { data: [{ id: "p1", articulo_id: "s1", articulo: article }] },
+    chats: { data: [{ id: "c1", articulo_id: "s1", articulo: article, status: "open" }] },
+    articulos: { data: [article] },
+  }), "u1");
+  assert.equal(result.data[0]._chatId, "c1");
+  assert.equal(canOpenRescateChat(result.data[0], "u1"), true);
+});
+
+test("buyer chat opens immediately and delivered history remains accessible", () => {
+  for (const estado of ["reservado", "entregado"]) {
+    assert.equal(canOpenRescateChat({ articulo: { mode: "venta", buyer_id: "u1", estado } }, "u1"), true);
+    assert.equal(canOpenRescateChat({ articulo: { mode: "donacion", ganador_id: "u1", estado } }, "u1"), true);
+  }
+  assert.equal(canOpenRescateChat({ _source: "chats", _chatId: "c1",
+    articulo: { mode: "venta", estado: "disponible" } }, "u1"), true);
+  assert.equal(canOpenRescateChat({ articulo: { mode: "donacion", estado: "disponible" } }, "u1", true), false);
+  assert.equal(canOpenRescateChat({ articulo: { mode: "venta", buyer_id: "u1", estado: "en_revision" } }, "u1", true), false);
 });

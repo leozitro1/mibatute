@@ -33,6 +33,9 @@ import {
 
 // ✅ servicio para Mis Rescates
 import { obtenerMisRescates } from "../supabase/rescatesService";
+import { canOpenRescateChat } from "../supabase/rescatesQuery";
+import { transitionSale } from "../supabase/saleTransaction";
+import { preferLatestArticle } from "./articleState";
 
 // ✅ para cancelar postulación directamente + actualizar entrega
 import { supabase } from "../supabase/supabaseClient";
@@ -151,7 +154,7 @@ async function safeUpdateArticulos(articleId, patch, ownerId) {
   const runUpdate = async (ownerColumn) => {
     let q = supabase.from("articulos").update(payload).eq("id", articleId);
     if (ownerId && ownerColumn) q = q.eq(ownerColumn, ownerId);
-    return await q.select("*").maybeSingle();
+    return await q.select("*").single();
   };
 
   let { data, error } = await runUpdate("owner_id");
@@ -1065,7 +1068,7 @@ export default function UserProfile({
   const getArtEffective = (art) => {
     const id = getArticuloId(art);
     if (!id) return art;
-    return articuloOverridesById.get(String(id)) || art;
+    return preferLatestArticle(art, articuloOverridesById.get(String(id)));
   };
 
   const [profile, setProfile] = useState({
@@ -1387,7 +1390,7 @@ export default function UserProfile({
 
   // Reload on each visit so new applications and purchases are included.
   useEffect(() => {
-    if (!user?.id || activeTab !== "rescates") return;
+    if (!user?.id || !["rescates", "buzon"].includes(activeTab)) return;
     let alive = true;
 
     (async () => {
@@ -1650,7 +1653,7 @@ export default function UserProfile({
     const byId = new Map();
     [...profileProducts, ...propProducts].forEach((item) => {
       const id = getArticuloId(item);
-      if (id) byId.set(String(id), item);
+      if (id) byId.set(String(id), preferLatestArticle(byId.get(String(id)), item));
     });
     return [...byId.values()];
   }, [myProducts, profileProducts]);
@@ -1660,6 +1663,7 @@ export default function UserProfile({
       setProfileProducts([]);
       return;
     }
+    if (!["publicaciones", "buzon"].includes(activeTab)) return;
 
     let alive = true;
 
@@ -1708,7 +1712,7 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [user?.id]);
+  }, [user?.id, activeTab]);
 
   const publications = useMemo(() => {
     const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -1828,7 +1832,7 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [activeTab, user?.id, loadUnreadForArticuloIds]);
+  }, [activeTab, user?.id, loadUnreadForArticuloIds, publications]);
 
   // ✅ OPT: maps rescates + unread (buyer) — solo corre en pestaña rescates o buzon
   useEffect(() => {
@@ -1876,7 +1880,7 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [activeTab, user?.id, loadUnreadForArticuloIds]);
+  }, [activeTab, user?.id, loadUnreadForArticuloIds, rescates]);
 
   // ✅ REALTIME: mensajes + solicitudes en vivo
   useEffect(() => {
@@ -2260,29 +2264,14 @@ export default function UserProfile({
       return;
     }
 
-    const isVenta = isVentaArticulo(art);
-
-    if (isVenta) {
-      onArticuloSeen?.(articuloId);
-      await markChatAsRead({ articuloId, buyerId: user.id });
-      onOpenChat({ article: art, buyerId: user.id });
-      return;
-    }
-
-    // Usar hasChatBuyerByArticulo ya cargado en memoria (evita re-query con posibles RLS)
     const hasChatActivo = hasChatBuyerByArticulo.get(String(articuloId)) === true;
-    const ganadorId = art?.ganador_id || art?.winner_id || art?.winnerUid || art?.recipient_id || null;
-    const estado = normEstado(art?.estado || art?.status || "disponible");
-    const isGanador = String(ganadorId || "") === String(user.id) &&
-      (estado === "reservado" || estado === "entregado");
-
-    if (!hasChatActivo && !isGanador) return;
+    if (!canOpenRescateChat(rescate, user.id, hasChatActivo)) return;
 
     try {
       setCargandoChatRescate(articuloId);
       onArticuloSeen?.(articuloId);
       await markChatAsRead({ articuloId, buyerId: user.id });
-      onOpenChat({ article: art, buyerId: user.id });
+      await onOpenChat({ article: art, buyerId: user.id });
     } finally {
       setCargandoChatRescate(null);
     }
@@ -2319,7 +2308,14 @@ export default function UserProfile({
       return;
     }
 
-    const ok = confirm(`¿Quitar de “Mis Rescates”? \n\n"${titulo}"\n\nEsto eliminará tu solicitud y el chat/mensajes.`);
+    const isPurchase = isVentaArticulo(art) && String(art.buyer_id || "") === String(user.id);
+    const isActivePurchase = isPurchase && normEstado(art.estado || art.status) === "reservado";
+    if (isPurchase && normEstado(art.estado || art.status) === "entregado") {
+      return alert("La compra entregada se conserva en tu historial.");
+    }
+    const ok = confirm(isActivePurchase
+      ? `¿Cancelar la compra de "${titulo}"? El articulo volvera a estar disponible.`
+      : `¿Quitar de “Mis Rescates”? \n\n"${titulo}"\n\nEsto eliminará tu solicitud y el chat/mensajes.`);
     if (!ok) return;
 
     const disableKey = rescate?.id || articuloId;
@@ -2327,6 +2323,13 @@ export default function UserProfile({
 
     try {
       setCancelandoId(key);
+
+      if (isActivePurchase) {
+        const { article } = await transitionSale(supabase, articuloId, "cancel");
+        onArticuloReservado?.(article);
+        setRescatesReload(value => value + 1);
+        return;
+      }
 
       const result = await eliminarSolicitudCompradorYChat({
         articuloId,
@@ -3491,9 +3494,7 @@ export default function UserProfile({
                       const fueReservadoYCancelado =
                         !isVenta &&
                         estado === "disponible" &&
-                        art?.updated_at &&
-                        r?.created_at &&
-                        new Date(art.updated_at) > new Date(r.created_at) &&
+                        r?._chatStatus === "closed" &&
                         !ganadorId;
 
                       // Para donaciones: chat solo si eres el ganador activo.
@@ -3502,11 +3503,7 @@ export default function UserProfile({
                       const canOpenMsgsRescate =
                         !isReview &&
                         !isUserBlocked &&
-                        !fueReservadoYCancelado &&
-                        (isVenta
-                          ? hasChatBuyer || isBuyer
-                          : String(ganadorId || "") === String(user.id) &&
-                            (estado === "reservado" || estado === "entregado"));
+                        canOpenRescateChat(r, user.id, hasChatBuyer);
 
                       const statusUI = badgeUIByStatus(estado);
                       const tipoUI = badgeUIByTipo(tipo);
@@ -3556,7 +3553,7 @@ export default function UserProfile({
                               </span>
 
                               <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
-                                Postulado: {formatDateTime(r?.created_at) || "Sin fecha"}
+                                {isVenta ? "Compra / contacto" : "Postulado"}: {formatDateTime(r?.created_at) || "Sin fecha"}
                               </span>
 
                               {fueReservadoYCancelado && (
@@ -3585,7 +3582,6 @@ export default function UserProfile({
                             <button
                               type="button"
                               onClick={() => {
-                                if (isEntregadoRescate) return;
                                 if (isUserBlocked) return alert(blockedUserMsg());
                                 if (isReview) return alert(revisionBlockMsg(titulo));
                                 verMensajesRescate(r);
@@ -3593,6 +3589,7 @@ export default function UserProfile({
                               disabled={cargandoChatRescate === articuloId || isDeletingMine || !canOpenMsgsRescate}
                               className="relative bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
                               aria-label="Ver mensajes"
+                              title={isEntregadoRescate ? "Ver historial del chat" : canOpenMsgsRescate ? "Abrir chat" : "Chat disponible al confirmar la reserva"}
                             >
                               {hasUnread ? (
                                 <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
@@ -3643,9 +3640,10 @@ export default function UserProfile({
                                 if (isReview) return alert(revisionBlockMsg(titulo));
                                 eliminarRescate(r);
                               }}
-                              disabled={isDeletingMine || isReview || isUserBlocked}
+                              disabled={isDeletingMine || isReview || isUserBlocked || (isVenta && isBuyer && isEntregadoRescate)}
                               className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50"
-                              aria-label="Eliminar de Mis Rescates"
+                              aria-label={isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
+                              title={isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
                             >
                               {isDeletingMine ? (
                                 <Loader2 className="animate-spin" size={16} />

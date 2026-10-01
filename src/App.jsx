@@ -18,7 +18,8 @@ import FeaturedTicker from "./components/FeaturedTicker";
 import HowItWorks from "./components/HowItWorks";
 import ManageArticleModal from "./components/ManageArticleModal";
 import EditArticleModal from "./components/EditArticleModal";
-import { deleteArticleImages } from "./supabase/articleService";
+import { deleteArticleImages, getArticleWithImages } from "./supabase/articleService";
+import { transitionSale } from "./supabase/saleTransaction";
 import { queryArticlesWithCondition } from "./supabase/articleQuery";
 import ChatMessenger from "./components/ChatMessenger";
 
@@ -130,28 +131,6 @@ function isInReview(article) {
   );
 }
 
-// ✅ helper: update a prueba de columnas faltantes
-async function safeUpdateArticulos(articleId, patch) {
-  let payload = { ...(patch || {}) };
-
-  const run = async () => {
-    return await supabase.from("articulos").update(payload).eq("id", articleId).select("id").maybeSingle();
-  };
-
-  let { data, error } = await run();
-
-  if (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
-    const m = error.message.match(/Could not find the '(.+?)' column/i);
-    const missing = m?.[1];
-    if (missing && Object.prototype.hasOwnProperty.call(payload, missing)) {
-      delete payload[missing];
-      ({ data, error } = await run());
-    }
-  }
-
-  return { error, data };
-}
-
 // ✅ helper: chunk para IN() (evita límites)
 function chunkArray(arr, size) {
   const out = [];
@@ -208,7 +187,7 @@ export default function App() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editArticle, setEditArticle] = useState(null);
 
-  const [reservingId, setReservingId] = useState(null);
+  const saleInFlightRef = useRef(false);
 
   // ✅ Chat global
   const [chatOpen, setChatOpen] = useState(null);
@@ -340,6 +319,15 @@ export default function App() {
 
     if (!sellerId || !buyerId) {
       return { chat: null, errorMessage: "No se pudo crear chat: falta sellerId o buyerId." };
+    }
+
+    const existing = await readChatByArticuloAndBuyer({ articuloId, buyerId });
+    if (existing.error) return { chat: null, errorMessage: existing.error.message };
+    if (existing.data?.id) return { chat: existing.data, errorMessage: null };
+    const assigned = article.buyer_id || article.ganador_id || article.winner_id || article.recipient_id;
+    const state = normEstado(article.estado || article.status);
+    if (String(assigned || "") !== String(buyerId) || state !== "reservado") {
+      return { chat: null, errorMessage: "No hay una reserva activa para crear este chat." };
     }
 
     const payload1 = { articulo_id: articuloId, seller_id: sellerId, buyer_id: buyerId, status: "open" };
@@ -672,9 +660,9 @@ export default function App() {
   // =========================================================
 
   const openChatByArticleAndBuyer = useCallback(
-    async ({ article, buyerId }) => {
+    async ({ article: requestedArticle, buyerId }) => {
       const uid = getActiveUid();
-      const articuloId = getArticuloId(article);
+      const articuloId = getArticuloId(requestedArticle);
 
       if (!uid) return alert("Debes iniciar sesión.");
       if (!articuloId) return alert("Este artículo no tiene ID válido.");
@@ -684,6 +672,9 @@ export default function App() {
   return;
 }
 
+      const fresh = await getArticleWithImages(articuloId);
+      if (!fresh.success) return alert(fresh.error || "No se pudo actualizar el articulo.");
+      const article = fresh.data;
       // ✅ BLOQUEO REVISIÓN (central)
       if (isInReview(article)) {
         alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
@@ -736,9 +727,9 @@ export default function App() {
 
   // ✅ helper: abrir chat por articulo para el usuario actual (buyer o seller)
   const openChatFromArticle = useCallback(
-    async (article) => {
+    async (requestedArticle) => {
       const uid = getActiveUid();
-      const articuloId = getArticuloId(article);
+      const articuloId = getArticuloId(requestedArticle);
       if (!uid) return alert("Debes iniciar sesión.");
       if (!articuloId) return alert("Este artículo no tiene ID válido.");
       if (isUserBlocked) {
@@ -746,6 +737,9 @@ export default function App() {
   return;
 }
 
+      const fresh = await getArticleWithImages(articuloId);
+      if (!fresh.success) return alert(fresh.error || "No se pudo actualizar el articulo.");
+      const article = fresh.data;
       // ✅ BLOQUEO REVISIÓN (central)
       if (isInReview(article)) {
         alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
@@ -1181,9 +1175,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     const uid = getActiveUid();
 
     if (!uid) {
-      alert("Debes iniciar sesión para solicitar.");
       setIsAuthOpen(true);
-      return;
+      return { success: false, error: "Debes iniciar sesion para solicitar." };
     }
 
     const p = products.find((x) => x.id === productId);
@@ -1191,24 +1184,20 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
     // ✅ BLOQUEO REVISIÓN (opcional pero coherente)
     if (p && isInReview(p)) {
-      alert("Este artículo está en revisión. No se pueden enviar solicitudes por ahora.");
-      return;
+      return { success: false, error: "Este articulo esta en revision." };
     }
 
     if (estadoActual === "entregado") {
-      alert("Este artículo ya fue marcado como ENTREGADO. No se pueden enviar solicitudes.");
-      return;
+      return { success: false, error: "Este articulo ya fue entregado." };
     }
 
     if (p && estadoActual !== "disponible") {
-      alert("Este artículo ya no está disponible para nuevas solicitudes.");
-      return;
+      return { success: false, error: "Este articulo ya no esta disponible para nuevas solicitudes." };
     }
 
     const ownerId = p?.owner_id || p?.usuario_id || null;
     if (ownerId && ownerId === uid) {
-      alert("Esta es tu publicación. No puedes postularte a tu propio artículo.");
-      return;
+      return { success: false, error: "No puedes postularte a tu propio articulo." };
     }
 
     try {
@@ -1219,10 +1208,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         .eq("usuario_id", uid)
         .maybeSingle();
 
-      if (!errYa && ya?.id) {
-        alert("Ya te postulaste a este artículo.");
-        return;
-      }
+      if (errYa) throw errYa;
+      if (ya?.id) return { success: false, error: "Ya te postulaste a este articulo." };
 
       const res = await crearPostulacionConLimite({ articuloId: productId, usuarioId: uid, justificacion: message || "", applyRateLimit: true });
       if (res && res.success === false) {
@@ -1242,156 +1229,61 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       return { success: true };
     } catch (err) {
       console.error("Error enviando postulación:", err);
-      alert(String(err?.message || "Error enviando la solicitud. Intenta de nuevo."));
+      return { success: false, error: err?.message || "Error enviando la solicitud. Intenta de nuevo." };
     }
   };
 
-  // ✅ BUY (reserva + buyer_id + crear chat)
+  const applyArticleUpdate = (article) => {
+    const id = getArticuloId(article);
+    setProducts(previous => previous.some(item => String(getArticuloId(item)) === String(id))
+      ? previous.map(item => String(getArticuloId(item)) === String(id) ? { ...item, ...article } : item)
+      : [...previous, article]);
+    setSelectedProduct(previous => previous && String(getArticuloId(previous)) === String(id)
+      ? { ...previous, ...article } : previous);
+    setManageArticle(previous => previous && String(getArticuloId(previous)) === String(id)
+      ? { ...previous, ...article } : previous);
+  };
+
   const handleBuy = async (productId) => {
     const uid = getActiveUid();
-
     if (!uid) {
-      alert("Debes iniciar sesión para reservar.");
       setIsAuthOpen(true);
-      return;
+      return { success: false, error: "Debes iniciar sesion para comprar." };
+    }
+    if (isUserBlocked) return { success: false, error: "Tu cuenta esta bloqueada." };
+    if (saleInFlightRef.current) return { success: false, error: "Ya hay una compra en proceso." };
+    const product = products.find(item => String(item.id) === String(productId)) || selectedProduct;
+    if (product && isInReview(product)) {
+      return { success: false, error: "Este articulo esta en revision." };
     }
 
-    if (reservingId === productId) return;
-    setReservingId(productId);
-
-    const p = products.find((x) => x.id === productId);
-    const estadoActual = normEstado(p?.estado || p?.status || "disponible");
-
-    // ✅ BLOQUEO REVISIÓN: no reservar + no chat
-    if (p && isInReview(p)) {
-      alert("Este artículo está en revisión. No se puede reservar ni chatear por ahora.");
-      setReservingId(null);
-      return;
-    }
-
-    if (p && estadoActual !== "disponible") {
-      alert("Este artículo ya no está disponible.");
-      setReservingId(null);
-      return;
-    }
-
-    const sellerId = p?.owner_id || p?.usuario_id || null;
-
-    if (!sellerId) {
-      alert("Este artículo no tiene vendedor (owner_id/usuario_id) válido.");
-      setReservingId(null);
-      return;
-    }
-
-    if (sellerId === uid) {
-      alert("Esta es tu publicación. No puedes reservar tu propio artículo.");
-      setReservingId(null);
-      return;
-    }
-
+    saleInFlightRef.current = true;
     try {
-      const patch = {
-        estado: "reservado",
-        status: "reservado",
-        buyer_id: uid,
-        reserved_at: new Date().toISOString(),
-      };
-
-      const { error: upErr } = await safeUpdateArticulos(productId, patch);
-
-      if (upErr) {
-        console.log("UPDATE ARTICULOS ERROR FULL:", upErr);
-        alert(
-          "UPDATE FALLÓ: " +
-            (upErr?.message || "") +
-            (upErr?.code ? ` | code=${upErr.code}` : "") +
-            (upErr?.details ? ` | details=${upErr.details}` : "")
-        );
-        throw upErr;
-      }
-
-      setProducts((prev) => prev.map((it) => (it?.id === productId ? { ...it, ...patch } : it)));
-
-      setSelectedProduct((prev) => {
-        if (!prev) return prev;
-        const prevId = getArticuloId(prev);
-        if (prevId !== productId) return prev;
-        return { ...prev, ...patch };
-      });
-
-      const ensured = await ensureChatExists({ article: p, articuloId: productId, buyerId: uid });
-
-      alert("Artículo reservado. Se habilitó el chat con el vendedor ✅");
-
+      const { article, chat } = await transitionSale(supabase, productId, "reserve");
+      applyArticleUpdate(article);
+      setSelectedProduct(null);
       setChatOpen({
-        article: p,
-        chat: ensured.chat || null,
-        otherUserId: sellerId,
+        article,
+        chat,
+        otherUserId: article.owner_id,
         role: "buyer",
-        errorMessage: ensured.chat ? null : ensured.errorMessage,
+        errorMessage: null,
       });
-
-      if (ensured?.chat?.id) {
-        markChatSeen(ensured.chat.id);
-      }
-
-      // ✅ setProducts ya actualizó estado localmente — solo recargamos notifs
-      await loadNotifications();
-    } catch (err) {
-      console.error("HANDLEBUY ERROR:", err);
-      alert(
-        "Error reservando el artículo.\n" +
-          "Revisa consola: UPDATE ARTICULOS ERROR FULL.\n" +
-          "Esto suele ser RLS/permisos."
-      );
+      markChatSeen(chat.id);
+      loadNotifications().catch(error => console.error("Error actualizando notificaciones:", error));
+      return { success: true, data: article };
+    } catch (error) {
+      console.error("Error reservando venta:", error);
+      return { success: false, error: error.message || "No se pudo reservar el articulo." };
     } finally {
-      setReservingId(null);
+      saleInFlightRef.current = false;
     }
   };
 
-  // ✅ CANCELAR VENTA
   const cancelSale = async (articleId) => {
-    try {
-      const { error: err1 } = await safeUpdateArticulos(articleId, {
-        estado: "disponible",
-        status: "disponible",
-        buyer_id: null,
-        reserved_at: null,
-      });
-
-      if (err1) {
-        console.log("CANCEL UPDATE ERROR FULL:", err1);
-        throw err1;
-      }
-
-      setProducts((prev) =>
-        prev.map((it) =>
-          it?.id === articleId
-            ? { ...it, estado: "disponible", status: "disponible", buyer_id: null, reserved_at: null }
-            : it
-        )
-      );
-
-      setSelectedProduct((prev) => {
-        if (!prev) return prev;
-        const prevId = getArticuloId(prev);
-        if (prevId !== articleId) return prev;
-        return { ...prev, estado: "disponible", status: "disponible", buyer_id: null, reserved_at: null };
-      });
-
-      try {
-        const { error: err2 } = await supabase.from("chats").update({ status: "closed" }).eq("articulo_id", articleId);
-        if (err2) console.log("No se pudo cerrar chat (opcional):", err2);
-      } catch (e) {
-        console.log("Cerrar chat (opcional) falló:", e?.message || e);
-      }
-
-      alert("Venta cancelada. El artículo volvió a estar disponible ✅");
-      // ✅ Ya actualizamos setProducts localmente arriba — sin full reload
-    } catch (e) {
-      console.error(e);
-      alert("No se pudo cancelar la venta.");
-    }
+    const { article } = await transitionSale(supabase, articleId, "cancel");
+    applyArticleUpdate(article);
+    return article;
   };
 
   // ✅ ELIMINAR PUBLICACIÓN
@@ -2040,12 +1932,11 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 const isVenta = normTipo(item?.mode || item?.tipo) === "venta";
 
                 if (isVenta) {
-                  await handleBuy(id);
-                  return;
+                  return handleBuy(id);
                 } else {
                   const applyRes = await handleApply(id, message);
-                  if (applyRes?.code === "RATE_LIMIT_REACHED") return applyRes;
-                  setSelectedProduct(null);
+                  if (applyRes?.success) setSelectedProduct(null);
+                  return applyRes;
                 }
               }}
               onOpenChat={async (item) => {
@@ -2081,8 +1972,11 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 setManageArticle(null);
               }}
               onCancelSale={cancelSale}
-              onCancelSaleSuccess={async () => {
-                // ✅ Solo notificaciones — el estado ya se actualizó localmente
+              onCancelSaleSuccess={async (updatedArticle) => {
+                const id = getArticuloId(updatedArticle || manageArticle);
+                const fresh = updatedArticle ? { success: true, data: updatedArticle } : await getArticleWithImages(id);
+                if (!fresh.success) throw new Error(fresh.error);
+                applyArticleUpdate(fresh.data);
                 await loadNotifications();
               }}
               onOpenChat={async ({ article, buyerId }) => {

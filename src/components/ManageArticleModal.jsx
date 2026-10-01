@@ -1,6 +1,7 @@
 // src/components/ManageArticleModal.jsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase/supabaseClient";
+import { transitionSale } from "../supabase/saleTransaction";
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -79,7 +80,7 @@ function formatDateTime(value) {
 async function safeUpdateArticulos(articleId, patch) {
   let payload = { ...(patch || {}) };
 
-  let { error } = await supabase.from("articulos").update(payload).eq("id", articleId);
+  let { error } = await supabase.from("articulos").update(payload).eq("id", articleId).select("id").single();
 
   if (error?.message && /Could not find the '(.+?)' column/i.test(error.message)) {
     const m = error.message.match(/Could not find the '(.+?)' column/i);
@@ -87,7 +88,7 @@ async function safeUpdateArticulos(articleId, patch) {
 
     if (missing && Object.prototype.hasOwnProperty.call(payload, missing)) {
       delete payload[missing];
-      ({ error } = await supabase.from("articulos").update(payload).eq("id", articleId));
+      ({ error } = await supabase.from("articulos").update(payload).eq("id", articleId).select("id").single());
     }
   }
 
@@ -119,8 +120,8 @@ export default function ManageArticleModal({
     return article?.id || article?.articulo_id || article?.uuid || null;
   }, [article?.id, article?.articulo_id, article?.uuid]);
 
-  const tipoNorm = normTipo(article?.tipo ?? article?.mode ?? article?.tipo_publicacion ?? "donacion");
-  const estado = normEstado(article?.estado ?? article?.status ?? "");
+  const tipoNorm = normTipo(article?.mode || article?.tipo || article?.tipo_publicacion || "donacion");
+  const estado = normEstado(article?.estado || article?.status || "");
 
   const isVenta = tipoNorm === "venta";
   const isReservado = estado === "reservado";
@@ -341,18 +342,22 @@ export default function ManageArticleModal({
 
       const nowISO = new Date().toISOString();
 
-      const { error: upErr } = await safeUpdateArticulos(articuloId, {
-        estado: "entregado",
-        status: "entregado",
-        delivered_at: nowISO, // si no existe, safeUpdate lo quita
-      });
-
-      if (upErr) throw upErr;
+      let deliveredArticle;
+      if (isVenta) {
+        ({ article: deliveredArticle } = await transitionSale(supabase, articuloId, "deliver"));
+      } else {
+        const { error: upErr } = await safeUpdateArticulos(articuloId, {
+          estado: "entregado",
+          status: "entregado",
+          delivered_at: nowISO,
+        });
+        if (upErr) throw upErr;
+      }
 
       alert("✅ Marcado como ENTREGADO. El chat queda disponible para ver historial (solo lectura).");
 
       if (typeof onCancelSaleSuccess === "function") {
-        await onCancelSaleSuccess();
+        await onCancelSaleSuccess(deliveredArticle);
       }
 
       onClose?.();
@@ -444,19 +449,12 @@ export default function ManageArticleModal({
     if (!articuloId) return;
 
     try {
-      const { error: err1 } = await safeUpdateArticulos(articuloId, {
-        estado: "disponible",
-        status: "disponible",
-        buyer_id: null,
-        reserved_at: null,
-      });
-
-      if (err1) throw err1;
+      const { article: updatedArticle } = await transitionSale(supabase, articuloId, "cancel");
 
       alert("Venta cancelada. El artículo volvió a estar disponible ✅");
 
       if (typeof onCancelSaleSuccess === "function") {
-        await onCancelSaleSuccess();
+        await onCancelSaleSuccess(updatedArticle);
       }
 
       onClose?.();
@@ -469,8 +467,8 @@ export default function ManageArticleModal({
   const handleCancelSale = async () => {
     if (typeof onCancelSale === "function") {
       try {
-        await onCancelSale(articuloId);
-        if (typeof onCancelSaleSuccess === "function") await onCancelSaleSuccess();
+        const updatedArticle = await onCancelSale(articuloId);
+        if (typeof onCancelSaleSuccess === "function") await onCancelSaleSuccess(updatedArticle);
         onClose?.();
       } catch (e) {
         alert("No se pudo cancelar la venta: " + (e?.message || "Error"));
