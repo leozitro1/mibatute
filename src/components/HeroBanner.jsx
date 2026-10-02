@@ -151,8 +151,8 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
       />
 
       {/* Content */}
-      <div className="relative px-6 py-8 sm:px-10 sm:py-10 md:px-14 md:py-14">
-        <div className="flex flex-col gap-4 md:max-w-2xl">
+      <div className="relative px-6 py-6 sm:px-10 sm:py-7 md:px-14 md:py-8">
+        <div className="flex flex-col gap-3 md:max-w-2xl">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-treasure-gold px-3 py-1 text-xs font-black uppercase tracking-wide text-black">
               {active.badge}
@@ -193,7 +193,7 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
         </div>
 
         {/* Controls */}
-        <div className="mt-6 flex items-center justify-between gap-4">
+        <div className="mt-4 flex items-center justify-between gap-4">
           {/* Dots */}
           <div className="flex items-center gap-2">
             {slides.map((s, i) => {

@@ -1,6 +1,7 @@
 // src/pages/MasterPage.jsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { LogOut } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -64,12 +65,13 @@ export default function MasterPage() {
   const [loading, setLoading] = useState(true);
   const [authUser, setAuthUser] = useState(null);
 
-  // ---------------- Gate extra (solo frontend) ----------------
-  // Cambia la clave aquí o (mejor) en tu .env: VITE_MASTER_PASS=tu_clave
-  const MASTER_PASS = import.meta.env.VITE_MASTER_PASS || "156215621562";
+  const MASTER_USER = import.meta.env.VITE_MASTER_USER || "leozitro";
+  const MASTER_EMAIL = import.meta.env.VITE_MASTER_EMAIL || "leozitro@master.mibatute.com";
   const [gateOk, setGateOk] = useState(false);
+  const [gateUser, setGateUser] = useState("");
   const [gatePass, setGatePass] = useState("");
   const [gateErr, setGateErr] = useState("");
+  const [gateBusy, setGateBusy] = useState(false);
 
   // 3 pestañas
   const [tab, setTab] = useState("publicaciones"); // publicaciones | usuarios | mensajes
@@ -299,6 +301,7 @@ export default function MasterPage() {
         if (error) throw error;
         if (!alive) return;
         setAuthUser(data?.session?.user || null);
+        setGateOk(data?.session?.user?.app_metadata?.role === "master");
       } catch (e) {
         console.error("Master auth error:", e);
         if (!alive) return;
@@ -312,6 +315,7 @@ export default function MasterPage() {
     const { data: authSub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!alive) return;
       setAuthUser(session?.user || null);
+      setGateOk(session?.user?.app_metadata?.role === "master");
     });
 
     return () => {
@@ -322,49 +326,59 @@ export default function MasterPage() {
     };
   }, []);
 
-  // gate: siempre pide clave al entrar — no persiste en localStorage
-
   const handleGateSubmit = useCallback(
-    (e) => {
+    async (e) => {
       e.preventDefault();
       setGateErr("");
-
-      if (!MASTER_PASS) {
-        setGateErr("Falta configurar la clave del Master.");
+      if (gateUser.trim().toLowerCase() !== MASTER_USER.toLowerCase()) {
+        setGateErr("Usuario o contraseña incorrectos.");
         return;
       }
-
-      if (gatePass === MASTER_PASS) {
+      setGateBusy(true);
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: MASTER_EMAIL,
+          password: gatePass,
+        });
+        if (error) throw error;
+        if (data.user?.app_metadata?.role !== "master") {
+          await supabase.auth.signOut({ scope: "local" });
+          setGateErr("Esta cuenta no tiene acceso Master.");
+          return;
+        }
+        setAuthUser(data.user);
         setGateOk(true);
         setGatePass("");
-      } else {
-        setGateErr("Contraseña incorrecta.");
+      } catch {
+        setGateErr("No se pudo iniciar sesión. Comprueba el usuario y la contraseña.");
+      } finally {
+        setGateBusy(false);
       }
     },
-    [MASTER_PASS, gatePass, authUser?.id]
+    [MASTER_USER, MASTER_EMAIL, gateUser, gatePass]
   );
 
-  const handleGateLogout = useCallback(() => {
+  const handleGateLogout = useCallback(async () => {
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    if (error) { showSupabaseError("No se pudo cerrar sesión.", error); return; }
     setGateOk(false);
     setGatePass("");
     setGateErr("");
-  }, [authUser?.id]);
+  }, []);
 
   // ---------------- permiso para enviar mensajes ----------------
-  // DEV MODE: cualquier usuario logueado puede enviar
-  // TODO PRODUCCION: reemplazar por consulta a admin_users
   const loadCanSendFlag = useCallback(async () => {
     if (!authUser?.id) return;
     setCanSendLoading(true);
     try {
-      setCanSendMsgs(true); // DEV: bypass, cualquier usuario logueado puede enviar
+      setCanSendMsgs(authUser?.app_metadata?.role === "master");
     } catch (e) {
       console.warn("loadCanSendFlag warn:", e?.message || e);
       setCanSendMsgs(false);
     } finally {
       setCanSendLoading(false);
     }
-  }, [authUser?.id]);
+  }, [authUser]);
 
   // ---------------- loaders ----------------
   const loadUsuarios = useCallback(async ({ force = false } = {}) => {
@@ -553,15 +567,18 @@ export default function MasterPage() {
 
   // carga inicial UNA sola vez
   useEffect(() => {
-    if (!authUser?.id) return;
-    if (didInitialLoadRef.current) return;
-    didInitialLoadRef.current = true;
+    if (!authUser?.id || !gateOk) {
+      didInitialLoadRef.current = false;
+      return;
+    }
+    if (didInitialLoadRef.current === authUser.id) return;
+    didInitialLoadRef.current = authUser.id;
 
     loadUsuarios();
     loadArticulos();
     loadActiveCounts();
     loadCanSendFlag();
-  }, [authUser?.id, loadArticulos, loadUsuarios, loadActiveCounts, loadCanSendFlag]);
+  }, [authUser?.id, gateOk, loadArticulos, loadUsuarios, loadActiveCounts, loadCanSendFlag]);
 
   // ---------------- actions ----------------
   const setArticleStatus = useCallback(
@@ -886,33 +903,7 @@ export default function MasterPage() {
     );
   }
 
-  if (!authUser?.id) {
-    return (
-      <div className="min-h-screen bg-[#F6F7FB]">
-        <div className="max-w-6xl mx-auto px-4 py-10">
-          <div className="bg-white rounded-3xl shadow-[0_10px_30px_rgba(17,24,39,0.06)] border border-gray-200/70 p-6">
-            <h1 className="text-2xl font-semibold text-gray-800">Master</h1>
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-50 border border-gray-200/70 text-[11px] font-semibold text-gray-600">
-              Panel maestro
-              <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-              Usuarios y publicaciones
-            </div>
-            <p className="text-sm text-gray-500 font-medium mt-1">Debes iniciar sesión para entrar.</p>
-            <div className="mt-6 flex gap-3">
-              <Link
-                to="/"
-                className="px-4 py-2 rounded-2xl bg-gray-900 text-white font-semibold text-sm transition hover:shadow-sm active:scale-[0.99]"
-              >
-                Volver al Home
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!gateOk) {
+  if (!authUser?.id || !gateOk) {
     return (
       <div
         className="min-h-screen bg-[#F5F5F5]"
@@ -923,18 +914,25 @@ export default function MasterPage() {
         <div className="max-w-md mx-auto px-4 py-10">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
             <h1 className="text-2xl font-semibold text-gray-800">Acceso Master</h1>
-            <p className="text-sm text-gray-500 font-medium mt-1">Ingresa la contraseña para entrar a esta página.</p>
-
             <form onSubmit={handleGateSubmit} className="mt-6 space-y-3">
               <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Contraseña</label>
+                <label htmlFor="master-user" className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Usuario</label>
+                <input id="master-user" value={gateUser} onChange={(e) => setGateUser(e.target.value)}
+                  type="text" autoComplete="username" required disabled={gateBusy}
+                  className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-medium text-sm" />
+              </div>
+              <div>
+                <label htmlFor="master-password" className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Contraseña</label>
                 <input
+                  id="master-password"
                   value={gatePass}
                   onChange={(e) => setGatePass(e.target.value)}
                   type="password"
                   className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-medium text-sm"
                   placeholder="Contraseña"
                   autoComplete="current-password"
+                  required
+                  disabled={gateBusy}
                 />
               </div>
 
@@ -944,8 +942,8 @@ export default function MasterPage() {
                 </div>
               ) : null}
 
-              <button type="submit" className="w-full px-4 py-3 rounded-2xl bg-gray-900 text-white font-semibold text-sm">
-                Entrar
+              <button type="submit" disabled={gateBusy} className="w-full px-4 py-3 rounded-2xl bg-gray-900 text-white font-semibold text-sm disabled:opacity-50">
+                {gateBusy ? "Entrando..." : "Entrar"}
               </button>
 
               <div className="flex gap-2">
@@ -970,9 +968,6 @@ export default function MasterPage() {
               </div>
             </form>
 
-            <div className="mt-4 text-xs text-gray-500 font-medium">
-              * Esta protección es solo frontend. Luego la reforzamos con roles/policies.
-            </div>
 
             <div className="mt-3">
               <button
@@ -1086,8 +1081,10 @@ export default function MasterPage() {
               >
                 Refrescar
               </button>
-
-
+              <button type="button" onClick={handleGateLogout}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white text-gray-900 font-semibold text-sm border border-gray-200">
+                <LogOut size={16} /> Cerrar sesión
+              </button>
             </div>
           </div>
 

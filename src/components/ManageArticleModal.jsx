@@ -1,5 +1,6 @@
 // src/components/ManageArticleModal.jsx
 import { useEffect, useMemo, useState } from "react";
+import { isSaleApproved } from './articleState.js';
 import { supabase } from "../supabase/supabaseClient";
 import { transitionSale } from "../supabase/saleTransaction";
 
@@ -274,17 +275,6 @@ export default function ManageArticleModal({
 
       if (upErr) throw upErr;
 
-      // 2) Borrar postulaciones de los demás
-      const { error: delErr } = await supabase
-        .from("postulaciones")
-        .delete()
-        .eq("articulo_id", articuloId)
-        .neq("usuario_id", ganadorId);
-
-      if (delErr) {
-        console.log("No se pudieron borrar postulaciones de otros (RLS?):", delErr);
-      }
-
       // 3) refrescar local: solo queda el ganador
       setPostulados((prev) =>
         (Array.isArray(prev) ? prev : []).filter((p) => String(p?.usuario_id) === String(ganadorId))
@@ -295,7 +285,7 @@ export default function ManageArticleModal({
         await onCancelSaleSuccess();
       }
 
-      alert("✅ Seleccionado. El artículo quedó reservado.");
+      await onOpenChat?.({ article: { ...article, ganador_id: ganadorId, estado: "reservado", status: "reservado" }, buyerId: ganadorId });
     } catch (e) {
       console.error(e);
       alert("No se pudo seleccionar: " + (e?.message || "Error"));
@@ -543,6 +533,21 @@ export default function ManageArticleModal({
         <div className="p-8 pt-6">
           {isVenta ? (
             <div>
+              {buyerId && (isReservado || isEntregado) && (
+                <div className="mb-4 flex items-center gap-3 border-b border-gray-100 pb-4">
+                  {article.buyer_public?.foto_url ? (
+                    <img src={article.buyer_public.foto_url} alt="Foto del comprador" className="h-10 w-10 shrink-0 rounded-full object-cover" />
+                  ) : (
+                    <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 font-bold text-gray-600">
+                      {(article.buyer_public?.nombre || "C").charAt(0)}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-500">{isEntregado ? "Comprado por" : "Reservado por"}</p>
+                    <p className="truncate text-sm font-bold text-gray-800">{article.buyer_public?.nombre || "Comprador"}</p>
+                  </div>
+                </div>
+              )}
               {isEntregado ? (
                 <div className="space-y-3">
                   <div className="bg-gray-100 border border-gray-200 rounded-2xl p-4">
@@ -572,7 +577,9 @@ export default function ManageArticleModal({
                   <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
                     <p className="text-sm font-black text-green-800 uppercase">Reserva activa ✅</p>
                     <p className="text-xs text-green-700 mt-1">
-                      Ya hay una reserva. Puedes chatear, marcar como entregado o cancelar si no hubo acuerdo.
+                      {article.transaction_chat?.status === "pending"
+                        ? "Compra pendiente de aprobación. Al abrir el chat, autorizas la conversación con el comprador."
+                        : "Ya hay una reserva. Puedes chatear, marcar como entregado o cancelar si no hubo acuerdo."}
                     </p>
                   </div>
 
@@ -595,9 +602,10 @@ export default function ManageArticleModal({
 
                   <button
                     onClick={handleCancelSale}
-                    className="w-full bg-red-600 text-white text-[11px] font-black py-3 rounded-2xl uppercase"
+                    className="w-full bg-red-600 text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-40 disabled:cursor-not-allowed"
                     type="button"
-                    disabled={savingWinner}
+                    disabled={savingWinner || isSaleApproved(article)}
+                    title={isSaleApproved(article) ? "Venta aprobada: finalízala confirmando la entrega" : "Cancelar la solicitud de compra"}
                   >
                     Cancelar venta (volver a disponible)
                   </button>

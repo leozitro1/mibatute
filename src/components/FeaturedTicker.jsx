@@ -1,278 +1,68 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Star, Users } from 'lucide-react';
+import { orderFeaturedItems } from './featuredOrder';
+import { isSaleArticle } from '../supabase/articleContext';
 
-/**
- * Barra de destacados (carrusel):
- * - Auto-scroll suave (seamless) usando scrollLeft
- * - Arrastre con mouse/touch (drag) para mover rápido
- * - Click en tarjeta abre detalle (si NO fue drag)
- *
- * Nota importante:
- * En desktop, usar Pointer Capture en el scroller suele "comerse" el click.
- * Por eso el drag se maneja con listeners en window solo cuando es necesario.
- */
 export default function FeaturedTicker({ items = [], onItemClick }) {
-  const list = Array.isArray(items) ? items.filter(Boolean) : [];
-
-  // Orden aleatorio estable por sesión + duplicado para loop continuo
-  const doubled = useMemo(() => {
-    if (!list.length) return [];
-    const shuffled = [...list];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return [...shuffled, ...shuffled];
-  }, [list.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const scrollerRef = useRef(null);
-
-  // Auto-scroll control
-  const pausedRef = useRef(false);
-
-  // Drag state
-  const isPointerDownRef = useRef(false);
-  const isDraggingRef = useRef(false);
-  const suppressClickRef = useRef(false);
-  const startXRef = useRef(0);
-  const startScrollLeftRef = useRef(0);
-
+  const [seed] = useState(() => Math.floor(Math.random() * 0x100000000));
+  const list = useMemo(() => orderFeaturedItems(items, seed), [items, seed]);
+  const scroller = useRef(null);
   if (!list.length) return null;
 
-  // Auto-scroll continuo (seamless)
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-
-    let raf = 0;
-    let last = performance.now();
-
-    const step = (now) => {
-      const dt = Math.min(50, now - last);
-      last = now;
-
-      // No mover si está pausado o en drag
-      if (!pausedRef.current && !isDraggingRef.current) {
-        const speed = 55; // px/seg
-        el.scrollLeft += (speed * dt) / 1000;
-
-        // Loop: como duplicamos, reiniciamos en la mitad
-        const half = el.scrollWidth / 2;
-        if (half > 0 && el.scrollLeft >= half) el.scrollLeft -= half;
-      }
-
-      raf = requestAnimationFrame(step);
-    };
-
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [doubled.length]);
-
-  // Helpers de drag
-  const endDrag = () => {
-    isPointerDownRef.current = false;
-    isDraggingRef.current = false;
-
-    // Si hubo drag, evitamos el click fantasma al soltar
-    if (suppressClickRef.current) {
-      setTimeout(() => {
-        suppressClickRef.current = false;
-      }, 0);
-    }
-
-    // reanudar auto-scroll
-    setTimeout(() => {
-      pausedRef.current = false;
-    }, 120);
-
-    // quitar listeners
-    window.removeEventListener("pointermove", onWindowPointerMove, { passive: false });
-    window.removeEventListener("pointerup", onWindowPointerUp, { passive: false });
-    window.removeEventListener("pointercancel", onWindowPointerUp, { passive: false });
-  };
-
-  const onWindowPointerMove = (e) => {
-    const el = scrollerRef.current;
-    if (!el || !isPointerDownRef.current) return;
-
-    const dx = e.clientX - startXRef.current;
-
-    // Umbral: para que click normal NO se convierta en drag
-    if (!isDraggingRef.current && Math.abs(dx) > 6) {
-      isDraggingRef.current = true;
-      suppressClickRef.current = true;
-    }
-
-    if (isDraggingRef.current) {
-      // evitar seleccionar texto / gestos raros en desktop
-      e.preventDefault?.();
-      el.scrollLeft = startScrollLeftRef.current - dx;
-
-      // Mantener loop "seamless" también en drag
-      const half = el.scrollWidth / 2;
-      if (half > 0) {
-        if (el.scrollLeft >= half) el.scrollLeft -= half;
-        if (el.scrollLeft < 0) el.scrollLeft += half;
-      }
-    }
-  };
-
-  const onWindowPointerUp = (e) => {
-    // Si hubo drag, cortamos propagación para evitar click fantasma
-    if (suppressClickRef.current) {
-      e.preventDefault?.();
-      e.stopPropagation?.();
-    }
-    endDrag();
-  };
-
-  const onPointerDown = (e) => {
-    const el = scrollerRef.current;
-    if (!el) return;
-
-    // Solo botón principal
-    if (e.button != null && e.button !== 0) return;
-
-    isPointerDownRef.current = true;
-    isDraggingRef.current = false;
-    suppressClickRef.current = false;
-
-    pausedRef.current = true;
-    startXRef.current = e.clientX;
-    startScrollLeftRef.current = el.scrollLeft;
-
-    // listeners en window (clave para que el click en desktop no se rompa)
-    window.addEventListener("pointermove", onWindowPointerMove, { passive: false });
-    window.addEventListener("pointerup", onWindowPointerUp, { passive: false });
-    window.addEventListener("pointercancel", onWindowPointerUp, { passive: false });
-  };
-
   return (
-    <div className="mt-2">
-      <div className="w-full bg-forest-green rounded-3xl shadow-sm overflow-hidden border border-white/10">
-        <div className="relative">
-          <div
-            ref={scrollerRef}
-            className="ticker-scroller"
-            onPointerDown={onPointerDown}
-            onMouseEnter={() => (pausedRef.current = true)}
-            onMouseLeave={() => {
-              if (!isPointerDownRef.current && !isDraggingRef.current) pausedRef.current = false;
-            }}
-            role="region"
-            aria-label="Artículos destacados"
-          >
-            <div className="ticker-track">
-              {doubled.map((it, idx) => {
-                const title = it?.titulo || it?.title || "Artículo";
-                const city = it?.ciudad || it?.city || "";
-                const locality = it?.locality || it?.localidad_es || it?.localidad || "";
-                const cat = it?.categoria || it?.category || "";
-                const desc = String(it?.descripcion || it?.description || "").trim();
-
-                const img =
-                  it?.imagen_url_principal ||
-                  it?.imagenUrlPrincipal ||
-                  it?.image_url ||
-                  it?.imagen_url ||
-                  (Array.isArray(it?.imagenes) ? it.imagenes[0] : "") ||
-                  (Array.isArray(it?.imagenes_db) ? it.imagenes_db[0] : "") ||
-                  (Array.isArray(it?.articulo_imagenes) ? it.articulo_imagenes?.[0]?.url : "") ||
-                  "";
-
-                return (
-                  <button
-                    key={`${it?.id || "x"}-${idx}`}
-                    type="button"
-                    // ✅ Importantísimo: cortar el click si fue drag
-                    onClick={(e) => {
-                      if (suppressClickRef.current || isDraggingRef.current) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
-                      onItemClick?.(it);
-                    }}
-                    className="ticker-card"
-                    title={title}
-                    aria-label={`Destacado: ${title}`}
-                  >
-                    <div className="w-20 h-20 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200 shrink-0">
-                      {img ? (
-                        <img
-                          src={img}
-                          alt=""
-                          className="w-full h-full object-cover"
-                          draggable={false}
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                      ) : null}
-                    </div>
-
-                    <div className="min-w-0 flex-1 text-left">
-                      <p className="text-[13px] font-black text-gray-900 truncate leading-tight">{title}</p>
-
-                      {desc ? (
-                        <p className="mt-0.5 text-[12px] text-gray-700 font-semibold truncate leading-tight">
-                          {desc}
-                        </p>
-                      ) : null}
-
-                      <p className="mt-0.5 text-[11px] text-gray-500 font-bold truncate leading-tight">
-                        {cat ? `${cat} • ` : ""}
-                        {city}
-                        {locality ? `, ${locality}` : ""}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <style>{`
-            .ticker-scroller{
-              overflow-x: auto;
-              overflow-y: hidden;
-              scrollbar-width: none; /* Firefox */
-              -ms-overflow-style: none; /* IE/Edge legacy */
-              cursor: grab;
-              user-select: none;
-              touch-action: pan-x;
-              scroll-behavior: auto;
-            }
-            .ticker-scroller::-webkit-scrollbar{ display:none; }
-            .ticker-scroller:active{ cursor: grabbing; }
-
-            .ticker-track{
-              display:flex;
-              gap:12px;
-              padding:12px;
-              width:max-content;
-            }
-
-            .ticker-card{
-              display:flex;
-              align-items:center;
-              gap:10px;
-              min-width: 340px;
-              max-width: 420px;
-              padding:12px;
-              border-radius: 24px;
-              background: #ffffff;
-              border: 1px solid rgba(0,0,0,.06);
-              box-shadow: 0 8px 30px rgba(0,0,0,.04);
-              transition: transform .15s ease;
-            }
-            .ticker-card:hover{ transform: translateY(-1px); }
-
-            @media (max-width: 640px){
-              .ticker-card{ min-width: 300px; }
-            }
-          `}</style>
-        </div>
+    <section aria-labelledby="featured-title" className="mb-6">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 id="featured-title" className="flex items-center gap-2 text-lg font-black text-gray-800">
+          <Star size={18} className="text-yellow-600 fill-yellow-400" aria-hidden="true" />Destacados
+        </h2>
+        {list.length > 1 && <div className="flex gap-2">
+          <button type="button" aria-label="Destacados anteriores" title="Destacados anteriores"
+            onClick={() => scroller.current?.scrollBy({ left: -scroller.current.clientWidth, behavior: 'smooth' })}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-forest-green">
+            <ArrowLeft size={16} aria-hidden="true" />
+          </button>
+          <button type="button" aria-label="Siguientes destacados" title="Siguientes destacados"
+            onClick={() => scroller.current?.scrollBy({ left: scroller.current.clientWidth, behavior: 'smooth' })}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-forest-green">
+            <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        </div>}
       </div>
-    </div>
+      <div ref={scroller} role="region" aria-label="Artículos destacados"
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+        {list.map(item => {
+          const title = item.title || item.titulo || 'Artículo';
+          const image = item.image_url || item.imagen_url_principal || item.imagen_url
+            || item.imagenes?.[0] || item.imagenes_db?.[0] || item.articulo_imagenes?.[0]?.url;
+          const category = item.category || item.categoria || item.categoria_es || item.category_name || '';
+          const isSale = isSaleArticle(item);
+          const requestCount = Math.max(0, Math.floor(Number(item.interested_count) || 0));
+          return <button key={item.id} type="button" aria-label={`Destacado: ${title}`}
+            onClick={() => onItemClick?.(item)}
+            className="flex w-60 max-w-full shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-yellow-200 bg-white text-left hover:border-yellow-500 focus-visible:outline-forest-green">
+            <div className="relative aspect-[4/3] w-full shrink-0 bg-gray-100">
+              {image && <img src={image} alt={title} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
+              <span className="absolute left-2 top-2 rounded bg-yellow-400 px-2 py-1 text-[10px] font-black text-gray-900">DESTACADO</span>
+              {!isSale && <span
+                title={`${requestCount} ${requestCount === 1 ? 'solicitud de donación' : 'solicitudes de donación'}`}
+                className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2 py-1 text-[11px] font-bold text-gray-800 shadow-sm">
+                <Users size={14} aria-hidden="true" />
+                {requestCount} {requestCount === 1 ? 'solicitud' : 'solicitudes'}
+              </span>}
+            </div>
+            <div className="w-full min-w-0 p-3">
+              <h3 className="truncate text-sm font-black text-gray-800">{title}</h3>
+              <p className="mt-1 h-4 truncate text-[11px] text-gray-400" title={category || undefined}>{category}</p>
+              <p className="mt-1 truncate text-xs text-gray-500">
+                {item.city || item.ciudad}{(item.locality || item.localidad_es) ? `, ${item.locality || item.localidad_es}` : ''}
+              </p>
+              <p className="mt-2 text-sm font-black text-forest-green">
+                {isSale ? Number(item.price ?? item.precio ?? 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }) : 'GRATIS'}
+              </p>
+            </div>
+          </button>;
+        })}
+      </div>
+    </section>
   );
 }

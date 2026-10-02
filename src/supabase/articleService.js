@@ -1,6 +1,7 @@
 // src/supabase/articleService.js
 import { supabase } from "./supabaseClient";
 import { uploadImageKitImage } from "../imagekit/imageService";
+import { useLocalImages, removeLocalImages } from '../imagekit/localImages';
 import { queryArticlesWithCondition } from "./articleQuery";
 
 const MAX_IMAGES = 4;
@@ -183,6 +184,7 @@ async function removeStorageFiles(paths = []) {
   const clean = Array.from(paths || []).map(x => x?.file_id).filter(Boolean);
   if (!clean.length) return { success: true };
   try {
+    if (useLocalImages) return await removeLocalImages(clean);
     const { data } = await supabase.auth.getSession();
     const res = await fetch("/api/imagekit-delete", {
       method: "POST",

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "../supabase/supabaseClient";
 import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
+import { resolveChatBuyerId } from "../supabase/articleContext";
 
 const CHAT_INITIAL_MESSAGE_LIMIT = 50;
 
@@ -296,6 +297,7 @@ export default function ChatMessenger({
   article,
   chat,
   otherUserId,
+  otherUserProfile,
   role,
   errorMessage,
   otherUserFallbackName = "Usuario",
@@ -339,7 +341,8 @@ export default function ChatMessenger({
     return s === "closed";
   }, [chatRow?.status]);
 
-  const readOnly = isEntregado || chatClosed || meBlocked;
+  const chatPending = chatRow?.status === "pending";
+  const readOnly = isEntregado || chatClosed || chatPending || meBlocked;
 
   const title = useMemo(() => article?.titulo || article?.title || "Chat", [article]);
 
@@ -384,8 +387,8 @@ export default function ChatMessenger({
   // Buyer “objetivo” del chat: si viene otherUserId lo usamos (flujo rescate/venta),
   // si no, usamos buyer_id del artículo o del chat.
   const lookupBuyerId = useMemo(() => {
-    return otherUserId || article?.buyer_id || article?.buyerId || chatRow?.buyer_id || null;
-  }, [otherUserId, article?.buyer_id, article?.buyerId, chatRow?.buyer_id]);
+    return resolveChatBuyerId({ article, chat: chatRow, userId, otherUserId });
+  }, [article, chatRow, userId, otherUserId]);
 
   const otherName = useMemo(() => {
     if (otherUserLoading) return "Cargando...";
@@ -473,6 +476,12 @@ export default function ChatMessenger({
     }
 
     const cached = userCacheRef.current.get(uid);
+    if (otherUserProfile?.id && String(otherUserProfile.id) === uid) {
+      setOtherUser(otherUserProfile);
+      userCacheRef.current.set(uid, otherUserProfile);
+      setOtherUserLoading(false);
+      return;
+    }
     if (cached) {
       setOtherUser(cached);
       setOtherUserLoading(false);
@@ -500,7 +509,7 @@ export default function ChatMessenger({
     return () => {
       alive = false;
     };
-  }, [isOpen, resolvedOtherUserId]);
+  }, [isOpen, resolvedOtherUserId, otherUserProfile]);
 
   const ensureChatRow = useCallback(async () => {
     if (!isOpen) return;
@@ -747,9 +756,11 @@ export default function ChatMessenger({
       const { data: currentChat, error: chatError } = await supabase.from("chats")
         .select("id,status").eq("id", chatId).single();
       if (chatError || !currentChat) throw chatError || new Error("El chat ya no esta disponible.");
-      if (currentChat.status === "closed") {
+      if (currentChat.status === "closed" || currentChat.status === "pending") {
         setChatRow(previous => ({ ...previous, ...currentChat }));
-        setUiError("Esta transaccion termino. El chat esta disponible en solo lectura.");
+        setUiError(currentChat.status === "pending"
+          ? "Para hablar con el vendedor, él debe aprobar la compra."
+          : "Esta transaccion termino. El chat esta disponible en solo lectura.");
         return;
       }
 
@@ -1061,6 +1072,7 @@ export default function ChatMessenger({
             <div className="text-center text-xs font-bold text-gray-500">
               {meBlocked
                 ? "Tu cuenta está bloqueada. No puedes enviar mensajes."
+                : chatPending ? "Para hablar con el vendedor, él debe aprobar la compra."
                 : "Este chat está en solo lectura. No se pueden enviar más mensajes."}
             </div>
           ) : (

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, MapPin, ShieldCheck, Lock, Flag } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
+import { isSaleArticle } from "../supabase/articleContext.js";
 
 import { detectarContenidoNoPermitido, buildViolationMessage } from "../utils/contentFilter";
 
@@ -67,15 +68,6 @@ async function resolvePhotoUrlMaybe(storageValue) {
 
   if (isHttpUrl(raw)) return raw;
   return "";
-}
-
-function normalizeTipo(v) {
-  const s = String(v || "").toLowerCase().trim();
-  if (!s) return "donacion";
-  if (s.includes("venta")) return "venta";
-  if (s.includes("don")) return "donacion";
-  if (s.includes("regal")) return "donacion";
-  return s;
 }
 
 function normalizeEstado(v) {
@@ -163,6 +155,13 @@ export default function ProductDetail({
   const [checkingApplied, setCheckingApplied] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
   const [hasBeenRejected, setHasBeenRejected] = useState(false);
+  const [rejectionExpiresAt, setRejectionExpiresAt] = useState(null);
+
+  useEffect(() => {
+    if (!rejectionExpiresAt) return;
+    const timeout = setTimeout(() => setHasBeenRejected(false), Math.max(0, rejectionExpiresAt - Date.now()) + 50);
+    return () => clearTimeout(timeout);
+  }, [rejectionExpiresAt]);
   const [rateLimitInfo, setRateLimitInfo] = useState(null); // { h, m, msg }
   const [creditosSaldo, setCreditosSaldo] = useState(null);
   const [usandoCreditoExtra, setUsandoCreditoExtra] = useState(false);
@@ -200,7 +199,7 @@ export default function ProductDetail({
 
   const ownerPhotoRaw = item?.owner_photo || item?.vendedor?.foto_url || item?.usuarios?.foto_url || "";
 
-  const tipoNorm = normalizeTipo(item?.tipo ?? item?.mode ?? "donacion");
+  const tipoNorm = isSaleArticle(item) ? "venta" : "donacion";
   const estadoNorm = normalizeEstado(item?.estado ?? item?.status ?? "disponible");
   const isReviewing = estadoNorm === "en_revision";
 
@@ -337,16 +336,19 @@ export default function ProductDetail({
         setRateLimitInfo(null);
 
         // Verificar si fue rechazado
+        setRejectionExpiresAt(null);
         const { data: rechData } = await supabase
           .from("postulaciones_rechazadas")
-          .select("id")
+          .select("id,created_at")
           .eq("articulo_id", articuloId)
           .eq("usuario_id", user.id)
+          .gt("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
           .limit(1);
 
         if (!alive) return;
 
         if (Array.isArray(rechData) && rechData.length > 0) {
+          setRejectionExpiresAt(Date.parse(rechData[0].created_at) + 24 * 60 * 60 * 1000);
           setHasBeenRejected(true);
           setHasApplied(false);
           return;
@@ -643,8 +645,8 @@ export default function ProductDetail({
     }
   };
 
-  const titulo = item?.titulo ?? item?.title ?? "Sin título";
-  const descripcion = item?.descripcion ?? item?.description ?? "";
+  const titulo = item?.titulo || item?.title || "Sin título";
+  const descripcion = item?.descripcion || item?.description || "";
 
   const conditionScore = getConditionScore(item);
   const condition = conditionMeta(conditionScore);
@@ -965,7 +967,7 @@ export default function ProductDetail({
                 <div className="bg-red-50 border border-red-200 p-4 rounded-2xl">
                   <p className="text-sm font-black text-red-700">🚫 Tu solicitud fue rechazada.</p>
                   <p className="text-xs text-red-600 mt-1 font-medium leading-relaxed">
-                    El donante decidió no elegirte para este artículo. Puedes postularte a otras donaciones.
+                    Puedes volver a postularte a esta publicación 24 horas después del rechazo, si aún está disponible.
                   </p>
                   <button onClick={safeClose} className="mt-3 w-full bg-red-600 text-white py-3 rounded-2xl font-black hover:bg-red-700 transition" type="button">
                     Cerrar
@@ -1291,7 +1293,7 @@ export default function ProductDetail({
             <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
               <span className="text-base mt-0.5">⚠️</span>
               <p className="text-xs text-amber-800 font-bold leading-snug">
-                El artículo ya no se mostrará en la página una vez reservado para la compra.
+                Para hablar con el vendedor, él debe aprobar la compra y abrir el chat. El artículo quedará reservado mientras esperas.
               </p>
             </div>
           </div>

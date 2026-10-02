@@ -1,4 +1,5 @@
 import { supabase } from "../supabase/supabaseClient";
+import { useLocalImages, uploadLocalImage } from './localImages';
 
 const IMAGEKIT_UPLOAD_URL = "https://upload.imagekit.io/api/v1/files/upload";
 
@@ -40,6 +41,7 @@ export async function uploadImageKitImage({ file, folder, fileName }) {
   if (!file) return { success: false, error: "Archivo requerido." };
 
   try {
+    if (useLocalImages) return await uploadLocalImage({ file, folder, fileName: safeFileName(fileName || file.name) });
     const auth = await getImageKitAuth();
     const form = new FormData();
 

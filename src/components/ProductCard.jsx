@@ -1,5 +1,5 @@
 // src/components/ProductCard.jsx
-import { MapPin, Lock, Hand } from "lucide-react";
+import { MapPin, Lock, Users } from "lucide-react";
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -119,6 +119,7 @@ function toCountRobust(v) {
 export default function ProductCard({
   title,
   location,
+  category,
   mode,
   price,
   // ✅ NUEVO: estado del producto (1–10)
@@ -185,7 +186,7 @@ export default function ProductCard({
     : `${count} interesados • ${remaining} cupos disponibles`;
 
   // ✅ etiqueta compacta para el badge (clara)
-  const badgeText = isFull ? "Cupo lleno" : `${count}/${max}`;
+  const badgeText = `${count} ${count === 1 ? "solicitud" : "solicitudes"}`;
 
   const blockedMsg =
     "🚫 Tu cuenta está BLOQUEADA. No puedes abrir artículos ni acceder a chats por el momento.";
@@ -223,7 +224,7 @@ export default function ProductCard({
   return (
     <div
       onClick={handleCardClick}
-      className={`relative bg-white rounded-xl overflow-hidden border ${
+      className={`relative flex h-[376px] flex-col bg-white rounded-lg overflow-hidden border-2 ${
         isFeatured ? "border-treasure-gold border-2 shadow-md" : "border-gray-200 shadow-sm"
       } hover:shadow-lg transition ${isDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
       aria-disabled={isDisabled}
@@ -238,7 +239,7 @@ export default function ProductCard({
         }
       }}
     >
-      <div className="relative h-48">
+      <div className="relative h-48 shrink-0">
         <img
           src={imageSrc}
           alt={title || "Artículo"}
@@ -284,11 +285,9 @@ export default function ProductCard({
         {showInterested && (
           <div className="absolute bottom-2 right-2 z-20" title={interestedTooltip} aria-label={interestedTooltip}>
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow ${
-                isFull ? "bg-gray-900 text-white" : count > 0 ? "bg-white/95 text-gray-900" : "bg-white/85 text-gray-800"
-              }`}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2 py-1 text-[11px] font-bold text-gray-800 shadow-sm"
             >
-              <Hand size={14} />
+              <Users size={14} aria-hidden="true" />
               {badgeText}
             </span>
           </div>
@@ -315,21 +314,22 @@ export default function ProductCard({
         )}
       </div>
 
-      <div className="p-4">
+      <div className="flex min-h-0 flex-1 flex-col p-4">
         <h3 className="font-bold text-gray-800 truncate">{title || "Sin título"}</h3>
+        <p className="mt-1 h-4 truncate text-[11px] text-gray-400" title={category || undefined}>
+          {category || ''}
+        </p>
 
-        <p className="flex items-center text-xs text-gray-500 mt-1">
-          <MapPin size={12} className="mr-1" /> {location || "Ubicación"}
+        <p className="flex min-w-0 items-center text-xs text-gray-500 mt-1">
+          <MapPin size={12} className="mr-1 shrink-0" /> <span className="truncate">{location || "Ubicación"}</span>
         </p>
 
         {/* ✅ texto auxiliar debajo (solo donación) */}
-        {showInterested && (
-          <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-            {isFull ? "Cupo lleno" : `${count} interesados • ${remaining} cupos`}
-          </p>
-        )}
+        <p className="mt-2 h-4 truncate text-[10px] font-bold uppercase text-gray-500">
+          {showInterested ? (isFull ? "Cupo lleno" : `${count} interesados • ${remaining} cupos`) : ''}
+        </p>
 
-        <div className="mt-4 flex items-center justify-between">
+        <div className="mt-auto flex items-center justify-between gap-2">
           <span className="text-lg font-black text-forest-green">{formattedPrice}</span>
 
           <button

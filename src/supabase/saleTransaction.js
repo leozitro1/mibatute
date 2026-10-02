@@ -1,5 +1,5 @@
 export async function transitionSale(client, articleId, action) {
-  if (!articleId || !["reserve", "cancel", "deliver"].includes(action)) {
+  if (!articleId || !["reserve", "cancel", "deliver", "approve_chat"].includes(action)) {
     throw new Error("Operacion de venta invalida.");
   }
   const { data, error } = await client.rpc("transition_sale", {
@@ -14,11 +14,11 @@ export async function transitionSale(client, articleId, action) {
   }
   const article = data?.article;
   const chat = data?.chat;
-  const expected = { reserve: "reservado", cancel: "disponible", deliver: "entregado" }[action];
+  const expected = { reserve: "reservado", approve_chat: "reservado", cancel: "disponible", deliver: "entregado" }[action];
   if (String(article?.id) !== String(articleId) || article?.status !== expected || article?.estado !== expected
-    || (action === "reserve" && (!article.buyer_id || !chat?.id
+    || (["reserve", "approve_chat"].includes(action) && (!article.buyer_id || !chat?.id
       || String(chat.articulo_id) !== String(articleId) || String(chat.buyer_id) !== String(article.buyer_id)
-      || chat.status !== "open")) || (action === "cancel" && article.buyer_id)) {
+      || !(action === "approve_chat" ? ["open"] : ["pending", "open"]).includes(chat.status))) || (action === "cancel" && article.buyer_id)) {
     throw new Error("La base de datos no confirmo la operacion. Actualiza la pagina e intenta de nuevo.");
   }
   return { article, chat };

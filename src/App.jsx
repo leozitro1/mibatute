@@ -1,6 +1,7 @@
 // src/App.jsx
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
+import { Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
 import AdminPage from "./pages/AdminPage";
 import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
@@ -15,11 +16,14 @@ import UserProfile from "./components/UserProfile";
 import ProductDetail from "./components/ProductDetail";
 import HeroBanner from "./components/HeroBanner";
 import FeaturedTicker from "./components/FeaturedTicker";
+import SponsorCarousel from "./components/SponsorCarousel";
 import HowItWorks from "./components/HowItWorks";
 import ManageArticleModal from "./components/ManageArticleModal";
 import EditArticleModal from "./components/EditArticleModal";
 import { deleteArticleImages, getArticleWithImages } from "./supabase/articleService";
 import { transitionSale } from "./supabase/saleTransaction";
+import { readArticleContext, resolveChatBuyerId, validateTransactionChat } from "./supabase/articleContext";
+import { saleDeletionBlocked } from './components/articleState.js';
 import { queryArticlesWithCondition } from "./supabase/articleQuery";
 import ChatMessenger from "./components/ChatMessenger";
 
@@ -179,7 +183,35 @@ export default function App() {
 
   const [quickTipo, setQuickTipo] = useState("todo"); // todo | donacion | venta | destacado
   const [onlyActive, setOnlyActive] = useState(true);
+  const [hiddenAdsOwnerId, setHiddenAdsOwnerId] = useState(null);
   const [sortOrder, setSortOrder] = useState("newest"); // newest | oldest
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [featuredSeed] = useState(() => String(Math.random()));
+  const [pageSelection, setPageSelection] = useState({ key: "", page: 1 });
+  const [homePage, setHomePage] = useState({ ids: [], featuredIds: [], total: 0, page: 1 });
+  const [homeBusy, setHomeBusy] = useState(true);
+  const [homeError, setHomeError] = useState("");
+  const homeRequestRef = useRef(0);
+  const personalArticlesRef = useRef({ uid: null, rows: null });
+  const listingRef = useRef(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const homeFilters = useMemo(() => ({
+    search: debouncedSearch, category: selectedCategory, subcategory: selectedSubcategory,
+    city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive,
+    hideOwn: !!currentUser?.id && hiddenAdsOwnerId === currentUser.id, sort: sortOrder, featuredSeed,
+  }), [debouncedSearch, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
+    quickTipo, onlyActive, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id]);
+  const homeFilterKey = JSON.stringify([homeFilters, currentUser?.id]);
+  // Reset even when returning to a filter combination visited on another page.
+  if (pageSelection.key !== homeFilterKey) {
+    setPageSelection({ key: homeFilterKey, page: 1 });
+  }
+  const requestedPage = pageSelection.key === homeFilterKey ? pageSelection.page : 1;
 
   const [isManageOpen, setIsManageOpen] = useState(false);
   const [manageArticle, setManageArticle] = useState(null);
@@ -283,35 +315,6 @@ export default function App() {
       .maybeSingle();
 
     return { data, error };
-  };
-
-  const readChatByArticuloAndMember = async ({ articuloId, uid }) => {
-    let res = await supabase
-      .from("chats")
-      .select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at,last_message_at")
-      .eq("articulo_id", articuloId)
-      .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
-      .maybeSingle();
-
-    if (res?.error?.message && /Could not find the 'seller_id' column/i.test(res.error.message)) {
-      res = await supabase
-        .from("chats")
-        .select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at,last_message_at")
-        .eq("articulo_id", articuloId)
-        .or(`buyer_id.eq.${uid},owner_id.eq.${uid}`)
-        .maybeSingle();
-    }
-
-    if (res?.error?.message && /Could not find the 'owner_id' column/i.test(res.error.message)) {
-      res = await supabase
-        .from("chats")
-        .select("id,articulo_id,buyer_id,seller_id,owner_id,usuario_id,status,created_at,last_message_at")
-        .eq("articulo_id", articuloId)
-        .or(`buyer_id.eq.${uid},usuario_id.eq.${uid}`)
-        .maybeSingle();
-    }
-
-    return { data: res.data, error: res.error };
   };
 
   const ensureChatExists = async ({ article, articuloId, buyerId }) => {
@@ -660,142 +663,57 @@ export default function App() {
   // =========================================================
 
   const openChatByArticleAndBuyer = useCallback(
-    async ({ article: requestedArticle, buyerId }) => {
+    async ({ article: requestedArticle, buyerId: requestedBuyerId }) => {
       const uid = getActiveUid();
       const articuloId = getArticuloId(requestedArticle);
-
       if (!uid) return alert("Debes iniciar sesión.");
       if (!articuloId) return alert("Este artículo no tiene ID válido.");
-      if (!buyerId) return alert("No se encontró buyerId para abrir chat.");
-      if (isUserBlocked) {
-  alert("🚫 Tu cuenta está BLOQUEADA. No puedes acceder a chats por el momento.");
-  return;
-}
-
-      const fresh = await getArticleWithImages(articuloId);
-      if (!fresh.success) return alert(fresh.error || "No se pudo actualizar el articulo.");
-      const article = fresh.data;
-      // ✅ BLOQUEO REVISIÓN (central)
-      if (isInReview(article)) {
-        alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
-        return;
-      }
-
-      const { data: chatRow, error } = await readChatByArticuloAndBuyer({ articuloId, buyerId });
-
-      let finalChat = chatRow;
-      let errMsg = null;
-
-      if (error || !finalChat?.id) {
-        const ensured = await ensureChatExists({ article, articuloId, buyerId });
-        finalChat = ensured.chat;
-        errMsg = ensured.errorMessage || null;
-      }
-
-      const otherUserId = finalChat ? safeGetOtherUserId(uid, finalChat) : inferSellerIdFromArticle(article);
-
-      const role =
-        finalChat && String(uid) === String(finalChat?.buyer_id)
-          ? "buyer"
-          : finalChat &&
-            (String(uid) === String(finalChat?.seller_id) ||
-              String(uid) === String(finalChat?.owner_id) ||
-              String(uid) === String(finalChat?.usuario_id))
-          ? "seller"
-          : "buyer";
-
-      setChatOpen({
-        article,
-        chat: finalChat || null,
-        otherUserId: otherUserId || null,
-        role,
-        errorMessage: finalChat ? null : errMsg || "No se pudo abrir el chat (RLS o no existe).",
-      });
-
-      if (finalChat?.id) {
+      if (isUserBlocked) return alert("Tu cuenta está bloqueada. No puedes acceder a chats.");
+      try {
+        const article = await readArticleContext(supabase, articuloId);
+        if (isInReview(article)) return alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
+        const isSale = normTipo(article.mode || article.tipo) === "venta";
+        const buyerId = resolveChatBuyerId({ article, userId: uid, otherUserId: requestedBuyerId });
+        if (isSale && (!article.buyer_id || !["reservado", "entregado"].includes(normEstado(article.estado || article.status)))) {
+          return alert("Esta venta no tiene una reserva activa. Actualiza tus publicaciones.");
+        }
+        let finalChat = validateTransactionChat(article, uid);
+        if (isSale && finalChat?.status === "pending") {
+          if (String(uid) !== String(article.owner_id)) {
+            return alert("Para hablar con el vendedor, él debe aprobar la compra. Tu solicitud está pendiente de aprobación.");
+          }
+          const approved = await transitionSale(supabase, articuloId, "approve_chat");
+          finalChat = approved.chat;
+          article.transaction_chat = finalChat;
+        }
+        if (!finalChat && !isSale) {
+          const ensured = await ensureChatExists({ article, articuloId, buyerId });
+          if (!ensured.chat?.id) throw new Error(ensured.errorMessage || "No se pudo abrir el chat.");
+          finalChat = ensured.chat;
+        }
+        if (!finalChat) throw new Error("No se encontró el chat de esta reserva o no tienes permiso para abrirlo.");
+        const otherUserId = safeGetOtherUserId(uid, finalChat);
+        setProducts(previous => previous.map(item => String(item.id) === String(article.id) ? { ...item, ...article } : item));
+        setManageArticle(previous => previous?.id === article.id ? { ...previous, ...article } : previous);
+        setChatOpen({
+          article, chat: finalChat, otherUserId,
+          otherUserProfile: String(otherUserId) === String(article.owner_id) ? article.owner_public : article.buyer_public,
+          role: String(uid) === String(finalChat.buyer_id) ? "buyer" : "seller",
+          errorMessage: null,
+        });
         markChatSeen(finalChat.id);
         loadNotifications();
-      }
-
-      if (!finalChat?.id) {
-        console.log("CHAT OPEN FALLÓ:", error || errMsg);
+      } catch (error) {
+        console.error("Error abriendo chat:", error);
+        alert(error.message || "No se pudo abrir el chat. Intenta nuevamente.");
       }
     },
     [getActiveUid, markChatSeen, loadNotifications, isUserBlocked]
-
   );
 
-  // ✅ helper: abrir chat por articulo para el usuario actual (buyer o seller)
   const openChatFromArticle = useCallback(
-    async (requestedArticle) => {
-      const uid = getActiveUid();
-      const articuloId = getArticuloId(requestedArticle);
-      if (!uid) return alert("Debes iniciar sesión.");
-      if (!articuloId) return alert("Este artículo no tiene ID válido.");
-      if (isUserBlocked) {
-  alert("🚫 Tu cuenta está BLOQUEADA. No puedes acceder a chats por el momento.");
-  return;
-}
-
-      const fresh = await getArticleWithImages(articuloId);
-      if (!fresh.success) return alert(fresh.error || "No se pudo actualizar el articulo.");
-      const article = fresh.data;
-      // ✅ BLOQUEO REVISIÓN (central)
-      if (isInReview(article)) {
-        alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
-        return;
-      }
-
-      const { data: chatRow, error } = await readChatByArticuloAndMember({ articuloId, uid });
-
-      let finalChat = chatRow;
-      let errMsg = null;
-
-      if (error || !finalChat?.id) {
-        const buyerCandidate =
-          article?.buyer_id ||
-          article?.buyerId ||
-          article?.ganador_id ||
-          article?.winner_id ||
-          article?.recipient_id ||
-          uid;
-
-        const ensured = await ensureChatExists({ article, articuloId, buyerId: buyerCandidate });
-
-        finalChat = ensured.chat;
-        errMsg = ensured.errorMessage || null;
-      }
-
-      const otherUserId = finalChat ? safeGetOtherUserId(uid, finalChat) : inferSellerIdFromArticle(article);
-
-      const role =
-        finalChat && String(uid) === String(finalChat?.buyer_id)
-          ? "buyer"
-          : finalChat &&
-            (String(uid) === String(finalChat?.seller_id) ||
-              String(uid) === String(finalChat?.owner_id) ||
-              String(uid) === String(finalChat?.usuario_id))
-          ? "seller"
-          : "buyer";
-
-      setChatOpen({
-        article,
-        chat: finalChat || null,
-        otherUserId: otherUserId || null,
-        role,
-        errorMessage: finalChat ? null : errMsg || "No se pudo abrir el chat (RLS o no existe).",
-      });
-
-      if (finalChat?.id) {
-        markChatSeen(finalChat.id);
-        loadNotifications();
-      }
-
-      if (!finalChat?.id) {
-        console.log("No se pudo cargar chat:", error || errMsg);
-      }
-    },
-    [getActiveUid, markChatSeen, loadNotifications]
+    article => openChatByArticleAndBuyer({ article }),
+    [openChatByArticleAndBuyer]
   );
 
   // =========================================================
@@ -810,7 +728,10 @@ export default function App() {
       if (!articuloId) return;
 
       // ✅ usa productsRef para no crear dependencia innecesaria
-      const art = (productsRef.current || []).find((p) => String(getArticuloId(p)) === String(articuloId)) || null;
+      let art;
+      try { art = await readArticleContext(supabase, articuloId); }
+      catch (error) { alert(error.message); return; }
+      if (isInReview(art)) return alert("Este artículo está en revisión. No puedes gestionarlo por ahora.");
       if (!art) {
         setCurrentView("profile");
         return;
@@ -822,9 +743,8 @@ export default function App() {
       setIsManageOpen(true);
       setCurrentView("profile");
 
-      loadNotifications();
     },
-    [currentUser, markSolicitudesSeenForArticulo, loadNotifications]
+    [currentUser, markSolicitudesSeenForArticulo]
   );
 
   // =========================================================
@@ -927,14 +847,22 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   // ✅ Loader artículos + owner_name/photo + ✅ interested_count
   // =========================================================
 
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ refreshPersonal = false } = {}) => {
+    const request = ++homeRequestRef.current;
+    setHomeBusy(true);
+    setHomeError("");
+    try {
+    const { data: pageData, error: pageError } = await supabase.rpc("home_article_page", {
+      p_filters: homeFilters, p_page: requestedPage,
+    });
+    if (pageError) throw pageError;
+    const pageIds = [...new Set([...pageData.ids, ...pageData.featuredIds])];
     // ✅ Solo columnas necesarias para el listado — sin select("*")
-    const { data, error } = await queryArticlesWithCondition(
-        `id, titulo, title, mode, tipo, estado, status,
+    const columns = `id, titulo, title, mode, tipo, estado, status,
          city, locality, description,
          price, usuario_id, owner_id, buyer_id,
          ganador_id, winner_id, recipient_id,
-         reserved_at, updated_at, created_at,
+         reserved_at, delivered_at, updated_at, created_at,
          image_url, imagen_url_principal, imagenes,
          is_featured,
          review_status, approval_status,
@@ -943,19 +871,27 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
          subcategory, subcategoria,
          articulo_imagenes:articulo_imagenes (
            id, url, position
-         )`
-      , columns => supabase.from("articulos").select(columns)
-      .order("created_at", { ascending: false })
-      .order("position", { foreignTable: "articulo_imagenes", ascending: true })
-      .limit(HOME_QUERY_LIMIT));
+         )`;
+    const uid = currentUser?.id || null;
+    if (refreshPersonal || personalArticlesRef.current.uid !== uid || !personalArticlesRef.current.rows) {
+      const personal = uid ? await queryArticlesWithCondition(columns, selection =>
+        supabase.from("articulos").select(selection)
+          .or(`owner_id.eq.${uid},usuario_id.eq.${uid},buyer_id.eq.${uid},ganador_id.eq.${uid},winner_id.eq.${uid},recipient_id.eq.${uid}`)
+          .order("created_at", { ascending: false }).limit(HOME_QUERY_LIMIT)) : { data: [] };
+      if (personal.error) throw personal.error;
+      if (request !== homeRequestRef.current) return;
+      personalArticlesRef.current = { uid, rows: personal.data || [] };
+    }
+    const { data, error } = pageIds.length ? await queryArticlesWithCondition(columns, selection =>
+      supabase.from("articulos").select(selection).in("id", pageIds)
+        .order("position", { foreignTable: "articulo_imagenes", ascending: true })) : { data: [] };
 
     if (error) {
-      console.error("Error cargando articulos:", error);
-      return;
+      throw error;
     }
 
-    const raw = Array.isArray(data) ? data : [];
-    const ownerIds = Array.from(new Set(raw.map((it) => it?.usuario_id || it?.owner_id).filter(Boolean)));
+    const raw = [...new Map([...personalArticlesRef.current.rows, ...(data || [])].map(item => [item.id, item])).values()];
+    const ownerIds = Array.from(new Set(raw.flatMap(it => [it?.usuario_id || it?.owner_id, it?.buyer_id]).filter(Boolean)));
 
     let ownersMap = {};
     if (ownerIds.length) {
@@ -985,6 +921,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         imagenes: imgsRelUrls.length ? imgsRelUrls : imgsDb,
         owner_name_from_user_table: ownerPublic?.nombre || "",
         owner_photo: ownerPublic?.foto_url || "",
+        owner_public: ownerPublic || it.owner_public || null,
+        buyer_public: ownersMap[it.buyer_id] || it.buyer_public || null,
         interested_count: 0,
       };
     });
@@ -1021,6 +959,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       }
     } catch {}
 
+    if (request !== homeRequestRef.current) return;
+    setHomePage(pageData);
     setProducts(normalized);
 
     setSelectedProduct((prev) => {
@@ -1028,7 +968,14 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       const updated = normalized.find((x) => x.id === prev.id);
       return updated ? { ...prev, ...updated } : prev;
     });
-  }, []);
+    } catch (error) {
+      if (request !== homeRequestRef.current) return;
+      console.error("Error cargando articulos:", error);
+      setHomeError("No pudimos cargar las publicaciones. Intenta nuevamente.");
+    } finally {
+      if (request === homeRequestRef.current) setHomeBusy(false);
+    }
+  }, [homeFilters, requestedPage, currentUser?.id]);
 
   // ✅ Carga inicial única — sin polling agresivo
   // Se recarga solo cuando el usuario vuelve a la pestaña (visibilitychange)
@@ -1038,12 +985,11 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   useEffect(() => {
     let alive = true;
 
-    const run = async () => {
+    const run = async (refreshPersonal = false) => {
       if (!alive) return;
-      await load();
+      await load({ refreshPersonal });
       lastLoadRef.current = Date.now();
-      // Notificaciones solo si hay usuario autenticado
-      if (getActiveUid()) await loadNotifications();
+      if (refreshPersonal && getActiveUid()) await loadNotifications();
     };
 
     run();
@@ -1052,7 +998,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       if (document.visibilityState === "visible") {
         const elapsed = Date.now() - lastLoadRef.current;
         if (elapsed > HOME_REFRESH_MS) {
-          run();
+          run(true);
         }
       }
     };
@@ -1061,6 +1007,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
     return () => {
       alive = false;
+      homeRequestRef.current++;
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1168,6 +1115,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   const handleAddProduct = (newItem) => {
     if (newItem?.id) setProducts((prev) => [newItem, ...prev]);
     setIsPublishOpen(false);
+    personalArticlesRef.current.rows = null;
+    setPageSelection({ key: homeFilterKey, page: 1 });
+    load({ refreshPersonal: true });
   };
 
   // ✅ APPLY (donación/regalo)
@@ -1242,6 +1192,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       ? { ...previous, ...article } : previous);
     setManageArticle(previous => previous && String(getArticuloId(previous)) === String(id)
       ? { ...previous, ...article } : previous);
+    load({ refreshPersonal: true });
   };
 
   const handleBuy = async (productId) => {
@@ -1259,17 +1210,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
     saleInFlightRef.current = true;
     try {
-      const { article, chat } = await transitionSale(supabase, productId, "reserve");
+      const { article } = await transitionSale(supabase, productId, "reserve");
       applyArticleUpdate(article);
       setSelectedProduct(null);
-      setChatOpen({
-        article,
-        chat,
-        otherUserId: article.owner_id,
-        role: "buyer",
-        errorMessage: null,
-      });
-      markChatSeen(chat.id);
+      alert("Solicitud de compra enviada. Para hablar con el vendedor, él debe aprobar la compra y abrir el chat.");
       loadNotifications().catch(error => console.error("Error actualizando notificaciones:", error));
       return { success: true, data: article };
     } catch (error) {
@@ -1298,6 +1242,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     if (!ok) return;
 
     try {
+      const freshArticle = await readArticleContext(supabase, articleId);
+      if (saleDeletionBlocked(freshArticle)) {
+        throw new Error("No puedes eliminar esta venta. Se retira del historial siete días después de confirmar la entrega.");
+      }
       const cleanup = await deleteArticleImages(articleId);
       if (!cleanup.success) throw new Error(cleanup.error);
       try {
@@ -1337,7 +1285,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       setEditArticle(null);
 
       alert("✅ Publicación eliminada.");
-      // ✅ setProducts ya filtra el artículo localmente — sin full reload
+      await load({ refreshPersonal: true });
     } catch (e) {
       console.error("DELETE ERROR:", e);
       alert("No se pudo eliminar: " + (e?.message || "Error inesperado"));
@@ -1350,23 +1298,18 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     const uid = getActiveUid();
 
     const base = products.filter((item) => {
+      if (!homePage.ids.includes(item.id)) return false;
       const estadoActual = normEstado(item?.estado || item?.status || "");
       const tipo = normTipo(item?.mode || item?.tipo || "");
 
       const ownerId = item?.usuario_id || item?.owner_id || null;
-      const ganadorId = item?.ganador_id || item?.winner_id || item?.recipient_id || null;
-      const buyerId = item?.buyer_id || item?.buyerId || null;
-
       const isOwner = uid && ownerId && String(uid) === String(ownerId);
-      const isWinner = uid && ganadorId && String(uid) === String(ganadorId);
-      const isBuyer = uid && buyerId && String(uid) === String(buyerId);
 
+      if (isOwner && hiddenAdsOwnerId === uid) return false;
       if (estadoActual === "pausado") return false;
 
-      if (estadoActual === "entregado") return !!(isOwner || isWinner || isBuyer);
-      if (estadoActual === "reservado" && tipo === "venta") return !!(isOwner || isBuyer);
-
-      if (onlyActive && estadoActual === "reservado") return !!(isOwner || isBuyer || isWinner);
+      if (estadoActual === "entregado") return false;
+      if (onlyActive && estadoActual === "reservado") return false;
 
       if (quickTipo === "destacado") {
         // ✅ Muestra SOLO los artículos marcados como destacados
@@ -1394,13 +1337,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       return matchesSearch && matchesCategory && matchesSub && matchesCity && matchesLocality;
     });
 
-    const sorted = [...base].sort((a, b) => {
-      const ta = a?.created_at ? new Date(a.created_at).getTime() : 0;
-      const tb = b?.created_at ? new Date(b.created_at).getTime() : 0;
-      return sortOrder === "oldest" ? ta - tb : tb - ta;
-    });
-
-    return sorted;
+    return base.sort((a, b) => homePage.ids.indexOf(a.id) - homePage.ids.indexOf(b.id));
   }, [
     products,
     searchTerm,
@@ -1411,13 +1348,22 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     getActiveUid,
     quickTipo,
     onlyActive,
+    hiddenAdsOwnerId,
     sortOrder,
+    homePage.ids,
   ]);
 
   // ✅ Artículos destacados (filtrados por búsqueda/categoría/ciudad igual que la lista principal)
   const featuredProducts = useMemo(() => {
-    return (filteredProducts || []).filter((p) => !!p?.isFeatured);
-  }, [filteredProducts]);
+    return products.filter(p => homePage.featuredIds.includes(p.id) && p.isFeatured
+      && normEstado(p.estado || p.status || "") !== "entregado");
+  }, [products, homePage.featuredIds]);
+
+  const totalPages = Math.max(1, Math.ceil(homePage.total / 9));
+  const changeHomePage = page => {
+    setPageSelection({ key: homeFilterKey, page });
+    listingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
 
   const myProducts = useMemo(() => {
@@ -1545,16 +1491,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   {searchTerm.trim() === "" && (
                     <div className="rounded-3xl">
                       <HeroBanner onLearnMore={() => setCurrentView("how-it-works")} />
-
-            {/* ✅ Barra de Destacados (carrusel automático) */}
-            {featuredProducts?.length ? (
-              <FeaturedTicker
-                items={featuredProducts}
-                onItemClick={(item) => {
-                  setSelectedProduct(item);
-                }}
-              />
-            ) : null}
 
                     </div>
                   )}
@@ -1722,13 +1658,15 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                                 Solo activas
                               </p>
                               <p className="text-[11px] text-gray-500 font-bold">
-                                Oculta las reservadas (para el público)
+                                Oculta las reservadas
                               </p>
                             </div>
 
                             <button
                               type="button"
                               onClick={() => setOnlyActive((v) => !v)}
+                              aria-pressed={onlyActive}
+                              aria-label={onlyActive ? "Mostrar reservadas" : "Ocultar reservadas"}
                               className={`shrink-0 px-4 py-2 rounded-2xl text-[11px] font-black uppercase transition border ${
                                 onlyActive
                                   ? "bg-forest-green text-white border-forest-green"
@@ -1771,20 +1709,46 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           </div>
                         </div>
                       </div>
+                      <SponsorCarousel />
                     </aside>
 
-                    <div className="lg:w-3/4">
-                      <div className="mb-4 flex justify-between items-center">
+                    <div className="min-w-0 lg:w-3/4">
+                      <FeaturedTicker
+                        key={JSON.stringify([searchTerm.trim().toLowerCase(), selectedCategory, selectedSubcategory, selectedCity, selectedLocality, quickTipo, onlyActive, hiddenAdsOwnerId, currentUser?.id])}
+                        items={featuredProducts}
+                        onItemClick={setSelectedProduct}
+                      />
+                      <div ref={listingRef} className="mb-4 flex flex-wrap justify-between items-center gap-3 scroll-mt-24">
                         <h2 className="text-lg font-black text-gray-800">
                           {searchTerm ? `Resultados para "${searchTerm}"` : "Últimos hallazgos"}
                         </h2>
-                        <span className="text-xs font-bold text-gray-400">
-                          {filteredProducts.length} tesoros encontrados
-                        </span>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="text-xs font-bold text-gray-400">
+                            {homePage.total} tesoros encontrados
+                          </span>
+                          {currentUser?.id && (
+                            <button
+                              type="button"
+                              aria-pressed={hiddenAdsOwnerId === currentUser.id}
+                              onClick={() => setHiddenAdsOwnerId(hiddenAdsOwnerId === currentUser.id ? null : currentUser.id)}
+                              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:border-forest-green hover:text-forest-green transition"
+                            >
+                              {hiddenAdsOwnerId === currentUser.id ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}
+                              {hiddenAdsOwnerId === currentUser.id ? "Mostrar mis anuncios" : "Ocultar mis anuncios"}
+                            </button>
+                          )}
+                        </div>
                       </div>
 
-                      {filteredProducts.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {homeError ? (
+                        <div role="alert" className="py-12 text-center">
+                          <p className="text-sm text-red-600">{homeError}</p>
+                          <button type="button" onClick={() => load()} className="mt-3 text-sm font-bold text-forest-green">Reintentar</button>
+                        </div>
+                      ) : homeBusy || searchTerm !== debouncedSearch ? (
+                        <div role="status" className="py-20 text-center text-sm text-gray-500">Cargando publicaciones...</div>
+                      ) : filteredProducts.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" data-testid="home-listings">
                           {filteredProducts.map((item) => {
                             const resolvedImage =
                               item.image_url ||
@@ -1809,6 +1773,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     <ProductCard
       title={item.title || item.titulo || "Sin título"}
       location={resolvedLocation}
+      category={getCategoria(item)}
       mode={normTipo(item.mode || item.tipo || "donacion")}
       price={item.price || 0}
       image={resolvedImage}
@@ -1842,6 +1807,23 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           </p>
                         </div>
                       )}
+                      {!homeError && homePage.total > 9 && (
+                        <nav aria-label="Paginación de publicaciones" className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                          <button type="button" title="Página anterior" aria-label="Página anterior"
+                            disabled={homeBusy || homePage.page <= 1}
+                            onClick={() => changeHomePage(homePage.page - 1)}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-forest-green disabled:opacity-40 disabled:cursor-not-allowed">
+                            <ChevronLeft size={20} />
+                          </button>
+                          <span aria-live="polite" className="text-sm font-semibold text-gray-600">Página {homePage.page} de {totalPages}</span>
+                          <button type="button" title="Página siguiente" aria-label="Página siguiente"
+                            disabled={homeBusy || homePage.page >= totalPages}
+                            onClick={() => changeHomePage(homePage.page + 1)}
+                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-forest-green disabled:opacity-40 disabled:cursor-not-allowed">
+                            <ChevronRight size={20} />
+                          </button>
+                        </nav>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1857,18 +1839,24 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     loadNotifications();
                   }}
                   onBack={() => setCurrentView("home")}
+                  onArticuloDestacado={(article) => {
+                    setProducts(prev => prev.map(item =>
+                      String(getArticuloId(item)) === String(article.id) ? { ...item, ...article, isFeatured: true } : item));
+                    load({ refreshPersonal: true });
+                  }}
                   onOpenEdit={(art) => {
                     setEditArticle(art);
                     setIsEditOpen(true);
                   }}
-                  onOpenGestion={(art) => {
-                    const id = getArticuloId(art);
-                    if (id) markSolicitudesSeenForArticulo(id);
-
-                    setManageArticle(art);
-                    setIsManageOpen(true);
-
-                    loadNotifications();
+                  onOpenGestion={async (art) => {
+                    try {
+                      const fresh = await readArticleContext(supabase, getArticuloId(art));
+                      if (isInReview(fresh)) return alert("Este artículo está en revisión. No puedes gestionarlo por ahora.");
+                      markSolicitudesSeenForArticulo(fresh.id);
+                      setProducts(previous => previous.map(item => item.id === fresh.id ? { ...item, ...fresh } : item));
+                      setManageArticle(fresh);
+                      setIsManageOpen(true);
+                    } catch (error) { alert(error.message); }
                   }}
                   onOpenChat={async ({ article, buyerId }) => {
                     // ✅ BLOQUEO REVISIÓN (perfil)
@@ -1898,6 +1886,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           : p
                       )
                     );
+                    load({ refreshPersonal: true });
                   }}
                 />
               )}
@@ -1999,7 +1988,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               }}
               onUpdateSuccess={async () => {
                 // ✅ Recarga completa solo cuando se edita un artículo (datos pueden haber cambiado)
-                await load();
+                await load({ refreshPersonal: true });
               }}
             />
 
@@ -2011,6 +2000,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               chat={chatOpen?.chat}
               article={chatOpen?.article}
               otherUserId={chatOpen?.otherUserId}
+              otherUserProfile={chatOpen?.otherUserProfile}
               role={chatOpen?.role}
               errorMessage={chatOpen?.errorMessage}
             />

@@ -105,45 +105,48 @@ export default function AdminPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
 
-  // ---------------- simple access gate (NO BD) ----------------
-  const ADMIN_USER = import.meta.env.VITE_ADMIN_USER || "leo";
-  const ADMIN_PASS = import.meta.env.VITE_ADMIN_PASS || "leo";
-
   const [gateOk, setGateOk] = useState(false);
   const [gateUser, setGateUser] = useState("");
   const [gatePass, setGatePass] = useState("");
   const [gateErr, setGateErr] = useState("");
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("mb_admin_gate_ok");
-      if (saved === "1") setGateOk(true);
-    } catch {}
-  }, []);
+  const [gateBusy, setGateBusy] = useState(false);
 
   const handleGateSubmit = useCallback(
-    (e) => {
+    async (e) => {
       e.preventDefault();
       setGateErr("");
 
-      if (!ADMIN_USER || !ADMIN_PASS) {
-        setGateErr("Falta configurar VITE_ADMIN_USER y VITE_ADMIN_PASS en .env");
+      const username = gateUser.trim().toLowerCase();
+      if (!/^[a-z0-9][a-z0-9._-]*$/.test(username)) {
+        setGateErr("Usuario o contraseña incorrectos.");
         return;
       }
-
-      if (gateUser.trim() === ADMIN_USER && gatePass === ADMIN_PASS) {
+      setGateBusy(true);
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: `${username}@admin.mibatute.com`, password: gatePass,
+        });
+        if (error) throw error;
+        if (!["admin", "master"].includes(data.user?.app_metadata?.role)) {
+          await supabase.auth.signOut({ scope: "local" });
+          setGateErr("Esta cuenta no tiene acceso de colaborador.");
+          return;
+        }
+        setAuthUser(data.user);
         setGateOk(true);
-        try {
-          localStorage.setItem("mb_admin_gate_ok", "1");
-        } catch {}
-      } else {
-        setGateErr("Usuario o contraseña incorrectos.");
+        setGatePass("");
+      } catch {
+        setGateErr("No se pudo iniciar sesión. Comprueba el usuario y la contraseña.");
+      } finally {
+        setGateBusy(false);
       }
     },
-    [ADMIN_USER, ADMIN_PASS, gateUser, gatePass]
+    [gateUser, gatePass]
   );
 
-  const handleGateLogout = useCallback(() => {
+  const handleGateLogout = useCallback(async () => {
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    if (error) { showSupabaseError("No se pudo cerrar sesión.", error); return; }
     setGateOk(false);
     setGateUser("");
     setGatePass("");
@@ -166,6 +169,7 @@ export default function AdminPage() {
       const { data, error } = await supabase.auth.getSession();
       if (error) throw error;
       setAuthUser(data?.session?.user || null);
+      setGateOk(["admin", "master"].includes(data?.session?.user?.app_metadata?.role));
     } catch (e) {
       console.error("Admin hydrate error:", e);
       setAuthUser(null);
@@ -182,6 +186,14 @@ export default function AdminPage() {
       hydrateAuthOnce();
     }
   }, [hydrateAuthOnce]);
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user || null);
+      setGateOk(["admin", "master"].includes(session?.user?.app_metadata?.role));
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
 
   // ---------------- fetch owners safely ----------------
   const fetchOwnersSafely = useCallback(async (ownerIds) => {
@@ -356,10 +368,10 @@ export default function AdminPage() {
   );
 
   useEffect(() => {
-    if (!authUser?.id) return;
+    if (!authUser?.id || !gateOk) return;
     loadReports({ force: true });
     loadBlockedUsers();
-  }, [authUser?.id, loadReports, loadBlockedUsers]);
+  }, [authUser?.id, gateOk, loadReports, loadBlockedUsers]);
 
   // ---------------- grouping ----------------
   const groups = useMemo(() => {
@@ -613,38 +625,19 @@ export default function AdminPage() {
     );
   }
 
-  // Primero: requiere sesión (tu control actual)
-  if (!authUser?.id) {
-    return (
-      <div className="min-h-screen bg-[#F5F5F5]" style={{ fontFamily: 'Arial, "DIN Alternate", "DIN", system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
-        <div className="max-w-6xl mx-auto px-4 py-10">
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
-            <h1 className="text-2xl font-semibold text-gray-800">Panel de Moderación</h1>
-            <p className="text-sm text-gray-500 font-medium mt-1">Debes iniciar sesión para entrar.</p>
-            <div className="mt-6 flex gap-3">
-              <Link to="/" className="px-4 py-2 rounded-2xl bg-gray-900 text-white font-semibold text-sm">
-                Volver al Home
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Segundo: Gate adicional usuario/clave (NO BD)
-  if (!gateOk) {
+  if (!authUser?.id || !gateOk) {
     return (
       <div className="min-h-screen bg-[#F5F5F5]" style={{ fontFamily: 'Arial, "DIN Alternate", "DIN", system-ui, -apple-system, Segoe UI, Roboto, sans-serif' }}>
         <div className="max-w-md mx-auto px-4 py-10">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
-            <h1 className="text-2xl font-semibold text-gray-800">Acceso restringido</h1>
-            <p className="text-sm text-gray-500 font-medium mt-1">Ingresa usuario y contraseña para ver el panel.</p>
+            <h1 className="text-2xl font-semibold text-gray-800">Acceso Admin</h1>
 
             <form onSubmit={handleGateSubmit} className="mt-6 space-y-3">
               <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Usuario</label>
+                <label htmlFor="admin-user" className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Usuario</label>
                 <input
+                  id="admin-user"
+                  required disabled={gateBusy}
                   value={gateUser}
                   onChange={(e) => setGateUser(e.target.value)}
                   className="mt-2 w-full px-3 py-3 rounded-2xl border border-gray-200 font-medium text-sm"
@@ -654,8 +647,10 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Contraseña</label>
+                <label htmlFor="admin-password" className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Contraseña</label>
                 <input
+                  id="admin-password"
+                  required disabled={gateBusy}
                   value={gatePass}
                   onChange={(e) => setGatePass(e.target.value)}
                   type="password"
@@ -671,8 +666,8 @@ export default function AdminPage() {
                 </div>
               ) : null}
 
-              <button type="submit" className="w-full px-4 py-3 rounded-2xl bg-gray-900 text-white font-semibold text-sm">
-                Entrar
+              <button type="submit" disabled={gateBusy} className="w-full px-4 py-3 rounded-2xl bg-gray-900 text-white font-semibold text-sm disabled:opacity-50">
+                {gateBusy ? "Entrando..." : "Entrar"}
               </button>
 
               <Link

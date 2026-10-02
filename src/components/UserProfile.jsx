@@ -1,9 +1,9 @@
 // src/components/UserProfile.jsx
-import { queryArticlesWithCondition } from "../supabase/articleQuery";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { getProfile, updateProfile } from "../supabase/profileService";
 import {
   Camera,
+  CircleDollarSign,
   Loader2,
   Pencil,
   Trash2, Pause, Play,
@@ -24,6 +24,10 @@ import {
 } from "lucide-react";
 import { LOCATIONS } from "../data/locations";
 import ManageArticleModal from "./ManageArticleModal";
+import ProfileListFilters from "./ProfileListFilters";
+import ProfilePagination from "./ProfilePagination";
+import { paginateProfileItems } from "./profilePageData";
+import { DEFAULT_PROFILE_FILTERS, filterProfileItems, canRateProfileArticle } from "./profileFilters";
 
 // ✅ IMPORT CORRECTO
 import {
@@ -33,15 +37,15 @@ import {
 
 // ✅ servicio para Mis Rescates
 import { obtenerMisRescates } from "../supabase/rescatesService";
-import { canOpenRescateChat } from "../supabase/rescatesQuery";
+import { canOpenRescateChat, isRescateVisible, saleCancellation, isRescateSaleLocked, donationRejection } from "../supabase/rescatesQuery";
 import { transitionSale } from "../supabase/saleTransaction";
-import { preferLatestArticle } from "./articleState";
+import { isSaleArticle } from "../supabase/articleContext";
+import { preferLatestArticle, articleHistoryExpiresAt } from "./articleState";
 
 // ✅ para cancelar postulación directamente + actualizar entrega
 import { supabase } from "../supabase/supabaseClient";
 
 const ENABLE_PROFILE_REALTIME = false;
-const PROFILE_PUBLICATIONS_LIMIT = 100;
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -134,14 +138,7 @@ function blockedUserMsg() {
 }
 
 function isVentaArticulo(art) {
-  const raw =
-    art?.tipo ??
-    art?.mode ??
-    art?.tipo_publicacion ??
-    art?.tipo_publicación ??
-    "";
-  const t = String(raw || "").toLowerCase().trim();
-  return t === "venta" || t.includes("venta");
+  return isSaleArticle(art);
 }
 
 /**
@@ -395,6 +392,7 @@ function ModalSolicitudes({
   userIdOwner,
   onArticuloUpdated,
   onAfterDecision,
+  onOpenChat,
   yaCalifique = new Set(),
   onAbrirCalificar,
 }) {
@@ -436,97 +434,6 @@ function ModalSolicitudes({
 
   if (!isOpen) return null;
 
-  const deleteChatForUser = async (targetUserId) => {
-    if (!articuloId || !targetUserId) return;
-
-    let chatIds = [];
-
-    const tryFetchChats = async (orExpr) => {
-      const { data, error } = await supabase
-        .from("chats")
-        .select("id")
-        .eq("articulo_id", articuloId)
-        .or(orExpr);
-      if (error) return { data: null, error };
-      return { data, error: null };
-    };
-
-    let res = await tryFetchChats(`buyer_id.eq.${targetUserId},seller_id.eq.${targetUserId}`);
-    if (res.error?.message && /Could not find the 'seller_id' column/i.test(res.error.message)) {
-      res = await tryFetchChats(`buyer_id.eq.${targetUserId},owner_id.eq.${targetUserId}`);
-    }
-    if (res.error?.message && /Could not find the 'owner_id' column/i.test(res.error.message)) {
-      res = await tryFetchChats(`buyer_id.eq.${targetUserId},usuario_id.eq.${targetUserId}`);
-    }
-    if (res.error?.message && /Could not find the 'buyer_id' column/i.test(res.error.message)) {
-      res = await tryFetchChats(`usuario_id.eq.${targetUserId}`);
-    }
-
-    if (res.error) {
-      console.log("Warn fetch chats:", res.error);
-      return;
-    }
-
-    chatIds = (res.data || []).map((c) => c?.id).filter(Boolean);
-    if (!chatIds.length) return;
-
-    try {
-      const { error: delMsgsErr } = await supabase
-        .from("chat_messages")
-        .delete()
-        .in("chat_id", chatIds);
-      if (delMsgsErr) console.log("Warn delete chat_messages:", delMsgsErr);
-    } catch (e) {
-      console.log("Delete chat_messages catch:", e);
-    }
-
-    try {
-      const { error: delChatsErr } = await supabase
-        .from("chats")
-        .delete()
-        .in("id", chatIds);
-      if (delChatsErr) console.log("Warn delete chats:", delChatsErr);
-    } catch (e) {
-      console.log("Delete chats catch:", e);
-    }
-  };
-
-  const cleanupChatsExceptWinner = async (winnerUserId) => {
-    if (!articuloId) return;
-
-    try {
-      const { data: chats, error: chErr } = await supabase
-        .from("chats")
-        .select("id,buyer_id")
-        .eq("articulo_id", articuloId);
-
-      if (chErr) {
-        console.log("Warn list chats:", chErr);
-        return;
-      }
-
-      const deleteIds = (chats || [])
-        .filter((c) => String(c?.buyer_id || "") !== String(winnerUserId || ""))
-        .map((c) => c?.id)
-        .filter(Boolean);
-
-      if (!deleteIds.length) return;
-
-      const { error: delMsgErr } = await supabase
-        .from("chat_messages")
-        .delete()
-        .in("chat_id", deleteIds);
-      if (delMsgErr) console.log("Warn delete chat_messages:", delMsgErr);
-
-      const { error: delChatErr } = await supabase
-        .from("chats")
-        .delete()
-        .in("id", deleteIds);
-      if (delChatErr) console.log("Warn delete chats:", delChatErr);
-    } catch (e) {
-      console.log("Cleanup chats catch:", e);
-    }
-  };
 
   const cleanupAllChatsForArticle = async () => {
     if (!articuloId) return;
@@ -585,23 +492,11 @@ function ModalSolicitudes({
         return;
       }
 
-      const { error: delErr } = await supabase
-        .from("postulaciones")
-        .delete()
-        .eq("articulo_id", articuloId)
-        .neq("usuario_id", targetUserId);
-
-      if (delErr) {
-        console.log("No se pudieron borrar otras postulaciones (RLS?):", delErr);
-      }
-
-      await cleanupChatsExceptWinner(targetUserId);
-
       onArticuloUpdated?.(data || { ...articulo, ganador_id: targetUserId, estado: "reservado", status: "reservado" });
       onAfterDecision?.();
 
-      alert("✅ Seleccionado. El artículo quedó reservado y los demás quedaron removidos.");
       onClose?.();
+      await onOpenChat?.({ article: data || { ...articulo, ganador_id: targetUserId, estado: "reservado", status: "reservado" }, buyerId: targetUserId });
     } catch (e) {
       console.error(e);
       alert("No se pudo seleccionar. Revisa la consola.");
@@ -722,12 +617,6 @@ function ModalSolicitudes({
     try {
       setUpdatingKey(key);
 
-      // Guardar en tabla de rechazados
-      await supabase.from("postulaciones_rechazadas").insert({
-        articulo_id: articuloId,
-        usuario_id: targetUserId,
-      }).select();
-
       // Borrar postulacion (el owner tiene permiso DELETE)
       const { error: delErr } = await supabase
         .from("postulaciones")
@@ -740,8 +629,6 @@ function ModalSolicitudes({
         alert("No se pudo rechazar. Revisa la consola (RLS?).");
         return;
       }
-
-      await deleteChatForUser(targetUserId);
 
       onAfterDecision?.();
     } catch (e) {
@@ -998,8 +885,13 @@ export default function UserProfile({
   onOpenChat,
   onDelete,
   onArticuloReservado,
+  onArticuloDestacado,
 }) {
   const [activeTab, setActiveTab] = useState("publicaciones"); // ✅ ahora inicia en Buzón
+  const [publicationFilters, setPublicationFilters] = useState({ ...DEFAULT_PROFILE_FILTERS });
+  const [rescateFilters, setRescateFilters] = useState({ ...DEFAULT_PROFILE_FILTERS });
+  const [publicationPage, setPublicationPage] = useState({ key: '', page: 1 });
+  const [rescatePage, setRescatePage] = useState({ key: '', page: 1 });
   const [authEmail, setAuthEmail] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1024,6 +916,8 @@ export default function UserProfile({
   const [rescates, setRescates] = useState([]);
   const [rescatesError, setRescatesError] = useState("");
   const [rescatesReload, setRescatesReload] = useState(0);
+  const [rescateExpiryClock, setRescateExpiryClock] = useState(() => Date.now());
+  const [publicationExpiryClock, setPublicationExpiryClock] = useState(() => Date.now());
   const [cargandoRescates, setCargandoRescates] = useState(false);
   const [donacionLimit, setDonacionLimit] = useState(null); // { used, remaining, proximaEn }
   const [cuposSaldo, setCuposSaldo] = useState(null); // saldo de créditos
@@ -1185,7 +1079,7 @@ export default function UserProfile({
   }, [user?.id]);
 
   const loadUnreadForArticuloIds = useCallback(
-    async (articuloIds = []) => {
+    async (articuloIds = [], knownChats = null) => {
       if (!user?.id) return;
 
       const ids = (Array.isArray(articuloIds) ? articuloIds : [])
@@ -1196,7 +1090,8 @@ export default function UserProfile({
         return;
       }
 
-      const { data: chats, error: chatErr } = await selectChatsForArticuloIds(ids);
+      const { data: chats, error: chatErr } = knownChats
+        ? { data: knownChats } : await selectChatsForArticuloIds(ids);
 
       if (chatErr) {
         console.log("Warn loadUnread chats:", chatErr);
@@ -1260,13 +1155,15 @@ export default function UserProfile({
   loadUnreadRef.current = loadUnreadForArticuloIds;
 
   const markChatAsRead = useCallback(
-    async ({ articuloId, buyerId }) => {
+    async ({ articuloId, buyerId, knownChat }) => {
       if (!user?.id || !articuloId) return;
 
       let q = supabase.from("chats").select("id,articulo_id,buyer_id,seller_id").eq("articulo_id", articuloId);
       if (buyerId) q = q.eq("buyer_id", buyerId);
 
-      let res = await q.maybeSingle();
+      let res = knownChat?.id && String(knownChat.articulo_id) === String(articuloId)
+        && (!buyerId || String(knownChat.buyer_id) === String(buyerId))
+        ? { data: knownChat } : await q.maybeSingle();
 
       if (res?.error?.message && /Could not find the 'seller_id' column/i.test(res.error.message)) {
         let q2 = supabase.from("chats").select("id,articulo_id,buyer_id,owner_id").eq("articulo_id", articuloId);
@@ -1457,7 +1354,7 @@ export default function UserProfile({
   // Destacar publicación — cuesta 1 crédito
   const toggleDestacado = async (art) => {
     const artId = getArticuloId(art);
-    if (!artId || !user?.id) return;
+    if (!artId || !user?.id || destacandoId) return;
     const isFeaturedNow = featuredOverrides[artId] ?? art?.is_featured ?? false;
     if (isFeaturedNow) return;
     if ((cuposSaldo ?? 0) < 1) {
@@ -1467,12 +1364,20 @@ export default function UserProfile({
     if (!window.confirm("¿Destacar esta publicación? Se descontará 1 crédito.")) return;
     setDestacandoId(artId);
     try {
-      await supabase.from("cupos").update({ saldo: (cuposSaldo - 1), updated_at: new Date().toISOString() }).eq("usuario_id", user.id);
-      await supabase.from("cupos_historial").insert({ usuario_id: user.id, cantidad: -1, concepto: "destacado", referencia_id: artId });
-      await supabase.from("articulos").update({ is_featured: true }).eq("id", artId);
-      setCuposSaldo(s => Math.max(0, (s ?? 1) - 1));
+      const { data, error } = await supabase.rpc("feature_article", { p_articulo_id: artId });
+      if (error) {
+        if (error.code === "PGRST202" || error.code === "42883") {
+          throw new Error("Falta habilitar los destacados en Supabase. Aplica la migracion de destacados.");
+        }
+        throw new Error(error.message);
+      }
+      if (String(data?.article?.id) !== String(artId) || !data?.article?.is_featured || !Number.isInteger(data?.balance)) {
+        throw new Error("No se pudo confirmar el destacado. Recarga la pagina.");
+      }
+      setCuposSaldo(data.balance);
       setFeaturedOverrides(p => ({ ...p, [artId]: true }));
-    } catch { alert("Error al destacar la publicación."); }
+      onArticuloDestacado?.(data.article);
+    } catch (error) { alert(error.message || "Error al destacar la publicación."); }
     finally { setDestacandoId(null); }
   };
 
@@ -1651,7 +1556,8 @@ export default function UserProfile({
       : [];
 
     const byId = new Map();
-    [...profileProducts, ...propProducts].forEach((item) => {
+    // Prefer the fresh grouped read on equal timestamps, including participant metadata.
+    [...propProducts, ...profileProducts].forEach((item) => {
       const id = getArticuloId(item);
       if (id) byId.set(String(id), preferLatestArticle(byId.get(String(id)), item));
     });
@@ -1670,26 +1576,7 @@ export default function UserProfile({
     (async () => {
       setProfileProductsLoading(true);
       try {
-        const { data, error } = await queryArticlesWithCondition(
-            `id, titulo, title, mode, tipo, estado, status,
-             city, locality, description,
-             price, usuario_id, owner_id, buyer_id,
-             ganador_id, winner_id, recipient_id,
-             reserved_at, updated_at, created_at,
-             image_url, imagen_url_principal, imagenes,
-             is_featured,
-             review_status, approval_status,
-             moderation_status, revision_status,
-             category, categoria,
-             subcategory, subcategoria,
-             articulo_imagenes:articulo_imagenes (
-               id, url, position
-             )`
-          , columns => supabase.from("articulos").select(columns)
-          .or(`owner_id.eq.${user.id},usuario_id.eq.${user.id}`)
-          .order("created_at", { ascending: false })
-          .order("position", { foreignTable: "articulo_imagenes", ascending: true })
-          .limit(PROFILE_PUBLICATIONS_LIMIT));
+        const { data, error } = await supabase.rpc("article_context", { p_article_id: null });
 
         if (!alive) return;
 
@@ -1714,19 +1601,23 @@ export default function UserProfile({
     };
   }, [user?.id, activeTab]);
 
+  useEffect(() => {
+    const now = Date.now();
+    const expirations = (safeMyProducts || []).map(articleHistoryExpiresAt).filter(time => time !== null && time > now);
+    if (!expirations.length) return;
+    const timeout = setTimeout(() => setPublicationExpiryClock(Date.now()), Math.min(...expirations) - now + 50);
+    return () => clearTimeout(timeout);
+  }, [safeMyProducts, publicationExpiryClock]);
+
   const publications = useMemo(() => {
-    const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
     const ahora = Date.now();
     const base = [...(safeMyProducts || [])]
       .filter((a) => {
         const id = getArticuloId(a);
         if (id && deletedIds.has(String(id))) return false;
         // Ocultar entregados con más de 7 días
-        const estado = normEstado(a?.estado || a?.status || "disponible");
-        if (estado === "entregado" && a?.updated_at) {
-          const msSinceEntrega = ahora - new Date(a.updated_at).getTime();
-          if (msSinceEntrega > SIETE_DIAS_MS) return false;
-        }
+        const expiresAt = articleHistoryExpiresAt(a);
+        if (expiresAt !== null && ahora >= expiresAt) return false;
         return true;
       })
       .sort((a, b) => {
@@ -1753,19 +1644,25 @@ export default function UserProfile({
       });
 
     return base;
-  }, [safeMyProducts, deletedIds]);
+  }, [safeMyProducts, deletedIds, publicationExpiryClock]);
 
   // Rescates ordenados: entregados al fondo, ocultar si >7 días
+  useEffect(() => {
+    const now = Date.now();
+    const expirations = (rescates || []).flatMap(row => [saleCancellation(row)?.expiresAt, donationRejection(row)?.expiresAt, articleHistoryExpiresAt(row.articulo)])
+      .filter(time => Number.isFinite(time) && time > now);
+    if (!expirations.length) return;
+    const timeout = setTimeout(() => setRescateExpiryClock(Date.now()), Math.min(...expirations) - now + 50);
+    return () => clearTimeout(timeout);
+  }, [rescates, rescateExpiryClock]);
+
   const rescatesSorted = useMemo(() => {
-    const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
     const ahora = Date.now();
     return [...(rescates || [])]
       .filter((r) => {
-        const art = r?.articulo || {};
-        const estado = normEstado(art?.estado || art?.status || "disponible");
-        if (estado === "entregado" && art?.updated_at) {
-          return ahora - new Date(art.updated_at).getTime() <= SIETE_DIAS_MS;
-        }
+        if (!isRescateVisible(r, user?.id, ahora)) return false;
+        const expiresAt = articleHistoryExpiresAt(r?.articulo);
+        if (expiresAt !== null && ahora >= expiresAt) return false;
         return true;
       })
       .sort((a, b) => {
@@ -1777,7 +1674,26 @@ export default function UserProfile({
         const tb = b?.created_at ? new Date(b.created_at).getTime() : 0;
         return tb - ta;
       });
-  }, [rescates]);
+  }, [rescates, user?.id, rescateExpiryClock]);
+
+  const filteredPublications = useMemo(() => filterProfileItems(publications, publicationFilters, {
+    unread: unreadByArticulo, notifications: notifByArticulo, chats: hasChatOwnerByArticulo,
+    posts: hasPostulacionesByArticulo, overrides: articuloOverridesById, featured: featuredOverrides,
+    rated: yaCalifique, userId: user?.id,
+  }), [publications, publicationFilters, unreadByArticulo, notifByArticulo, hasChatOwnerByArticulo,
+    hasPostulacionesByArticulo, articuloOverridesById, featuredOverrides, yaCalifique, user?.id]);
+
+  const filteredRescates = useMemo(() => filterProfileItems(rescatesSorted, rescateFilters, {
+    rescates: true, unread: unreadByArticulo, chats: hasChatBuyerByArticulo,
+    rated: yaCalifique, userId: user?.id,
+  }), [rescatesSorted, rescateFilters, unreadByArticulo, hasChatBuyerByArticulo, yaCalifique, user?.id]);
+
+  const publicationPageKey = JSON.stringify([user?.id, publicationFilters, [...yaCalifique]]);
+  const rescatePageKey = JSON.stringify([user?.id, rescateFilters, [...yaCalifique]]);
+  const publicationListing = paginateProfileItems(filteredPublications,
+    publicationPage.key === publicationPageKey ? publicationPage.page : 1);
+  const rescateListing = paginateProfileItems(filteredRescates,
+    rescatePage.key === rescatePageKey ? rescatePage.page : 1);
 
   // ✅ maps publicaciones + unread — solo en pestaña publicaciones
   useEffect(() => {
@@ -1802,7 +1718,10 @@ export default function UserProfile({
           .in("articulo_id", ids);
         if (postErr) console.log("Warn postulaciones map:", postErr);
 
-        const { data: chats, error: chatErr } = await selectChatsForArticuloIds(ids);
+        const contextAvailable = publications.every(article => Object.hasOwn(article, "transaction_chat"));
+        const knownChats = contextAvailable ? publications.map(article => article.transaction_chat).filter(Boolean) : null;
+        const { data: chats, error: chatErr } = knownChats
+          ? { data: knownChats } : await selectChatsForArticuloIds(ids);
         if (chatErr) console.log("Warn chats(owner) map:", chatErr);
 
         if (!alive) return;
@@ -1820,7 +1739,7 @@ export default function UserProfile({
         setHasPostulacionesByArticulo(postMap);
         setHasChatOwnerByArticulo(chatMap);
 
-        await loadUnreadForArticuloIds(ids);
+        await loadUnreadForArticuloIds(ids, knownChats);
       } catch (e) {
         console.log("Warn maps publicaciones:", e);
         if (!alive) return;
@@ -2233,8 +2152,8 @@ export default function UserProfile({
 
     if (isVenta) {
       const buyerId = art?.buyer_id || art?.buyerId || null;
-      await markChatAsRead({ articuloId, buyerId: buyerId || null });
-      onOpenChat({ article: art, buyerId: buyerId || null });
+      await markChatAsRead({ articuloId, buyerId: buyerId || null, knownChat: art.transaction_chat });
+      await onOpenChat({ article: art, buyerId: buyerId || null });
       return;
     }
 
@@ -2270,7 +2189,7 @@ export default function UserProfile({
     try {
       setCargandoChatRescate(articuloId);
       onArticuloSeen?.(articuloId);
-      await markChatAsRead({ articuloId, buyerId: user.id });
+      await markChatAsRead({ articuloId, buyerId: user.id, knownChat: art.transaction_chat });
       await onOpenChat({ article: art, buyerId: user.id });
     } finally {
       setCargandoChatRescate(null);
@@ -2310,6 +2229,9 @@ export default function UserProfile({
 
     const isPurchase = isVentaArticulo(art) && String(art.buyer_id || "") === String(user.id);
     const isActivePurchase = isPurchase && normEstado(art.estado || art.status) === "reservado";
+    if (isPurchase && isRescateSaleLocked(rescate)) {
+      return alert("La compra ya fue aprobada. Se conserva hasta siete días después de la entrega.");
+    }
     if (isPurchase && normEstado(art.estado || art.status) === "entregado") {
       return alert("La compra entregada se conserva en tu historial.");
     }
@@ -2727,8 +2649,8 @@ export default function UserProfile({
           {/* ── CAJA DE CRÉDITOS ── */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-4 flex flex-col gap-2">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-                <span className="text-lg">🪙</span>
+              <div className="w-10 h-10 flex items-center justify-center shrink-0 text-forest-green">
+                <CircleDollarSign size={24} strokeWidth={1.5} aria-hidden="true" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">Saldo de créditos</p>
@@ -2745,9 +2667,6 @@ export default function UserProfile({
               >
                 + Recargar Nequi
               </button>
-            </div>
-            <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
-              <p className="text-[11px] font-medium text-orange-600 text-center">Para comprar o vender no necesitas créditos — son solo para donaciones y destacados.</p>
             </div>
           </div>
 
@@ -3044,24 +2963,16 @@ export default function UserProfile({
 
               {activeTab === "publicaciones" && (
                 <>
-                  {/* Banner publicación destacada */}
-                  <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-2xl border bg-purple-50 border-purple-200 text-sm font-medium text-purple-800">
-                    <span className="text-lg">⭐</span>
-                    <div className="flex-1 min-w-0">
-                      Destaca publicaciones para que aparezcan primero.
-                      <span className="block text-xs text-purple-600 mt-0.5 opacity-80">1 crédito por publicación. Toca ⭐ en cualquier publicación.</span>
-                    </div>
-                    <span className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-purple-200 text-purple-700 px-2 py-1 rounded-full">🪙 {cuposSaldo ?? 0}</span>
-                  </div>
-
-                  {publications.length === 0 ? (
+                  <ProfileListFilters value={publicationFilters} onChange={setPublicationFilters}
+                    count={filteredPublications.length} total={publications.length} />
+                  {filteredPublications.length === 0 ? (
                     <div className="text-center py-12">
                       <p className="text-gray-400 font-bold">
-                        Aún no has publicado nada. ¡Publica tu primer tesoro!
+                        {publications.length ? "No hay publicaciones con esos filtros." : "Aún no has publicado nada. ¡Publica tu primer tesoro!"}
                       </p>
                     </div>
                   ) : (
-                    publications.map((art0, idx) => {
+                    publicationListing.items.map((art0, idx) => {
                       const art = getArtEffective(art0);
                       const titulo = art?.titulo || art?.title || "Sin título";
                       const estado = normEstado(art?.estado || art?.status || "disponible");
@@ -3116,14 +3027,21 @@ export default function UserProfile({
                         : false;
 
                       const notif = currentId ? notifByArticulo?.[String(currentId)] : null;
+                      const hasSolicitudes = !isVenta && (hasPosts || Number(notif?.newSolicitudes || 0) > 0);
+                      const canRate = !!currentId && canRateProfileArticle(art);
+                      const pendingRating = canRate && !yaCalifique.has(String(currentId));
 
                       return (
                         <div
                           key={currentId ? `art-${currentId}` : `art-idx-${idx}`}
                           className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition ${
                             isEntregado
-                              ? "bg-gray-50 border-gray-200 opacity-50"
-                              : notif?.total
+                              ? "bg-gray-50 border-gray-200 [&>img]:opacity-50 [&>[data-profile-content]>:not([data-rating-notice])]:opacity-50"
+                              : isReservado
+                              ? "bg-emerald-50 border-emerald-400 ring-1 ring-emerald-200"
+                              : hasSolicitudes
+                              ? "bg-amber-50 border-amber-400 ring-1 ring-amber-200"
+                              : !isVenta && notif?.total
                               ? "bg-orange-50 border-orange-200 ring-1 ring-orange-200"
                               : "bg-white border-gray-100"
                           } ${
@@ -3156,8 +3074,14 @@ export default function UserProfile({
                             alt="miniatura"
                           />
 
-                          <div className="flex-1 min-w-0">
+                          <div data-profile-content className="flex-1 min-w-0">
+                            {pendingRating && <p data-rating-notice className="mb-1 text-xs font-bold text-forest-green">Pendiente calificación</p>}
                             <h4 className="font-bold text-gray-800 truncate">{titulo}</h4>
+                            {isVenta && hasBuyer && art.buyer_public?.nombre && (
+                              <p className="mt-1 truncate text-xs font-semibold text-gray-600">
+                                {isEntregado ? "Comprado por" : "Reservado por"} {art.buyer_public.nombre}
+                              </p>
+                            )}
 
                             <div className="flex flex-wrap items-center gap-2 mt-1">
                               <span
@@ -3178,7 +3102,7 @@ export default function UserProfile({
                                 {formatDate(art)}
                               </span>
 
-                              {!isVenta && hasPosts ? (
+                              {hasSolicitudes ? (
                                 <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 ring-1 ring-orange-200 px-2 py-1 rounded-xl text-[10px] font-black uppercase">
                                   <Bell size={12} />
                                   TIENE SOLICITUDES
@@ -3200,7 +3124,7 @@ export default function UserProfile({
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div data-profile-actions className={`flex items-center gap-2 ${isEntregado ? "[&>button:not([data-rating-pending])]:opacity-50" : ""}`}>
                             <button
                               type="button"
                               onPointerDown={(e) => e.stopPropagation()}
@@ -3247,11 +3171,11 @@ export default function UserProfile({
                             })()}
 
                             {/* Calificar: donación→ganador, venta→comprador */}
-                            {isEntregado && currentId && !yaCalifique.has(String(currentId)) && (
-                              ((!isVenta && ganadorId) || (isVenta && buyerId))
-                            ) && (
+                            {canRate && (
                               <button
                                 type="button"
+                                disabled={yaCalifique.has(String(currentId))}
+                                data-rating-pending={!yaCalifique.has(String(currentId)) ? "true" : undefined}
                                 onPointerDown={(e) => e.stopPropagation()}
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
@@ -3260,10 +3184,11 @@ export default function UserProfile({
                                   setCalificarModal({ reviewedId: target, articuloId: currentId, rol: "vendedor" });
                                   setCalificarEstrellas(0);
                                 }}
-                                className="bg-forest-green text-white p-3 rounded-2xl hover:brightness-110 transition"
-                                title="Calificar transacción"
+                                className="bg-forest-green text-white p-3 rounded-2xl enabled:hover:brightness-110 transition disabled:cursor-default"
+                                title={yaCalifique.has(String(currentId)) ? "Transacción calificada" : "Calificar transacción"}
+                                aria-label={yaCalifique.has(String(currentId)) ? "Transacción calificada" : "Calificar transacción"}
                               >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                <CheckCircle2 size={16} />
                               </button>
                             )}
 
@@ -3308,14 +3233,16 @@ export default function UserProfile({
                             )}
 
                             {/* Botón eliminar: solo si NO está en cuenta regresiva de reserva */}
-                            {bloqueadoPorReserva ? (
+                            {(isVenta && (isReservado || isEntregado)) || bloqueadoPorReserva ? (
                               <div className="flex flex-col items-center gap-0.5">
-                                <div className="bg-red-50 text-red-300 p-3 rounded-2xl cursor-default" title={`Se borrará automáticamente en ${diasRestantes} día${diasRestantes === 1 ? "" : "s"}`}>
+                                <button type="button" disabled aria-label="Eliminar publicación"
+                                  className="bg-gray-100 text-gray-400 p-3 rounded-2xl cursor-not-allowed"
+                                  title={isVenta ? "Se retira de la lista siete días después de confirmar la entrega" : `Se borrará automáticamente en ${diasRestantes} días`}>
                                   <Trash2 size={16} />
-                                </div>
-                                <span className="text-[9px] font-bold text-red-300 uppercase tracking-tight leading-none">
+                                </button>
+                                {!isVenta && <span className="text-[9px] font-bold text-red-300 uppercase tracking-tight leading-none">
                                   {diasRestantes}d
-                                </span>
+                                </span>}
                               </div>
                             ) : !isEntregado ? (
                             <div className="flex flex-col items-center gap-0.5">
@@ -3380,6 +3307,9 @@ export default function UserProfile({
                 </>
               )}
 
+              {activeTab === "publicaciones" && <ProfilePagination {...publicationListing}
+                onChange={page => setPublicationPage({ key: publicationPageKey, page })} />}
+
               {activeTab === "rescates" && (
                 <>
                   {/* Banner cupo de donaciones */}
@@ -3442,6 +3372,9 @@ export default function UserProfile({
                     </div>
                   )}
 
+                  <ProfileListFilters value={rescateFilters} onChange={setRescateFilters} rescates
+                    count={filteredRescates.length} total={rescatesSorted.length} />
+
                   {cargandoRescates ? (
                     <div className="py-12 text-center text-gray-500 font-bold">
                       Cargando rescates...
@@ -3454,14 +3387,14 @@ export default function UserProfile({
                         Reintentar
                       </button>
                     </div>
-                  ) : rescatesSorted.length === 0 ? (
+                  ) : filteredRescates.length === 0 ? (
                     <div className="text-center py-12">
                       <p className="text-gray-400 font-bold">
-                        Aún no tienes rescates. Postúlate a una publicación y te aparecerá aquí.
+                        {rescatesSorted.length ? "No hay rescates con esos filtros." : "Aún no tienes rescates. Postúlate a una publicación y te aparecerá aquí."}
                       </p>
                     </div>
                   ) : (
-                    rescatesSorted.map((r) => {
+                    rescateListing.items.map((r) => {
                       const art = r?.articulo || {};
                       const titulo = art?.titulo || art?.title || "Sin título";
                       const estado = normEstado(art?.estado || art?.status || "disponible");
@@ -3489,6 +3422,11 @@ export default function UserProfile({
                         null;
 
                       const isEntregadoRescate = estado === "entregado";
+                      const rejectedSale = saleCancellation(r)?.bySeller === true;
+                      const rejectedDonation = !!donationRejection(r);
+                      const rejectedRescate = rejectedSale || rejectedDonation;
+                      const canRate = !!articuloId && !rejectedRescate && canRateProfileArticle(art, { rescates: true, userId: user.id });
+                      const pendingRating = canRate && !yaCalifique.has(String(articuloId));
 
                       // Donación cuya reserva fue cancelada: art volvió a disponible sin ganador
                       const fueReservadoYCancelado =
@@ -3517,14 +3455,16 @@ export default function UserProfile({
                           key={r?.id || `${r?.articulo_id}-${r?.created_at}`}
                           className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition ${
                             isEntregadoRescate
-                              ? "bg-gray-50 border-gray-200 opacity-50"
+                              ? "bg-gray-50 border-gray-200 [&>img]:opacity-50 [&>[data-profile-content]>:not([data-rating-notice])]:opacity-50"
+                              : rejectedRescate
+                              ? "bg-gray-100 border-gray-300 opacity-70"
                               : fueReservadoYCancelado
                               ? "bg-gray-50 border-gray-200 opacity-60"
                               : hasUnread
                                 ? "bg-green-50 border-green-200 ring-1 ring-green-200"
                                 : "bg-white border-gray-100"
                           } ${
-                            isEntregadoRescate ? "cursor-default" : fueReservadoYCancelado ? "cursor-default" : isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
+                            isEntregadoRescate || rejectedRescate ? "cursor-default" : fueReservadoYCancelado ? "cursor-default" : isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
                           }`}
                         >
                           <img
@@ -3538,14 +3478,15 @@ export default function UserProfile({
                             alt="miniatura"
                           />
 
-                          <div className="flex-1 min-w-0">
+                          <div data-profile-content className="flex-1 min-w-0">
+                            {pendingRating && <p data-rating-notice className="mb-1 text-xs font-bold text-forest-green">Pendiente calificación</p>}
                             <h4 className="font-bold text-gray-800 truncate">{titulo}</h4>
 
                             <div className="flex flex-wrap items-center gap-2 mt-1">
-                              <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-xl ${statusUI.cls}`}>
+                              {!rejectedRescate && <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-xl ${statusUI.cls}`}>
                                 <statusUI.Icon size={12} />
                                 {statusUI.label}
-                              </span>
+                              </span>}
 
                               <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-xl ${tipoUI.cls}`}>
                                 <tipoUI.Icon size={12} />
@@ -3562,6 +3503,19 @@ export default function UserProfile({
                                 </span>
                               )}
 
+                              {isVenta && r?._chatStatus === "pending" && (
+                                <span className="text-xs font-semibold text-amber-800">
+                                  Para hablar con el vendedor, él debe aprobar la compra.
+                                </span>
+                              )}
+
+                              {rejectedSale && (
+                                <span className="text-xs font-semibold text-gray-600">
+                                  No aprobada por el vendedor
+                                </span>
+                              )}
+                              {rejectedDonation && <span className="text-xs font-semibold text-gray-600">Solicitud rechazada por el donante</span>}
+
                               {!isVenta && String(ganadorId || "") === String(user?.id || "") && (estado === "reservado" || estado === "entregado") && (
                                 <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 ring-1 ring-green-300 px-2 py-1 rounded-xl text-[10px] font-black uppercase animate-pulse">
                                   <CheckCircle2 size={11} />
@@ -3569,6 +3523,9 @@ export default function UserProfile({
                                 </span>
                               )}
                             </div>
+
+                            {rejectedSale && <p className="mt-1 text-xs text-gray-500">Se retira de Mis Rescates 24 horas después de la cancelación.</p>}
+                            {rejectedDonation && <p className="mt-1 text-xs text-gray-500">Desaparece en 24 horas desde el rechazo. Hasta entonces no puedes volver a postularte.</p>}
 
                             {r?.justificacion ? (
                               <p className="mt-2 text-sm text-gray-600 line-clamp-2">
@@ -3578,7 +3535,7 @@ export default function UserProfile({
                             ) : null}
                           </div>
 
-                          <div className="shrink-0 flex items-center gap-2">
+                          <div data-profile-actions className={`shrink-0 flex items-center gap-2 ${isEntregadoRescate ? "[&>button:not([data-rating-pending])]:opacity-50" : ""}`}>
                             <button
                               type="button"
                               onClick={() => {
@@ -3616,20 +3573,21 @@ export default function UserProfile({
                             ) : null}
 
                             {/* Calificar vendedor/donante: donación→ganador, venta→comprador */}
-                            {isEntregadoRescate && art?.owner_id && !yaCalifique.has(String(articuloId)) && (
-                              (!isVenta || (isVenta && isBuyer))
-                            ) && (
+                            {canRate && (
                               <button
                                 type="button"
+                                disabled={yaCalifique.has(String(articuloId))}
+                                data-rating-pending={!yaCalifique.has(String(articuloId)) ? "true" : undefined}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setCalificarModal({ reviewedId: art.owner_id, articuloId, rol: "ganador" });
                                   setCalificarEstrellas(0);
                                 }}
-                                className="bg-forest-green text-white p-3 rounded-2xl hover:brightness-110 transition"
-                                title="Calificar transacción"
+                                className="bg-forest-green text-white p-3 rounded-2xl enabled:hover:brightness-110 transition disabled:cursor-default"
+                                title={yaCalifique.has(String(articuloId)) ? "Transacción calificada" : "Calificar transacción"}
+                                aria-label={yaCalifique.has(String(articuloId)) ? "Transacción calificada" : "Calificar transacción"}
                               >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                <CheckCircle2 size={16} />
                               </button>
                             )}
 
@@ -3640,10 +3598,10 @@ export default function UserProfile({
                                 if (isReview) return alert(revisionBlockMsg(titulo));
                                 eliminarRescate(r);
                               }}
-                              disabled={isDeletingMine || isReview || isUserBlocked || (isVenta && isBuyer && isEntregadoRescate)}
+                              disabled={isDeletingMine || isReview || isUserBlocked || rejectedDonation || (isVenta && isBuyer && isRescateSaleLocked(r))}
                               className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50"
                               aria-label={isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
-                              title={isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
+                              title={isVenta && isBuyer && isRescateSaleLocked(r) ? "Compra aprobada: se conserva hasta siete días después de la entrega" : isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
                             >
                               {isDeletingMine ? (
                                 <Loader2 className="animate-spin" size={16} />
@@ -3658,6 +3616,9 @@ export default function UserProfile({
                   )}
                 </>
               )}
+
+              {activeTab === "rescates" && <ProfilePagination {...rescateListing}
+                onChange={page => setRescatePage({ key: rescatePageKey, page })} />}
 
 </div>
           </div>
@@ -3751,6 +3712,7 @@ export default function UserProfile({
           onArticuloReservado?.(nuevoArticulo);
         }}
         onAfterDecision={refreshSolicitudesArticuloSeleccionado}
+        onOpenChat={onOpenChat}
         yaCalifique={yaCalifique}
         onAbrirCalificar={(data) => { setCalificarModal(data); setCalificarEstrellas(0); }}
       />

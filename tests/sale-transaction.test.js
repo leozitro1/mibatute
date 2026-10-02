@@ -33,3 +33,11 @@ test("cancel and delivery validate the persisted state", async () => {
       { article: updated, chat: undefined });
   }
 });
+
+test("new reservations accept pending chats but approval requires an open chat", async () => {
+  const pending = { ...chat, status: "pending" };
+  const client = { rpc: async () => ({ data: { article, chat: pending } }) };
+  assert.equal((await transitionSale(client, "a1", "reserve")).chat.status, "pending");
+  await assert.rejects(transitionSale(client, "a1", "approve_chat"), /no confirmo/);
+  assert.equal((await transitionSale({ rpc: async () => ({ data: { article, chat } }) }, "a1", "approve_chat")).chat.status, "open");
+});
