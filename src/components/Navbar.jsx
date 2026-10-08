@@ -1,6 +1,6 @@
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus } from "lucide-react";
+import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus, Coins } from "lucide-react";
 import { ACTIVE_COLOMBIA_DATA } from "../data/locations";
 import { supabase } from "../supabase/supabaseClient";
 import { NOTIFICATION_HISTORY_LIMIT } from './notificationHistory.js';
@@ -198,6 +198,8 @@ function NotificationsDropdown({
 export default function Navbar({
   onSearch,
   searchTerm,
+  searchMode = "related",
+  onSearchModeChange,
   currentCity,
   onCityChange,
 
@@ -229,8 +231,32 @@ export default function Navbar({
 
   const [localSearchValue, setSearchValue] = useState("");
   const searchValue = searchTerm ?? localSearchValue;
-  const [searchFocused, setSearchFocused] = useState(false);
   const searchInputRef = useRef(null);
+  const [credits, setCredits] = useState({ uid: null, saldo: null });
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    const refresh = async () => {
+      const { data, error } = await supabase.from("cupos").select("saldo")
+        .eq("usuario_id", user.id).maybeSingle();
+      if (active) setCredits({ uid: user.id, saldo: error ? null : Number(data?.saldo ?? 0) });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    refresh();
+    const timer = setInterval(onVisible, 30000);
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user?.id, notifications]);
+  const creditBalance = credits.uid === user?.id ? credits.saldo : null;
 
   const [banUntil, setBanUntil] = useState(null);
   const [isBlocked, setIsBlocked] = useState(false);
@@ -458,7 +484,7 @@ export default function Navbar({
   return (
     <>
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 sm:gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap xl:flex-nowrap items-center justify-between gap-2 sm:gap-4">
           <button
             type="button"
             className="flex shrink-0 items-center gap-2 sm:gap-3 cursor-pointer"
@@ -494,21 +520,19 @@ export default function Navbar({
             </div>
           </button>
 
-          <div className={`order-3 basis-full md:order-none md:basis-auto flex-1 min-w-0 max-w-3xl relative${isProfile ? " opacity-40 pointer-events-none select-none" : ""}`}>
+          <div className={`order-3 basis-full xl:order-none xl:basis-auto flex-1 min-w-0 relative${isProfile ? " opacity-40 pointer-events-none select-none" : ""}`}>
             <div className="relative w-full">
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchValue}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
                 onChange={(e) => {
                   const v = e.target.value;
                   setSearchValue(v);
                   onSearch?.(v);
                 }}
                 placeholder="Busca artículos, materiales, repuestos..."
-                className="w-full bg-gray-100 border-none rounded-full py-2.5 pl-10 pr-14 sm:pr-[170px] lg:pr-[320px] focus:ring-2 focus:ring-forest-green outline-none text-sm"
+                className="w-full bg-gray-100 border border-gray-200 rounded-lg py-2.5 pl-10 pr-12 focus:ring-2 focus:ring-forest-green outline-none text-sm"
                 aria-label="Buscar"
               />
 
@@ -533,8 +557,19 @@ export default function Navbar({
                 </button>
               ) : null}
 
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="inline-flex shrink-0 rounded-lg border border-gray-200 p-0.5" role="group" aria-label="Modo de búsqueda">
+                {[['related', 'Relacionados'], ['specific', 'Específica']].map(([value, label]) => (
+                  <button key={value} type="button" aria-pressed={searchMode === value}
+                    onClick={() => onSearchModeChange?.(value)}
+                    className={`px-2 py-1 text-[11px] font-semibold rounded-md ${searchMode === value ? 'bg-forest-green text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
               {categoriesNormalized.length > 0 ? (
-                <div className="hidden lg:flex absolute right-[170px] top-1.5 items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="relative flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group">
                     <span className="text-[10px] font-black uppercase text-gray-400">Cat</span>
                     <select
@@ -546,7 +581,7 @@ export default function Navbar({
                       className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6"
                       aria-label="Filtrar por categoría"
                     >
-                      <option value="">Todas</option>
+                      <option value="Todo">Todas</option>
                       {categoriesNormalized.map((c) => (
                         <option key={c.key} value={c.key}>
                           {c.label}
@@ -585,9 +620,7 @@ export default function Navbar({
               ) : null}
 
               <div
-                className={`hidden sm:flex absolute right-3 top-1.5 items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group ${
-                  searchFocused || (searchValue?.trim()?.length > 0) ? "opacity-0 pointer-events-none" : "opacity-100"
-                }`}
+                className="relative flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 hover:border-forest-green transition-colors cursor-pointer group"
               >
                 <MapPin size={14} className="hidden sm:block text-forest-green" />
                 <select
@@ -609,23 +642,6 @@ export default function Navbar({
               </div>
             </div>
 
-            <div className={`${searchFocused || (searchValue?.trim()?.length > 0) ? "hidden" : "flex"} sm:hidden mt-2`}>
-              <div className="w-full flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-2 shadow-sm">
-                <select
-                  value={currentCity}
-                  onChange={(e) => onCityChange?.(e.target.value)}
-                  className="w-full bg-transparent text-[12px] font-bold text-gray-700 outline-none appearance-none cursor-pointer pr-6"
-                  aria-label="Seleccionar ciudad"
-                >
-                  {ACTIVE_COLOMBIA_DATA.map((c) => (
-                    <option key={c.city} value={c.city}>
-                      {c.city}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="text-gray-400 pointer-events-none" />
-              </div>
-            </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-3">
@@ -696,6 +712,12 @@ export default function Navbar({
 
                   <span className="text-xs font-bold text-gray-700 hidden sm:block max-w-[140px] truncate">
                     {displayName}
+                  </span>
+                  <span className="inline-flex items-center gap-1 pr-1 text-xs font-bold tabular-nums text-gray-700"
+                    title={creditBalance === null ? "Saldo no disponible" : `${creditBalance} créditos disponibles`}
+                    aria-label={creditBalance === null ? "Saldo no disponible" : `${creditBalance} créditos disponibles`}>
+                    <Coins size={16} className="shrink-0 text-amber-600" aria-hidden="true" />
+                    {creditBalance === null ? '...' : creditBalance.toLocaleString('es-CO')}
                   </span>
                 </button>
 

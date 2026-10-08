@@ -1,7 +1,7 @@
 // src/App.jsx
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
-import { Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown, LayoutGrid, MapPin, SlidersHorizontal, Gift, Tag, Star } from "lucide-react";
 import AdminPage from "./pages/AdminPage";
 import AuthCallback from "./pages/AuthCallback";
 import ResetPassword from "./pages/ResetPassword";
@@ -9,6 +9,7 @@ import Terms from "./pages/Terms";
 import MasterPage from "./pages/MasterPage";
 import AdsPanel from "./pages/AdsPanel";
 import Navbar from "./components/Navbar";
+import FilterSection from "./components/FilterSection";
 import ProductCard from "./components/ProductCard";
 import usePublicationClock from './components/usePublicationClock.js';
 import useDetailScroll from './components/useDetailScroll.js';
@@ -47,6 +48,12 @@ const NOTIFICATION_REFRESH_MS = 60 * 1000;
 const INTERESTED_COUNT_LIMIT = 200;
 const HOME_REFRESH_MS = 10 * 60 * 1000;
 const ENABLE_BACKGROUND_REALTIME = false;
+const PUBLICATION_TYPES = [
+  { key: "todo", label: "Todas", icon: <LayoutGrid size={16} aria-hidden="true" /> },
+  { key: "donacion", label: "Donaciones", icon: <Gift size={16} aria-hidden="true" /> },
+  { key: "venta", label: "Ventas", icon: <Tag size={16} aria-hidden="true" /> },
+  { key: "destacado", label: "Destacadas", icon: <Star size={16} aria-hidden="true" /> },
+];
 /**
  * ✅ Árbol categorías + subcategorías
  */
@@ -185,8 +192,10 @@ export default function App() {
   useDetailScroll(!!selectedProduct);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchMode, setSearchMode] = useState("related");
   const [selectedCategory, setSelectedCategory] = useState("Todo");
   const [selectedSubcategory, setSelectedSubcategory] = useState("");
+  const [expandedCategory, setExpandedCategory] = useState(null);
 
   const [selectedCity, setSelectedCity] = useState("Bogotá");
   const [selectedLocality, setSelectedLocality] = useState("Todas");
@@ -213,10 +222,10 @@ export default function App() {
   }, [searchTerm]);
 
   const homeFilters = useMemo(() => ({
-    search: debouncedSearch, category: selectedCategory, subcategory: selectedSubcategory,
+    search: debouncedSearch, searchMode, category: selectedCategory, subcategory: selectedSubcategory,
     city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive,
     hideOwn: !!currentUser?.id && hiddenAdsOwnerId === currentUser.id, sort: sortOrder, featuredSeed,
-  }), [debouncedSearch, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
+  }), [debouncedSearch, searchMode, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
     quickTipo, onlyActive, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id]);
   const homeFilterKey = JSON.stringify([homeFilters, currentUser?.id]);
   // Reset even when returning to a filter combination visited on another page.
@@ -1567,6 +1576,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
             <Navbar
               onSearch={setSearchTerm}
               searchTerm={searchTerm}
+              searchMode={searchMode}
+              onSearchModeChange={setSearchMode}
               currentCity={selectedCity}
               onCityChange={(city) => {
                 setSelectedCity(city);
@@ -1671,28 +1682,25 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     </div>
                   )}
 
-                  <div className="flex flex-col lg:flex-row gap-8">
-                    <aside className="lg:w-1/4 space-y-6">
+                  <div className="flex flex-col lg:flex-row gap-4 lg:gap-8">
+                    <aside className="contents lg:block lg:w-1/4 shrink-0 min-w-0" aria-label="Filtros del catálogo">
+                      <div className="order-1 min-w-0">
                       {/* Categorías */}
-                      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-black text-gray-800 uppercase text-xs">
-                            Categorías
-                          </h3>
-
-                          {(selectedCategory !== "Todo" || selectedSubcategory) && (
+                      <FilterSection id="category-filters" title="Categorías" icon={<LayoutGrid size={18} className="shrink-0 text-forest-green" aria-hidden="true" />}
+                        summary={selectedCategory === "Todo" ? "Todas las categorías" : [selectedCategory, selectedSubcategory].filter(Boolean).join(' / ')}
+                        action={(selectedCategory !== "Todo" || selectedSubcategory) && (
                             <button
                               type="button"
                               onClick={() => {
                                 setSelectedCategory("Todo");
                                 setSelectedSubcategory("");
+                                setExpandedCategory(null);
                               }}
                               className="text-[10px] font-black uppercase text-gray-500 hover:text-forest-green"
                             >
                               Limpiar
                             </button>
-                          )}
-                        </div>
+                          )}>
 
                         <div className="space-y-1">
                           <button
@@ -1700,8 +1708,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                             onClick={() => {
                               setSelectedCategory("Todo");
                               setSelectedSubcategory("");
+                              setExpandedCategory(null);
                             }}
-                            className={`w-full text-left text-sm py-2 px-3 rounded-2xl transition border ${
+                            className={`w-full text-left text-sm min-h-11 py-2 px-3 rounded-md transition border ${
                               selectedCategory === "Todo"
                                 ? "bg-forest-green text-white font-bold border-forest-green"
                                 : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
@@ -1712,29 +1721,38 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
                           {CATEGORY_TREE.map((cat) => {
                             const isActive = selectedCategory === cat.key;
+                            const isExpanded = expandedCategory === cat.key;
+                            const panelId = `category-subs-${CATEGORY_TREE.indexOf(cat)}`;
                             return (
                               <div key={cat.key} className="pt-1">
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setSelectedCategory(cat.key);
-                                    setSelectedSubcategory("");
+                                    setExpandedCategory(isExpanded ? null : cat.key);
+                                    if (!isActive) {
+                                      setSelectedCategory(cat.key);
+                                      setSelectedSubcategory("");
+                                    }
                                   }}
-                                  className={`w-full text-left text-sm py-2 px-3 rounded-2xl transition border ${
+                                  aria-expanded={isExpanded}
+                                  aria-controls={panelId}
+                                  aria-pressed={isActive}
+                                  className={`w-full flex items-center gap-2 text-left text-sm min-h-11 py-2 px-3 rounded-md transition border ${
                                     isActive
                                       ? "bg-gray-900 text-white font-bold border-gray-900"
                                       : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
                                   }`}
                                 >
-                                  {cat.label}
+                                  <span className="min-w-0 flex-1 break-words">{cat.label}</span>
+                                  <ChevronDown size={16} className={`shrink-0 transition-transform motion-reduce:transition-none ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
                                 </button>
 
-                                {isActive ? (
-                                  <div className="mt-2 ml-3 space-y-1 bg-gray-50/70 p-2 rounded-2xl border border-gray-100">
+                                  <div id={panelId} className={`${isExpanded ? 'block' : 'hidden'} mt-2 ml-3 space-y-1 pl-2 border-l-2 border-gray-200`}>
                                     <button
                                       type="button"
                                       onClick={() => setSelectedSubcategory("")}
-                                      className={`w-full text-left text-[13px] py-2 px-3 rounded-2xl transition border flex items-center gap-2 ${
+                                      aria-pressed={!selectedSubcategory && isActive}
+                                      className={`w-full text-left text-[13px] min-h-11 py-2 px-3 rounded-md transition border flex items-center gap-2 ${
                                         !selectedSubcategory
                                           ? "bg-forest-green text-white font-bold border-forest-green"
                                           : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
@@ -1749,7 +1767,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                                         key={sub}
                                         type="button"
                                         onClick={() => setSelectedSubcategory(sub)}
-                                        className={`w-full text-left text-[13px] py-2 px-3 rounded-2xl transition border flex items-center gap-2 ${
+                                        aria-pressed={selectedSubcategory === sub && isActive}
+                                        className={`w-full text-left text-[13px] min-h-11 py-2 px-3 rounded-md transition border flex items-center gap-2 ${
                                           selectedSubcategory === sub
                                             ? "bg-forest-green text-white font-bold border-forest-green"
                                             : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
@@ -1760,23 +1779,22 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                                       </button>
                                     ))}
                                   </div>
-                                ) : null}
                               </div>
                             );
                           })}
                         </div>
-                      </div>
+                      </FilterSection>
 
                       {/* Localidades */}
-                      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-                        <h3 className="font-black text-gray-800 uppercase text-xs mb-4">
-                          Localidades en {selectedCity}
-                        </h3>
+                      <FilterSection id="locality-filters" title={`Localidades en ${selectedCity}`} icon={<MapPin size={18} className="shrink-0 text-forest-green" aria-hidden="true" />}
+                        summary={selectedLocality === "Todas" ? "Todas las localidades" : selectedLocality}>
 
                         <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                           <button
+                            type="button"
+                            aria-pressed={selectedLocality === "Todas"}
                             onClick={() => setSelectedLocality("Todas")}
-                            className={`w-full text-left text-sm py-1 px-2 rounded-lg transition ${
+                            className={`w-full text-left text-sm min-h-11 py-2 px-3 rounded-md transition ${
                               selectedLocality === "Todas"
                                 ? "bg-forest-green text-white font-bold"
                                 : "text-gray-500 hover:bg-gray-100"
@@ -1788,8 +1806,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           {(currentCityData?.localities ?? []).map((loc) => (
                             <button
                               key={loc}
+                              type="button"
+                              aria-pressed={selectedLocality === loc}
                               onClick={() => setSelectedLocality(loc)}
-                              className={`w-full text-left text-sm py-1 px-2 rounded-lg transition ${
+                              className={`w-full text-left text-sm min-h-11 py-2 px-3 rounded-md transition ${
                                 selectedLocality === loc
                                   ? "bg-forest-green text-white font-bold"
                                   : "text-gray-500 hover:bg-gray-100"
@@ -1800,95 +1820,52 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           ))}
                         </div>
 
-                        <div className="mt-5 pt-5 border-t border-gray-100 space-y-4">
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
-                              Tipo de publicación
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {[
-                                { key: "todo", label: "Todo" },
-                                { key: "donacion", label: "Donación / Regalo" },
-                                { key: "venta", label: "Venta" },
-                                { key: "destacado", label: "Destacado" },
-                              ].map((t) => (
-                                <button
-                                  key={t.key}
-                                  type="button"
-                                  onClick={() => setQuickTipo(t.key)}
-                                  className={`px-3 py-2 rounded-2xl text-[11px] font-black uppercase transition border ${
-                                    quickTipo === t.key
-                                      ? "bg-forest-green text-white border-forest-green"
-                                      : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
-                                  }`}
-                                >
-                                  {t.label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
+                      </FilterSection>
 
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                Solo activas
-                              </p>
-                              <p className="text-[11px] text-gray-500 font-bold">
-                                Oculta las reservadas
-                              </p>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => setOnlyActive((v) => !v)}
-                              aria-pressed={onlyActive}
-                              aria-label={onlyActive ? "Mostrar reservadas" : "Ocultar reservadas"}
-                              className={`shrink-0 px-4 py-2 rounded-2xl text-[11px] font-black uppercase transition border ${
-                                onlyActive
-                                  ? "bg-forest-green text-white border-forest-green"
-                                  : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
-                              }`}
-                              title="Ocultar/mostrar reservadas"
-                            >
-                              {onlyActive ? "Activo" : "Mostrar"}
-                            </button>
+                      <FilterSection id="publication-filters" title="Tipo de publicación"
+                        icon={<SlidersHorizontal size={18} className="shrink-0 text-forest-green" aria-hidden="true" />}
+                        summary={`${PUBLICATION_TYPES.find(type => type.key === quickTipo)?.label} / ${onlyActive ? 'Solo activas' : 'Incluye reservadas'}`}>
+                        <div className="space-y-4">
+                          <div role="radiogroup" aria-label="Tipo de publicación" className="grid grid-cols-2 gap-2">
+                            {PUBLICATION_TYPES.map(type => (
+                              <label key={type.key} className="relative cursor-pointer min-w-0">
+                                <input type="radio" name="publication-type" value={type.key}
+                                  checked={quickTipo === type.key} onChange={() => setQuickTipo(type.key)}
+                                  className="peer sr-only" />
+                                <span className="flex min-h-11 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-600 transition hover:border-forest-green peer-checked:border-forest-green peer-checked:bg-forest-green peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-forest-green">
+                                  <span className="shrink-0">{type.icon}</span>
+                                  <span className="min-w-0 break-words">{type.label}</span>
+                                </span>
+                              </label>
+                            ))}
                           </div>
-
-                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
-                              Orden
-                            </p>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setSortOrder("newest")}
-                                className={`flex-1 px-3 py-2 rounded-2xl text-[11px] font-black uppercase transition border ${
-                                  sortOrder === "newest"
-                                    ? "bg-forest-green text-white border-forest-green"
-                                    : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
-                                }`}
-                              >
-                                Más nuevas
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSortOrder("oldest")}
-                                className={`flex-1 px-3 py-2 rounded-2xl text-[11px] font-black uppercase transition border ${
-                                  sortOrder === "oldest"
-                                    ? "bg-forest-green text-white border-forest-green"
-                                    : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
-                                }`}
-                              >
-                                Más antiguas
-                              </button>
-                            </div>
-                          </div>
+                          <label className="flex min-h-11 items-center justify-between gap-3 border-t border-gray-200 pt-3 cursor-pointer">
+                            <span className="text-sm font-semibold text-gray-700">Solo activas</span>
+                            <span className="relative inline-flex shrink-0">
+                              <input type="checkbox" role="switch" checked={onlyActive}
+                                onChange={event => setOnlyActive(event.target.checked)}
+                                className="peer sr-only" />
+                              <span aria-hidden="true" className="h-6 w-11 rounded-full bg-gray-300 transition peer-checked:bg-forest-green peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-forest-green" />
+                              <span aria-hidden="true" className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5 motion-reduce:transition-none" />
+                            </span>
+                          </label>
+                          <label className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-semibold text-gray-700">Orden</span>
+                            <select value={sortOrder} onChange={event => setSortOrder(event.target.value)}
+                              className="min-w-0 min-h-11 max-w-[70%] rounded-md border border-gray-200 bg-white px-2 py-2 text-sm text-gray-700 focus-visible:outline-2 focus-visible:outline-forest-green">
+                              <option value="newest">Más nuevas</option>
+                              <option value="oldest">Más antiguas</option>
+                            </select>
+                          </label>
                         </div>
+                      </FilterSection>
                       </div>
-                      <SponsorCarousel />
+                      <div className="order-3 min-w-0 lg:mt-6">
+                        <SponsorCarousel />
+                      </div>
                     </aside>
 
-                    <div className="min-w-0 lg:w-3/4">
+                    <div className="order-2 min-w-0 lg:w-3/4">
                       <FeaturedTicker
                         key={JSON.stringify([searchTerm.trim().toLowerCase(), selectedCategory, selectedSubcategory, selectedCity, selectedLocality, quickTipo, onlyActive, hiddenAdsOwnerId, currentUser?.id])}
                         items={featuredProducts}

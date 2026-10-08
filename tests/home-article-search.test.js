@@ -49,6 +49,7 @@ async function fixture(existingExtension = false) {
     const before = await page();
     await db.exec('reset role');
     await db.exec(await migration('2026-10-08-home-article-search'));
+    await db.exec(await migration('2026-10-08-related-article-search'));
     await db.exec('set role anon');
     return { db, page, before };
   } catch (error) {
@@ -128,6 +129,32 @@ test('prefix search matches bicicleta and normalizes accents and punctuation wit
     const plan = await db.query(`explain (format json) select id from public.articulos
       where home_search_document @@ 'bici:* & elec:*'::tsquery`);
     assert.match(JSON.stringify(plan.rows), /articulos_home_search_gin/);
+  } finally { await db.close(); }
+});
+
+test('related search includes cycling accessories, prioritizes direct matches and keeps other filters', async () => {
+  const { db, page } = await fixture();
+  try {
+    await db.exec(`reset role;
+      insert into public.articulos (id, title, description, category, subcategory, created_at)
+        values ('${id(20)}', 'Bicicleta', 'Manual', 'Deportes', 'Ciclismo', now() - interval '1 hour'),
+          ('${id(21)}', 'Casco', 'Proteccion para ciclistas', 'Deportes', 'Accesorios', now()),
+          ('${id(22)}', 'Casco de moto', 'Proteccion', 'Movilidad', 'Motos', now()),
+          ('${id(23)}', 'Inflador', 'Compacto', 'Deportes', 'Ciclismo', now());
+      set role anon;`);
+    for (const search of ['bicicleta', 'BÍCI', 'bic', 'ciclismo']) {
+      const result = await page({ search, searchMode: 'related' });
+      assert.equal(result.total, 3, search);
+      assert.equal(result.ids.includes(id(22)), false);
+    }
+    assert.equal((await page({ search: 'bicicleta', searchMode: 'related' })).ids[0], id(20));
+    assert.deepEqual((await page({ search: 'bicicleta', searchMode: 'specific' })).ids, [id(20)]);
+    assert.deepEqual((await page({ search: 'bici protec', searchMode: 'related' })).ids, [id(21)]);
+    assert.equal((await page({ search: 'bici inexistente', searchMode: 'related' })).total, 0);
+    assert.equal((await page({ search: 'bici', searchMode: 'related', city: 'Cali' })).total, 0);
+    assert.deepEqual((await page({ search: 'bici', searchMode: 'related', subcategory: 'Accesorios' })).ids, [id(21)]);
+    assert.equal((await page({ search: "' & | ! :*", searchMode: 'related' })).total, 0);
+    assert.deepEqual(await page({ searchMode: 'related' }), await page());
   } finally { await db.close(); }
 });
 

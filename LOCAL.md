@@ -28,6 +28,17 @@ no se guarda ni se entrega al navegador.
   `cliente3@example.com` y `cliente4@example.com`, clave `123456`.
   Cada cliente tiene tres articulos propios: una venta y dos donaciones.
 
+La cabecera permite elegir busqueda Relacionados o Especifica. Relacionados
+amplia prefijos conocidos como bici/bicicleta/ciclismo, celular/telefono y
+computador/portatil/laptop. Los accesorios deben mencionar ese concepto en
+su titulo, descripcion o categoria; un casco de moto no coincide con bici.
+Las coincidencias directas aparecen primero. El saldo de creditos junto al
+perfil se actualiza al volver a la ventana, recibir avisos y cada 30 segundos.
+La migracion `2026-10-08-related-article-search.sql` se aplica despues de
+`2026-10-08-home-article-search.sql`; tambien esta incluida en el setup local.
+Para comprobar la cabecera con un articulo temporal y sesion real:
+`node scripts/check-header-local.mjs` (requiere Playwright).
+
 ## Acceso Admin
 
 Los colaboradores entran directamente por `/admin` con usuario y clave.
@@ -222,6 +233,11 @@ requieren consultas bajo demanda, pero no agregan sondeo ni rutas de Vercel.
 El 2026-10-08 se aplicaron en Supabase de produccion las migraciones de
 vencimiento, busqueda indexada, recogidas y notificaciones antes de publicar
 el frontend. Las cuentas y publicaciones de prueba siguen solo en local.
+
+Tambien se aplico `2026-10-08-related-article-search.sql` en produccion y
+se verifico la consulta con el rol anon. La cabecera muestra el saldo real
+de creditos; los filtros de categorias, localidades y tipo de publicacion
+empiezan cerrados en movil y conservan la seleccion al plegarlos.
 
 Las fotos locales usan un bucket de Supabase Storage con permisos por
 propietario. Este modo solo funciona en desarrollo y con URL de Supabase
