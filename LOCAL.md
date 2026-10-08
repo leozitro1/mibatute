@@ -33,11 +33,19 @@ amplia prefijos conocidos como bici/bicicleta/ciclismo, celular/telefono y
 computador/portatil/laptop. Los accesorios deben mencionar ese concepto en
 su titulo, descripcion o categoria; un casco de moto no coincide con bici.
 Las coincidencias directas aparecen primero. El saldo de creditos junto al
-perfil se actualiza al volver a la ventana, recibir avisos y cada 30 segundos.
+perfil se actualiza con la respuesta de cada gasto, al recibir un aviso de
+creditos y al volver a la ventana si la ultima lectura tiene al menos un
+minuto. No realiza consultas periodicas en reposo ni al leer otros avisos.
 La migracion `2026-10-08-related-article-search.sql` se aplica despues de
 `2026-10-08-home-article-search.sql`; tambien esta incluida en el setup local.
 Para comprobar la cabecera con un articulo temporal y sesion real:
 `node scripts/check-header-local.mjs` (requiere Playwright).
+
+`EXPECT_ZERO_IDLE=true node scripts/check-idle-consumption-local.mjs`
+verifica 65 segundos sin consultas a Supabase ni `/api/`, despues de cargar
+la sesion. `node scripts/check-credit-balance-local.mjs` verifica un gasto
+real de credito y la actualizacion inmediata de la cabecera sin releer el
+saldo; restaura el saldo local y elimina su publicacion temporal al terminar.
 
 ## Acceso Admin
 

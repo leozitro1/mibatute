@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, MapPin, ShieldCheck, Lock, Flag } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
+import { notifyCreditBalance } from './creditBalance.js';
 import { isSaleArticle } from "../supabase/articleContext.js";
 import usePublicationClock from './usePublicationClock.js';
 import PublicationCountdown from './PublicationCountdown.jsx';
@@ -440,10 +441,14 @@ export default function ProductDetail({
     setUsandoCreditoExtra(true);
     try {
       // Descontar crédito
-      await supabase.from("cupos").update({ saldo: (creditosSaldo - 1), updated_at: new Date().toISOString() }).eq("usuario_id", user.id);
+      const { data: credits, error: creditError } = await supabase.from("cupos")
+        .update({ saldo: (creditosSaldo - 1), updated_at: new Date().toISOString() })
+        .eq("usuario_id", user.id).select("saldo").single();
+      if (creditError) throw creditError;
+      setCreditosSaldo(credits.saldo);
+      notifyCreditBalance(user.id, credits.saldo);
       await supabase.from("cupos_historial").insert({ usuario_id: user.id, cantidad: -1, concepto: "cupo_donacion" });
       await supabase.from("cupos_extra_donacion").insert({ usuario_id: user.id });
-      setCreditosSaldo(s => Math.max(0, (s ?? 1) - 1));
       setRateLimitInfo(null);
       // Reenviar la postulación
       const text = message.trim();

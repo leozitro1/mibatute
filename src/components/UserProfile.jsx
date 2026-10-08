@@ -1,6 +1,7 @@
 // src/components/UserProfile.jsx
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
 import { getProfile, updateProfile } from "../supabase/profileService";
+import { notifyCreditBalance } from './creditBalance.js';
 import {
   Camera,
   CircleDollarSign,
@@ -1373,6 +1374,7 @@ export default function UserProfile({
         throw new Error("No se pudo confirmar el destacado. Recarga la pagina.");
       }
       setCuposSaldo(data.balance);
+      notifyCreditBalance(user.id, data.balance);
       setFeaturedOverrides(p => ({ ...p, [artId]: true }));
       onArticuloDestacado?.(data.article);
     } catch (error) { alert(error.message || "Error al destacar la publicación."); }
@@ -1388,10 +1390,14 @@ export default function UserProfile({
     if (!window.confirm("¿Usar 1 crédito para obtener un cupo extra de donación ahora?")) return;
     setComprandoCupo(true);
     try {
-      await supabase.from("cupos").update({ saldo: (cuposSaldo - 1), updated_at: new Date().toISOString() }).eq("usuario_id", user.id);
+      const { data: credits, error: creditError } = await supabase.from("cupos")
+        .update({ saldo: (cuposSaldo - 1), updated_at: new Date().toISOString() })
+        .eq("usuario_id", user.id).select("saldo").single();
+      if (creditError) throw creditError;
+      setCuposSaldo(credits.saldo);
+      notifyCreditBalance(user.id, credits.saldo);
       await supabase.from("cupos_historial").insert({ usuario_id: user.id, cantidad: -1, concepto: "cupo_donacion" });
       await supabase.from("cupos_extra_donacion").insert({ usuario_id: user.id });
-      setCuposSaldo(s => Math.max(0, (s ?? 1) - 1));
       setDonacionLimit(prev => prev ? { ...prev, remaining: 1 } : prev);
     } catch { alert("Error al comprar el cupo."); }
     finally { setComprandoCupo(false); }

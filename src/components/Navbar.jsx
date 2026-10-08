@@ -4,6 +4,7 @@ import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus, Coins } from 
 import { ACTIVE_COLOMBIA_DATA } from "../data/locations";
 import { supabase } from "../supabase/supabaseClient";
 import { NOTIFICATION_HISTORY_LIMIT } from './notificationHistory.js';
+import { CREDIT_BALANCE_CHANGED } from './creditBalance.js';
 
 const logoMiBatute = "/logo.png";
 const MODERATION_REFRESH_MS = 10 * 60 * 1000;
@@ -233,29 +234,48 @@ export default function Navbar({
   const searchValue = searchTerm ?? localSearchValue;
   const searchInputRef = useRef(null);
   const [credits, setCredits] = useState({ uid: null, saldo: null });
+  const creditNotificationKey = notifications.filter(item => item?.type === 'credits_received')
+    .map(item => item.id).sort().join('|');
 
   useEffect(() => {
     if (!user?.id) return;
     let active = true;
+    let pending = false;
+    let lastRefresh = 0;
+    let version = 0;
     const refresh = async () => {
-      const { data, error } = await supabase.from("cupos").select("saldo")
-        .eq("usuario_id", user.id).maybeSingle();
-      if (active) setCredits({ uid: user.id, saldo: error ? null : Number(data?.saldo ?? 0) });
+      if (pending) return;
+      pending = true;
+      const requestVersion = version;
+      try {
+        const { data, error } = await supabase.from("cupos").select("saldo")
+          .eq("usuario_id", user.id).maybeSingle();
+        if (active && requestVersion === version) {
+          lastRefresh = Date.now();
+          setCredits({ uid: user.id, saldo: error ? null : Number(data?.saldo ?? 0) });
+        }
+      } finally { pending = false; }
     };
     const onVisible = () => {
-      if (document.visibilityState === "visible") refresh();
+      if (document.visibilityState === "visible" && Date.now() - lastRefresh >= 60000) refresh();
+    };
+    const onBalanceChanged = ({ detail }) => {
+      if (detail?.uid !== user.id || !Number.isFinite(detail.saldo) || detail.saldo < 0) return;
+      version++;
+      lastRefresh = Date.now();
+      setCredits({ uid: user.id, saldo: detail.saldo });
     };
     refresh();
-    const timer = setInterval(onVisible, 30000);
+    window.addEventListener(CREDIT_BALANCE_CHANGED, onBalanceChanged);
     window.addEventListener("focus", onVisible);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       active = false;
-      clearInterval(timer);
+      window.removeEventListener(CREDIT_BALANCE_CHANGED, onBalanceChanged);
       window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [user?.id, notifications]);
+  }, [user?.id, creditNotificationKey]);
   const creditBalance = credits.uid === user?.id ? credits.saldo : null;
 
   const [banUntil, setBanUntil] = useState(null);
