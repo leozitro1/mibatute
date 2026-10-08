@@ -1,5 +1,6 @@
 import { isSaleArticle } from '../supabase/articleContext.js';
 import { preferLatestArticle } from './articleState.js';
+import { isPublicationUnavailable } from './articleLifetime.js';
 import { saleCancellation, donationRejection } from '../supabase/rescatesQuery.js';
 
 export const DEFAULT_PROFILE_FILTERS = Object.freeze({
@@ -27,14 +28,15 @@ export function canRateProfileArticle(article, { rescates = false, userId } = {}
 
 export function filterProfileItems(items, filters, {
   rescates = false, unread = new Map(), notifications = {}, chats = new Map(),
-  posts = new Map(), overrides = new Map(), featured = {}, rated = new Set(), userId,
+  posts = new Map(), overrides = new Map(), featured = {}, rated = new Set(), userId, now = Date.now(),
 } = {}) {
   const term = normalize(filters.search);
   return items.map((row, index) => {
     const raw = rescates ? row.articulo || {} : row;
     const id = String(raw.id || raw.articulo_id || row.articulo_id || '');
     const article = preferLatestArticle(raw, overrides.get(id));
-    const status = rescates && (saleCancellation(row) || donationRejection(row)) ? 'cancelado' : statusOf(article);
+    const status = rescates && (saleCancellation(row) || donationRejection(row)) ? 'cancelado'
+      : isPublicationUnavailable(article, now) ? 'vencido' : statusOf(article);
     const sale = isSaleArticle(article);
     const hasUnread = unread.get(id) === true || Number(notifications[id]?.unreadChats || 0) > 0;
     const hasChat = chats.get(id) === true || !!row._chatId || !!article.transaction_chat?.id;

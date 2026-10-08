@@ -26,6 +26,7 @@ export default function ProfileListFilters({ value, onChange, rescates = false, 
             {rescates ? <option value="pendiente">Solicitudes pendientes</option> : <option value="disponible">Disponibles</option>}
             <option value="reservado">Reservados</option>
             <option value="entregado">Entregados</option>
+            <option value="vencido">Vencidos</option>
             {rescates && <option value="cancelado">No aprobadas</option>}
             {!rescates && <><option value="pausado">Pausados</option><option value="en_revision">En revisión</option></>}
           </select>

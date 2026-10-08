@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X, MapPin, ShieldCheck, Lock, Flag } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
 import { isSaleArticle } from "../supabase/articleContext.js";
+import usePublicationClock from './usePublicationClock.js';
+import PublicationCountdown from './PublicationCountdown.jsx';
+import { isPublicationUnavailable } from './articleLifetime.js';
 
 import { detectarContenidoNoPermitido, buildViolationMessage } from "../utils/contentFilter";
 
@@ -144,6 +147,7 @@ export default function ProductDetail({
   onCategoryClick,
   onSubcategoryClick,
 }) {
+  const publicationNow = usePublicationClock();
   const publicName = formatPublicName(item?.owner_name || item?.owner?.name || item?.anunciante || item?.usuario_nombre);
 
   const [message, setMessage] = useState("");
@@ -214,7 +218,8 @@ export default function ProductDetail({
   const locationText =
     item?.location || (localidad && ciudad ? `${localidad}, ${ciudad}` : localidad || ciudad || "Ubicación");
 
-  const isAvailable = estadoNorm === "disponible";
+  const isExpired = isPublicationUnavailable(item, publicationNow);
+  const isAvailable = estadoNorm === "disponible" && !isExpired;
   const isPausado = String(item?.estado || item?.status || "").toLowerCase() === "pausado" || !!item?.pausado;
   const isGift = tipoNorm !== "venta";
 
@@ -714,7 +719,9 @@ export default function ProductDetail({
 
             <button
               onClick={safeClose}
-              className="md:hidden absolute top-4 right-4 bg-white/80 p-2 rounded-full shadow-lg"
+              aria-label="Cerrar publicación"
+              title="Cerrar publicación"
+              className="md:hidden absolute top-4 right-4 z-30 bg-white/80 p-2 rounded-full shadow-lg"
               type="button"
             >
               <X size={20} />
@@ -739,7 +746,7 @@ export default function ProductDetail({
                   <div className="flex items-center gap-2 bg-white/15 border border-white/30 rounded-2xl px-4 py-2 backdrop-blur-sm">
                     <Lock size={14} className="text-white/80" />
                     <span style={{letterSpacing:"0.2em", fontWeight:300}} className="text-white text-xs uppercase">
-                      {String(estadoNorm).replace("_"," ")}
+                      {isExpired ? "vencido" : String(estadoNorm).replace("_"," ")}
                     </span>
                   </div>
                 )}
@@ -783,7 +790,7 @@ export default function ProductDetail({
               {tipoNorm === "donacion" ? "donacion" : "venta"}
             </span>
 
-            <button onClick={safeClose} className="hidden md:block p-1 hover:bg-gray-100 rounded-full" type="button">
+            <button onClick={safeClose} aria-label="Cerrar publicación" title="Cerrar publicación" className="hidden md:block p-1 hover:bg-gray-100 rounded-full" type="button">
               <X size={24} className="text-gray-400" />
             </button>
           </div>
@@ -851,6 +858,9 @@ export default function ProductDetail({
           <div className="flex items-center gap-2 text-gray-500 text-sm mb-6">
             <MapPin size={16} className="text-forest-green" />
             <span className="font-bold">{locationText}</span>
+          </div>
+          <div className="mb-3">
+            <PublicationCountdown article={item} now={publicationNow} />
           </div>
 
           {showPrice && (
@@ -937,7 +947,7 @@ export default function ProductDetail({
           {!isAvailable && !isUnderReview && (
             <div className="mt-4 bg-gray-50 border border-gray-100 rounded-2xl p-4">
               <p className="text-sm text-gray-600 font-bold">
-                Este artículo está <span className="uppercase">{estadoNorm}</span>.
+                Este artículo está <span className="uppercase">{isExpired ? "vencido" : estadoNorm}</span>.
               </p>
               <p className="text-xs text-gray-500 mt-1">Ya no se aceptan nuevas solicitudes / reservas por ahora.</p>
 

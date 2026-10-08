@@ -10,6 +10,13 @@ import MasterPage from "./pages/MasterPage";
 import AdsPanel from "./pages/AdsPanel";
 import Navbar from "./components/Navbar";
 import ProductCard from "./components/ProductCard";
+import usePublicationClock from './components/usePublicationClock.js';
+import useDetailScroll from './components/useDetailScroll.js';
+import { createListingCache } from './components/listingCache.js';
+import { readNotificationHistory, writeNotificationHistory, mergeNotificationHistory,
+  markNotificationHistoryRead } from './components/notificationHistory.js';
+import { isPublicationExpired } from './components/articleLifetime.js';
+import { fetchActivityNotifications, publicationExpiryNotifications, activityDestination, CONVERSATION_NOTIFICATION_TYPES } from './components/activityNotifications.js';
 import PublishModal from "./components/PublishModal";
 import AuthModal from "./components/AuthModal";
 import UserProfile from "./components/UserProfile";
@@ -22,8 +29,8 @@ import ManageArticleModal from "./components/ManageArticleModal";
 import EditArticleModal from "./components/EditArticleModal";
 import { deleteArticleImages, getArticleWithImages } from "./supabase/articleService";
 import { transitionSale } from "./supabase/saleTransaction";
-import { readArticleContext, resolveChatBuyerId, validateTransactionChat } from "./supabase/articleContext";
-import { saleDeletionBlocked } from './components/articleState.js';
+import { readArticleContext, readNotificationChatContext, resolveChatBuyerId, validateTransactionChat } from "./supabase/articleContext";
+import { saleDeletionBlocked, isSaleApproved } from './components/articleState.js';
 import { queryArticlesWithCondition } from "./supabase/articleQuery";
 import ChatMessenger from "./components/ChatMessenger";
 
@@ -36,6 +43,7 @@ import { crearPostulacionConLimite } from "./supabase/solicitudesService";
 const HOME_QUERY_LIMIT = 100;
 const NOTIFICATION_POST_LIMIT = 80;
 const NOTIFICATION_MESSAGE_LIMIT = 100;
+const NOTIFICATION_REFRESH_MS = 60 * 1000;
 const INTERESTED_COUNT_LIMIT = 200;
 const HOME_REFRESH_MS = 10 * 60 * 1000;
 const ENABLE_BACKGROUND_REALTIME = false;
@@ -163,6 +171,7 @@ function resolveInterestedMax(item) {
 }
 
 export default function App() {
+  const publicationNow = usePublicationClock();
   const [products, setProducts] = useState([]);
 
   const [currentUser, setCurrentUser] = useState(null);
@@ -173,6 +182,7 @@ export default function App() {
 
   const [currentView, setCurrentView] = useState("home"); // home | profile | how-it-works
   const [selectedProduct, setSelectedProduct] = useState(null);
+  useDetailScroll(!!selectedProduct);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Todo");
@@ -192,6 +202,8 @@ export default function App() {
   const [homeBusy, setHomeBusy] = useState(true);
   const [homeError, setHomeError] = useState("");
   const homeRequestRef = useRef(0);
+  const listingCacheRef = useRef(null);
+  if (!listingCacheRef.current) listingCacheRef.current = createListingCache();
   const personalArticlesRef = useRef({ uid: null, rows: null });
   const listingRef = useRef(null);
 
@@ -232,6 +244,50 @@ export default function App() {
   const [notifByArticulo, setNotifByArticulo] = useState({});
   // ✅ lista para dropdown (Navbar)
   const [notifications, setNotifications] = useState([]);
+  const notificationsRef = useRef([]);
+  const historyUidRef = useRef(null);
+  const notificationUidRef = useRef(null);
+  notificationUidRef.current = currentUser?.id || null;
+  const notificationRefreshRef = useRef({ uid: null, at: 0, pending: null });
+  const activityRefreshRef = useRef({ uid: null, at: 0, pending: null, items: [] });
+  const activityRefreshTimerRef = useRef(null);
+  const [profileNotificationTarget, setProfileNotificationTarget] = useState(null);
+
+  const saveNotificationHistory = useCallback((items, uid) => {
+    if (!uid || uid !== notificationUidRef.current) return;
+    notificationsRef.current = items;
+    historyUidRef.current = uid;
+    writeNotificationHistory(localStorage, uid, items);
+    setNotifications(items);
+  }, []);
+
+  const markRecentNotificationsRead = useCallback(criteria => {
+    const uid = notificationUidRef.current;
+    if (!uid) return;
+    const previous = notificationsRef.current;
+    const next = markNotificationHistoryRead(previous, criteria);
+    const readIds = new Set(next.filter(item => item.read).map(item => item.id));
+    const newlyRead = previous.filter(item => !item.read && readIds.has(item.id));
+    saveNotificationHistory(next, uid);
+    const chatCount = newlyRead.filter(item => item.type === 'chat').reduce((sum, item) => sum + (item.unreadCount || 0), 0);
+    const profileCount = newlyRead.filter(item => ['chat', 'postulacion', 'venta'].includes(item.type))
+      .reduce((sum, item) => sum + (item.unreadCount || 0), 0);
+    setNotifChatCount(count => Math.max(0, count - chatCount));
+    setNotifProfileCount(count => Math.max(0, count - profileCount));
+    setNotifByArticulo(previousCounts => {
+      const counts = { ...previousCounts };
+      for (const item of newlyRead) {
+        const row = counts[String(item.articulo_id)];
+        if (!row) continue;
+        const key = item.type === 'chat' ? 'unreadChats' : item.type === 'postulacion' ? 'newSolicitudes' : item.type === 'venta' ? 'pendingVentas' : null;
+        if (!key) continue;
+        const updated = { ...row, [key]: Math.max(0, row[key] - (item.unreadCount || 0)) };
+        updated.total = updated.unreadChats + updated.newSolicitudes + updated.pendingVentas;
+        counts[String(item.articulo_id)] = updated;
+      }
+      return counts;
+    });
+  }, [saveNotificationHistory]);
 
   const getActiveUid = useCallback(() => currentUser?.id || null, [currentUser]);
   const isUserBlocked = !!(currentUser?.is_blocked || currentUser?.bloqueado);
@@ -261,15 +317,16 @@ export default function App() {
   };
 
   const markChatSeen = useCallback(
-    (chatId) => {
+    (chatId, through = new Date().toISOString()) => {
       const uid = getActiveUid();
       if (!uid || !chatId) return;
       const key = lsKeyChats(uid);
       const map = readSeenMap(key);
-      map[String(chatId)] = new Date().toISOString();
+      map[String(chatId)] = through;
       writeSeenMap(key, map);
+      markRecentNotificationsRead({ chatId, through });
     },
-    [getActiveUid, lsKeyChats]
+    [getActiveUid, lsKeyChats, markRecentNotificationsRead]
   );
 
   const markSolicitudesSeenForArticulo = useCallback(
@@ -280,8 +337,9 @@ export default function App() {
       const map = readSeenMap(key);
       map[String(articuloId)] = new Date().toISOString();
       writeSeenMap(key, map);
+      markRecentNotificationsRead({ articleId: articuloId, through: map[String(articuloId)] });
     },
-    [getActiveUid, lsKeyPosts]
+    [getActiveUid, lsKeyPosts, markRecentNotificationsRead]
   );
 
   // =========================================================
@@ -392,20 +450,26 @@ export default function App() {
     let res = await supabase
       .from("chats")
       .select("id, articulo_id, buyer_id, seller_id, status, created_at, last_message_at")
-      .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`);
+      .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false }).limit(50);
 
     if (res?.error?.message && /Could not find the 'seller_id' column/i.test(res.error.message)) {
       res = await supabase
         .from("chats")
         .select("id, articulo_id, buyer_id, owner_id, status, created_at, last_message_at")
-        .or(`buyer_id.eq.${uid},owner_id.eq.${uid}`);
+        .or(`buyer_id.eq.${uid},owner_id.eq.${uid}`)
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false }).limit(50);
     }
 
     if (res?.error?.message && /Could not find the 'owner_id' column/i.test(res.error.message)) {
       res = await supabase
         .from("chats")
         .select("id, articulo_id, buyer_id, usuario_id, status, created_at, last_message_at")
-        .or(`buyer_id.eq.${uid},usuario_id.eq.${uid}`);
+        .or(`buyer_id.eq.${uid},usuario_id.eq.${uid}`)
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false }).limit(50);
     }
 
     return { data: Array.isArray(res?.data) ? res.data : [], error: res?.error || null };
@@ -416,7 +480,48 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { productsRef.current = products; }, [products]);
 
-  const loadNotifications = useCallback(async () => {
+  const loadActivityNotifications = useCallback(async function loadActivity({ force = false } = {}) {
+    const uid = getActiveUid();
+    if (!uid) return [];
+    const cache = activityRefreshRef.current;
+    if (cache.uid === uid && cache.pending) {
+      if (force) cache.dirty = true;
+      return cache.pending;
+    }
+    if (!force && cache.uid === uid && Date.now() - cache.at < NOTIFICATION_REFRESH_MS) return cache.items;
+    const pending = (async () => {
+      try {
+        const incoming = await fetchActivityNotifications(supabase, uid);
+        if (notificationUidRef.current !== uid) return [];
+        const latestReads = readSeenMap(lsKeyChats(uid));
+        const items = incoming.map(item => CONVERSATION_NOTIFICATION_TYPES.has(item.type)
+          && Date.parse(latestReads[String(item.chat_id)] || '') >= Date.parse(item.created_at)
+          ? { ...item, read: true, unreadCount: 0 } : item);
+        saveNotificationHistory(mergeNotificationHistory(notificationsRef.current, items), uid);
+        return items;
+      } catch (error) {
+        console.error('No se pudo actualizar la actividad de notificaciones:', error);
+        return cache.uid === uid ? cache.items : [];
+      }
+    })();
+    activityRefreshRef.current = { uid, at: 0, pending, items: cache.uid === uid ? cache.items : [] };
+    const items = await pending;
+    if (activityRefreshRef.current.pending === pending && notificationUidRef.current === uid) {
+      const changedDuringRead = activityRefreshRef.current.dirty;
+      activityRefreshRef.current = { uid, at: Date.now(), pending: null, items };
+      if (changedDuringRead) return loadActivity({ force: true });
+    }
+    return items;
+  }, [getActiveUid, saveNotificationHistory, lsKeyChats]);
+
+  const refreshActivityNotifications = useCallback(() => {
+    clearTimeout(activityRefreshTimerRef.current);
+    activityRefreshTimerRef.current = setTimeout(() => loadActivityNotifications({ force: true }), 150);
+  }, [loadActivityNotifications]);
+
+  useEffect(() => () => clearTimeout(activityRefreshTimerRef.current), [currentUser?.id]);
+
+  const loadNotifications = useCallback(async ({ reuseCached = false } = {}) => {
     const uid = getActiveUid();
     if (!uid) {
       setNotifChatCount(0);
@@ -425,6 +530,10 @@ export default function App() {
       setNotifications([]);
       return;
     }
+    const refresh = notificationRefreshRef.current;
+    if (refresh.uid === uid && refresh.pending) return refresh.pending;
+    if (reuseCached && refresh.uid === uid && Date.now() - refresh.at < NOTIFICATION_REFRESH_MS) return;
+    const pending = (async () => {
 
     // ✅ Usa ref en vez de closure sobre products — rompe la dependencia circular
     const currentProducts = productsRef.current;
@@ -448,7 +557,8 @@ export default function App() {
     // Para títulos/imagenes rápidos
     const articleById = Object.fromEntries((currentProducts || []).map((p) => [String(getArticuloId(p) || ""), p]));
 
-    const dropdownItems = [];
+    const activityItems = await loadActivityNotifications({ force: !reuseCached });
+    const dropdownItems = [...activityItems, ...publicationExpiryNotifications(currentProducts, uid)];
 
     // 1) Ventas pendientes (desde products ya cargados)
     let pendingVentas = 0;
@@ -461,10 +571,11 @@ export default function App() {
         const artId = getArticuloId(it);
 
         if (tipo === "venta" && estado === "reservado" && buyerId) {
-          pendingVentas += 1;
+          const approved = isSaleApproved(it);
+          if (!approved) pendingVentas += 1;
 
           const prev = byArticulo[String(artId)]?.pendingVentas || 0;
-          addArticulo(artId, { pendingVentas: prev + 1 });
+          addArticulo(artId, { pendingVentas: prev + (approved ? 0 : 1) });
 
           dropdownItems.push({
             id: `venta-${String(artId)}`,
@@ -472,9 +583,11 @@ export default function App() {
             articulo_id: artId,
             buyer_id: buyerId,
             created_at: it?.reserved_at || it?.updated_at || it?.created_at || new Date().toISOString(),
-            title: "Venta pendiente",
-            subtitle: `${it?.title || it?.titulo || "Artículo"} reservado. Toca para gestionar / abrir chat.`,
+            title: approved ? 'Venta en curso' : "Venta pendiente",
+            subtitle: `${it?.title || it?.titulo || "Artículo"} · ${approved ? 'Compra aprobada.' : 'Solicitud de compra recibida.'}`,
             thumb: buildArticleThumb(it),
+            read: approved,
+            unreadCount: approved ? 0 : 1,
           });
         }
       }
@@ -486,7 +599,7 @@ export default function App() {
     try {
       const myArticuloIds = Array.from(
         new Set(
-          (products || [])
+          (currentProducts || [])
             .filter((p) => String(p?.owner_id || p?.usuario_id || "") === String(uid))
             .map((p) => getArticuloId(p))
             .filter(Boolean)
@@ -510,6 +623,9 @@ export default function App() {
             const createdAtMs = p?.created_at ? new Date(p.created_at).getTime() : 0;
             const seenAtStr = seenMap[String(artId)];
             const seenAtMs = seenAtStr ? new Date(seenAtStr).getTime() : 0;
+            solicitudesAgg[String(artId)] = solicitudesAgg[String(artId)] || { count: 0, unread: 0, latestAt: 0 };
+            solicitudesAgg[String(artId)].count += 1;
+            solicitudesAgg[String(artId)].latestAt = Math.max(solicitudesAgg[String(artId)].latestAt, createdAtMs);
 
             if (createdAtMs && createdAtMs > seenAtMs) {
               newSolicitudes += 1;
@@ -517,9 +633,7 @@ export default function App() {
               const prev = byArticulo[String(artId)]?.newSolicitudes || 0;
               addArticulo(artId, { newSolicitudes: prev + 1 });
 
-              solicitudesAgg[String(artId)] = solicitudesAgg[String(artId)] || { count: 0, latestAt: 0 };
-              solicitudesAgg[String(artId)].count += 1;
-              solicitudesAgg[String(artId)].latestAt = Math.max(solicitudesAgg[String(artId)].latestAt, createdAtMs);
+              solicitudesAgg[String(artId)].unread += 1;
             }
           }
         }
@@ -536,9 +650,11 @@ export default function App() {
           type: "postulacion",
           articulo_id: art?.id || Number(artIdStr) || artIdStr,
           created_at: new Date(agg.latestAt || Date.now()).toISOString(),
-          title: "Nuevas solicitudes",
-          subtitle: `${agg.count} nueva(s) en: ${title}. Toca para ver.`,
+          title: "Solicitudes recibidas",
+          subtitle: `${agg.count} solicitud(es) en: ${title}.`,
           thumb: buildArticleThumb(art),
+          read: agg.unread === 0,
+          unreadCount: agg.unread,
         });
       }
     } catch {}
@@ -560,6 +676,7 @@ export default function App() {
           .from("chat_messages")
           .select("id, chat_id, sender_id, created_at")
           .in("chat_id", chatIds)
+          .neq('sender_id', uid)
           .order("created_at", { ascending: false })
           .limit(NOTIFICATION_MESSAGE_LIMIT);
 
@@ -576,6 +693,11 @@ export default function App() {
             const createdAt = m?.created_at ? new Date(m.created_at).getTime() : 0;
             const seenAtStr = seenMap[String(chatId)];
             const seenAt = seenAtStr ? new Date(seenAtStr).getTime() : 0;
+            unreadChatAgg[String(chatId)] = unreadChatAgg[String(chatId)] || {
+              count: 0, unread: 0, latestAt: 0, chatRow: chatById[String(chatId)] || null,
+            };
+            unreadChatAgg[String(chatId)].count += 1;
+            unreadChatAgg[String(chatId)].latestAt = Math.max(unreadChatAgg[String(chatId)].latestAt, createdAt);
 
             if (createdAt && createdAt > seenAt) {
               totalUnread += 1;
@@ -584,13 +706,7 @@ export default function App() {
               const prev = byArticulo[String(artId)]?.unreadChats || 0;
               addArticulo(artId, { unreadChats: prev + 1 });
 
-              unreadChatAgg[String(chatId)] = unreadChatAgg[String(chatId)] || {
-                count: 0,
-                latestAt: 0,
-                chatRow: chatById[String(chatId)] || null,
-              };
-              unreadChatAgg[String(chatId)].count += 1;
-              unreadChatAgg[String(chatId)].latestAt = Math.max(unreadChatAgg[String(chatId)].latestAt, createdAt);
+              unreadChatAgg[String(chatId)].unread += 1;
             }
           }
         }
@@ -608,9 +724,11 @@ export default function App() {
             articulo_id: artId,
             buyer_id: chatRow?.buyer_id,
             created_at: new Date(agg.latestAt || Date.now()).toISOString(),
-            title: "Mensaje nuevo",
-            subtitle: `${agg.count} nuevo(s) en: ${artTitle}. Toca para abrir.`,
+            title: "Mensajes recibidos",
+            subtitle: `${agg.count} mensaje(s) en: ${artTitle}.`,
             thumb: buildArticleThumb(art),
+            read: agg.unread === 0,
+            unreadCount: agg.unread,
           });
         }
       }
@@ -630,10 +748,11 @@ export default function App() {
         if (estado !== "reservado" && estado !== "entregado") continue;
         const artId = getArticuloId(p);
         if (!artId) continue;
-        const updatedAt = p?.updated_at || p?.reserved_at || p?.created_at || new Date().toISOString();
+        if ([...activityItems, ...notificationsRef.current].some(item => item.type === 'donation_accepted'
+          && String(item.articulo_id) === String(artId))) continue;
+        const updatedAt = p?.reserved_at || p?.updated_at || p?.created_at || new Date().toISOString();
         const updatedMs = new Date(updatedAt).getTime();
         const seenMs = seenGanador[String(artId)] ? new Date(seenGanador[String(artId)]).getTime() : 0;
-        if (updatedMs <= seenMs) continue;
         dropdownItems.push({
           id: `ganador-${String(artId)}`,
           type: "ganador",
@@ -642,6 +761,8 @@ export default function App() {
           title: "¡Fuiste elegido! 🎉",
           subtitle: `${p?.titulo || p?.title || "Artículo"} — Abre el chat para coordinar la entrega.`,
           thumb: buildArticleThumb(p),
+          read: updatedMs <= seenMs,
+          unreadCount: updatedMs > seenMs ? 1 : 0,
         });
       }
     } catch {}
@@ -652,32 +773,72 @@ export default function App() {
       return tb - ta;
     });
 
+    if (notificationUidRef.current !== uid) return;
+    const latestChatReads = readSeenMap(lsKeyChats(uid));
+    const latestPostReads = readSeenMap(lsKeyPosts(uid));
+    for (const item of sortedDropdown) {
+      const seen = item.type === 'chat' ? latestChatReads[String(item.chat_id)]
+        : item.type === 'postulacion' ? latestPostReads[String(item.articulo_id)] : null;
+      if (!seen || Date.parse(seen) < Date.parse(item.created_at) || item.read) continue;
+      const row = byArticulo[String(item.articulo_id)];
+      if (item.type === 'chat') {
+        totalUnread -= item.unreadCount;
+        if (row) row.unreadChats -= item.unreadCount;
+      } else {
+        newSolicitudes -= item.unreadCount;
+        if (row) row.newSolicitudes -= item.unreadCount;
+      }
+      if (row) row.total = row.unreadChats + row.newSolicitudes + row.pendingVentas;
+      item.read = true;
+      item.unreadCount = 0;
+    }
+    const history = mergeNotificationHistory(notificationsRef.current, sortedDropdown);
+    for (const item of history) {
+      if (item.type !== 'venta' || !item.read) continue;
+      const row = byArticulo[String(item.articulo_id)];
+      if (row?.pendingVentas) {
+        pendingVentas -= row.pendingVentas;
+        row.pendingVentas = 0;
+        row.total = row.unreadChats + row.newSolicitudes;
+      }
+    }
     setNotifChatCount(totalUnread);
     setNotifProfileCount(totalUnread + newSolicitudes + pendingVentas);
     setNotifByArticulo(byArticulo);
-    setNotifications(sortedDropdown);
-  }, [getActiveUid, lsKeyChats, lsKeyPosts, fetchChatsForUid]);
+    saveNotificationHistory(history, uid);
+    })();
+    notificationRefreshRef.current = { uid, at: refresh.uid === uid ? refresh.at : 0, pending };
+    try { await pending; }
+    finally {
+      if (notificationRefreshRef.current.pending === pending) {
+        notificationRefreshRef.current = { uid, at: Date.now(), pending: null };
+      }
+    }
+  }, [getActiveUid, lsKeyChats, lsKeyPosts, fetchChatsForUid, saveNotificationHistory, loadActivityNotifications]);
 
   // =========================================================
   // ✅ helper: abrir chat por articulo + buyerId
   // =========================================================
 
   const openChatByArticleAndBuyer = useCallback(
-    async ({ article: requestedArticle, buyerId: requestedBuyerId }) => {
+    async ({ article: requestedArticle, buyerId: requestedBuyerId, expectedChatId = null }) => {
       const uid = getActiveUid();
       const articuloId = getArticuloId(requestedArticle);
       if (!uid) return alert("Debes iniciar sesión.");
       if (!articuloId) return alert("Este artículo no tiene ID válido.");
       if (isUserBlocked) return alert("Tu cuenta está bloqueada. No puedes acceder a chats.");
       try {
-        const article = await readArticleContext(supabase, articuloId);
+        const article = expectedChatId
+          ? await readNotificationChatContext(supabase, { chatId: expectedChatId, articleId: articuloId, userId: uid })
+          : await readArticleContext(supabase, articuloId);
+        const historicalChat = expectedChatId && article.transaction_chat?.status === 'closed';
         if (isInReview(article)) return alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
         const isSale = normTipo(article.mode || article.tipo) === "venta";
-        const buyerId = resolveChatBuyerId({ article, userId: uid, otherUserId: requestedBuyerId });
-        if (isSale && (!article.buyer_id || !["reservado", "entregado"].includes(normEstado(article.estado || article.status)))) {
+        const buyerId = resolveChatBuyerId({ article, chat: expectedChatId ? article.transaction_chat : null, userId: uid, otherUserId: requestedBuyerId });
+        if (!historicalChat && isSale && (!article.buyer_id || !["reservado", "entregado"].includes(normEstado(article.estado || article.status)))) {
           return alert("Esta venta no tiene una reserva activa. Actualiza tus publicaciones.");
         }
-        let finalChat = validateTransactionChat(article, uid);
+        let finalChat = historicalChat ? article.transaction_chat : validateTransactionChat(article, uid);
         if (isSale && finalChat?.status === "pending") {
           if (String(uid) !== String(article.owner_id)) {
             return alert("Para hablar con el vendedor, él debe aprobar la compra. Tu solicitud está pendiente de aprobación.");
@@ -693,8 +854,10 @@ export default function App() {
         }
         if (!finalChat) throw new Error("No se encontró el chat de esta reserva o no tienes permiso para abrirlo.");
         const otherUserId = safeGetOtherUserId(uid, finalChat);
-        setProducts(previous => previous.map(item => String(item.id) === String(article.id) ? { ...item, ...article } : item));
-        setManageArticle(previous => previous?.id === article.id ? { ...previous, ...article } : previous);
+        if (!historicalChat) {
+          setProducts(previous => previous.map(item => String(item.id) === String(article.id) ? { ...item, ...article } : item));
+          setManageArticle(previous => previous?.id === article.id ? { ...previous, ...article } : previous);
+        }
         setChatOpen({
           article, chat: finalChat, otherUserId,
           otherUserProfile: String(otherUserId) === String(article.owner_id) ? article.owner_public : article.buyer_public,
@@ -702,13 +865,16 @@ export default function App() {
           errorMessage: null,
         });
         markChatSeen(finalChat.id);
-        loadNotifications();
       } catch (error) {
         console.error("Error abriendo chat:", error);
+        if (expectedChatId) {
+          alert(error.message || 'No se pudo abrir la conversación. Intenta nuevamente.');
+          return;
+        }
         alert(error.message || "No se pudo abrir el chat. Intenta nuevamente.");
       }
     },
-    [getActiveUid, markChatSeen, loadNotifications, isUserBlocked]
+    [getActiveUid, markChatSeen, isUserBlocked]
   );
 
   const openChatFromArticle = useCallback(
@@ -742,6 +908,7 @@ export default function App() {
       setManageArticle(art);
       setIsManageOpen(true);
       setCurrentView("profile");
+      return art;
 
     },
     [currentUser, markSolicitudesSeenForArticulo]
@@ -847,8 +1014,19 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   // ✅ Loader artículos + owner_name/photo + ✅ interested_count
   // =========================================================
 
-  const load = useCallback(async ({ refreshPersonal = false } = {}) => {
+  const load = useCallback(async ({ refreshPersonal = false, reuseCached = false } = {}) => {
     const request = ++homeRequestRef.current;
+    const cacheKey = JSON.stringify([homeFilters, requestedPage, currentUser?.id || null]);
+    if (!reuseCached || refreshPersonal) listingCacheRef.current.clear();
+    const cached = reuseCached && !refreshPersonal ? listingCacheRef.current.get(cacheKey) : null;
+    if (cached) {
+      setHomePage(cached.page);
+      productsRef.current = cached.products;
+      setProducts(cached.products);
+      setHomeError("");
+      setHomeBusy(false);
+      return;
+    }
     setHomeBusy(true);
     setHomeError("");
     try {
@@ -960,7 +1138,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     } catch {}
 
     if (request !== homeRequestRef.current) return;
+    listingCacheRef.current.set(cacheKey, { page: pageData, products: normalized });
     setHomePage(pageData);
+    productsRef.current = normalized;
     setProducts(normalized);
 
     setSelectedProduct((prev) => {
@@ -987,9 +1167,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
     const run = async (refreshPersonal = false) => {
       if (!alive) return;
-      await load({ refreshPersonal });
+      await load({ refreshPersonal, reuseCached: !refreshPersonal });
+      if (!alive) return;
       lastLoadRef.current = Date.now();
-      if (refreshPersonal && getActiveUid()) await loadNotifications();
+      if (getActiveUid()) await loadNotifications({ reuseCached: !refreshPersonal });
     };
 
     run();
@@ -1074,16 +1255,19 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]);
 
-  // ✅ Carga notificaciones SOLO cuando el usuario se autentica o cambia
-  // No se mezcla con el ciclo de load() de productos
+  // Hydrate history immediately; server refresh follows the article load.
   useEffect(() => {
+    notificationRefreshRef.current = { uid: null, at: 0, pending: null };
+    activityRefreshRef.current = { uid: null, at: 0, pending: null, items: [] };
     if (currentUser?.id) {
-      loadNotifications();
+      saveNotificationHistory(readNotificationHistory(localStorage, currentUser.id), currentUser.id);
     } else {
       setNotifChatCount(0);
       setNotifProfileCount(0);
       setNotifByArticulo({});
       setNotifications([]);
+      notificationsRef.current = [];
+      historyUidRef.current = null;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id]);
@@ -1294,11 +1478,11 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   };
 
   const filteredProducts = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
     const uid = getActiveUid();
 
     const base = products.filter((item) => {
       if (!homePage.ids.includes(item.id)) return false;
+      if (isPublicationExpired(item, publicationNow)) return false;
       const estadoActual = normEstado(item?.estado || item?.status || "");
       const tipo = normTipo(item?.mode || item?.tipo || "");
 
@@ -1319,12 +1503,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         if (tipo !== quickTipo) return false;
       }
 
-      const title = (item.title || item.titulo || "").toLowerCase();
-      const categoryText = normStr(getCategoria(item));
-      const subcategoryText = normStr(getSubcategoria(item));
-
-      const matchesSearch = !term || title.includes(term) || categoryText.includes(term) || subcategoryText.includes(term);
-
       const matchesCategory =
         selectedCategory === "Todo" || normStr(getCategoria(item)) === normStr(selectedCategory);
 
@@ -1334,7 +1512,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       const matchesCity = (item.city || item.ciudad) === selectedCity;
       const matchesLocality = selectedLocality === "Todas" || (item.locality || item.localidad_es) === selectedLocality;
 
-      return matchesSearch && matchesCategory && matchesSub && matchesCity && matchesLocality;
+      return matchesCategory && matchesSub && matchesCity && matchesLocality;
     });
 
     return base.sort((a, b) => homePage.ids.indexOf(a.id) - homePage.ids.indexOf(b.id));
@@ -1351,13 +1529,15 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     hiddenAdsOwnerId,
     sortOrder,
     homePage.ids,
+    publicationNow,
   ]);
 
   // ✅ Artículos destacados (filtrados por búsqueda/categoría/ciudad igual que la lista principal)
   const featuredProducts = useMemo(() => {
     return products.filter(p => homePage.featuredIds.includes(p.id) && p.isFeatured
+      && !isPublicationExpired(p, publicationNow)
       && normEstado(p.estado || p.status || "") !== "entregado");
-  }, [products, homePage.featuredIds]);
+  }, [products, homePage.featuredIds, publicationNow]);
 
   const totalPages = Math.max(1, Math.ceil(homePage.total / 9));
   const changeHomePage = page => {
@@ -1386,6 +1566,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
           <div className="min-h-screen bg-[#F5F5F5]">
             <Navbar
               onSearch={setSearchTerm}
+              searchTerm={searchTerm}
               currentCity={selectedCity}
               onCityChange={(city) => {
                 setSelectedCity(city);
@@ -1400,7 +1581,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               notifProfileCount={notifProfileCount}
               notifChatCount={notifChatCount}
               isProfile={currentView === "profile"}
-              notifications={notifications}
+              notifications={historyUidRef.current === currentUser?.id ? notifications : []}
+              onNotificationsOpen={() => loadNotifications({ reuseCached: true })}
               onNotificationClick={async (item) => {
                 const uid = getActiveUid();
                 if (!uid) {
@@ -1408,22 +1590,21 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   return;
                 }
 
+                if (!['chat', 'postulacion', 'ganador', 'venta'].includes(item?.type)) {
+                  const destination = activityDestination(item?.type);
+                  if (destination === 'chat' && item?.articulo_id) {
+                    await openChatByArticleAndBuyer({ article: { id: item.articulo_id }, buyerId: item.buyer_id || uid, expectedChatId: item.chat_id });
+                  } else {
+                    const owned = products.some(p => String(p.id) === String(item.articulo_id) && String(p.owner_id) === String(uid));
+                    setProfileNotificationTarget({ id: item.id, articleId: item.articulo_id, receiptId: item.receipt_id,
+                      tab: owned ? 'publicaciones' : destination });
+                    setCurrentView('profile');
+                  }
+                  return;
+                }
+
                 if (item?.type === "chat") {
-                  const art =
-                    products.find((p) => String(getArticuloId(p)) === String(item?.articulo_id)) || null;
-
-                  if (!art) {
-                    setCurrentView("profile");
-                    return;
-                  }
-
-                  // ✅ BLOQUEO REVISIÓN (NOTIFICACIONES)
-                  if (isInReview(art)) {
-                    alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
-                    return;
-                  }
-
-                  await openChatByArticleAndBuyer({ article: art, buyerId: item?.buyer_id || uid });
+                  await openChatByArticleAndBuyer({ article: { id: item.articulo_id }, buyerId: item?.buyer_id || uid, expectedChatId: item.chat_id });
                   return;
                 }
 
@@ -1442,15 +1623,12 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                       writeSeenMap(lsKeyGanador, m);
                     } catch {}
                   }
-                  setCurrentView("profile");
+                  await openChatByArticleAndBuyer({ article: { id: item.articulo_id }, buyerId: uid });
                   return;
                 }
 
                 if (item?.type === "venta") {
-                  await openManageFromNotif(item?.articulo_id);
-
-                  const art =
-                    products.find((p) => String(getArticuloId(p)) === String(item?.articulo_id)) || null;
+                  const art = await openManageFromNotif(item?.articulo_id);
 
                   if (art && item?.buyer_id) {
                     // ✅ BLOQUEO REVISIÓN (VENTA -> CHAT)
@@ -1466,17 +1644,15 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 setCurrentView("profile");
               }}
               onNotificationSeen={async (item) => {
+                markRecentNotificationsRead({ id: item.id, through: item.created_at });
                 if (item?.type === "chat" && item?.chat_id) {
                   markChatSeen(item.chat_id);
-                  loadNotifications();
                   return;
                 }
                 if (item?.type === "postulacion" && item?.articulo_id) {
                   markSolicitudesSeenForArticulo(item.articulo_id);
-                  loadNotifications();
                   return;
                 }
-                loadNotifications();
               }}
               onMessagesClick={() => {
                 if (!currentUser) return setIsAuthOpen(true);
@@ -1831,12 +2007,12 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
               {currentView === "profile" && (
                 <UserProfile
+                  notificationTarget={profileNotificationTarget}
                   user={currentUser}
                   myProducts={myProducts}
                   notifByArticulo={notifByArticulo}
                   onArticuloSeen={(articuloId) => {
                     if (articuloId) markSolicitudesSeenForArticulo(articuloId);
-                    loadNotifications();
                   }}
                   onBack={() => setCurrentView("home")}
                   onArticuloDestacado={(article) => {
@@ -2003,6 +2179,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               otherUserProfile={chatOpen?.otherUserProfile}
               role={chatOpen?.role}
               errorMessage={chatOpen?.errorMessage}
+              onSeenChange={markChatSeen}
+              onActivityChange={refreshActivityNotifications}
             />
           </div>
         }

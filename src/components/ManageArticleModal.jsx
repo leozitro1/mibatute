@@ -1,5 +1,7 @@
 // src/components/ManageArticleModal.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { X, Users } from 'lucide-react';
+import ApplicantRow from './ApplicantRow.jsx';
 import { isSaleApproved } from './articleState.js';
 import { supabase } from "../supabase/supabaseClient";
 import { transitionSale } from "../supabase/saleTransaction";
@@ -56,23 +58,6 @@ function normTipo(v) {
   return s;
 }
 
-function formatDateTime(value) {
-  try {
-    if (!value) return "";
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return "";
-    return d.toLocaleString("es-CO", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
-}
-
 /**
  * ✅ Update "a prueba de columnas faltantes"
  * Si Supabase responde: Could not find the 'X' column...
@@ -104,6 +89,19 @@ export default function ManageArticleModal({
   onCancelSale, // opcional (si App.jsx lo pasa)
   onCancelSaleSuccess, // opcional: para refrescar lista (ej: load())
 }) {
+  const titleId = useId();
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [isOpen]);
   const [postulados, setPostulados] = useState([]);
   const [loading, setLoading] = useState(false);
   const [savingWinner, setSavingWinner] = useState(false);
@@ -477,18 +475,27 @@ export default function ManageArticleModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      {/* ✅ Modal más angosto */}
-      <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        onKeyDown={e => {
+          if (e.key === 'Escape' && !savingWinner) onClose?.();
+          if (e.key !== 'Tab') return;
+          const controls = [...e.currentTarget.querySelectorAll('button:not(:disabled), [href], input, [tabindex="0"]')];
+          const first = controls[0];
+          const last = controls.at(-1);
+          if (e.shiftKey && (document.activeElement === first || document.activeElement === e.currentTarget)) { e.preventDefault(); last?.focus(); }
+          else if (!e.shiftKey && (document.activeElement === last || document.activeElement === e.currentTarget)) { e.preventDefault(); first?.focus(); }
+        }}
+        className="flex max-h-[min(760px,calc(100dvh-32px))] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl outline-none">
         {/* HEADER */}
-        <div className="p-8 pb-6">
+        <div className="shrink-0 p-4 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               {!isVenta ? (
-                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-400 mb-2">
+                <p className="mb-3 text-xs font-semibold text-gray-500">
                   POSTULACIONES
                 </p>
               ) : (
-                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-gray-400 mb-2">
+                <p className="mb-3 text-xs font-semibold text-gray-500">
                   GESTIÓN
                 </p>
               )}
@@ -501,17 +508,14 @@ export default function ManageArticleModal({
                     e.currentTarget.dataset.fallbackApplied = "1";
                     e.currentTarget.src = FALLBACK_SVG;
                   }}
-                  className="w-12 h-12 rounded-xl object-cover border border-gray-100"
-                  alt="mini"
+                  className="h-14 w-14 shrink-0 rounded-md border border-gray-100 object-cover"
+                  alt={titulo}
                 />
 
                 <div className="min-w-0">
-                  <h2 className="font-black text-2xl text-gray-900 truncate">{titulo}</h2>
-                  <p className="text-sm text-gray-500 font-semibold mt-1">
-                    {!isVenta ? "Selecciona a quién entregarlo (regalo / donación)." : "Gestiona tu venta."}
-                  </p>
-                  <p className="text-[11px] font-black uppercase text-gray-400 mt-2">
-                    {tipoNorm || "tipo"} · {estado || "estado"}
+                  <h2 id={titleId} className="break-words text-lg font-bold leading-6 text-gray-900">{titulo}</h2>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {isVenta ? 'Venta' : 'Donación'} · {estado}
                   </p>
                 </div>
               </div>
@@ -520,17 +524,21 @@ export default function ManageArticleModal({
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 px-5 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 transition font-black text-[11px] uppercase"
+              disabled={savingWinner}
+              aria-label={isVenta ? 'Cerrar gestión' : 'Cerrar postulaciones'}
+              title="Cerrar"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 disabled:opacity-40"
             >
-              Cerrar
+              <X size={20} />
             </button>
           </div>
+          {!isVenta && !winnerId && <div className="mt-4 flex items-center gap-2 border-t border-gray-100 pt-3 text-sm font-medium text-gray-700" aria-live="polite"><Users size={16} className="text-gray-400" />{loading ? 'Cargando postulaciones...' : `${postulados.length} ${postulados.length === 1 ? 'postulación' : 'postulaciones'}`}<span className="ml-auto text-xs font-normal text-gray-400">Más recientes primero</span></div>}
         </div>
 
         <div className="border-t border-gray-200" />
 
         {/* BODY */}
-        <div className="p-8 pt-6">
+        <div className={`min-h-0 overflow-y-auto overscroll-contain ${!isVenta && !winnerId ? '' : 'p-4 sm:p-6'}`} data-management-body>
           {isVenta ? (
             <div>
               {buyerId && (isReservado || isEntregado) && (
@@ -550,8 +558,8 @@ export default function ManageArticleModal({
               )}
               {isEntregado ? (
                 <div className="space-y-3">
-                  <div className="bg-gray-100 border border-gray-200 rounded-2xl p-4">
-                    <p className="text-sm font-black text-gray-800 uppercase">Entregado ✅</p>
+                  <div className="border-l-2 border-gray-300 bg-gray-50 p-3">
+                    <p className="text-sm font-semibold text-gray-800">Venta completada</p>
                     <p className="text-xs text-gray-600 mt-1">
                       Esta venta ya está cerrada. El chat debe abrir solo para ver historial (solo lectura).
                     </p>
@@ -559,14 +567,14 @@ export default function ManageArticleModal({
 
                   <button
                     onClick={handleOpenChatVenta}
-                    className="w-full bg-forest-green text-white text-[11px] font-black py-3 rounded-2xl uppercase"
+                    className="w-full rounded-md bg-forest-green py-2.5 text-sm font-semibold text-white"
                     type="button"
                   >
                     Abrir chat (ver historial)
                   </button>
                 </div>
               ) : !isReservado ? (
-                <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                <div className="border-l-2 border-gray-200 bg-gray-50 p-3">
                   <p className="text-sm font-bold text-gray-700">Este artículo aún no está reservado.</p>
                   <p className="text-xs text-gray-500 mt-1">
                     Cuando alguien lo reserve, aquí podrás abrir el chat, marcar entregado o cancelar la venta.
@@ -574,8 +582,8 @@ export default function ManageArticleModal({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
-                    <p className="text-sm font-black text-green-800 uppercase">Reserva activa ✅</p>
+                  <div className="border-l-2 border-forest-green bg-green-50 p-3">
+                    <p className="text-sm font-semibold text-green-800">Reserva activa</p>
                     <p className="text-xs text-green-700 mt-1">
                       {article.transaction_chat?.status === "pending"
                         ? "Compra pendiente de aprobación. Al abrir el chat, autorizas la conversación con el comprador."
@@ -585,7 +593,7 @@ export default function ManageArticleModal({
 
                   <button
                     onClick={handleOpenChatVenta}
-                    className="w-full bg-forest-green text-white text-[11px] font-black py-3 rounded-2xl uppercase"
+                    className="w-full rounded-md bg-forest-green py-2.5 text-sm font-semibold text-white"
                     type="button"
                   >
                     Abrir chat
@@ -594,7 +602,7 @@ export default function ManageArticleModal({
                   <button
                     onClick={marcarEntregado}
                     disabled={savingWinner}
-                    className="w-full bg-gray-900 text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
+                    className="w-full rounded-md border border-gray-200 py-2.5 text-sm font-semibold text-gray-800 disabled:opacity-50"
                     type="button"
                   >
                     {savingWinner ? "Guardando..." : "Entregado (cerrar venta)"}
@@ -602,7 +610,7 @@ export default function ManageArticleModal({
 
                   <button
                     onClick={handleCancelSale}
-                    className="w-full bg-red-600 text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full rounded-md py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                     type="button"
                     disabled={savingWinner || isSaleApproved(article)}
                     title={isSaleApproved(article) ? "Venta aprobada: finalízala confirmando la entrega" : "Cancelar la solicitud de compra"}
@@ -621,7 +629,7 @@ export default function ManageArticleModal({
               ) : null}
 
               {winnerId ? (
-                <div className="space-y-4">
+                <div>
                   <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
                     <p className="text-sm font-black text-green-800 uppercase">
                       {isEntregado ? "Entregado ✅" : "Seleccionado ✅"}
@@ -653,7 +661,7 @@ export default function ManageArticleModal({
                       </div>
 
                       <div className="min-w-0">
-                        <p className="text-sm font-black text-gray-900 truncate">{winnerNombre}</p>
+                        <p className="text-sm font-black text-gray-900 truncate">{winnerLoading && !winnerVisible ? 'Cargando usuario...' : winnerNombre}</p>
                         <p className="text-[11px] font-bold text-gray-500">Ganador</p>
                       </div>
                     </div>
@@ -700,71 +708,13 @@ export default function ManageArticleModal({
                   ) : postulados.length === 0 ? (
                     <p className="text-gray-400 text-center py-6 font-bold">Nadie se ha postulado todavía...</p>
                   ) : (
-                    <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+                    <ul className="divide-y divide-gray-100" aria-label="Personas postuladas" aria-busy={savingWinner}>
                       {postulados.map((p) => {
-                        const nombre = p?.usuarios?.nombre || "Usuario";
-                        const foto = p?.usuarios?.foto_url || "";
-                        const fecha = formatDateTime(p?.created_at);
-
                         return (
-                          <div key={p.id} className="bg-gray-50 rounded-3xl border border-gray-100 p-5">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-gray-200 shrink-0 flex items-center justify-center">
-                                  {foto ? (
-                                    <img
-                                      src={foto}
-                                      className="w-full h-full object-cover"
-                                      alt="avatar"
-                                      onError={(e) => {
-                                        e.currentTarget.style.display = "none";
-                                      }}
-                                    />
-                                  ) : (
-                                    <span className="font-black text-gray-500">
-                                      {String(nombre || "U").charAt(0).toUpperCase()}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="min-w-0">
-                                  <p className="font-black text-gray-900 truncate">{nombre}</p>
-                                  {p?.justificacion ? (
-                                    <p className="text-[13px] text-gray-600 mt-1 line-clamp-2">{p.justificacion}</p>
-                                  ) : (
-                                    <p className="text-[13px] text-gray-400 mt-1 italic">Sin justificación.</p>
-                                  )}
-                                </div>
-                              </div>
-
-                              {fecha ? (
-                                <p className="text-[11px] font-black text-gray-400 whitespace-nowrap">{fecha}</p>
-                              ) : null}
-                            </div>
-
-                            <div className="mt-4 flex flex-col sm:flex-row gap-3">
-                              <button
-                                disabled={savingWinner}
-                                onClick={() => elegirGanador(p)}
-                                className="flex-1 bg-[#dfe8df] text-forest-green text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
-                                type="button"
-                              >
-                                {savingWinner ? "Seleccionando..." : "Elegir a este usuario"}
-                              </button>
-
-                              <button
-                                disabled={savingWinner}
-                                onClick={() => rechazarSolicitud(p?.id)}
-                                className="flex-1 bg-[#ffe1e1] text-red-700 text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
-                                type="button"
-                              >
-                                Rechazar solicitud
-                              </button>
-                            </div>
-                          </div>
+                          <ApplicantRow key={p.id} applicant={p} busy={savingWinner} onChoose={elegirGanador} onReject={rechazarSolicitud} />
                         );
                       })}
-                    </div>
+                    </ul>
                   )}
                 </div>
               )}
@@ -772,16 +722,6 @@ export default function ManageArticleModal({
           )}
         </div>
 
-        <div className="px-8 pb-8">
-          <button
-            onClick={onClose}
-            disabled={savingWinner}
-            className="w-full text-gray-400 font-black text-[11px] uppercase disabled:opacity-50"
-            type="button"
-          >
-            Cerrar
-          </button>
-        </div>
       </div>
     </div>
   );

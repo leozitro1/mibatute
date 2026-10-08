@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
-import { isSaleArticle, readArticleContext, resolveChatBuyerId, validateTransactionChat } from '../src/supabase/articleContext.js';
+import { isSaleArticle, readArticleContext, readNotificationChatContext, resolveChatBuyerId, validateTransactionChat } from '../src/supabase/articleContext.js';
 
 test('empty legacy type cannot turn a sale into a donation', () => {
   assert.equal(isSaleArticle({ mode: 'venta', tipo: '' }), true);
@@ -38,6 +38,27 @@ test('transaction context uses one RPC and reports missing or unreadable records
   assert.equal(calls, 1);
   await assert.rejects(readArticleContext({ rpc: async () => ({ data: [] }) }, 'a'), /permiso/);
   await assert.rejects(readArticleContext({ rpc: async () => ({ error: { code: 'PGRST202' } }) }, 'a'), /habilitar/);
+});
+
+test('notification context uses the exact conversation even after its buyer changes', async () => {
+  const context = { id: 'a', buyer_id: 'new-buyer', transaction_chat: {
+    id: 'old-chat', articulo_id: 'a', buyer_id: 'old-buyer', seller_id: 'seller', status: 'closed',
+  } };
+  let calls = 0;
+  const client = { rpc: async (name, args) => {
+    calls++;
+    assert.equal(name, 'notification_chat_context');
+    assert.deepEqual(args, { p_chat_id: 'old-chat' });
+    return { data: [context] };
+  } };
+  const requested = { chatId: 'old-chat', articleId: 'a', userId: 'old-buyer' };
+  assert.equal((await readNotificationChatContext(client, requested)).transaction_chat.id, 'old-chat');
+  assert.equal(calls, 1);
+  for (const invalid of [{ ...requested, chatId: 'another' }, { ...requested, articleId: 'another' }, { ...requested, userId: 'stranger' }]) {
+    await assert.rejects(readNotificationChatContext({ rpc: async () => ({ data: [context] }) }, invalid), { code: 'NOTIFICATION_CHAT_UNAVAILABLE' });
+  }
+  await assert.rejects(readNotificationChatContext({ rpc: async () => ({ data: [] }) }, requested), /ya no está disponible/);
+  await assert.rejects(readNotificationChatContext({ rpc: async () => ({ error: { code: 'PGRST202' } }) }, requested), /habilitar/);
 });
 
 test('grouped article context preserves participant privacy, ownership and image ordering', async () => {

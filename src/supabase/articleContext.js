@@ -23,6 +23,23 @@ export function resolveChatBuyerId({ article, chat, userId, otherUserId }) {
     || null;
 }
 
+export async function readNotificationChatContext(client, { chatId, articleId, userId }) {
+  const { data, error } = await client.rpc('notification_chat_context', { p_chat_id: chatId });
+  if (error) throw new Error(error.code === 'PGRST202' || error.code === '42883'
+    ? 'Falta habilitar los enlaces de notificaciones en Supabase. Contacta al administrador.'
+    : error.message || 'No se pudo consultar la conversación. Intenta nuevamente.');
+  const article = data?.[0];
+  const chat = article?.transaction_chat;
+  if (!chat?.id || String(chat.id) !== String(chatId) || String(article.id) !== String(articleId)
+    || String(chat.articulo_id) !== String(articleId)
+    || ![chat.buyer_id, chat.seller_id].filter(Boolean).some(id => String(id) === String(userId))) {
+    const failure = new Error('Esta conversación ya no está disponible. El aviso se conserva en tu historial.');
+    failure.code = 'NOTIFICATION_CHAT_UNAVAILABLE';
+    throw failure;
+  }
+  return article;
+}
+
 export function validateTransactionChat(article, userId) {
   const chat = article?.transaction_chat;
   const buyerId = article?.buyer_id || article?.ganador_id || article?.winner_id || article?.recipient_id;

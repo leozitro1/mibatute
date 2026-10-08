@@ -1,5 +1,5 @@
 // src/components/UserProfile.jsx
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
 import { getProfile, updateProfile } from "../supabase/profileService";
 import {
   Camera,
@@ -21,10 +21,15 @@ import {
   X,
   Inbox,
   Star,
+  Users,
 } from "lucide-react";
 import { LOCATIONS } from "../data/locations";
 import ManageArticleModal from "./ManageArticleModal";
+import ApplicantRow from './ApplicantRow.jsx';
 import ProfileListFilters from "./ProfileListFilters";
+import PublicationCountdown from './PublicationCountdown.jsx';
+import usePublicationClock from './usePublicationClock.js';
+import { isPublicationUnavailable } from './articleLifetime.js';
 import ProfilePagination from "./ProfilePagination";
 import { paginateProfileItems } from "./profilePageData";
 import { DEFAULT_PROFILE_FILTERS, filterProfileItems, canRateProfileArticle } from "./profileFilters";
@@ -397,6 +402,19 @@ function ModalSolicitudes({
   onAbrirCalificar,
 }) {
   const [updatingKey, setUpdatingKey] = useState(null);
+  const titleId = useId();
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     setUpdatingKey(null);
@@ -641,33 +659,46 @@ function ModalSolicitudes({
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
-      <button type="button" onClick={onClose} className="absolute inset-0 bg-black/40" aria-label="Cerrar modal" />
+      <div className="absolute inset-0 bg-black/40" onClick={() => { if (!updatingKey) onClose?.(); }} aria-hidden="true" />
 
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-        <div className="p-5 border-b flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+        onKeyDown={e => {
+          if (e.key === 'Escape' && !updatingKey) onClose?.();
+          if (e.key !== 'Tab') return;
+          const controls = [...e.currentTarget.querySelectorAll('button:not(:disabled), [href], input, [tabindex="0"]')];
+          const first = controls[0];
+          const last = controls.at(-1);
+          if (e.shiftKey && (document.activeElement === first || document.activeElement === e.currentTarget)) { e.preventDefault(); last?.focus(); }
+          else if (!e.shiftKey && (document.activeElement === last || document.activeElement === e.currentTarget)) { e.preventDefault(); first?.focus(); }
+        }}
+        className="relative flex max-h-[min(760px,calc(100dvh-32px))] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-gray-100 bg-white shadow-xl outline-none">
+        <div className="shrink-0 border-b border-gray-200 p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="mb-3 text-xs font-semibold text-gray-500">
               Postulaciones
             </p>
-            <h3 className="text-lg font-black text-gray-900 truncate">{titulo}</h3>
-
-            {!isVenta && (
-              <p className="mt-1 text-[11px] text-gray-500 font-bold">
-                {hasWinner ? "✅ Ya hay un usuario seleccionado." : "Selecciona a quién entregarlo (regalo / donación)."}
-              </p>
-            )}
+            <div className="flex items-center gap-3">
+              <img src={getThumb(articulo)} alt={titulo} className="h-14 w-14 shrink-0 rounded-md border border-gray-100 object-cover" onError={e => { if (!e.currentTarget.dataset.fallbackApplied) { e.currentTarget.dataset.fallbackApplied = '1'; e.currentTarget.src = FALLBACK_SVG; } }} />
+              <div className="min-w-0"><h3 id={titleId} className="break-words text-lg font-bold leading-6 text-gray-900">{titulo}</h3><p className="mt-1 text-xs text-gray-500">Donación · {estadoArticulo}</p></div>
+            </div>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-2xl bg-gray-100 hover:bg-gray-200 font-black text-xs uppercase"
+            disabled={!!updatingKey}
+            aria-label="Cerrar postulaciones"
+            title="Cerrar"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-40"
           >
-            Cerrar
+            <X size={20} />
           </button>
+          </div>
+          {!hasWinner && <div className="mt-4 flex items-center gap-2 border-t border-gray-100 pt-3 text-sm font-medium text-gray-700" aria-live="polite"><Users size={16} className="text-gray-400" />{loading ? 'Cargando...' : `${solicitudesVisibles.length} ${solicitudesVisibles.length === 1 ? 'postulación' : 'postulaciones'}`}<span className="ml-auto text-xs font-normal text-gray-400">Más recientes primero</span></div>}
         </div>
 
-        <div className="p-5 max-h-[70vh] overflow-auto">
+        <div className={`min-h-0 overflow-y-auto overscroll-contain ${hasWinner ? 'p-4 sm:p-6' : ''}`} data-management-body>
           {loading ? (
             <div className="py-10 text-center text-gray-500 font-bold">Cargando...</div>
           ) : isVenta ? (
@@ -766,57 +797,16 @@ function ModalSolicitudes({
               )}
             </div>
           ) : solicitudesVisibles?.length ? (
-            <div className="space-y-3">
+            <ul className="divide-y divide-gray-100" aria-label="Personas postuladas" aria-busy={!!updatingKey}>
               {solicitudesVisibles.map((s) => {
                 const { nombre, foto, userId } = getUserFromSolicitud(s);
                 const mensaje = s?.justificacion || s?.mensaje || s?.message || "";
-                const fecha = formatDateTime(s?.created_at);
-                const isBusyElegir = updatingKey === `${articuloId}:${userId}`;
-                const isBusyRechazar = updatingKey === `${articuloId}:${userId}:reject`;
-                const isBusy = isBusyElegir || isBusyRechazar;
 
                 return (
-                  <div key={s?.id || `${nombre}-${fecha}`}
-                    className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden">
-                    <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-                      {foto ? (
-                        <img src={foto} alt={nombre}
-                          className="w-9 h-9 rounded-full object-cover shrink-0 ring-2 ring-white shadow-sm"
-                          onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                      ) : (
-                        <div className="w-9 h-9 rounded-full bg-forest-green/20 text-forest-green flex items-center justify-center font-black text-sm shrink-0">
-                          {String(nombre).charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-black text-gray-900 text-sm truncate">{nombre}</p>
-                        {fecha && <p className="text-[10px] text-gray-400 font-medium">{fecha}</p>}
-                      </div>
-                    </div>
-                    {mensaje ? (
-                      <p className="px-4 pb-3 text-sm text-gray-600 leading-relaxed border-b border-gray-100">{mensaje}</p>
-                    ) : (
-                      <p className="px-4 pb-3 text-xs text-gray-400 italic border-b border-gray-100">Sin mensaje</p>
-                    )}
-                    <div className="flex">
-                      <button type="button"
-                        onClick={() => entregarAUsuario(userId)}
-                        disabled={isBusy || !userId}
-                        className="flex-1 py-3 text-[11px] font-black uppercase tracking-wide text-forest-green hover:bg-forest-green hover:text-white transition disabled:opacity-40 flex items-center justify-center gap-1.5">
-                        {isBusyElegir ? "Seleccionando..." : "✓ Elegir"}
-                      </button>
-                      <div className="w-px bg-gray-200" />
-                      <button type="button"
-                        onClick={() => rechazarSolicitud(userId, nombre)}
-                        disabled={isBusy || !userId}
-                        className="flex-1 py-3 text-[11px] font-black uppercase tracking-wide text-red-500 hover:bg-red-500 hover:text-white transition disabled:opacity-40 flex items-center justify-center gap-1.5">
-                        {isBusyRechazar ? "Rechazando..." : "× Rechazar"}
-                      </button>
-                    </div>
-                  </div>
+                  <ApplicantRow key={s.id || userId} applicant={{ ...s, justificacion: mensaje, usuarios: { nombre, foto_url: foto } }} busy={!!updatingKey || !userId} onChoose={() => entregarAUsuario(userId)} onReject={() => rechazarSolicitud(userId, nombre)} />
                 );
               })}
-            </div>
+            </ul>
           ) : (
             <div className="py-10 text-center text-gray-400 text-sm font-bold">
               Nadie se ha postulado aún.
@@ -875,6 +865,7 @@ async function fetchProfileFallback(userId) {
 }
 
 export default function UserProfile({
+  notificationTarget,
   user,
   myProducts = [],
   notifByArticulo = {},
@@ -887,7 +878,14 @@ export default function UserProfile({
   onArticuloReservado,
   onArticuloDestacado,
 }) {
+  const publicationNow = usePublicationClock();
   const [activeTab, setActiveTab] = useState("publicaciones"); // ✅ ahora inicia en Buzón
+  useEffect(() => {
+    if (!notificationTarget) return;
+    if (['publicaciones', 'rescates', 'buzon'].includes(notificationTarget.tab)) setActiveTab(notificationTarget.tab);
+    setPublicationFilters({ ...DEFAULT_PROFILE_FILTERS });
+    setRescateFilters({ ...DEFAULT_PROFILE_FILTERS });
+  }, [notificationTarget]);
   const [publicationFilters, setPublicationFilters] = useState({ ...DEFAULT_PROFILE_FILTERS });
   const [rescateFilters, setRescateFilters] = useState({ ...DEFAULT_PROFILE_FILTERS });
   const [publicationPage, setPublicationPage] = useState({ key: '', page: 1 });
@@ -1679,14 +1677,14 @@ export default function UserProfile({
   const filteredPublications = useMemo(() => filterProfileItems(publications, publicationFilters, {
     unread: unreadByArticulo, notifications: notifByArticulo, chats: hasChatOwnerByArticulo,
     posts: hasPostulacionesByArticulo, overrides: articuloOverridesById, featured: featuredOverrides,
-    rated: yaCalifique, userId: user?.id,
+    rated: yaCalifique, userId: user?.id, now: publicationNow,
   }), [publications, publicationFilters, unreadByArticulo, notifByArticulo, hasChatOwnerByArticulo,
-    hasPostulacionesByArticulo, articuloOverridesById, featuredOverrides, yaCalifique, user?.id]);
+    hasPostulacionesByArticulo, articuloOverridesById, featuredOverrides, yaCalifique, user?.id, publicationNow]);
 
   const filteredRescates = useMemo(() => filterProfileItems(rescatesSorted, rescateFilters, {
     rescates: true, unread: unreadByArticulo, chats: hasChatBuyerByArticulo,
-    rated: yaCalifique, userId: user?.id,
-  }), [rescatesSorted, rescateFilters, unreadByArticulo, hasChatBuyerByArticulo, yaCalifique, user?.id]);
+    rated: yaCalifique, userId: user?.id, now: publicationNow,
+  }), [rescatesSorted, rescateFilters, unreadByArticulo, hasChatBuyerByArticulo, yaCalifique, user?.id, publicationNow]);
 
   const publicationPageKey = JSON.stringify([user?.id, publicationFilters, [...yaCalifique]]);
   const rescatePageKey = JSON.stringify([user?.id, rescateFilters, [...yaCalifique]]);
@@ -1694,6 +1692,32 @@ export default function UserProfile({
     publicationPage.key === publicationPageKey ? publicationPage.page : 1);
   const rescateListing = paginateProfileItems(filteredRescates,
     rescatePage.key === rescatePageKey ? rescatePage.page : 1);
+
+  const focusedNotificationRef = useRef(null);
+  useEffect(() => {
+    if (!notificationTarget?.articleId || focusedNotificationRef.current === notificationTarget
+      || loading || (activeTab === 'publicaciones' && profileProductsLoading)
+      || activeTab !== notificationTarget.tab || !['publicaciones', 'rescates'].includes(activeTab)) return;
+    const items = activeTab === 'rescates' ? filteredRescates : filteredPublications;
+    const index = items.findIndex(item => String(item.articulo_id || getArticuloId(item)) === String(notificationTarget.articleId));
+    if (index < 0) return;
+    const page = paginateProfileItems(items.slice(0, index + 1), Number.MAX_SAFE_INTEGER).page;
+    const currentPage = activeTab === 'rescates' ? rescateListing.page : publicationListing.page;
+    if (currentPage !== page) {
+      if (activeTab === 'rescates') setRescatePage({ key: rescatePageKey, page });
+      else setPublicationPage({ key: publicationPageKey, page });
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      const row = document.querySelector(`[data-profile-article-id="${CSS.escape(String(notificationTarget.articleId))}"]`);
+      if (!row) return;
+      row.scrollIntoView({ block: 'center' });
+      row.focus({ preventScroll: true });
+      focusedNotificationRef.current = notificationTarget;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [notificationTarget, activeTab, loading, profileProductsLoading, filteredRescates, filteredPublications, rescateListing.page,
+    publicationListing.page, rescatePageKey, publicationPageKey]);
 
   // ✅ maps publicaciones + unread — solo en pestaña publicaciones
   useEffect(() => {
@@ -1871,7 +1895,8 @@ export default function UserProfile({
     if (!user?.id) return;
     setSysMsgsLoading(true);
     try {
-      const { data, error } = await supabase.rpc("get_my_inbox");
+      let { data, error } = await supabase.rpc('notification_inbox');
+      if (error?.code === 'PGRST202' || error?.code === '42883') ({ data, error } = await supabase.rpc('get_my_inbox'));
       if (error) throw error;
       setSysMsgs(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -1884,10 +1909,13 @@ export default function UserProfile({
 
   const markReceipt = useCallback(async (receiptId, action) => {
     try {
-      const { error } = await supabase.rpc("mark_receipt", {
+      let { error } = await supabase.rpc('notification_receipt_action', {
         p_receipt_id: receiptId,
         p_action: action,
       });
+      if (error?.code === 'PGRST202' || error?.code === '42883') ({ error } = await supabase.rpc('mark_receipt', {
+        p_receipt_id: receiptId, p_action: action,
+      }));
       if (error) throw error;
       if (action === "delete") {
         setSysMsgs((prev) => prev.filter((m) => m.receipt_id !== receiptId));
@@ -1902,6 +1930,17 @@ export default function UserProfile({
   }, []);
 
   // ✅ sysMsgs: solo se carga cuando el usuario abre "buzon" (lazy)
+  const openedSystemNotificationRef = useRef(null);
+  useEffect(() => {
+    if (activeTab !== 'buzon' || !notificationTarget?.receiptId
+      || openedSystemNotificationRef.current === notificationTarget) return;
+    const message = sysMsgs.find(item => String(item.receipt_id) === String(notificationTarget.receiptId));
+    if (!message) return;
+    openedSystemNotificationRef.current = notificationTarget;
+    setSysMsgModal({ ...message, read_at: message.read_at || new Date().toISOString() });
+    if (!message.read_at) markReceipt(message.receipt_id, 'read');
+  }, [notificationTarget, activeTab, sysMsgs, markReceipt]);
+
   const sysMsgsCargadosRef = useRef(false);
   useEffect(() => {
     if (!user?.id) return;
@@ -2880,6 +2919,8 @@ export default function UserProfile({
                       onClick={() => setSysMsgModal(null)}
                     >
                       <div
+                        role="dialog" aria-modal="true" aria-labelledby="system-message-title"
+                        data-system-message-receipt={sysMsgModal.receipt_id}
                         className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -2895,7 +2936,7 @@ export default function UserProfile({
                                 {{ critical: "URGENTE", warning: "AVISO", info: "INFO" }[sysMsgModal?.severity] || "INFO"}
                               </span>
                             </div>
-                            <h3 className="text-base font-black text-gray-900 leading-snug">
+                            <h3 id="system-message-title" className="text-base font-black text-gray-900 leading-snug">
                               {sysMsgModal?.title || "Mensaje del sistema"}
                             </h3>
                             <p className="text-[11px] text-gray-400 font-medium mt-0.5">
@@ -2907,6 +2948,7 @@ export default function UserProfile({
                           <button
                             type="button"
                             onClick={() => setSysMsgModal(null)}
+                            aria-label="Cerrar aviso"
                             className="p-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition shrink-0"
                           >
                             <X size={16} />
@@ -2977,6 +3019,7 @@ export default function UserProfile({
                       const titulo = art?.titulo || art?.title || "Sin título";
                       const estado = normEstado(art?.estado || art?.status || "disponible");
                       const isReview = estado === "en_revision";
+                      const isVencido = isPublicationUnavailable(art, publicationNow);
                       const tipo = getTipoPublicacion(art);
 
                       const currentId = getArticuloId(art);
@@ -3016,7 +3059,7 @@ export default function UserProfile({
                         !isUserBlocked &&
                         (isVenta ? hasBuyer || hasChatOwner : hasChatOwner || hasWinner);
 
-                      const statusUI = badgeUIByStatus(estado);
+                      const statusUI = badgeUIByStatus(isVencido ? 'vencido' : estado);
                       const tipoUI = badgeUIByTipo(tipo);
 
                       const isDeletingThis =
@@ -3034,7 +3077,9 @@ export default function UserProfile({
                       return (
                         <div
                           key={currentId ? `art-${currentId}` : `art-idx-${idx}`}
-                          className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition ${
+                          data-profile-article-id={currentId}
+                          tabIndex={-1}
+                          className={`relative flex flex-wrap items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition focus:outline-2 focus:outline-forest-green focus:outline-offset-2 sm:flex-nowrap ${
                             isEntregado
                               ? "bg-gray-50 border-gray-200 [&>img]:opacity-50 [&>[data-profile-content]>:not([data-rating-notice])]:opacity-50"
                               : isReservado
@@ -3052,6 +3097,7 @@ export default function UserProfile({
                               : "hover:shadow-md cursor-pointer"
                           }`}
                           onClick={() => { if (isEntregado) return;
+                            if (isVencido) return;
                             if (isUserBlocked) return alert(blockedUserMsg());
                             if (isReview) return alert(revisionBlockMsg(titulo));
 
@@ -3088,7 +3134,7 @@ export default function UserProfile({
                                 className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-xl ${statusUI.cls}`}
                               >
                                 <statusUI.Icon size={12} />
-                                {statusUI.label}
+                                {isVencido ? "Vencida" : statusUI.label}
                               </span>
 
                               <span
@@ -3101,6 +3147,7 @@ export default function UserProfile({
                               <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
                                 {formatDate(art)}
                               </span>
+                              <PublicationCountdown article={art} now={publicationNow} />
 
                               {hasSolicitudes ? (
                                 <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 ring-1 ring-orange-200 px-2 py-1 rounded-xl text-[10px] font-black uppercase">
@@ -3124,7 +3171,7 @@ export default function UserProfile({
                             </div>
                           </div>
 
-                          <div data-profile-actions className={`flex items-center gap-2 ${isEntregado ? "[&>button:not([data-rating-pending])]:opacity-50" : ""}`}>
+                          <div data-profile-actions className={`flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start ${isEntregado ? "[&>button:not([data-rating-pending])]:opacity-50" : ""}`}>
                             <button
                               type="button"
                               onPointerDown={(e) => e.stopPropagation()}
@@ -3150,7 +3197,7 @@ export default function UserProfile({
                             </button>
 
                             {/* Botón ⭐ Destacar: oculto si ya hay ganador o está entregado */}
-                            {!isEntregado && !hasWinner && (() => {
+                            {!isEntregado && !isVencido && !hasWinner && (() => {
                               const isFeat = featuredOverrides[currentId] ?? art?.is_featured ?? false;
                               return (
                                 <button
@@ -3213,7 +3260,7 @@ export default function UserProfile({
                               </button>
                             ) : null}
 
-                            {!isReservado && !isEntregado && (
+                            {!isReservado && !isEntregado && !isVencido && (
                             <button
                               type="button"
                               onPointerDown={(e) => e.stopPropagation()}
@@ -3453,7 +3500,9 @@ export default function UserProfile({
                       return (
                         <div
                           key={r?.id || `${r?.articulo_id}-${r?.created_at}`}
-                          className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition ${
+                          data-profile-article-id={articuloId}
+                          tabIndex={-1}
+                          className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition focus:outline-2 focus:outline-forest-green focus:outline-offset-2 ${
                             isEntregadoRescate
                               ? "bg-gray-50 border-gray-200 [&>img]:opacity-50 [&>[data-profile-content]>:not([data-rating-notice])]:opacity-50"
                               : rejectedRescate

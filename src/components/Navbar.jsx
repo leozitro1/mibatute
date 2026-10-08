@@ -1,8 +1,9 @@
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Search, MapPin, User, ChevronDown, LogOut, MessageCircle, X } from "lucide-react";
+import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus } from "lucide-react";
 import { ACTIVE_COLOMBIA_DATA } from "../data/locations";
 import { supabase } from "../supabase/supabaseClient";
+import { NOTIFICATION_HISTORY_LIMIT } from './notificationHistory.js';
 
 const logoMiBatute = "/logo.png";
 const MODERATION_REFRESH_MS = 10 * 60 * 1000;
@@ -111,7 +112,7 @@ function NotificationsDropdown({
   return (
     <div
       ref={panelRef}
-      className="absolute right-0 top-[44px] w-[360px] max-w-[90vw] bg-white border border-gray-100 shadow-xl rounded-3xl overflow-hidden z-[80]"
+      className="fixed right-3 top-16 sm:absolute sm:right-0 sm:top-[44px] w-[360px] max-w-[calc(100vw-24px)] bg-white border border-gray-200 shadow-xl rounded-lg overflow-hidden z-[80]"
       role="menu"
       aria-label="Notificaciones"
     >
@@ -120,9 +121,11 @@ function NotificationsDropdown({
         <button
           type="button"
           onClick={onClose}
-          className="text-[11px] font-black uppercase text-gray-400 hover:text-gray-600"
+          aria-label="Cerrar notificaciones"
+          title="Cerrar notificaciones"
+          className="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
         >
-          Cerrar
+          <X size={18} />
         </button>
       </div>
 
@@ -138,20 +141,18 @@ function NotificationsDropdown({
               const subtitle = safeText(n?.subtitle || n?.subtitulo || n?.message, "");
               const time = formatAgo(n?.created_at || n?.createdAt || n?.time);
 
-              const type = safeText(n?.type, "");
-              const isChat = type === "chat";
-              const pillText = isChat ? "Mensaje" : type === "postulacion" ? "Solicitud" : type ? type : "Info";
-
               const thumb = safeText(n?.thumb || n?.image || n?.foto_url, "");
               const fallbackLetter = safeText(n?.letter, "•").slice(0, 1).toUpperCase();
 
               return (
                 <button
-                  key={safeText(n?.id, Math.random().toString(36))}
+                  key={n.id}
                   type="button"
                   role="menuitem"
+                  data-notification-id={n.id}
+                  data-read={n.read ? 'true' : 'false'}
                   onClick={() => onItemClick?.(n)}
-                  className="w-full text-left px-4 py-3 hover:bg-gray-50 transition flex items-start gap-3"
+                  className={`w-full text-left px-4 py-3 hover:bg-gray-100 transition flex items-start gap-3 ${n.read ? 'bg-white' : 'bg-green-50/60'}`}
                 >
                   <div className="shrink-0">
                     {thumb ? (
@@ -172,7 +173,7 @@ function NotificationsDropdown({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-black text-gray-900 truncate">{title}</p>
+                      <p className={`text-sm text-gray-900 truncate ${n.read ? 'font-semibold' : 'font-bold'}`}>{title}</p>
                       {time ? (
                         <span className="text-[10px] font-black uppercase text-gray-400 whitespace-nowrap">{time}</span>
                       ) : null}
@@ -196,6 +197,7 @@ function NotificationsDropdown({
 
 export default function Navbar({
   onSearch,
+  searchTerm,
   currentCity,
   onCityChange,
 
@@ -219,12 +221,14 @@ export default function Navbar({
   notifications = [],
   onNotificationClick,
   onNotificationSeen,
+  onNotificationsOpen,
   isProfile = false,
 }) {
   const displayName = user?.nombre?.trim() || user?.displayName?.trim() || user?.email?.trim() || "";
   const avatarLetter = (displayName?.[0] || "U").toUpperCase();
 
-  const [searchValue, setSearchValue] = useState("");
+  const [localSearchValue, setSearchValue] = useState("");
+  const searchValue = searchTerm ?? localSearchValue;
   const [searchFocused, setSearchFocused] = useState(false);
   const searchInputRef = useRef(null);
 
@@ -375,28 +379,25 @@ export default function Navbar({
 
   const msgBtnRef = useRef(null);
   const [openNotifs, setOpenNotifs] = useState(false);
-  const [hiddenNotifIds, setHiddenNotifIds] = useState(() => new Set());
 
   useEffect(() => {
     setOpenNotifs(false);
-    setHiddenNotifIds(new Set());
   }, [user?.id]);
 
-  // Siempre mostrar las últimas 6, nunca se borran — estilo Facebook
+  // Read state is independent of whether an item remains in the recent history.
   const visibleNotifs = useMemo(() => {
     const list = Array.isArray(notifications) ? notifications : [];
     return [...list]
       .sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0))
-      .slice(0, 6);
+      .slice(0, NOTIFICATION_HISTORY_LIMIT);
   }, [notifications]);
 
-  // Badge: solo las que no están en hiddenNotifIds (ocultas localmente)
   const dropdownCount = useMemo(() => {
-    if (Array.isArray(notifications) && notifications.length) {
-      return notifications.filter((n) => !hiddenNotifIds.has(String(n?.id || ""))).length;
+    if (Array.isArray(notifications)) {
+      return visibleNotifs.filter(n => !n.read).length;
     }
     return Number(notifChatCount || 0);
-  }, [notifications, hiddenNotifIds, notifChatCount]);
+  }, [notifications, visibleNotifs, notifChatCount]);
 
   const handleMessagesButton = () => {
     if (user && isBlocked) {
@@ -410,31 +411,19 @@ export default function Navbar({
       return;
     }
     setOpenNotifs((v) => !v);
-    // Al abrir: bajar globo a 0 solo localmente, sin llamar onNotificationSeen
-    // (llamarlo marcaría todo como visto en DB y borraría la lista)
     if (!openNotifs) {
-      const list = Array.isArray(notifications) ? notifications : [];
-      setHiddenNotifIds(new Set(list.map((n) => String(n?.id || "")).filter(Boolean)));
+      onNotificationsOpen?.();
     }
   };
 
   const handleNotifClick = async (item) => {
     setOpenNotifs(false);
 
-    const id = String(item?.id || "");
-    if (id) {
-      setHiddenNotifIds((prev) => {
-        const next = new Set(prev);
-        next.add(id);
-        return next;
-      });
-    }
-
-    try {
-      await onNotificationClick?.(item);
-    } catch {}
     try {
       await onNotificationSeen?.(item);
+    } catch {}
+    try {
+      await onNotificationClick?.(item);
     } catch {}
   };
 
@@ -469,10 +458,10 @@ export default function Navbar({
   return (
     <>
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 sm:gap-4">
           <button
             type="button"
-            className="flex items-center gap-3 cursor-pointer"
+            className="flex shrink-0 items-center gap-2 sm:gap-3 cursor-pointer"
             onClick={handleLogoClick}
             aria-label="Ir al inicio"
             title="Ir al inicio"
@@ -480,14 +469,14 @@ export default function Navbar({
             <img
               src={logoMiBatute}
               alt="MiBatute"
-              className="h-11 w-11 md:h-10 md:w-10 rounded-xl object-contain"
+              className="h-9 w-9 sm:h-11 sm:w-11 md:h-10 md:w-10 rounded-xl object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
               }}
             />
 
             <div className="flex flex-col leading-none">
-              <span className="text-[22px] md:text-[28px] font-extrabold tracking-tight text-gray-900">
+              <span className="text-[20px] sm:text-[22px] md:text-[28px] font-extrabold text-gray-900">
                 Mi<span className="text-forest-green">Batute</span>
               </span>
               <span className="text-[12px] md:text-[13px] font-semibold text-gray-500 mt-1">
@@ -505,7 +494,7 @@ export default function Navbar({
             </div>
           </button>
 
-          <div className={`flex-1 max-w-3xl relative${isProfile ? " opacity-40 pointer-events-none select-none" : ""}`}>
+          <div className={`order-3 basis-full md:order-none md:basis-auto flex-1 min-w-0 max-w-3xl relative${isProfile ? " opacity-40 pointer-events-none select-none" : ""}`}>
             <div className="relative w-full">
               <input
                 ref={searchInputRef}
@@ -639,23 +628,25 @@ export default function Navbar({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
             <button
               type="button"
               onClick={handlePublish}
               disabled={publishDisabled}
               title={publishTitle}
-              className={`px-5 py-2 rounded-xl text-sm font-black transition shadow-md ${
+              aria-label={publishTitle}
+              className={`inline-flex items-center justify-center h-9 w-9 sm:h-auto sm:w-auto sm:px-5 sm:py-2 rounded-lg text-sm font-black transition shadow-md ${
                 publishDisabled
                   ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                   : "bg-forest-green text-white hover:bg-opacity-90"
               }`}
             >
-              {user && isBlocked
+              <Plus size={19} className="sm:hidden" aria-hidden="true" />
+              <span className="hidden sm:inline">{user && isBlocked
                 ? "Publicar (bloqueado)"
                 : user && isBanned
                 ? `Publicar (${formatRemaining(remainingMs)})`
-                : "Publicar"}
+                : "Publicar"}</span>
             </button>
 
             {user ? (
@@ -668,10 +659,12 @@ export default function Navbar({
                   className={`relative p-2 rounded-xl transition ${
                     isBlocked ? "bg-gray-200 cursor-not-allowed" : "bg-gray-100 hover:bg-gray-200"
                   }`}
-                  title={isBlocked ? "Bloqueado: no puedes usar chats" : "Mensajes"}
-                  aria-label="Mensajes"
+                  title={isBlocked ? "Cuenta bloqueada" : "Notificaciones"}
+                  aria-label="Notificaciones"
+                  aria-expanded={openNotifs}
+                  aria-haspopup="menu"
                 >
-                  <MessageCircle size={18} className={isBlocked ? "text-gray-400" : "text-gray-700"} />
+                  <Bell size={18} className={isBlocked ? "text-gray-400" : "text-gray-700"} />
                   {!isBlocked ? <Badge count={dropdownCount} /> : null}
                 </button>
 
@@ -687,11 +680,11 @@ export default function Navbar({
             ) : null}
 
             {user ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   type="button"
                   onClick={onProfileClick}
-                  className="relative flex items-center gap-2 cursor-pointer bg-gray-50 p-1 rounded-full pr-3 border border-gray-100 hover:border-forest-green transition"
+                  className="relative flex items-center gap-2 cursor-pointer bg-gray-50 p-1 rounded-full sm:pr-3 border border-gray-100 hover:border-forest-green transition"
                   title="Ver perfil"
                   aria-label="Ver perfil"
                 >
@@ -720,7 +713,7 @@ export default function Navbar({
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
             {/* ✅ TyC siempre visible (abre en nueva pestaña) */}
 
 

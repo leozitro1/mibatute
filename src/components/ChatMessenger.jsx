@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "../supabase/supabaseClient";
 import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
 import { resolveChatBuyerId } from "../supabase/articleContext";
+import ChatPickupAgreement from "./ChatPickupAgreement";
 
 const CHAT_INITIAL_MESSAGE_LIMIT = 50;
 
@@ -302,6 +303,7 @@ export default function ChatMessenger({
   errorMessage,
   otherUserFallbackName = "Usuario",
   onSeenChange,
+  onActivityChange,
 }) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -928,7 +930,7 @@ export default function ChatMessenger({
               <p className="text-[10px] font-black uppercase text-gray-400">Artículo</p>
               <p className="font-black text-gray-900 truncate">{title}</p>
               <p className="text-xs text-gray-600 mt-1">
-                {isEntregado ? "✅ Transacción cerrada" : estado === "reservado" ? "Reserva activa" : "Disponible"}
+                {chatClosed ? 'Conversación finalizada' : isEntregado ? "Transacción cerrada" : estado === "reservado" ? "Reserva activa" : "Disponible"}
               </p>
             </div>
           </div>
@@ -964,7 +966,7 @@ export default function ChatMessenger({
         ) : null}
 
         {/* MENSAJES */}
-        <div ref={listRef} className="flex-1 overflow-auto px-4 py-4 bg-gray-50">
+        <div ref={listRef} data-chat-messages className="min-h-0 flex-1 overflow-auto overscroll-contain px-4 py-4 bg-gray-50">
           {loading ? (
             <div className="py-10 text-center text-gray-500 font-bold">Cargando chat...</div>
           ) : meBlocked ? (
@@ -1061,13 +1063,25 @@ export default function ChatMessenger({
                   })}
                 </div>
               ))}
-              <div ref={endRef} />
             </div>
           )}
+          <div ref={endRef} />
         </div>
 
-        {/* INPUT */}
-        <div className="sticky bottom-0 border-t border-gray-100 bg-white px-4 py-3">
+        {/* Pickup stays above the composer, independent of message scrolling. */}
+        <div className="shrink-0 border-t border-gray-100 bg-white">
+          {chatRow?.id && !meBlocked && (
+            <div data-chat-pickup className="max-h-[45dvh] overflow-y-auto overscroll-contain">
+              <ChatPickupAgreement
+                onActivityChange={onActivityChange}
+                key={`${chatRow.id}_${userId}`}
+                chatId={chatRow.id}
+                userId={userId}
+                canAct={!readOnly && chatRow.status === "open" && estado === "reservado"}
+              />
+            </div>
+          )}
+        <div data-chat-composer className="px-4 py-3">
           {readOnly ? (
             <div className="text-center text-xs font-bold text-gray-500">
               {meBlocked
@@ -1083,7 +1097,7 @@ export default function ChatMessenger({
                 onKeyDown={handleKeyDown}
                 rows={1}
                 placeholder="Escribe un mensaje..."
-                className="flex-1 resize-none rounded-3xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none focus:ring-2 focus:ring-forest-green text-sm"
+                className="min-w-0 flex-1 resize-none rounded-3xl border border-gray-200 bg-gray-50 px-4 py-3 outline-none focus:ring-2 focus:ring-forest-green text-sm"
               />
               <button
                 type="button"
@@ -1095,6 +1109,7 @@ export default function ChatMessenger({
               </button>
             </div>
           )}
+        </div>
         </div>
       </div>
 

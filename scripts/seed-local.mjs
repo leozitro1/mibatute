@@ -3,6 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 const accounts = [
   { email: 'vendedor@example.com', nombre: 'Vendedor de prueba' },
   { email: 'comprador@example.com', nombre: 'Comprador de prueba' },
+  { email: 'cliente1@example.com', nombre: 'Cliente 1' },
+  { email: 'cliente2@example.com', nombre: 'Cliente 2' },
+  { email: 'cliente3@example.com', nombre: 'Cliente 3' },
+  { email: 'cliente4@example.com', nombre: 'Cliente 4' },
 ];
 const password = '123456';
 const photos = {
@@ -28,6 +32,18 @@ const fixtures = [
   ['Libros de lectura en Santa Fe - PRUEBA', 'Libros & Educación', 'Libros', 25000, 'libros', 0, 'venta', 'Santa Fe'],
   ['Silla en Puente Aranda - PRUEBA', 'Hogar & Muebles', 'Muebles', 90000, 'silla', 1, 'venta', 'Puente Aranda'],
   ['Libros para donar en Barrios Unidos - PRUEBA', 'Libros & Educación', 'Libros', 0, 'libros', 0, 'donacion', 'Barrios Unidos'],
+  ['Silla de Cliente 1 - PRUEBA', 'Hogar & Muebles', 'Muebles', 55000, 'silla', 2, 'venta'],
+  ['Libros de Cliente 1 - PRUEBA', 'Libros & Educación', 'Libros', 0, 'libros', 2, 'donacion'],
+  ['Audifonos de Cliente 1 - PRUEBA', 'Electrónica & Tecnología', 'Repuestos', 0, 'audifonos', 2, 'donacion'],
+  ['Bicicleta de Cliente 2 - PRUEBA', 'Deportes & Movilidad', 'Bicicletas', 150000, 'bicicleta', 3, 'venta'],
+  ['Silla de Cliente 2 - PRUEBA', 'Hogar & Muebles', 'Muebles', 0, 'silla', 3, 'donacion'],
+  ['Libros de Cliente 2 - PRUEBA', 'Libros & Educación', 'Libros', 0, 'libros', 3, 'donacion'],
+  ['Audifonos de Cliente 3 - PRUEBA', 'Electrónica & Tecnología', 'Repuestos', 25000, 'audifonos', 4, 'venta'],
+  ['Libros de Cliente 3 - PRUEBA', 'Libros & Educación', 'Libros', 0, 'libros', 4, 'donacion'],
+  ['Silla de Cliente 3 - PRUEBA', 'Hogar & Muebles', 'Muebles', 0, 'silla', 4, 'donacion'],
+  ['Libros de Cliente 4 - PRUEBA', 'Libros & Educación', 'Libros', 18000, 'libros', 5, 'venta'],
+  ['Audifonos de Cliente 4 - PRUEBA', 'Electrónica & Tecnología', 'Repuestos', 0, 'audifonos', 5, 'donacion'],
+  ['Silla de Cliente 4 - PRUEBA', 'Hogar & Muebles', 'Muebles', 0, 'silla', 5, 'donacion'],
 ];
 
 function checked(result) {
