@@ -1,5 +1,6 @@
 // src/components/HeroBanner.jsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
 
 /**
@@ -65,8 +66,8 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
       {
         key: "ads",
         badge: "Publicidad",
-        title: currentAd?.texto ? <>{currentAd.texto}</> : <>Este espacio se puede vender</>,
-        desc: currentAd?.descripcion || (currentAd ? null : "Una forma de monetización: anuncia tu marca aquí. Primero verás planes y precios (como debe ser)."),
+        title: currentAd?.texto ? <>{currentAd.texto}</> : <>Anuncia tu marca en MiBatute</>,
+        desc: currentAd?.descripcion || (currentAd ? null : "Conecta tu marca con una comunidad que compra, dona y reutiliza. Conoce nuestros planes de publicidad."),
         cta: currentAd ? "Visitar sitio →" : "Ver planes y precios",
         onClick: handleAdClick,
         img: currentAd?.imagen_url || "https://images.unsplash.com/photo-1557838923-2985c318be48?q=80&w=1600&auto=format&fit=crop",
@@ -122,7 +123,7 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
 
   return (
     <section
-      className="relative mb-8 overflow-hidden rounded-3xl border border-white/10 bg-forest-green shadow-sm"
+      className="relative mb-5 overflow-hidden rounded-lg border border-white/10 bg-forest-green shadow-sm sm:mb-8"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocusCapture={() => setPaused(true)}
@@ -151,18 +152,15 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
       />
 
       {/* Content */}
-      <div className="relative px-6 py-6 sm:px-10 sm:py-7 md:px-14 md:py-8">
-        <div className="flex flex-col gap-3 md:max-w-2xl">
+      <div className="relative px-4 py-4 sm:px-10 sm:py-7 md:px-14 md:py-8">
+        <div className="flex flex-col gap-2 sm:gap-3 md:max-w-2xl">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-treasure-gold px-3 py-1 text-xs font-black uppercase tracking-wide text-black">
               {active.badge}
             </span>
-            <span className="hidden sm:inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/90 backdrop-blur">
-              Desliza o usa las flechas
-            </span>
           </div>
 
-          <h1 className="text-3xl font-black leading-tight text-white sm:text-4xl md:text-5xl">
+          <h1 className="text-2xl font-black leading-tight text-white sm:text-4xl md:text-5xl">
             {active.title}
           </h1>
 
@@ -174,21 +172,12 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
             <button
               type="button"
               onClick={active.onClick}
-              className="inline-flex items-center justify-center rounded-xl bg-white px-7 py-3 text-sm font-black text-forest-green transition-colors hover:bg-treasure-gold hover:text-black active:opacity-90"
+              className="inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-5 py-2 text-sm font-black text-forest-green transition-colors hover:bg-treasure-gold hover:text-black active:opacity-90 sm:px-7 sm:py-3"
               aria-label={active.aria}
             >
               {active.cta}
             </button>
 
-            {/* Secondary: next slide */}
-            <button
-              type="button"
-              onClick={next}
-              className="inline-flex items-center justify-center rounded-xl bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/15 active:opacity-90"
-              aria-label="Ver siguiente banner"
-            >
-              Siguiente <span aria-hidden="true">→</span>
-            </button>
           </div>
         </div>
 
@@ -204,11 +193,13 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
                   type="button"
                   onClick={() => go(i)}
                   className={[
-                    "h-2.5 rounded-full transition-all",
-                    isActive ? "w-8 bg-white" : "w-2.5 bg-white/50 hover:bg-white/70",
+                    "flex h-11 w-8 items-center justify-center rounded transition-colors hover:bg-white/10",
                   ].join(" ")}
                   aria-label={`Ir al banner ${i + 1}: ${s.badge}`}
-                />
+                  aria-pressed={isActive}
+                >
+                  <span className={`h-2 rounded-full ${isActive ? "w-6 bg-white" : "w-2 bg-white/50"}`} />
+                </button>
               );
             })}
           </div>
@@ -218,28 +209,24 @@ export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
             <button
               type="button"
               onClick={prev}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur transition hover:bg-white/15 active:opacity-90"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 text-white backdrop-blur transition hover:bg-white/15 active:opacity-90"
               aria-label="Banner anterior"
               title="Anterior"
             >
-              <span aria-hidden="true">‹</span>
+              <ChevronLeft size={20} aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={next}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur transition hover:bg-white/15 active:opacity-90"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 text-white backdrop-blur transition hover:bg-white/15 active:opacity-90"
               aria-label="Siguiente banner"
               title="Siguiente"
             >
-              <span aria-hidden="true">›</span>
+              <ChevronRight size={20} aria-hidden="true" />
             </button>
           </div>
         </div>
 
-        {/* Progress hint */}
-        <div className="mt-3 text-xs text-white/70">
-          {index + 1} / {total} • {isPaused ? "Pausado" : "Auto"}
-        </div>
       </div>
     </section>
   );

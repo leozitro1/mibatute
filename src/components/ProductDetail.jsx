@@ -1,6 +1,8 @@
 // src/components/ProductDetail.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, MapPin, ShieldCheck, Lock, Flag } from "lucide-react";
+import { X, MapPin, ShieldCheck, Lock, Flag, BadgeCheck, Expand } from "lucide-react";
+import './ProductDetail.css';
+import ArticlePhotoViewer from './ArticlePhotoViewer.jsx';
 import { supabase } from "../supabase/supabaseClient";
 import { notifyCreditBalance } from './creditBalance.js';
 import { isSaleArticle } from "../supabase/articleContext.js";
@@ -156,6 +158,21 @@ export default function ProductDetail({
   const [reserveConfirmOpen, setReserveConfirmOpen] = useState(false); // ✅ modal confirmación reserva
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
+  const [compactGallery, setCompactGallery] = useState(false);
+  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  const informationRef = useRef(null);
+
+  const expandGallery = () => {
+    informationRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+    setCompactGallery(false);
+  };
+
+  const handleInformationScroll = (event) => {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    const top = event.currentTarget.scrollTop;
+    // Different thresholds prevent flicker near the collapse point.
+    setCompactGallery(current => top > 48 ? true : top <= 0 ? false : current);
+  };
 
   const [checkingApplied, setCheckingApplied] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
@@ -247,6 +264,9 @@ export default function ProductDetail({
     setMessage("");
     setIsSubmitting(false);
     setActiveImg(0);
+    setCompactGallery(false);
+    informationRef.current?.scrollTo({ top: 0 });
+    setPhotoViewerOpen(false);
     submitLock.current = false;
 
     setHasApplied(false);
@@ -677,12 +697,13 @@ export default function ProductDetail({
       onClick={safeClose}
     >
       <div
-        className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col md:flex-row animate-in zoom-in duration-200"
+        className="product-detail bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col md:flex-row animate-in zoom-in duration-200"
+        data-compact-gallery={compactGallery}
         onClick={(e) => e.stopPropagation()}
       >
         {/* IZQUIERDA */}
-        <div className="md:w-1/2 bg-gray-100 relative flex flex-col">
-          <div className="relative flex-1 min-h-[260px]">
+        <div className="product-detail-gallery md:w-1/2 bg-gray-100 relative flex flex-col">
+          <div className="product-detail-photo relative flex-1 min-h-[260px]">
             <>
               {/* ✅ SIN BLUR: fondo gris suave limpio */}
               <div className="absolute inset-0 bg-gray-100" aria-hidden="true" />
@@ -706,8 +727,8 @@ export default function ProductDetail({
               <div className="absolute inset-0 bg-black/10 z-10" />
 
               {/* Imagen principal (cuadrada) */}
-              <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
-                <div className="w-full max-w-[560px] aspect-square rounded-3xl overflow-hidden bg-gray-200 shadow-xl relative">
+              <div className="product-detail-photo-padding relative z-10 w-full h-full flex items-center justify-center p-4">
+                <button type="button" onClick={() => setPhotoViewerOpen(true)} aria-label="Ver foto completa del artículo" title="Ver foto completa" className="product-detail-photo-frame w-full max-w-[560px] aspect-square rounded-3xl overflow-hidden bg-gray-200 shadow-xl relative cursor-zoom-in">
                   <img
                     src={mainImage}
                     alt={titulo}
@@ -718,9 +739,21 @@ export default function ProductDetail({
                       e.currentTarget.src = FALLBACK_IMAGE;
                     }}
                   />
-                </div>
+                </button>
               </div>
             </>
+
+            {compactGallery && (
+              <button
+                type="button"
+                onClick={expandGallery}
+                aria-label="Ampliar foto del artículo"
+                title="Ampliar foto del artículo"
+                className="md:hidden absolute top-4 left-4 z-30 bg-white/90 p-2 rounded-full shadow-lg"
+              >
+                <Expand size={20} />
+              </button>
+            )}
 
             <button
               onClick={safeClose}
@@ -760,7 +793,7 @@ export default function ProductDetail({
           </div>
 
           {images.length > 1 && (
-            <div className="p-3 bg-white border-t">
+            <div className="product-detail-thumbnails p-3 bg-white border-t">
               <div className="flex gap-2 overflow-x-auto no-scrollbar">
                 {images.map((src, idx) => (
                   <button
@@ -789,7 +822,7 @@ export default function ProductDetail({
         </div>
 
         {/* DERECHA */}
-        <div className="md:w-1/2 p-8 flex flex-col overflow-y-auto">
+        <div ref={informationRef} onScroll={handleInformationScroll} className="product-detail-information md:w-1/2 p-8 flex flex-col overflow-y-auto">
           <div className="flex justify-between items-start mb-4">
             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${tipoBadgeStyles}`}>
               {tipoNorm === "donacion" ? "donacion" : "venta"}
@@ -853,7 +886,7 @@ export default function ProductDetail({
           {condition ? (
             <div className="mb-3">
               <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${condition.cls}`}>
-                <span className="text-xs font-black">⭐</span>
+                <BadgeCheck size={16} aria-hidden="true" />
                 <span className="text-xs font-black">{conditionScore}/10</span>
                 <span className="text-[10px] font-black uppercase tracking-widest">{condition.label}</span>
               </div>
@@ -1286,6 +1319,10 @@ export default function ProductDetail({
         )}
       </div>
     </div>
+
+    {photoViewerOpen && (
+      <ArticlePhotoViewer images={images} activeIndex={activeImg} title={titulo} fallbackImage={FALLBACK_IMAGE} onChange={setActiveImg} onClose={() => setPhotoViewerOpen(false)} />
+    )}
 
     {/* ✅ Modal confirmación de reserva */}
     {reserveConfirmOpen && (

@@ -1,5 +1,5 @@
 // src/components/ProductCard.jsx
-import { MapPin, Lock, Users } from "lucide-react";
+import { MapPin, Lock, Users, BadgeCheck } from "lucide-react";
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -37,6 +37,7 @@ function normStatus(status) {
 
 // ===================== Estado del producto (1–10) =====================
 function clampInt(n, min, max) {
+  if (n == null || n === '') return null;
   const x = Number(n);
   if (!Number.isFinite(x)) return null;
   const v = Math.round(x);
@@ -224,7 +225,7 @@ export default function ProductCard({
   return (
     <div
       onClick={handleCardClick}
-      className={`relative flex h-[376px] flex-col bg-white rounded-lg overflow-hidden border-2 ${
+      className={`product-card relative flex h-[376px] flex-col bg-white rounded-lg overflow-hidden border-2 ${
         isFeatured ? "border-treasure-gold border-2 shadow-md" : "border-gray-200 shadow-sm"
       } hover:shadow-lg transition ${isDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
       aria-disabled={isDisabled}
@@ -239,7 +240,7 @@ export default function ProductCard({
         }
       }}
     >
-      <div className="relative h-48 shrink-0">
+      <div className="product-card-photo relative h-48 shrink-0">
         <img
           src={imageSrc}
           alt={title || "Artículo"}
@@ -271,11 +272,11 @@ export default function ProductCard({
         {showCondition && (
           <div
             className={`absolute ${isFeatured ? "top-10" : "top-2"} right-2 z-20`}
-            title={`Estado ${conditionInfo.score}/10 · ${conditionInfo.label}`}
+            title={`Estado ${conditionInfo.score}/10 · ${conditionInfo.label}. Informado por quien publica.`}
             aria-label={`Estado ${conditionInfo.score} de 10, ${conditionInfo.label}`}
           >
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow ${conditionInfo.cls}`}>
-              <span aria-hidden>★</span>
+              <BadgeCheck size={14} aria-hidden="true" />
               {conditionInfo.score}/10
             </span>
           </div>
@@ -326,7 +327,7 @@ export default function ProductCard({
 
         {/* ✅ texto auxiliar debajo (solo donación) */}
         <p className="mt-2 h-4 truncate text-[10px] font-bold uppercase text-gray-500">
-          {showInterested ? (isFull ? "Cupo lleno" : `${count} interesados • ${remaining} cupos`) : ''}
+          {showInterested ? (isFull ? "Cupo lleno" : `${remaining} ${remaining === 1 ? "cupo disponible" : "cupos disponibles"}`) : ''}
         </p>
 
         <div className="mt-auto flex items-center justify-between gap-2">

@@ -21,7 +21,7 @@ async function fixture(existingExtension = false) {
         usuario_id uuid, owner_id uuid, estado text default 'disponible', status text default 'disponible',
         mode text default 'venta', title text, titulo text, description text,
         category text, categoria text, subcategory text, subcategoria text,
-        city text default 'Bogotá', locality text default 'Suba'
+        city text default 'Bogotá', locality text default 'Suba', estado_producto integer
       );
       create table public.postulaciones (articulo_id uuid);
       grant usage on schema public, auth to anon, authenticated;
@@ -50,6 +50,7 @@ async function fixture(existingExtension = false) {
     await db.exec('reset role');
     await db.exec(await migration('2026-10-08-home-article-search'));
     await db.exec(await migration('2026-10-08-related-article-search'));
+    await db.exec(await migration('2026-10-09-condition-filter'));
     await db.exec('set role anon');
     return { db, page, before };
   } catch (error) {
@@ -155,6 +156,42 @@ test('related search includes cycling accessories, prioritizes direct matches an
     assert.deepEqual((await page({ search: 'bici', searchMode: 'related', subcategory: 'Accesorios' })).ids, [id(21)]);
     assert.equal((await page({ search: "' & | ! :*", searchMode: 'related' })).total, 0);
     assert.deepEqual(await page({ searchMode: 'related' }), await page());
+  } finally { await db.close(); }
+});
+
+test('condition minimum filters before pagination, counts and featured results and includes unknowns only at zero', async () => {
+  const { db, page } = await fixture();
+  try {
+    await db.exec(`reset role;
+      update public.articulos set estado_producto = case
+        when id <= '${id(12)}' then 8
+        when id = '${id(13)}' then 10
+        when id = '${id(14)}' then 6
+        when id = '${id(15)}' then 1 else null end;
+      update public.articulos set is_featured = true where id = '${id(14)}';
+      set role anon;`);
+    const all = await page();
+    assert.deepEqual(await page({ minCondition: 0 }), all);
+    assert.deepEqual(await page({ minCondition: -1 }), all);
+    const first = await page({ minCondition: 7 });
+    const second = await page({ minCondition: 7 }, 2);
+    assert.equal(first.total, 13);
+    assert.equal(first.ids.length, 9);
+    assert.equal(second.ids.length, 4);
+    assert.equal(second.page, 2);
+    assert.equal(first.featuredIds.includes(id(14)), false);
+    assert.deepEqual((await page({ minCondition: 9 })).ids, [id(13)]);
+    assert.deepEqual(await page({ minCondition: 11 }), await page({ minCondition: 10 }));
+    assert.equal((await page({ minCondition: 1 })).total, 15);
+    assert.equal((await page({ minCondition: 7, locality: 'Chapinero' })).total, 6);
+    assert.equal((await page({ minCondition: 7, search: 'sill' })).total, 13);
+    assert.equal((await page({ minCondition: 7, city: 'Cali' })).total, 0);
+    await db.exec(`reset role; update public.articulos set title = 'Private' where id = '${id(13)}'; set role anon;`);
+    assert.equal((await page({ minCondition: 9 })).total, 0);
+    await db.exec('reset role');
+    await db.exec(await migration('2026-10-09-condition-filter'));
+    await db.exec('set role anon');
+    assert.equal((await page({ minCondition: 7 })).total, 12);
   } finally { await db.close(); }
 });
 

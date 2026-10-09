@@ -1,14 +1,9 @@
 // src/App.jsx
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
-import { Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown, LayoutGrid, MapPin, SlidersHorizontal, Gift, Tag, Star } from "lucide-react";
-import AdminPage from "./pages/AdminPage";
-import AuthCallback from "./pages/AuthCallback";
-import ResetPassword from "./pages/ResetPassword";
-import Terms from "./pages/Terms";
-import MasterPage from "./pages/MasterPage";
-import AdsPanel from "./pages/AdsPanel";
+import { Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown, LayoutGrid, MapPin, SlidersHorizontal, Gift, Tag, Star, BadgeCheck } from "lucide-react";
 import Navbar from "./components/Navbar";
+import Footer from './components/Footer.jsx';
 import FilterSection from "./components/FilterSection";
 import ProductCard from "./components/ProductCard";
 import usePublicationClock from './components/usePublicationClock.js';
@@ -18,28 +13,50 @@ import { readNotificationHistory, writeNotificationHistory, mergeNotificationHis
   markNotificationHistoryRead } from './components/notificationHistory.js';
 import { isPublicationExpired } from './components/articleLifetime.js';
 import { fetchActivityNotifications, publicationExpiryNotifications, activityDestination, CONVERSATION_NOTIFICATION_TYPES } from './components/activityNotifications.js';
-import PublishModal from "./components/PublishModal";
-import AuthModal from "./components/AuthModal";
-import UserProfile from "./components/UserProfile";
-import ProductDetail from "./components/ProductDetail";
 import HeroBanner from "./components/HeroBanner";
 import FeaturedTicker from "./components/FeaturedTicker";
 import SponsorCarousel from "./components/SponsorCarousel";
-import HowItWorks from "./components/HowItWorks";
-import ManageArticleModal from "./components/ManageArticleModal";
-import EditArticleModal from "./components/EditArticleModal";
+import './components/HomeCatalog.css';
 import { deleteArticleImages, getArticleWithImages } from "./supabase/articleService";
 import { transitionSale } from "./supabase/saleTransaction";
 import { readArticleContext, readNotificationChatContext, resolveChatBuyerId, validateTransactionChat } from "./supabase/articleContext";
 import { saleDeletionBlocked, isSaleApproved } from './components/articleState.js';
 import { queryArticlesWithCondition } from "./supabase/articleQuery";
-import ChatMessenger from "./components/ChatMessenger";
 
 import { COLOMBIA_DATA } from "./data/locations";
 import { supabase } from "./supabase/supabaseClient";
 
 
 import { crearPostulacionConLimite } from "./supabase/solicitudesService";
+
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Terms = lazy(() => import("./pages/Terms"));
+const MasterPage = lazy(() => import("./pages/MasterPage"));
+const AdsPanel = lazy(() => import("./pages/AdsPanel"));
+const PublishModal = lazy(() => import("./components/PublishModal"));
+const AuthModal = lazy(() => import("./components/AuthModal"));
+const UserProfile = lazy(() => import("./components/UserProfile"));
+const ProductDetail = lazy(() => import("./components/ProductDetail"));
+const HowItWorks = lazy(() => import("./components/HowItWorks"));
+const ManageArticleModal = lazy(() => import("./components/ManageArticleModal"));
+const EditArticleModal = lazy(() => import("./components/EditArticleModal"));
+const ChatMessenger = lazy(() => import("./components/ChatMessenger"));
+
+function DeferredPanel({ active, children }) {
+  const [opened, setOpened] = useState(false);
+  useEffect(() => {
+    if (active) setOpened(true);
+  }, [active]);
+  // Keep mounted after first use to preserve drafts and existing close behavior.
+  if (!active && !opened) return null;
+  return (
+    <Suspense fallback={<div role="status" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"><span className="rounded-lg bg-white px-6 py-4 text-sm font-semibold">Cargando...</span></div>}>
+      {children}
+    </Suspense>
+  );
+}
 
 const HOME_QUERY_LIMIT = 100;
 const NOTIFICATION_POST_LIMIT = 80;
@@ -202,6 +219,8 @@ export default function App() {
 
   const [quickTipo, setQuickTipo] = useState("todo"); // todo | donacion | venta | destacado
   const [onlyActive, setOnlyActive] = useState(true);
+  const [minCondition, setMinCondition] = useState(0);
+  const [conditionDraft, setConditionDraft] = useState(0);
   const [hiddenAdsOwnerId, setHiddenAdsOwnerId] = useState(null);
   const [sortOrder, setSortOrder] = useState("newest"); // newest | oldest
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -223,10 +242,10 @@ export default function App() {
 
   const homeFilters = useMemo(() => ({
     search: debouncedSearch, searchMode, category: selectedCategory, subcategory: selectedSubcategory,
-    city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive,
+    city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive, minCondition,
     hideOwn: !!currentUser?.id && hiddenAdsOwnerId === currentUser.id, sort: sortOrder, featuredSeed,
   }), [debouncedSearch, searchMode, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
-    quickTipo, onlyActive, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id]);
+    quickTipo, onlyActive, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id]);
   const homeFilterKey = JSON.stringify([homeFilters, currentUser?.id]);
   // Reset even when returning to a filter combination visited on another page.
   if (pageSelection.key !== homeFilterKey) {
@@ -1566,6 +1585,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   }
 
   return (
+    <Suspense fallback={<div role="status" className="min-h-screen flex items-center justify-center">Cargando...</div>}>
     <Routes>
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/reset-password" element={<ResetPassword />} />
@@ -1672,6 +1692,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
             />
 
             <main className="max-w-7xl mx-auto px-4 py-8">
+              <Suspense fallback={<div role="status" className="py-12 text-center">Cargando...</div>}>
               {currentView === "home" && (
                 <div className="animate-in fade-in duration-500">
                   {/* Mostrar banner solo cuando NO hay búsqueda (evita que se atraviese entre la barra y resultados) */}
@@ -1682,7 +1703,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     </div>
                   )}
 
-                  <div className="flex flex-col lg:flex-row gap-4 lg:gap-8">
+                  <div className={`home-catalog flex flex-col lg:flex-row gap-4 lg:gap-8${filteredProducts.length === 9 && !homeBusy && !homeError ? ' home-catalog--full' : ''}${homePage.total > 9 && !homeError ? ' home-catalog--paginated' : ''}`}>
                     <aside className="contents lg:block lg:w-1/4 shrink-0 min-w-0" aria-label="Filtros del catálogo">
                       <div className="order-1 min-w-0">
                       {/* Categorías */}
@@ -1859,13 +1880,33 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           </label>
                         </div>
                       </FilterSection>
+                      <FilterSection id="condition-filters" title="Estado del artículo"
+                        icon={<BadgeCheck size={18} className="shrink-0 text-forest-green" aria-hidden="true" />}
+                        summary={minCondition === 0 ? "Todos los estados" : `Desde ${minCondition}/10`}
+                        action={minCondition > 0 && <button type="button" onClick={() => {
+                          setConditionDraft(0);
+                          setMinCondition(0);
+                        }} className="min-h-11 text-xs font-semibold text-gray-500 hover:text-forest-green">Limpiar</button>}>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <label htmlFor="condition-minimum" className="font-semibold text-gray-700">Estado mínimo</label>
+                          <output htmlFor="condition-minimum" className="font-bold tabular-nums text-forest-green">{conditionDraft === 0 ? 'Todos' : `${conditionDraft}/10`}</output>
+                        </div>
+                        <input id="condition-minimum" type="range" min="0" max="10" step="1" value={conditionDraft}
+                          aria-valuetext={conditionDraft === 0 ? 'Todos los estados' : `Desde ${conditionDraft} de 10`}
+                          onChange={event => setConditionDraft(Number(event.target.value))}
+                          onPointerUp={event => setMinCondition(Number(event.currentTarget.value))}
+                          onKeyUp={event => setMinCondition(Number(event.currentTarget.value))}
+                          onBlur={event => setMinCondition(Number(event.currentTarget.value))}
+                          className="mt-2 block h-11 w-full cursor-pointer accent-forest-green" />
+                        <div className="flex justify-between text-xs text-gray-500"><span>0 · Todos</span><span>10 · Casi nuevo</span></div>
+                      </FilterSection>
                       </div>
-                      <div className="order-3 min-w-0 lg:mt-6">
+                      <div className="home-catalog-sponsors order-3 hidden min-w-0 lg:block lg:mt-6">
                         <SponsorCarousel />
                       </div>
                     </aside>
 
-                    <div className="order-2 min-w-0 lg:w-3/4">
+                    <div className="home-catalog-results order-2 min-w-0 lg:w-3/4">
                       <FeaturedTicker
                         key={JSON.stringify([searchTerm.trim().toLowerCase(), selectedCategory, selectedSubcategory, selectedCity, selectedLocality, quickTipo, onlyActive, hiddenAdsOwnerId, currentUser?.id])}
                         items={featuredProducts}
@@ -2045,14 +2086,22 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               )}
 
               {currentView === "how-it-works" && <HowItWorks onBack={() => setCurrentView("home")} />}
+              </Suspense>
             </main>
+            <Footer onHowItWorks={() => {
+              setCurrentView("how-it-works");
+              window.scrollTo(0, 0);
+            }} />
 
+            <DeferredPanel active={isAuthOpen}>
             <AuthModal
               isOpen={isAuthOpen}
               onClose={() => setIsAuthOpen(false)}
               onLogin={() => setIsAuthOpen(false)}
             />
+            </DeferredPanel>
 
+            <DeferredPanel active={isPublishOpen}>
             <PublishModal
               isOpen={isPublishOpen}
               onClose={() => setIsPublishOpen(false)}
@@ -2061,7 +2110,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               user={currentUser}
               categories={CATEGORY_TREE}
             />
+            </DeferredPanel>
 
+            <DeferredPanel active={!!selectedProduct}>
             <ProductDetail
               item={selectedProduct}
               isOpen={!!selectedProduct}
@@ -2105,7 +2156,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 setSelectedProduct(null);
               }}
             />
+            </DeferredPanel>
 
+            <DeferredPanel active={isManageOpen}>
             <ManageArticleModal
               isOpen={isManageOpen}
               article={manageArticle}
@@ -2130,7 +2183,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 await openChatByArticleAndBuyer({ article, buyerId });
               }}
             />
+            </DeferredPanel>
 
+            <DeferredPanel active={isEditOpen}>
             <EditArticleModal
               categories={CATEGORY_TREE}
               isOpen={isEditOpen}
@@ -2144,8 +2199,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 await load({ refreshPersonal: true });
               }}
             />
+            </DeferredPanel>
 
             {/* ✅ CHAT GLOBAL */}
+            <DeferredPanel active={!!chatOpen}>
             <ChatMessenger
               isOpen={!!chatOpen}
               onClose={() => setChatOpen(null)}
@@ -2159,6 +2216,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               onSeenChange={markChatSeen}
               onActivityChange={refreshActivityNotifications}
             />
+            </DeferredPanel>
           </div>
         }
       />
@@ -2168,5 +2226,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       <Route path="/master/ads" element={<AdsPanel />} />
       <Route path="/terminos" element={<Terms />} />
       </Routes>
+    </Suspense>
   );
 }

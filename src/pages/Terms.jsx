@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import Footer from '../components/Footer.jsx';
 
 export default function Terms() {
   const lastUpdate = new Date().toLocaleDateString("es-CO", {
@@ -147,11 +148,8 @@ export default function Terms() {
           </section>
         </div>
 
-        {/* Footer sutil */}
-        <div className="mt-20 pt-10 border-t border-gray-200 text-center text-sm text-gray-500">
-          © {new Date().getFullYear()} Mi Batute – Reutilizar es cuidar
-        </div>
       </div>
+      <Footer />
     </div>
   );
 }

@@ -1,0 +1,63 @@
+@media (min-width: 1024px) {
+  .home-catalog aside > div:first-child > section {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .home-catalog #category-filters button,
+  .home-catalog #locality-filters button {
+    min-height: 36px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .home-catalog #locality-filters > div {
+    max-height: 224px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .home-catalog [data-testid='home-listings'] .product-card {
+    height: 416px;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card-photo {
+    height: 232px;
+  }
+
+  .home-catalog--full aside {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .home-catalog--full .home-catalog-sponsors {
+    margin-top: auto;
+    padding-top: 24px;
+  }
+
+  .home-catalog--full .home-catalog-results {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .home-catalog--full [data-testid='home-listings'] {
+    flex: 1;
+    grid-auto-rows: minmax(416px, 1fr);
+  }
+
+  .home-catalog--full [data-testid='home-listings'] .product-card {
+    height: 100%;
+  }
+
+  .home-catalog--full.home-catalog--paginated {
+    margin-bottom: 72px;
+  }
+
+  .home-catalog--full nav[aria-label='Paginación de publicaciones'] {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+  }
+}

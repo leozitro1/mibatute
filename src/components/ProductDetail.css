@@ -1,0 +1,120 @@
+@media (max-width: 767px) {
+  .product-detail {
+    height: 90vh;
+    height: 90dvh;
+    max-height: 90dvh;
+  }
+
+  .product-detail-gallery {
+    flex-shrink: 0;
+  }
+
+  .product-detail-photo {
+    flex: none;
+    min-height: 0;
+    height: min(32dvh, 280px);
+    transition: height 180ms ease;
+  }
+
+  .product-detail-photo-frame {
+    width: auto;
+    height: 100%;
+    max-width: 100%;
+    border-radius: 8px;
+  }
+
+  .product-detail-photo-frame img {
+    object-fit: contain;
+  }
+
+  .product-detail-information {
+    flex: 1;
+    min-height: 0;
+    padding: 20px;
+    overscroll-behavior: contain;
+    overflow-anchor: none;
+  }
+
+  .product-detail[data-compact-gallery='true'] .product-detail-photo {
+    height: 80px;
+  }
+
+  .product-detail[data-compact-gallery='true'] .product-detail-photo-padding {
+    padding: 8px;
+  }
+
+  .product-detail[data-compact-gallery='true'] .product-detail-thumbnails {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-detail-photo {
+    transition: none;
+  }
+}
+
+.article-photo-viewer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 64px 52px;
+  border: 0;
+  background: #111;
+  color: white;
+  overflow: hidden;
+}
+
+.article-photo-viewer::backdrop {
+  background: #111;
+}
+
+.article-photo-viewer-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.article-photo-viewer button {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #333;
+  color: white;
+}
+
+.article-photo-viewer button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 3px;
+}
+
+.article-photo-viewer-close {
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+}
+
+.article-photo-viewer-previous {
+  left: 4px;
+  top: calc(50% - 22px);
+}
+
+.article-photo-viewer-next {
+  right: 4px;
+  top: calc(50% - 22px);
+}
+
+.article-photo-viewer-count {
+  position: absolute;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 14px;
+}

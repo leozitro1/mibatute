@@ -47,6 +47,16 @@ la sesion. `node scripts/check-credit-balance-local.mjs` verifica un gasto
 real de credito y la actualizacion inmediata de la cabecera sin releer el
 saldo; restaura el saldo local y elimina su publicacion temporal al terminar.
 
+El filtro Estado del articulo usa un minimo de 0 a 10: 0 no restringe el
+estado, incluidos articulos sin puntuacion. Un minimo mayor excluye los que
+no tienen estado informado y se aplica antes de contar, paginar y elegir
+destacados. El deslizador consulta al soltarlo o finalizar una accion de
+teclado, sin solicitudes por cada movimiento. Limpiar reutiliza los
+resultados en cache cuando siguen vigentes. Aplicar
+`2026-10-09-condition-filter.sql` despues de la busqueda relacionada antes
+de publicar el frontend. El sello del estado es una valoracion declarada
+por quien publica, no una certificacion de MiBatute.
+
 ## Acceso Admin
 
 Los colaboradores entran directamente por `/admin` con usuario y clave.

@@ -515,7 +515,7 @@ export default function Navbar({
             <img
               src={logoMiBatute}
               alt="MiBatute"
-              className="h-9 w-9 sm:h-11 sm:w-11 md:h-10 md:w-10 rounded-xl object-contain"
+              className="hidden md:block h-10 w-10 rounded-xl object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
               }}
