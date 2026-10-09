@@ -1901,7 +1901,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                         <div className="flex justify-between text-xs text-gray-500"><span>0 · Todos</span><span>10 · Casi nuevo</span></div>
                       </FilterSection>
                       </div>
-                      <div className="home-catalog-sponsors order-3 hidden min-w-0 lg:block lg:mt-6">
+                      <div className="home-catalog-sponsors order-3 min-w-0 lg:mt-6">
                         <SponsorCarousel />
                       </div>
                     </aside>
