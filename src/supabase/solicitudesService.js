@@ -179,9 +179,9 @@ export const obtenerPostulaciones = async (articuloId) => {
       };
     }
 
-    // 3) Traemos usuarios por ids
+    // Public names and photos do not require a foreign-key embed or private profile access.
     const { data: usuarios, error: userError } = await supabase
-      .from("usuarios")
+      .from("usuarios_publicos")
       .select("id, nombre, foto_url")
       .in("id", ids);
 

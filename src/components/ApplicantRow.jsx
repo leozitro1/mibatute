@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Check, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Ban, Check, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function ApplicantRow({ applicant, busy, onChoose, onReject }) {
   const [expanded, setExpanded] = useState(false);
@@ -25,9 +25,9 @@ export default function ApplicantRow({ applicant, busy, onChoose, onReject }) {
             <button type="button" aria-expanded={expanded} aria-controls={messageId} onClick={() => setExpanded(value => !value)} className="inline-flex min-h-9 items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-forest-green">
               {expanded ? 'Ver menos' : 'Ver más'}{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
-            <div className="flex shrink-0 items-center gap-2">
-              <button type="button" disabled={busy} onClick={() => onReject(applicant.id)} aria-label={`Rechazar a ${name}`} title="Rechazar solicitud" className="inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-gray-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-40"><X size={15} /><span className="hidden sm:inline">Rechazar</span></button>
-              <button type="button" disabled={busy} onClick={() => onChoose(applicant)} aria-label={`Elegir a ${name}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-forest-green px-3 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-40"><Check size={15} />Elegir</button>
+            <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+              <button type="button" disabled={busy} onClick={() => onReject(applicant.id)} aria-label={`Rechazar a ${name}`} title="Rechazar solicitud" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-40"><Ban size={15} aria-hidden="true" />Rechazar</button>
+              <button type="button" disabled={busy} onClick={() => onChoose(applicant)} aria-label={`Elegir a ${name}`} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md bg-forest-green px-3 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-40"><Check size={15} aria-hidden="true" />Elegir</button>
             </div>
           </div>
         </div>

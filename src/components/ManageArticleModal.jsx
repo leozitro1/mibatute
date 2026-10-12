@@ -5,6 +5,7 @@ import ApplicantRow from './ApplicantRow.jsx';
 import { isSaleApproved } from './articleState.js';
 import { supabase } from "../supabase/supabaseClient";
 import { transitionSale } from "../supabase/saleTransaction";
+import { obtenerPostulaciones } from '../supabase/solicitudesService';
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -155,16 +156,12 @@ export default function ManageArticleModal({
       setLoading(true);
       setErrorMsg("");
 
-      const { data, error } = await supabase
-        .from("postulaciones")
-        .select("id, justificacion, usuario_id, created_at, usuarios(nombre, foto_url)")
-        .eq("articulo_id", articuloId)
-        .order("created_at", { ascending: false });
+      const { data, error } = await obtenerPostulaciones(articuloId);
 
       if (!alive) return;
 
       if (error) {
-        setErrorMsg(error.message || "No se pudieron cargar los postulados.");
+        setErrorMsg(error || "No se pudieron cargar los postulados.");
         setPostulados([]);
       } else {
         setPostulados(Array.isArray(data) ? data : []);
@@ -706,7 +703,7 @@ export default function ManageArticleModal({
                   {loading ? (
                     <p className="text-gray-400 text-center py-6 font-bold">Cargando postulaciones...</p>
                   ) : postulados.length === 0 ? (
-                    <p className="text-gray-400 text-center py-6 font-bold">Nadie se ha postulado todavía...</p>
+                    !errorMsg && <p className="text-gray-400 text-center py-6 font-bold">Nadie se ha postulado todavía...</p>
                   ) : (
                     <ul className="divide-y divide-gray-100" aria-label="Personas postuladas" aria-busy={savingWinner}>
                       {postulados.map((p) => {

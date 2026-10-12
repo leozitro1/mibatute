@@ -2,9 +2,12 @@
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
 import { getProfile, updateProfile } from "../supabase/profileService";
 import { notifyCreditBalance } from './creditBalance.js';
+import './UserProfile.css';
 import {
   Camera,
+  ChevronDown,
   CircleDollarSign,
+  LockKeyhole,
   Loader2,
   Pencil,
   Trash2, Pause, Play,
@@ -881,6 +884,7 @@ export default function UserProfile({
 }) {
   const publicationNow = usePublicationClock();
   const [activeTab, setActiveTab] = useState("publicaciones"); // ✅ ahora inicia en Buzón
+  const [personalDetailsOpen, setPersonalDetailsOpen] = useState(false);
   useEffect(() => {
     if (!notificationTarget) return;
     if (['publicaciones', 'rescates', 'buzon'].includes(notificationTarget.tab)) setActiveTab(notificationTarget.tab);
@@ -1462,6 +1466,10 @@ export default function UserProfile({
     if (!user?.id) return;
     if (!isEditing) return;
     if (isUserBlocked) return alert(blockedUserMsg());
+    if (!/^[0-9]{10}$/.test(String(profile.movil ?? ''))) {
+      alert('El teléfono debe tener exactamente 10 dígitos.');
+      return;
+    }
 
     setSaving(true);
 
@@ -2458,7 +2466,7 @@ export default function UserProfile({
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-4 animate-in slide-in-from-bottom-4 duration-300">
+    <div className="user-profile max-w-5xl mx-auto p-4 animate-in slide-in-from-bottom-4 duration-300">
       <button
         onClick={onBack}
         className="mb-6 text-forest-green font-bold flex items-center gap-2 hover:underline"
@@ -2479,18 +2487,18 @@ export default function UserProfile({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="profile-layout grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-8">
         {/* IZQUIERDA */}
-        <div className="md:col-span-1 space-y-6">
-          <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
-            <div className="h-24 bg-forest-green" />
-            <div className="px-6 pb-6">
-              <div className="relative -mt-12 mb-4 flex justify-center">
+        <div className="lg:col-span-1 min-w-0 space-y-6">
+          <section className="profile-personal overflow-hidden lg:rounded-lg lg:border lg:border-gray-200 lg:bg-white" aria-label="Datos de mi cuenta">
+            <div className="hidden lg:block h-24 bg-forest-green" />
+            <div className="profile-personal-body lg:px-6 lg:pb-6">
+              <div className="profile-identity relative lg:-mt-12 mb-3 flex items-center gap-4 lg:justify-center">
                 <div className="relative group">
                   <img
                     src={avatarSrc}
                     alt="Foto de perfil"
-                    className="w-28 h-20 rounded-full border-4 border-white object-cover shadow-lg"
+                    className="profile-avatar w-16 h-16 lg:w-24 lg:h-24 rounded-full border-4 border-white object-cover shadow-sm"
                     onError={(e) => {
                       if (e.currentTarget.dataset.fallbackApplied) return;
                       e.currentTarget.dataset.fallbackApplied = "1";
@@ -2519,11 +2527,15 @@ export default function UserProfile({
                     />
                   </label>
                 </div>
+                <div className="min-w-0 flex-1 lg:hidden">
+                  <h1 className="text-lg font-bold text-gray-900 break-words">{profile.nombre || 'Mi perfil'}</h1>
+                  <p className="mt-1 text-sm text-gray-500 break-words">{[profile.ciudad, profile.localidad].filter(Boolean).join(' · ')}</p>
+                </div>
               </div>
 
               {/* \u2b50 Reputación propia */}
               {miReputacion && (
-                <div className="flex items-center justify-center gap-1 mb-2">
+                <div className="profile-reputation flex flex-wrap items-center lg:justify-center gap-1 mb-3">
                   {[1,2,3,4,5].map(s => (
                     <span key={s} className={`text-xl ${s <= Math.round(miReputacion.promedio) ? "text-yellow-400" : "text-gray-200"}`}>★</span>
                   ))}
@@ -2534,7 +2546,13 @@ export default function UserProfile({
                 </div>
               )}
 
-              <form onSubmit={handleUpdate} className="space-y-3">
+              <button type="button" onClick={() => setPersonalDetailsOpen(open => !open)}
+                aria-expanded={personalDetailsOpen || isEditing} aria-controls="profile-personal-details"
+                className="lg:hidden flex min-h-11 w-full items-center justify-between gap-3 border-y border-gray-200 py-3 text-sm font-semibold text-gray-700">
+                Datos personales
+                <ChevronDown size={18} className={personalDetailsOpen || isEditing ? 'rotate-180' : ''} aria-hidden="true" />
+              </button>
+              <form id="profile-personal-details" onSubmit={handleUpdate} className={`${personalDetailsOpen || isEditing ? 'block' : 'hidden'} lg:block space-y-3 pt-4 lg:pt-0`}>
                 <div>
                   <label className="text-[10px] font-black uppercase text-gray-400 ml-2">
                     Nombre completo (no editable)
@@ -2557,10 +2575,32 @@ export default function UserProfile({
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Teléfono</label>
+                  <label htmlFor="profile-phone" className="text-[10px] font-black uppercase text-gray-400 ml-2">Teléfono</label>
                   <input
+                    id="profile-phone"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                    maxLength={10}
+                    minLength={10}
+                    pattern="[0-9]{10}"
+                    required
+                    title="El teléfono debe tener exactamente 10 dígitos."
+                    aria-describedby="profile-privacy-note"
                     value={profile.movil ?? ""}
-                    onChange={(e) => setProfile((p) => ({ ...p, movil: e.target.value }))}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const input = e.currentTarget;
+                      const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '');
+                      const start = input.selectionStart ?? input.value.length;
+                      const end = input.selectionEnd ?? start;
+                      const movil = (input.value.slice(0, start) + pasted + input.value.slice(end)).slice(0, 10);
+                      setProfile((p) => ({ ...p, movil }));
+                    }}
+                    onChange={(e) => {
+                      const movil = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+                      setProfile((p) => ({ ...p, movil }));
+                    }}
                     className={`w-full p-3 rounded-2xl border-none outline-none ${
                       isEditing
                         ? "bg-gray-50 focus:ring-2 focus:ring-forest-green"
@@ -2570,7 +2610,7 @@ export default function UserProfile({
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
                   <div>
                     <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Ciudad</label>
                     <select
@@ -2615,8 +2655,10 @@ export default function UserProfile({
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Dirección exacta</label>
+                  <label htmlFor="profile-address" className="text-[10px] font-black uppercase text-gray-400 ml-2">Dirección</label>
                   <input
+                    id="profile-address"
+                    aria-describedby="profile-privacy-note"
                     value={profile.direccion ?? ""}
                     onChange={(e) => setProfile((p) => ({ ...p, direccion: e.target.value }))}
                     className={`w-full p-3 rounded-2xl border-none outline-none ${
@@ -2627,6 +2669,14 @@ export default function UserProfile({
                     placeholder="Ej: Calle 10 #23-45"
                     disabled={!isEditing || saving || isUserBlocked}
                   />
+                </div>
+
+                <div className="flex items-start gap-2 border-t border-gray-200 pt-3 text-gray-500">
+                  <LockKeyhole size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+                  <p id="profile-privacy-note" className="text-xs leading-5">
+                    Tu teléfono, correo y dirección no se muestran a otros usuarios; son de uso interno de la plataforma.
+                    {' '}El contacto entre compradores y vendedores se realiza únicamente por el chat de MiBatute, incluso después de confirmar una venta o donación.
+                  </p>
                 </div>
 
                 {!isEditing ? (
@@ -2685,19 +2735,19 @@ export default function UserProfile({
                 ) : null}
               </form>
             </div>
-          </div>
+          </section>
         </div>
 
         {/* DERECHA */}
-        <div className="md:col-span-2 space-y-6">
+        <div className="lg:col-span-2 min-w-0 space-y-5">
 
           {/* ── CAJA DE CRÉDITOS ── */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-4 flex flex-col gap-2">
-            <div className="flex items-center gap-4">
+          <section className="profile-credits border-y border-gray-200 py-4" aria-label="Créditos de mi cuenta">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="w-10 h-10 flex items-center justify-center shrink-0 text-forest-green">
                 <CircleDollarSign size={24} strokeWidth={1.5} aria-hidden="true" />
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-[140px]">
                 <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">Saldo de créditos</p>
                 <p className="text-2xl font-black text-gray-800">
                   {cuposSaldo === null ? "..." : cuposSaldo}
@@ -2708,12 +2758,12 @@ export default function UserProfile({
               <button
                 type="button"
                 onClick={() => { setRecargaOpen(true); setRecargaCodigo(null); setRecargaPaquete(null); }}
-                className="shrink-0 px-4 py-2 rounded-2xl bg-forest-green text-white font-black text-sm hover:bg-green-700 transition"
+                className="profile-topup shrink-0 min-h-11 px-4 py-2 rounded-lg bg-forest-green text-white font-bold text-sm hover:bg-green-700 transition"
               >
                 + Recargar Nequi
               </button>
             </div>
-          </div>
+          </section>
 
           {/* ── MODAL RECARGA ── */}
           {recargaOpen && (
@@ -2785,8 +2835,8 @@ export default function UserProfile({
             </div>
           )}
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="flex border-b">
+          <div className="profile-activity min-w-0">
+            <div className="profile-tabs grid grid-cols-3 border-b border-gray-200" role="group" aria-label="Actividad de mi cuenta">
               <button
                 onClick={() => setActiveTab("publicaciones")}
                 className={`flex-1 py-4 text-sm font-bold transition flex items-center justify-center gap-2 ${
@@ -2795,8 +2845,10 @@ export default function UserProfile({
                     : "text-gray-400 hover:text-gray-600"
                 }`}
                 type="button"
+                aria-label="Mis Publicaciones"
+                aria-pressed={activeTab === 'publicaciones'}
               >
-                Mis Publicaciones
+                <span><span className="hidden sm:inline">Mis </span>Publicaciones</span>
                 {pubNotifCount > 0 ? (
                   <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-black">
                     {pubNotifCount}
@@ -2812,8 +2864,10 @@ export default function UserProfile({
                     : "text-gray-400 hover:text-gray-600"
                 }`}
                 type="button"
+                aria-label="Mis Rescates"
+                aria-pressed={activeTab === 'rescates'}
               >
-                Mis Rescates
+                <span><span className="hidden sm:inline">Mis </span>Rescates</span>
                 {rescNotifCount > 0 ? (
                   <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-black">
                     {rescNotifCount}
@@ -2829,6 +2883,7 @@ export default function UserProfile({
                     : "text-gray-400 hover:text-gray-600"
                 }`}
                 type="button"
+                aria-pressed={activeTab === 'buzon'}
               >
                 <Inbox size={16} />
                 Buzón
@@ -2840,7 +2895,7 @@ export default function UserProfile({
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="profile-activity-body py-4 space-y-4">
               {activeTab === "buzon" && (
                 <>
                   {/* ── Mensajes del sistema ──────────────────────────── */}
