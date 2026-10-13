@@ -223,7 +223,15 @@ export default function App() {
   const [minCondition, setMinCondition] = useState(0);
   const [conditionDraft, setConditionDraft] = useState(0);
   const [hiddenAdsOwnerId, setHiddenAdsOwnerId] = useState(null);
-  const [sortOrder, setSortOrder] = useState("newest"); // newest | oldest
+  const [sortOrder, setSortOrder] = useState("random"); // random | newest | oldest
+  const [mobileCatalog, setMobileCatalog] = useState(() => window.matchMedia('(max-width: 767px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const update = () => setMobileCatalog(media.matches);
+    media.addEventListener('change', update);
+    update();
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [featuredSeed] = useState(() => String(Math.random()));
   const [pageSelection, setPageSelection] = useState({ key: "", page: 1 });
@@ -245,8 +253,9 @@ export default function App() {
     search: debouncedSearch, searchMode, category: selectedCategory, subcategory: selectedSubcategory,
     city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive, minCondition,
     hideOwn: !!currentUser?.id && hiddenAdsOwnerId === currentUser.id, sort: sortOrder, featuredSeed,
+    layout: mobileCatalog ? 'mobile' : 'desktop',
   }), [debouncedSearch, searchMode, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
-    quickTipo, onlyActive, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id]);
+    quickTipo, onlyActive, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id, mobileCatalog]);
   const homeFilterKey = JSON.stringify([homeFilters, currentUser?.id]);
   // Reset even when returning to a filter combination visited on another page.
   if (pageSelection.key !== homeFilterKey) {
@@ -1560,7 +1569,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       && normEstado(p.estado || p.status || "") !== "entregado");
   }, [products, homePage.featuredIds, publicationNow]);
 
-  const totalPages = Math.max(1, Math.ceil(homePage.total / 9));
+  const totalPages = homePage.pageCount ?? Math.max(1, Math.ceil(homePage.total / 9));
   const changeHomePage = page => {
     setPageSelection({ key: homeFilterKey, page });
     listingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1696,7 +1705,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     </div>
                   )}
 
-                  <div className={`home-catalog flex flex-col lg:flex-row gap-4 lg:gap-8${filteredProducts.length === 9 && !homeBusy && !homeError ? ' home-catalog--full' : ''}${homePage.total > 9 && !homeError ? ' home-catalog--paginated' : ''}`}>
+                  <div className={`home-catalog flex flex-col lg:flex-row gap-4 lg:gap-8${filteredProducts.length === 9 && !homeBusy && !homeError ? ' home-catalog--full' : ''}${totalPages > 1 && !homeError ? ' home-catalog--paginated' : ''}`}>
                     <aside className="contents lg:block lg:w-1/4 shrink-0 min-w-0" aria-label="Filtros del catálogo">
                       <div className="order-1 min-w-0">
                       {/* Categorías */}
@@ -1865,9 +1874,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           </label>
                           <label className="flex items-center justify-between gap-3">
                             <span className="text-sm font-semibold text-gray-700">Orden</span>
-                            <select value={sortOrder} onChange={event => setSortOrder(event.target.value)}
+                            <select aria-label="Orden de publicaciones" value={sortOrder} onChange={event => setSortOrder(event.target.value)}
                               className="min-w-0 min-h-11 max-w-[70%] rounded-md border border-gray-200 bg-white px-2 py-2 text-sm text-gray-700 focus-visible:outline-2 focus-visible:outline-forest-green">
-                              <option value="newest">Más nuevas</option>
+                              <option value="random">Aleatorias</option>
+                              <option value="newest">Más recientes</option>
                               <option value="oldest">Más antiguas</option>
                             </select>
                           </label>
@@ -1994,7 +2004,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           </p>
                         </div>
                       )}
-                      {!homeError && homePage.total > 9 && (
+                      {!homeError && totalPages > 1 && (
                         <nav aria-label="Paginación de publicaciones" className="mt-8 flex flex-wrap items-center justify-center gap-3">
                           <button type="button" title="Página anterior" aria-label="Página anterior"
                             disabled={homeBusy || homePage.page <= 1}

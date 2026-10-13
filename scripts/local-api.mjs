@@ -1,9 +1,13 @@
 import imagekitAuth from '../api/imagekit-auth.js';
 import imagekitDelete from '../api/imagekit-delete.js';
+import wompiCheckout from '../api/wompi-checkout.js';
+import wompiEvents from '../api/wompi-events.js';
 
 const handlers = new Map([
   ['/api/imagekit-auth', imagekitAuth],
   ['/api/imagekit-delete', imagekitDelete],
+  ['/api/wompi-checkout', wompiCheckout],
+  ['/api/wompi-events', wompiEvents],
 ]);
 
 export function localApiPlugin(env) {
@@ -12,7 +16,9 @@ export function localApiPlugin(env) {
     apply: 'serve',
     configureServer(server) {
       for (const key of ['SUPABASE_URL', 'SUPABASE_ANON_KEY',
-        'IMAGEKIT_PUBLIC_KEY', 'IMAGEKIT_PRIVATE_KEY', 'IMAGEKIT_URL_ENDPOINT']) {
+        'IMAGEKIT_PUBLIC_KEY', 'IMAGEKIT_PRIVATE_KEY', 'IMAGEKIT_URL_ENDPOINT',
+        'SUPABASE_SERVICE_ROLE_KEY', 'WOMPI_ENABLED', 'WOMPI_ENVIRONMENT', 'WOMPI_PUBLIC_KEY', 'WOMPI_PRIVATE_KEY',
+        'WOMPI_INTEGRITY_SECRET', 'WOMPI_EVENTS_SECRET']) {
         if (env[key] !== undefined) process.env[key] = env[key];
       }
       process.env.SUPABASE_URL = env.SUPABASE_URL || env.VITE_SUPABASE_URL || '';

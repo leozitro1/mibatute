@@ -77,7 +77,7 @@ try {
     await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
     assert.equal(await details.locator('select').first().isEnabled(), false);
     if (width < 1024) await toggle.click();
-    await page.getByRole('button', { name: '+ Recargar Nequi', exact: true }).click();
+    await page.getByRole('button', { name: 'Recargar con Wompi', exact: true }).click();
     await page.getByRole('heading', { name: /Recargar/ }).waitFor();
     // Close the untouched top-up chooser without starting a transaction.
     await page.keyboard.press('Escape');

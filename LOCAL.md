@@ -127,6 +127,47 @@ En movil el catalogo muestra dos tarjetas normales por fila; los destacados
 conservan su tamano y ocupan una fila completa. No se agregan consultas por
 este cambio visual ni tareas programadas por el sistema de creditos.
 
+El catalogo local usa `2026-10-13-home-random-order.sql`: orden aleatorio por
+defecto, estable durante la visita y la paginacion. Una destacada coincidente
+ocupa la primera posicion; despues se intercala una cada seis articulos normales.
+El intervalo se calcula antes de paginar, conservando el orden elegido dentro
+de cada grupo y sin repetir publicaciones. Si se agotan los normales, los
+destacados restantes aparecen al final; el filtro Solo destacadas los conserva todos.
+Todos los filtros se aplican antes de intercalar; si ninguna destacada coincide
+no se agrega una de otra localidad o categoria.
+En movil solo los destacados ocupan ancho completo. Cada pagina contiene cuatro
+filas: una fila destacada o dos articulos normales por fila. La consulta devuelve
+`pageCount`; no se cortan parejas al paginar ni se amplian las tarjetas normales.
+Si los resultados contienen un numero impar de normales, la ultima queda a medio
+ancho. Escritorio conserva nueve publicaciones por pagina. La cache distingue
+ambos formatos y cambiar de formato reinicia la pagina, sin consultas periodicas.
+La migracion del catalogo se aplico en produccion el 2026-10-13 y se comprobo
+la consulta movil con el rol anon antes de desplegar el frontend.
+
+## Wompi preparado, sin activar
+
+Se retiro del perfil la transferencia manual a Nequi. Las recargas antiguas
+permanecen en el panel Master; no se borran ni convierten automaticamente.
+El nuevo dialogo muestra Wompi pendiente de configuracion y no permite pagar.
+`WOMPI_ENABLED` debe ser exactamente `true` para habilitar los endpoints;
+por defecto estan desactivados, incluso si existen llaves. No activar todavia.
+
+Para la futura prueba se requieren llaves sandbox en variables solo del servidor:
+`WOMPI_PUBLIC_KEY`, `WOMPI_PRIVATE_KEY`, `WOMPI_INTEGRITY_SECRET`,
+`WOMPI_EVENTS_SECRET`, `WOMPI_ENVIRONMENT=test`, y `SUPABASE_SERVICE_ROLE_KEY`.
+Ningun secreto usa el prefijo `VITE_`. Configurar el webhook de Wompi para
+`https://www.mibatute.com/api/wompi-events` solo cuando se autorice la prueba.
+La firma del checkout se crea en servidor; el webhook verifica su firma,
+consulta el pago canonico con la llave privada y acredita mediante una
+transaccion idempotente. No se confia en referencias ni estados del navegador.
+
+La migracion `2026-10-13-wompi-topups.sql` queda preparada, sin aplicar en
+produccion. Los pagos sandbox no generan creditos utilizables en la nube.
+Solo una base local de pruebas puede habilitar `app.settings.wompi_test_credits`.
+El estado se consulta al abrir el dialogo o al pulsar Verificar pago; no hay sondeos.
+La integracion real con Wompi sigue pendiente de cuentas administrativas,
+configuracion segura de llaves y prueba sandbox de extremo a extremo.
+
 Se usa el esquema versionado `supabase/schema.sql` mas la migracion del
 estado del producto, la migracion de destacados y la paginacion. Es una reconstruccion del
 esquema conocido, no un respaldo verificado de la base de produccion ni una

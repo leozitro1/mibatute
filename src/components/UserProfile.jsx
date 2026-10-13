@@ -4,6 +4,7 @@ import { getProfile, updateProfile } from "../supabase/profileService";
 import { notifyCreditBalance } from './creditBalance.js';
 import { accountCreditStatus } from '../supabase/donationApplications.js';
 import './UserProfile.css';
+import WompiTopupDialog from './WompiTopupDialog.jsx';
 import {
   Camera,
   ChevronDown,
@@ -927,9 +928,6 @@ export default function UserProfile({
   const [purchaseLimit, setPurchaseLimit] = useState(null);
   const [cuposSaldo, setCuposSaldo] = useState(null); // saldo de créditos
   const [recargaOpen, setRecargaOpen] = useState(false);
-  const [recargaPaquete, setRecargaPaquete] = useState(null); // { monto, cupos }
-  const [recargaCodigo, setRecargaCodigo] = useState(null);
-  const [recargaLoading, setRecargaLoading] = useState(false);
   const [destacandoId, setDestacandoId] = useState(null);
   const [featuredOverrides, setFeaturedOverrides] = useState({});
   const [profileProducts, setProfileProducts] = useState([]);
@@ -1330,29 +1328,6 @@ export default function UserProfile({
     cargarSaldo();
   }, [user?.id, rescatesReload]);
 
-  // Función para generar recarga pendiente
-  const generarRecarga = async (paquete) => {
-    if (!user?.id) return;
-    setRecargaLoading(true);
-    try {
-      const { data: codigoData } = await supabase.rpc("generar_codigo_recarga");
-      const codigo = codigoData;
-      const { error } = await supabase.from("recargas_pendientes").insert({
-        usuario_id: user.id,
-        codigo,
-        monto_cop: paquete.monto,
-        cupos: paquete.cupos,
-        estado: "pendiente",
-      });
-      if (error) throw error;
-      setRecargaCodigo(codigo);
-      setRecargaPaquete(paquete);
-    } catch (e) {
-      alert("Error generando la recarga. Intenta de nuevo.");
-    } finally {
-      setRecargaLoading(false);
-    }
-  };
 
   // Destacar publicación — cuesta 1 crédito
   const toggleDestacado = async (art) => {
@@ -2699,83 +2674,18 @@ export default function UserProfile({
               </div>
               <button
                 type="button"
-                onClick={() => { setRecargaOpen(true); setRecargaCodigo(null); setRecargaPaquete(null); }}
+                onClick={() => setRecargaOpen(true)}
                 className="profile-topup shrink-0 min-h-11 px-4 py-2 rounded-lg bg-forest-green text-white font-bold text-sm hover:bg-green-700 transition"
               >
-                + Recargar Nequi
+                Recargar con Wompi
               </button>
             </div>
           </section>
 
-          {/* ── MODAL RECARGA ── */}
-          {recargaOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!recargaLoading) { setRecargaOpen(false); setRecargaCodigo(null); } }}>
-              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-                {!recargaCodigo ? (
-                  <>
-                    <h2 className="text-xl font-black text-gray-800 mb-1">Recargar créditos</h2>
-                    <p className="text-sm text-gray-500 mb-5">Elige un paquete y transfíere por <strong>Nequi</strong>. Cada crédito vale $1.000 COP.</p>
-                    <div className="space-y-3 mb-6">
-                      {[
-                        { monto: 2000, cupos: 2, label: "2 créditos", sublabel: "$2.000 COP" },
-                        { monto: 5000, cupos: 5, label: "5 créditos", sublabel: "$5.000 COP", popular: true },
-                        { monto: 10000, cupos: 10, label: "10 créditos", sublabel: "$10.000 COP" },
-                      ].map((p) => (
-                        <button
-                          key={p.monto}
-                          type="button"
-                          disabled={recargaLoading}
-                          onClick={() => generarRecarga(p)}
-                          className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border-2 transition font-bold ${
-                            p.popular
-                              ? "border-green-500 bg-green-50 text-green-800"
-                              : "border-gray-200 hover:border-green-300 text-gray-700"
-                          } disabled:opacity-50`}
-                        >
-                          <span>{p.label}</span>
-                          <div className="flex items-center gap-2">
-                            {p.popular && <span className="text-[10px] font-black uppercase bg-forest-green text-white px-2 py-0.5 rounded-full">Popular</span>}
-                            <span className="text-sm font-black">{p.sublabel}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                    <button type="button" onClick={() => setRecargaOpen(false)} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600 font-semibold">Cancelar</button>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-center mb-4">
-                      <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
-                        <span className="text-2xl">📲</span>
-                      </div>
-                      <h2 className="text-xl font-black text-gray-800">¡Casi listo!</h2>
-                      <p className="text-sm text-gray-500 mt-1">Transfiere por Nequi y usa este código como referencia</p>
-                    </div>
-                    <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-4 text-center mb-4">
-                      <p className="text-xs text-green-600 font-bold uppercase tracking-widest mb-1">Tu código de recarga</p>
-                      <p className="text-3xl font-black text-green-700 tracking-widest">{recargaCodigo}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-2xl p-4 mb-4 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">Nequi</span>
-                        <span className="font-black text-red-600">3183181800</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">Monto</span>
-                        <span className="font-black text-gray-800">${recargaPaquete?.monto?.toLocaleString("es-CO")} COP</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">Créditos a recibir</span>
-                        <span className="font-black text-green-700">{recargaPaquete?.cupos} créditos</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-center text-gray-400 mb-4">🔴 Escribe el código <strong className="text-gray-700">{recargaCodigo}</strong> en el campo <strong className="text-red-600">Referencia</strong> de la transferencia Nequi — es muy importante para activar tu recarga. Los créditos se acreditan en menos de 24 horas.</p>
-                    <button type="button" onClick={() => { setRecargaOpen(false); setRecargaCodigo(null); }} className="w-full py-3 rounded-2xl bg-forest-green text-white font-black hover:bg-green-700 transition">Entendido</button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+          {recargaOpen && <WompiTopupDialog onClose={() => setRecargaOpen(false)} onConfirmed={balance => {
+            setCuposSaldo(balance);
+            notifyCreditBalance(user.id,balance);
+          }} />}
 
           <div className="profile-activity min-w-0">
             <div className="profile-tabs grid grid-cols-3 border-b border-gray-200" role="group" aria-label="Actividad de mi cuenta">

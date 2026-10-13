@@ -59,6 +59,109 @@ async function fixture(existingExtension = false) {
   }
 }
 
+test('latest catalog shuffles stably, interleaves filtered features every six normal articles and preserves group order', async () => {
+  const { db, page } = await fixture();
+  try {
+    await db.exec('reset role');
+    await db.exec(await migration('2026-10-13-home-random-order'));
+    await db.exec('set role anon');
+    for (const sort of ['random', 'newest', 'oldest']) {
+      const filters = { sort, featuredSeed: 'visit-one' };
+      const first = await page(filters);
+      const second = await page(filters, 2);
+      assert.deepEqual(await page(filters), first);
+      assert.equal(first.ids.length, 9);
+      assert.equal(second.ids.length, 7);
+      assert.equal(new Set([...first.ids, ...second.ids]).size, 16);
+      let base;
+      if (sort === 'random') {
+        base = (await db.query("select id from public.articulos order by md5(id::text || 'visit-one'), id")).rows.map(r => r.id);
+      } else {
+        base = Array.from({ length: 16 }, (_, i) => id(sort === 'oldest' ? 16 - i : i + 1));
+      }
+      const featured = base.filter(value => [id(1), id(2), id(3)].includes(value));
+      const normal = base.filter(value => !featured.includes(value));
+      const all = [...first.ids, ...second.ids];
+      assert.deepEqual(all.filter(value => featured.includes(value)), featured);
+      assert.deepEqual(all.filter(value => !featured.includes(value)), normal);
+      assert.deepEqual(featured.map(value => all.indexOf(value)), [0, 7, 14]);
+      assert.deepEqual(all.slice(1, 7), normal.slice(0, 6));
+      assert.deepEqual(all.slice(8, 14), normal.slice(6, 12));
+      const mobileFilters = { ...filters, layout: 'mobile' };
+      const mobileFirst = await page(mobileFilters);
+      assert.equal(mobileFirst.pageCount, 3);
+      assert.equal(mobileFirst.ids.length, 7);
+      assert.equal((await page(mobileFilters, 2)).ids.length, 7);
+      assert.deepEqual([
+        ...mobileFirst.ids, ...(await page(mobileFilters, 2)).ids, ...(await page(mobileFilters, 3)).ids,
+      ], all);
+      assert.equal((await page(mobileFilters, 999)).page, 3);
+    }
+    assert.deepEqual(await page({ featuredSeed: 'visit-one' }), await page({ sort: 'random', featuredSeed: 'visit-one' }));
+    assert.notDeepEqual((await page({ featuredSeed: 'visit-one' })).ids, (await page({ featuredSeed: 'visit-two' })).ids);
+
+    // No featured item in Suba: chronological order is untouched and unrelated features never leak.
+    const noFeatured = await page({ locality: 'Suba', sort: 'oldest' });
+    assert.deepEqual(noFeatured.ids, Array.from({ length: 9 }, (_, i) => id(16 - i)));
+    assert.deepEqual(noFeatured.featuredIds, []);
+    const mobileNoFeatured = { locality: 'Suba', sort: 'oldest', layout: 'mobile' };
+    assert.equal((await page(mobileNoFeatured)).ids.length, 8);
+    assert.equal((await page(mobileNoFeatured, 2)).ids.length, 2);
+    assert.equal((await page(mobileNoFeatured)).pageCount, 2);
+    for (const filters of [
+      { locality: 'Chapinero', kind: 'venta' },
+      { category: 'Hogar', subcategory: 'Muebles', search: 'sillon' },
+      { kind: 'destacado' },
+    ]) {
+      const result = await page({ ...filters, sort: 'oldest' });
+      assert.ok(result.featuredIds.includes(result.ids[0]));
+    }
+    for (const filters of [{ city: 'Cali' }, { category: 'Deportes' }, { search: 'bicicleta' }]) {
+      assert.deepEqual((await page(filters)).ids, []);
+      assert.deepEqual((await page(filters)).featuredIds, []);
+    }
+    await db.exec(`reset role;
+      update public.articulos set estado_producto=8;
+      update public.articulos set estado_producto=2 where id='${id(1)}';
+      update public.articulos set title='Private' where id='${id(2)}';
+      update public.articulos set estado='reservado' where id='${id(3)}';
+      set role anon;`);
+    const filtered = await page({ sort: 'oldest', minCondition: 7, onlyActive: true });
+    assert.deepEqual(filtered.featuredIds, []);
+    assert.equal(filtered.ids[0], id(16));
+    const reserved = await page({ sort: 'newest', minCondition: 7, onlyActive: false });
+    assert.equal(reserved.ids[0], id(3));
+    assert.deepEqual(reserved.featuredIds, [id(3)]);
+    await db.exec('reset role');
+    await db.exec(await migration('2026-10-13-home-random-order'));
+    await db.exec('set role anon');
+    assert.deepEqual(await page({ sort: 'newest', minCondition: 7, onlyActive: false }), reserved);
+    // Exhausted normal inventory and featured-only filters never lose or duplicate articles.
+    await db.exec(`reset role;
+      update public.articulos set title='Sillon', estado='disponible', estado_producto=8, is_featured=true;
+      set role anon;`);
+    const featuredOnly = [...(await page({ kind: 'destacado' })).ids, ...(await page({ kind: 'destacado' }, 2)).ids];
+    assert.equal(new Set(featuredOnly).size, 16);
+    const mobileFeatures = await page({ kind: 'destacado', layout: 'mobile' });
+    assert.equal(mobileFeatures.ids.length, 4);
+    assert.equal(mobileFeatures.pageCount, 4);
+    const allMobileFeatures = [];
+    for (let number = 1; number <= mobileFeatures.pageCount; number++) {
+      allMobileFeatures.push(...(await page({ kind: 'destacado', layout: 'mobile' }, number)).ids);
+    }
+    assert.equal(new Set(allMobileFeatures).size, 16);
+    await db.exec(`reset role;
+      update public.articulos set is_featured=false where id in ('${id(15)}','${id(16)}');
+      set role anon;`);
+    const scarce = [...(await page({ sort: 'newest' })).ids, ...(await page({ sort: 'newest' }, 2)).ids];
+    assert.equal(new Set(scarce).size, 16);
+    assert.deepEqual(scarce.slice(0, 4), [id(1), id(15), id(16), id(2)]);
+    const scarceMobile = await page({ sort: 'newest', layout: 'mobile' });
+    assert.deepEqual(scarceMobile.ids, [id(1), id(15), id(16), id(2), id(3)]);
+    assert.equal((await page({ city: 'Cali', layout: 'mobile' })).pageCount, 1);
+  } finally { await db.close(); }
+});
+
 test('home search requires all word prefixes across fields and preserves pagination and featured ordering', async () => {
   const { db, page, before } = await fixture();
   try {
