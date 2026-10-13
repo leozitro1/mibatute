@@ -64,7 +64,10 @@ try {
   donationId = checked(await seller.from('articulos').insert({ owner_id: sellerUser.id,
     title: 'Verificacion temporal de donacion', mode: 'donacion', estado_producto: 8,
     status: 'disponible', estado: 'disponible' }).select('id').single()).id;
-  const application = checked(await buyer.from('postulaciones').insert({ articulo_id: donationId,
+  assert.ok((await buyer.from('postulaciones').insert({ articulo_id: donationId,
+    usuario_id: buyerUser.id, justificacion: 'Para usarla en casa' })).error);
+  // Seed decision fixtures privately; credit RPCs have their own integration checks.
+  const application = checked(await admin.from('postulaciones').insert({ articulo_id: donationId,
     usuario_id: buyerUser.id, justificacion: 'Para usarla en casa' }).select('id').single());
   assert.ok((await buyer.from('chats').insert({ articulo_id: donationId, buyer_id: buyerUser.id,
     seller_id: sellerUser.id, owner_id: sellerUser.id, status: 'open' })).error);
@@ -75,7 +78,7 @@ try {
   assert.ok((await buyer.from('postulaciones').insert({ articulo_id: donationId, usuario_id: buyerUser.id })).error);
   checked(await admin.from('postulaciones_rechazadas').update({ created_at: new Date(Date.now() - 86400000 - 1000).toISOString() })
     .eq('articulo_id', donationId).eq('usuario_id', buyerUser.id));
-  checked(await buyer.from('postulaciones').insert({ articulo_id: donationId, usuario_id: buyerUser.id }));
+  checked(await admin.from('postulaciones').insert({ articulo_id: donationId, usuario_id: buyerUser.id }));
   checked(await seller.from('articulos').update({ ganador_id: buyerUser.id, status: 'reservado', estado: 'reservado' }).eq('id', donationId));
   const donationChat = checked(await buyer.from('chats').select('id,status').eq('articulo_id', donationId).single());
   assert.equal(donationChat.status, 'open');

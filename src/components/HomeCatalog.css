@@ -1,3 +1,86 @@
+@media (max-width: 767px) {
+  .home-catalog [data-testid='home-listings'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .home-catalog [data-testid='home-listings'] .home-listing--featured {
+    grid-column: 1 / -1;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) {
+    height: 100%;
+    min-width: 0;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) .product-card-photo {
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) .product-card-body {
+    padding: 10px;
+    min-height: 204px;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) h3 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+    line-height: 18px;
+    height: 36px;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) .product-card-mode {
+    top: 6px;
+    left: 6px;
+    padding: 4px 6px;
+    font-size: 9px;
+    letter-spacing: 0;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) .product-card-condition {
+    top: auto;
+    right: 6px;
+    bottom: 6px;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) .product-card-applicants {
+    top: 34px;
+    left: 6px;
+    right: auto;
+    bottom: auto;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) .product-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding-top: 8px;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) .product-card-actions > span {
+    font-size: 15px;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) .product-card-actions button {
+    min-height: 44px;
+    width: 100%;
+  }
+
+  .home-catalog [data-testid='home-listings'] .product-card:not(.product-card--featured) .product-card-photo > div > span {
+    max-width: calc(100% - 12px);
+    padding-left: 8px;
+    padding-right: 8px;
+    letter-spacing: 0;
+  }
+}
+
 @media (min-width: 1024px) {
   .home-catalog aside > div:first-child > section {
     padding-top: 12px;

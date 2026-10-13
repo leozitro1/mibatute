@@ -2,6 +2,7 @@
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
 import { getProfile, updateProfile } from "../supabase/profileService";
 import { notifyCreditBalance } from './creditBalance.js';
+import { accountCreditStatus } from '../supabase/donationApplications.js';
 import './UserProfile.css';
 import {
   Camera,
@@ -923,13 +924,13 @@ export default function UserProfile({
   const [publicationExpiryClock, setPublicationExpiryClock] = useState(() => Date.now());
   const [cargandoRescates, setCargandoRescates] = useState(false);
   const [donacionLimit, setDonacionLimit] = useState(null); // { used, remaining, proximaEn }
+  const [purchaseLimit, setPurchaseLimit] = useState(null);
   const [cuposSaldo, setCuposSaldo] = useState(null); // saldo de créditos
   const [recargaOpen, setRecargaOpen] = useState(false);
   const [recargaPaquete, setRecargaPaquete] = useState(null); // { monto, cupos }
   const [recargaCodigo, setRecargaCodigo] = useState(null);
   const [recargaLoading, setRecargaLoading] = useState(false);
   const [destacandoId, setDestacandoId] = useState(null);
-  const [comprandoCupo, setComprandoCupo] = useState(false);
   const [featuredOverrides, setFeaturedOverrides] = useState({});
   const [profileProducts, setProfileProducts] = useState([]);
   const [profileProductsLoading, setProfileProductsLoading] = useState(false);
@@ -1319,16 +1320,15 @@ export default function UserProfile({
     if (!user?.id) return;
     const cargarSaldo = async () => {
       try {
-        const { data } = await supabase
-          .from("cupos")
-          .select("saldo")
-          .eq("usuario_id", user.id)
-          .maybeSingle();
-        setCuposSaldo(data?.saldo ?? 0);
+        const data = await accountCreditStatus(supabase);
+        setCuposSaldo(data.balance);
+        setDonacionLimit(data.donations);
+        setPurchaseLimit(data.purchases);
+        notifyCreditBalance(user.id, data.balance);
       } catch {}
     };
     cargarSaldo();
-  }, [user?.id]);
+  }, [user?.id, rescatesReload]);
 
   // Función para generar recarga pendiente
   const generarRecarga = async (paquete) => {
@@ -1385,66 +1385,6 @@ export default function UserProfile({
     finally { setDestacandoId(null); }
   };
 
-  // Cupo extra de donación — cuesta 1 crédito
-  const comprarCupoExtra = async () => {
-    if ((cuposSaldo ?? 0) < 1) {
-      alert("No tienes créditos suficientes.\n\nRecarga desde el panel de créditos arriba.");
-      return;
-    }
-    if (!window.confirm("¿Usar 1 crédito para obtener un cupo extra de donación ahora?")) return;
-    setComprandoCupo(true);
-    try {
-      const { data: credits, error: creditError } = await supabase.from("cupos")
-        .update({ saldo: (cuposSaldo - 1), updated_at: new Date().toISOString() })
-        .eq("usuario_id", user.id).select("saldo").single();
-      if (creditError) throw creditError;
-      setCuposSaldo(credits.saldo);
-      notifyCreditBalance(user.id, credits.saldo);
-      await supabase.from("cupos_historial").insert({ usuario_id: user.id, cantidad: -1, concepto: "cupo_donacion" });
-      await supabase.from("cupos_extra_donacion").insert({ usuario_id: user.id });
-      setDonacionLimit(prev => prev ? { ...prev, remaining: 1 } : prev);
-    } catch { alert("Error al comprar el cupo."); }
-    finally { setComprandoCupo(false); }
-  };
-
-  // ✅ Calcula cupo de postulaciones a donaciones (últimas 6h)
-  useEffect(() => {
-    if (!user?.id) return;
-    const calcLimit = async () => {
-      try {
-        const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-        const { data, error } = await supabase
-          .from("postulacion_historial")
-          .select("created_at")
-          .eq("usuario_id", user.id)
-          .gte("created_at", sixHoursAgo)
-          .order("created_at", { ascending: true });
-        if (error) return;
-        const { data: extrasData } = await supabase
-          .from("cupos_extra_donacion")
-          .select("created_at")
-          .eq("usuario_id", user.id)
-          .gte("created_at", sixHoursAgo);
-        const extras = (extrasData || []).length;
-        const maxAllowed = 2 + extras;
-        const used = Math.min((data || []).length, maxAllowed);
-        const remaining = Math.max(0, maxAllowed - used);
-        let proximaEn = null;
-        if (remaining === 0 && data?.length >= maxAllowed) {
-          const masAntigua = new Date(data[0].created_at);
-          const proxima = new Date(masAntigua.getTime() + 6 * 60 * 60 * 1000);
-          const ms = proxima - Date.now();
-          if (ms > 0) {
-            const h = Math.floor(ms / 3_600_000);
-            const m = Math.floor((ms % 3_600_000) / 60_000);
-            proximaEn = h > 0 ? `${h}h ${m}m` : `${m} min`;
-          }
-        }
-        setDonacionLimit({ used, remaining, proximaEn, maxAllowed });
-      } catch {}
-    };
-    calcLimit();
-  }, [user?.id]); // ✅ sin rescates: no necesita re-ejecutar cuando rescates cambia
 
 
   const handleToggleEdit = () => {
@@ -2289,7 +2229,7 @@ export default function UserProfile({
       return alert("La compra entregada se conserva en tu historial.");
     }
     const ok = confirm(isActivePurchase
-      ? `¿Cancelar la compra de "${titulo}"? El articulo volvera a estar disponible.`
+      ? `¿Cancelar la compra de "${titulo}"? El articulo volvera a estar disponible. Si usaste un credito, no se devuelve cuando cancelas tu.`
       : `¿Quitar de “Mis Rescates”? \n\n"${titulo}"\n\nEsto eliminará tu solicitud y el chat/mensajes.`);
     if (!ok) return;
 
@@ -2753,7 +2693,9 @@ export default function UserProfile({
                   {cuposSaldo === null ? "..." : cuposSaldo}
                   <span className="text-sm font-semibold text-gray-400 ml-1">crédito{cuposSaldo !== 1 ? "s" : ""}</span>
                 </p>
-                <p className="text-[11px] text-gray-400 mt-0.5">1 crédito = destacar 1 publicación o 1 cupo extra de donación</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Los créditos sirven para destacar, solicitar donaciones adicionales o reservar compras adicionales. Los destacados no son reembolsables.</p>
+                {donacionLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{donacionLimit.heldCredits} crédito{donacionLimit.heldCredits === 1 ? '' : 's'} retenido{donacionLimit.heldCredits === 1 ? '' : 's'} en solicitudes pendientes. El saldo muestra los disponibles.</p>}
+                {purchaseLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{purchaseLimit.heldCredits} crédito{purchaseLimit.heldCredits === 1 ? '' : 's'} retenido{purchaseLimit.heldCredits === 1 ? '' : 's'} en compras adicionales.</p>}
               </div>
               <button
                 type="button"
@@ -3421,62 +3363,17 @@ export default function UserProfile({
               {activeTab === "rescates" && (
                 <>
                   {/* Banner cupo de donaciones */}
+                  {purchaseLimit && <section aria-label="Cupos de compras" className="mb-4 border-y border-gray-200 py-3 text-sm text-gray-700 space-y-2">
+                    <p><strong>{purchaseLimit.active}/8 compras simultáneas</strong>.</p>
+                    <p className="text-xs text-gray-500">{purchaseLimit.freeActive}/5 cupos gratuitos y {purchaseLimit.paidActive}/3 adicionales. Cada adicional retiene 1 crédito. Al entregar o cancelar, se libera el cupo.</p>
+                    <p className="text-xs text-gray-500">Solo se devuelve el crédito si rechaza o cancela el vendedor. Las donaciones tienen un límite independiente.</p>
+                  </section>}
                   {donacionLimit && (
-                    <div className={`mb-4 flex flex-col gap-2 px-4 py-3 rounded-2xl border text-sm font-medium ${
-                      donacionLimit.remaining === 0
-                        ? "bg-amber-50 border-amber-200 text-amber-800"
-                        : "bg-green-50 border-green-200 text-green-800"
-                    }`}>
-                      {/* fila principal */}
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg">{donacionLimit.remaining === 0 ? "⏳" : "🎁"}</span>
-                        <div className="flex-1 min-w-0">
-                          {donacionLimit.remaining === 0 ? (
-                            <>
-                              <span className="font-black">Límite alcanzado — </span>
-                              podrás postularte a donaciones en{" "}
-                              <span className="font-black">{donacionLimit.proximaEn ?? "menos de 1 min"}</span>
-                            </>
-                          ) : (
-                            <>
-                              Puedes postularte a{" "}
-                              <span className="font-black">{donacionLimit.remaining} donación{donacionLimit.remaining !== 1 ? "es" : ""}</span>
-                              {" "}más{" "}
-                              <span className="text-xs opacity-70">(máx. 2 cada 6h)</span>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex gap-1 shrink-0">
-                          {[0,1].map(i => (
-                            <span key={i} className={`w-2.5 h-2.5 rounded-full ${
-                              i < donacionLimit.remaining ? "bg-green-500" : "bg-gray-300"
-                            }`} />
-                          ))}
-                        </div>
-                      </div>
-                      {/* fila promo / comprar cupo */}
-                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-current border-opacity-10">
-                        {donacionLimit.remaining === 0 ? (
-                          <>
-                            <span className="text-xs opacity-75">
-                              Tienes <strong>{cuposSaldo ?? 0}</strong> crédito{(cuposSaldo ?? 0) !== 1 ? "s" : ""}. Usa 1 para postularte ahora.
-                            </span>
-                            <button
-                              type="button"
-                              disabled={comprandoCupo || (cuposSaldo ?? 0) < 1}
-                              onClick={comprarCupoExtra}
-                              className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-amber-500 text-white px-3 py-1 rounded-full hover:bg-amber-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {comprandoCupo ? "..." : "🪙 Usar 1 crédito"}
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-xs opacity-75">Usa créditos para postularte extra cuando llegues al límite.</span>
-                            <span className="shrink-0 text-[10px] font-black uppercase tracking-widest bg-green-200 text-green-800 px-2 py-1 rounded-full">🪙 {cuposSaldo ?? 0}</span>
-                          </>
-                        )}
-                      </div>
+                    <div className="mb-4 border-y border-gray-200 py-3 text-sm text-gray-700 space-y-2" aria-label="Solicitudes de donación">
+                      <p><strong>{donacionLimit.pending}/3 solicitudes pendientes</strong>. Una solicitud gratuita cada 6 horas.</p>
+                      {donacionLimit.pending >= 3 && <p className="text-xs font-semibold text-amber-800">Espera una decisión o cancela una solicitud antes de enviar otra.</p>}
+                      <p className="text-xs text-gray-500">{donacionLimit.freeAvailable ? 'Solicitud gratuita disponible.' : `Próxima gratuita: ${new Date(donacionLimit.nextFreeAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}.`}</p>
+                      <p className="text-xs text-gray-500">Las adicionales retienen 1 crédito al solicitar desde el artículo. Si no eres elegido se devuelve; cancelar voluntariamente no lo devuelve.</p>
                     </div>
                   )}
 

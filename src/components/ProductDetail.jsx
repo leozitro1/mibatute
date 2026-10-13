@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X, MapPin, ShieldCheck, Lock, Flag, BadgeCheck, Expand } from "lucide-react";
 import './ProductDetail.css';
 import ArticlePhotoViewer from './ArticlePhotoViewer.jsx';
+import { donationStatus } from '../supabase/donationApplications.js';
 import { supabase } from "../supabase/supabaseClient";
 import { notifyCreditBalance } from './creditBalance.js';
 import { isSaleArticle } from "../supabase/articleContext.js";
@@ -156,6 +157,7 @@ export default function ProductDetail({
   const [message, setMessage] = useState("");
   const [msgContactError, setMsgContactError] = useState(null); // ✅ validación contacto en vivo
   const [reserveConfirmOpen, setReserveConfirmOpen] = useState(false); // ✅ modal confirmación reserva
+  const [purchaseCreditQuote, setPurchaseCreditQuote] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
   const [compactGallery, setCompactGallery] = useState(false);
@@ -267,6 +269,7 @@ export default function ProductDetail({
     setCompactGallery(false);
     informationRef.current?.scrollTo({ top: 0 });
     setPhotoViewerOpen(false);
+    setPurchaseCreditQuote(null);
     submitLock.current = false;
 
     setHasApplied(false);
@@ -351,8 +354,10 @@ export default function ProductDetail({
     }
 
     // Cargar saldo de créditos
-    supabase.from("cupos").select("saldo").eq("usuario_id", user.id).maybeSingle()
-      .then(({ data }) => setCreditosSaldo(data?.saldo ?? 0));
+    donationStatus(supabase).then(data => {
+      setCreditosSaldo(data.balance);
+      notifyCreditBalance(user.id, data.balance);
+    }).catch(() => setCreditosSaldo(null));
 
     let alive = true;
 
@@ -460,20 +465,12 @@ export default function ProductDetail({
     if (!user?.id || (creditosSaldo ?? 0) < 1) return;
     setUsandoCreditoExtra(true);
     try {
-      // Descontar crédito
-      const { data: credits, error: creditError } = await supabase.from("cupos")
-        .update({ saldo: (creditosSaldo - 1), updated_at: new Date().toISOString() })
-        .eq("usuario_id", user.id).select("saldo").single();
-      if (creditError) throw creditError;
-      setCreditosSaldo(credits.saldo);
-      notifyCreditBalance(user.id, credits.saldo);
-      await supabase.from("cupos_historial").insert({ usuario_id: user.id, cantidad: -1, concepto: "cupo_donacion" });
-      await supabase.from("cupos_extra_donacion").insert({ usuario_id: user.id });
+      if (!window.confirm('Se retendra 1 credito para esta solicitud. Si no eres elegido se devuelve; si cancelas, no. ¿Continuar?')) return;
       setRateLimitInfo(null);
       // Reenviar la postulación
       const text = message.trim();
       setIsSubmitting(true);
-      const res = await onSolicitar?.(item, text);
+      const res = await onSolicitar?.(item, text, true);
       if (!res?.success) {
         throw new Error(res?.error || "No se pudo enviar.");
       }
@@ -481,7 +478,7 @@ export default function ProductDetail({
       setMessage("");
       safeClose();
     } catch (e) {
-      alert("No se pudo procesar. Intenta de nuevo.");
+      alert(e.message || "No se pudo procesar. Intenta de nuevo.");
     } finally {
       setUsandoCreditoExtra(false);
       setIsSubmitting(false);
@@ -580,7 +577,7 @@ export default function ProductDetail({
     }
   };
 
-  const handleReserve = async () => {
+  const handleReserve = async (useCredit = false) => {
     if (submitLock.current) return;
     submitLock.current = true;
 
@@ -609,7 +606,12 @@ export default function ProductDetail({
 
     try {
       setIsSubmitting(true);
-      const result = await onSolicitar?.(item, "");
+      if (useCredit && !window.confirm('Se retendra 1 credito para esta compra. Solo se devuelve si el vendedor rechaza o cancela la venta. ¿Continuar?')) return;
+      const result = await onSolicitar?.(item, "", useCredit);
+      if (result?.code === 'SALE_CREDIT_REQUIRED') {
+        setPurchaseCreditQuote(result.quote);
+        return;
+      }
       if (!result?.success) throw new Error(result?.error || "No se pudo confirmar la compra.");
     } catch (e) {
       console.error("Error reservando:", e);
@@ -1036,7 +1038,7 @@ export default function ProductDetail({
                 <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl space-y-3">
                   <p className="text-sm font-black text-amber-800">⏳ Límite de postulaciones alcanzado</p>
                   <p className="text-xs text-amber-700 font-medium leading-relaxed">
-                    Solo puedes postularte a <strong>2 donaciones cada 6 horas</strong> para evitar acaparamiento.
+                    Tienes <strong>1 solicitud gratuita cada 6 horas</strong> y un maximo de <strong>3 pendientes simultaneas</strong>.
                   </p>
 
                   {/* Opción esperar */}
@@ -1046,6 +1048,7 @@ export default function ProductDetail({
                       Tu próximo cupo libera en{" "}
                       <strong>{rateLimitInfo.h > 0 ? `${rateLimitInfo.h}h ${rateLimitInfo.m}m` : `${rateLimitInfo.m} min`}</strong>.
                     </p>
+                    <button type="button" onClick={() => setRateLimitInfo(null)} className="mt-2 min-h-11 text-xs font-semibold text-forest-green">Intentar solicitud gratuita</button>
                   </div>
 
                   {/* Opción usar crédito */}
@@ -1054,7 +1057,7 @@ export default function ProductDetail({
                     {(creditosSaldo ?? 0) > 0 ? (
                       <>
                         <p className="text-xs text-amber-700 font-medium mb-2">
-                          Tienes <strong>{creditosSaldo}</strong> crédito{creditosSaldo !== 1 ? "s" : ""}. Postulate ahora descontando 1.
+                          Tienes <strong>{creditosSaldo}</strong> créditos. Se retiene 1 para esta solicitud; si no eres elegido, se devuelve. Cancelar voluntariamente no devuelve el crédito.
                         </p>
                         <button
                           type="button"
@@ -1133,6 +1136,16 @@ export default function ProductDetail({
 
           {!isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
             <div className="mt-auto space-y-3 pt-6 border-t">
+              {purchaseCreditQuote ? (
+                <div className="space-y-3 text-sm text-gray-700">
+                  <p>Tus 5 cupos gratuitos están ocupados. Puedes tener hasta 3 compras adicionales, a 1 crédito cada una.</p>
+                  <p className="text-xs text-gray-500">El crédito se retiene hasta la entrega. Solo se devuelve si el vendedor rechaza o cancela; no si cancelas tú.</p>
+                  <p className="text-xs font-semibold">Saldo disponible: {purchaseCreditQuote.balance} créditos.</p>
+                  <button type="button" disabled={isSubmitting || purchaseCreditQuote.balance < 1} onClick={() => handleReserve(true)} className="min-h-11 w-full rounded-lg bg-forest-green px-3 py-3 font-semibold text-white disabled:opacity-50">Reservar con 1 crédito</button>
+                  {purchaseCreditQuote.balance < 1 && <p className="text-xs text-gray-500">Recarga desde tu perfil para usar un cupo adicional.</p>}
+                  <button type="button" onClick={() => setPurchaseCreditQuote(null)} className="min-h-11 text-xs font-semibold text-forest-green">Revisar cupos gratuitos</button>
+                </div>
+              ) : (
               <button
                 onClick={() => setReserveConfirmOpen(true)}
                 disabled={isSubmitting}
@@ -1141,6 +1154,7 @@ export default function ProductDetail({
               >
                 {isSubmitting ? "RESERVANDO..." : "RESERVAR"}
               </button>
+              )}
 
               <p className="text-[10px] text-center text-gray-400 font-bold uppercase tracking-widest">
                 Reserva primero y coordina el pago con el vendedor.

@@ -1,5 +1,6 @@
 // src/supabase/solicitudesService.js
 import { supabase } from "./supabaseClient";
+import { applyForDonation } from './donationApplications.js';
 
 // ===================== Anti-spam / Anti-contacto (postulaciones + chat) =====================
 // Nota: esto es una capa "cliente". Para blindarlo al 100%, lo ideal es mover la creación de
@@ -291,7 +292,7 @@ export const contarPostulacionesPorArticulos = async (articuloIds = []) => {
  * - Evita duplicado (si ya existe, no inserta)
  * - Si está lleno: error code MAX_POSTULACIONES_REACHED
  */
-export const crearPostulacionConLimite = async ({ articuloId, usuarioId, justificacion = "", applyRateLimit = false }) => {
+export const crearPostulacionConLimite = async ({ articuloId, usuarioId, justificacion = "", useCredit = false }) => {
   try {
     const aid = String(articuloId || "").trim();
     const uid = String(usuarioId || "").trim();
@@ -319,112 +320,7 @@ export const crearPostulacionConLimite = async ({ articuloId, usuarioId, justifi
       };
     }
 
-    // ✅ Rate limit: máx 2 postulaciones a donaciones cada 6 horas
-    if (applyRateLimit) {
-      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-      const { data: recientes, error: rateErr } = await supabase
-        .from("postulacion_historial")
-        .select("created_at")
-        .eq("usuario_id", uid)
-        .gte("created_at", sixHoursAgo)
-        .order("created_at", { ascending: true });
-
-      const { data: extras } = await supabase
-        .from("cupos_extra_donacion")
-        .select("created_at")
-        .eq("usuario_id", uid)
-        .gte("created_at", sixHoursAgo);
-      const maxAllowed = 2 + (extras?.length || 0);
-
-      if (!rateErr && recientes && recientes.length >= maxAllowed) {
-        const masAntigua = new Date(recientes[0].created_at);
-        const proxima = new Date(masAntigua.getTime() + 6 * 60 * 60 * 1000);
-        const msRestantes = proxima - Date.now();
-        const h = Math.floor(msRestantes / 3_600_000);
-        const m = Math.floor((msRestantes % 3_600_000) / 60_000);
-        const tiempoMsg = h > 0 ? `${h}h ${m}m` : `${m} minutos`;
-        return {
-          success: false,
-          error: `⏳ Alcanzaste el límite de 2 postulaciones a donaciones cada 6 horas.\nPodrás postularte de nuevo en ${tiempoMsg}.`,
-          code: "RATE_LIMIT_REACHED",
-          meta: { proxima: proxima.toISOString(), h, m },
-        };
-      }
-    }
-
-    // 1) si ya existe postulación, no creamos otra
-    const { data: existing, error: exErr } = await supabase
-      .from("postulaciones")
-      .select("id")
-      .eq("articulo_id", aid)
-      .eq("usuario_id", uid)
-      .maybeSingle();
-
-    if (exErr) {
-      console.log("Warn validar duplicado postulacion:", exErr);
-      // si RLS bloquea, el insert también fallará
-    }
-
-    if (existing?.id) {
-      return {
-        success: true,
-        data: { id: existing.id, alreadyExists: true },
-        error: null,
-      };
-    }
-
-    // 2) contar cupos
-    const { count, error: countErr } = await supabase
-      .from("postulaciones")
-      .select("id", { count: "exact", head: true })
-      .eq("articulo_id", aid);
-
-    if (countErr) {
-      console.log("Warn count postulaciones:", countErr);
-      return {
-        success: false,
-        error: countErr.message || "No se pudo validar el cupo de postulaciones",
-      };
-    }
-
-    const current = Number(count || 0);
-    if (current >= MAX_POSTULACIONES_POR_ARTICULO) {
-      return {
-        success: false,
-        error: "Cupo lleno. Este artículo ya alcanzó el máximo de postulaciones.",
-        code: "MAX_POSTULACIONES_REACHED",
-        meta: { current, max: MAX_POSTULACIONES_POR_ARTICULO },
-      };
-    }
-
-    // 3) insertar
-    const { data: inserted, error: insErr } = await supabase
-      .from("postulaciones")
-      .insert({
-        articulo_id: aid,
-        usuario_id: uid,
-        justificacion: String(justificacion || ""),
-      })
-      .select("id")
-      .maybeSingle();
-
-    if (insErr) {
-      console.log("Error insert postulación:", insErr);
-      return { success: false, error: insErr.message || "No se pudo crear la postulación" };
-    }
-
-    // ✅ Registrar en historial (persiste aunque se cancele la postulación)
-    if (applyRateLimit) {
-      await supabase
-        .from("postulacion_historial")
-        .insert({ usuario_id: uid, articulo_id: aid });
-    }
-
-    return {
-      success: true,
-      data: { id: inserted?.id || null, alreadyExists: false },
-      error: null,
-    };
+    return await applyForDonation(supabase, { articleId: aid, message: just, useCredit });
   } catch (e) {
     console.error("crearPostulacionConLimite:", e);
     return { success: false, error: e?.message || "Error inesperado" };

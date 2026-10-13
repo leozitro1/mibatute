@@ -4,6 +4,7 @@ import { Routes, Route } from "react-router-dom";
 import { Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown, LayoutGrid, MapPin, SlidersHorizontal, Gift, Tag, Star, BadgeCheck } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Footer from './components/Footer.jsx';
+import { notifyCreditBalance } from './components/creditBalance.js';
 import FilterSection from "./components/FilterSection";
 import ProductCard from "./components/ProductCard";
 import usePublicationClock from './components/usePublicationClock.js';
@@ -218,7 +219,7 @@ export default function App() {
   const [selectedLocality, setSelectedLocality] = useState("Todas");
 
   const [quickTipo, setQuickTipo] = useState("todo"); // todo | donacion | venta | destacado
-  const [onlyActive, setOnlyActive] = useState(true);
+  const [onlyActive, setOnlyActive] = useState(false);
   const [minCondition, setMinCondition] = useState(0);
   const [conditionDraft, setConditionDraft] = useState(0);
   const [hiddenAdsOwnerId, setHiddenAdsOwnerId] = useState(null);
@@ -1333,7 +1334,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   };
 
   // ✅ APPLY (donación/regalo)
-  const handleApply = async (productId, message) => {
+  const handleApply = async (productId, message, useCredit = false) => {
     const uid = getActiveUid();
 
     if (!uid) {
@@ -1363,32 +1364,23 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     }
 
     try {
-      const { data: ya, error: errYa } = await supabase
-        .from("postulaciones")
-        .select("id")
-        .eq("articulo_id", productId)
-        .eq("usuario_id", uid)
-        .maybeSingle();
-
-      if (errYa) throw errYa;
-      if (ya?.id) return { success: false, error: "Ya te postulaste a este articulo." };
-
-      const res = await crearPostulacionConLimite({ articuloId: productId, usuarioId: uid, justificacion: message || "", applyRateLimit: true });
+      const res = await crearPostulacionConLimite({ articuloId: productId, usuarioId: uid, justificacion: message || "", useCredit });
       if (res && res.success === false) {
-        if (res.code === "RATE_LIMIT_REACHED") return res;
+        if (res.code) return res;
         throw new Error(res.error || "No se pudo enviar tu solicitud.");
       }
 
       alert("¡Solicitud enviada! El vendedor decidirá a quién entregárselo.");
+      notifyCreditBalance(uid, res.balance);
       // ✅ Actualización local del contador — sin recargar todo
       setProducts((prev) =>
         prev.map((it) =>
-          String(getArticuloId(it)) === String(productId)
+          String(getArticuloId(it)) === String(productId) && !res.alreadyExists
             ? { ...it, interested_count: (Number(it.interested_count) || 0) + 1 }
             : it
         )
       );
-      return { success: true };
+      return res;
     } catch (err) {
       console.error("Error enviando postulación:", err);
       return { success: false, error: err?.message || "Error enviando la solicitud. Intenta de nuevo." };
@@ -1407,7 +1399,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     load({ refreshPersonal: true });
   };
 
-  const handleBuy = async (productId) => {
+  const handleBuy = async (productId, useCredit = false) => {
     const uid = getActiveUid();
     if (!uid) {
       setIsAuthOpen(true);
@@ -1422,15 +1414,16 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
     saleInFlightRef.current = true;
     try {
-      const { article } = await transitionSale(supabase, productId, "reserve");
+      const { article, balance } = await transitionSale(supabase, productId, "reserve", useCredit);
+      if (Number.isInteger(balance)) notifyCreditBalance(uid, balance);
       applyArticleUpdate(article);
       setSelectedProduct(null);
       alert("Solicitud de compra enviada. Para hablar con el vendedor, él debe aprobar la compra y abrir el chat.");
       loadNotifications().catch(error => console.error("Error actualizando notificaciones:", error));
       return { success: true, data: article };
     } catch (error) {
-      console.error("Error reservando venta:", error);
-      return { success: false, error: error.message || "No se pudo reservar el articulo." };
+      if (!['SALE_CREDIT_REQUIRED', 'SALE_LIMIT_REACHED', 'INSUFFICIENT_CREDITS'].includes(error.code)) console.error("Error reservando venta:", error);
+      return { success: false, error: error.message || "No se pudo reservar el articulo.", code: error.code, quote: error.quote };
     } finally {
       saleInFlightRef.current = false;
     }
@@ -1963,7 +1956,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                             const interestedMax = resolveInterestedMax(item);
 
                             return (
-  <div key={item.id} className={isUserBlocked ? "cursor-not-allowed" : "cursor-pointer"}>
+  <div key={item.id} className={`home-listing ${item.isFeatured ? 'home-listing--featured' : ''} ${isUserBlocked ? "cursor-not-allowed" : "cursor-pointer"}`}>
     <ProductCard
       title={item.title || item.titulo || "Sin título"}
       location={resolvedLocation}
@@ -2118,16 +2111,16 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               isOpen={!!selectedProduct}
               onClose={() => setSelectedProduct(null)}
               user={currentUser}
-              onSolicitar={async (item, message) => {
+              onSolicitar={async (item, message, useCredit = false) => {
                 const id = getArticuloId(item);
                 if (!id) return alert("Este artículo no tiene id válido.");
 
                 const isVenta = normTipo(item?.mode || item?.tipo) === "venta";
 
                 if (isVenta) {
-                  return handleBuy(id);
+                  return handleBuy(id, useCredit);
                 } else {
-                  const applyRes = await handleApply(id, message);
+                  const applyRes = await handleApply(id, message, useCredit);
                   if (applyRes?.success) setSelectedProduct(null);
                   return applyRes;
                 }

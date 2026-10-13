@@ -225,7 +225,7 @@ export default function ProductCard({
   return (
     <div
       onClick={handleCardClick}
-      className={`product-card relative flex h-[376px] flex-col bg-white rounded-lg overflow-hidden border-2 ${
+      className={`product-card ${isFeatured ? 'product-card--featured' : ''} relative flex h-[376px] flex-col bg-white rounded-lg overflow-hidden border-2 ${
         isFeatured ? "border-treasure-gold border-2 shadow-md" : "border-gray-200 shadow-sm"
       } hover:shadow-lg transition ${isDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
       aria-disabled={isDisabled}
@@ -254,7 +254,7 @@ export default function ProductCard({
         />
 
         <span
-          className={`absolute top-2 left-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+          className={`product-card-mode absolute top-2 left-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
             modeStyles[modeNorm] || "bg-gray-100 text-gray-700"
           }`}
         >
@@ -271,7 +271,7 @@ export default function ProductCard({
         {/* ✅ Estado del producto (1–10) */}
         {showCondition && (
           <div
-            className={`absolute ${isFeatured ? "top-10" : "top-2"} right-2 z-20`}
+            className={`product-card-condition absolute ${isFeatured ? "top-10" : "top-2"} right-2 z-20`}
             title={`Estado ${conditionInfo.score}/10 · ${conditionInfo.label}. Informado por quien publica.`}
             aria-label={`Estado ${conditionInfo.score} de 10, ${conditionInfo.label}`}
           >
@@ -284,7 +284,7 @@ export default function ProductCard({
 
 {/* ✅ Badge “interesados” (solo donación/regalo) */}
         {showInterested && (
-          <div className="absolute bottom-2 right-2 z-20" title={interestedTooltip} aria-label={interestedTooltip}>
+          <div className="product-card-applicants absolute bottom-2 right-2 z-20" title={interestedTooltip} aria-label={interestedTooltip}>
             <span
               className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2 py-1 text-[11px] font-bold text-gray-800 shadow-sm"
             >
@@ -315,7 +315,7 @@ export default function ProductCard({
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col p-4">
+      <div className={`product-card-body flex min-h-0 flex-1 flex-col p-4 ${isReserved ? 'opacity-70' : ''}`}>
         <h3 className="font-bold text-gray-800 truncate">{title || "Sin título"}</h3>
         <p className="mt-1 h-4 truncate text-[11px] text-gray-400" title={category || undefined}>
           {category || ''}
@@ -330,7 +330,7 @@ export default function ProductCard({
           {showInterested ? (isFull ? "Cupo lleno" : `${remaining} ${remaining === 1 ? "cupo disponible" : "cupos disponibles"}`) : ''}
         </p>
 
-        <div className="mt-auto flex items-center justify-between gap-2">
+        <div className="product-card-actions mt-auto flex items-center justify-between gap-2">
           <span className="text-lg font-black text-forest-green">{formattedPrice}</span>
 
           <button

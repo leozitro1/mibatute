@@ -91,6 +91,42 @@ El servidor Vite se detiene con Ctrl+C.
 
 ## Diferencias con produccion
 
+El sistema local de donaciones usa `2026-10-13-donation-credits.sql`:
+una solicitud gratuita cada seis horas, hasta tres pendientes simultaneas,
+y un credito retenido por cada adicional, con consentimiento explicito.
+Rechazo, eleccion de otra persona, eliminacion y vencimiento devuelven el credito
+una sola vez. Eleccion propia lo consume; retirada voluntaria no lo devuelve.
+Los destacados se consumen al activarlos y nunca se reembolsan por falta de venta.
+La devolucion por vencimiento se concilia al consultar estado/saldo desde el perfil
+o una donacion; no hay cron ni sondeos. Las solicitudes antiguas se conservan
+gratis. Antes de aplicar a produccion, revisar las pruebas y la transicion de
+cupos extra antiguos. En la revision de produccion del 2026-10-13 no se encontraron
+cupos extra antiguos ni historial de postulaciones que requirieran conversion.
+Las nuevas solicitudes se crean exclusivamente con el RPC
+`apply_for_donation`; no usar inserts de postulaciones desde clientes autenticados.
+
+`2026-10-13-sale-credits.sql` agrega un limite independiente para compras:
+cinco reservas gratuitas y tres adicionales a un credito cada una, hasta ocho.
+La aprobacion del chat no libera el cupo; la entrega o cancelacion si lo libera.
+El credito adicional se retiene, se consume al entregar o cancelar el comprador,
+y se devuelve una sola vez si rechaza/cancela el vendedor antes de aprobar.
+Se mantiene la proteccion existente que impide cancelar compras aprobadas.
+Eliminar datos desde servicio o expirar un anuncio no devuelve creditos de compra.
+Las reservas anteriores permanecen gratuitas. `transition_sale_unmetered` es
+privado; `transition_sale` protege tambien clientes antiguos, y
+`transition_sale_with_credit` exige consentimiento para gastar. El perfil lee
+saldo y ambos limites en una sola llamada `account_credit_status`.
+Pruebas locales: `node --test tests/sale-credits.test.js` y
+`node scripts/check-sale-credits-local.mjs` (requiere Playwright).
+
+Ambas migraciones de creditos se aplicaron a produccion el 2026-10-13.
+Se verificaron RLS, acceso autenticado a los RPC, bloqueo de insercion directa
+de postulaciones y del RPC de compras sin limite, y cero cobros retroactivos.
+Las pruebas integrales de donaciones, compras y `npm run local:check` pasaron.
+En movil el catalogo muestra dos tarjetas normales por fila; los destacados
+conservan su tamano y ocupan una fila completa. No se agregan consultas por
+este cambio visual ni tareas programadas por el sistema de creditos.
+
 Se usa el esquema versionado `supabase/schema.sql` mas la migracion del
 estado del producto, la migracion de destacados y la paginacion. Es una reconstruccion del
 esquema conocido, no un respaldo verificado de la base de produccion ni una
