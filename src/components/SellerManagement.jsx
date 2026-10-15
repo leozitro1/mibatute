@@ -1,6 +1,7 @@
 // src/components/SellerManagement.jsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase/supabaseClient";
+import { obtenerPostulaciones } from '../supabase/solicitudesService';
 
 export default function SellerManagement({ item, onSelectWinner, onMarkDelivered }) {
   const articuloId = item?.id || null;
@@ -40,11 +41,7 @@ export default function SellerManagement({ item, onSelectWinner, onMarkDelivered
       setErrorPost("");
 
       try {
-        const { data, error } = await supabase
-          .from("postulaciones")
-          .select("id, justificacion, created_at, usuario_id, usuarios(nombre, foto_url)")
-          .eq("articulo_id", articuloId)
-          .order("created_at", { ascending: false });
+        const { data, error } = await obtenerPostulaciones(articuloId);
 
         if (error) throw error;
 
@@ -79,7 +76,7 @@ export default function SellerManagement({ item, onSelectWinner, onMarkDelivered
 
       try {
         const { data, error } = await supabase
-          .from("usuarios")
+          .from("usuarios_publicos")
           .select("nombre")
           .eq("id", compradorId)
           .maybeSingle();

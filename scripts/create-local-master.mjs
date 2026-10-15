@@ -35,8 +35,9 @@ const { user } = checked(existing
   ? await admin.auth.admin.updateUserById(existing.id, attributes)
   : await admin.auth.admin.createUser({ email, ...attributes }));
 checked(await admin.from('usuarios').update({ role: 'master', rol: 'master' }).eq('id', user.id));
+checked(await admin.from('staff_accounts').upsert({user_id:user.id,role:'master',active:true}));
 const client = createClient(status.API_URL, status.ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const login = checked(await client.auth.signInWithPassword({ email, password }));
 if (login.user.app_metadata.role !== 'master') throw new Error('No se confirmo el rol Master.');
 checked(await client.auth.signOut({ scope: 'local' }));
-console.log('Cuenta local leozitro creada y acceso Master verificado.');
+console.log('Cuenta local leozitro creada; requiere segundo factor para acceder al panel.');

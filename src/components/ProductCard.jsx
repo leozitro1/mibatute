@@ -1,5 +1,5 @@
 // src/components/ProductCard.jsx
-import { MapPin, Lock, Users, BadgeCheck } from "lucide-react";
+import { MapPin, Lock, Users, BadgeCheck, Clock } from "lucide-react";
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -153,7 +153,8 @@ export default function ProductCard({
 
   const isReserved = statusNorm === "reservado";
   const isDelivered = statusNorm === "entregado";
-  const isLocked = isReserved || isDelivered;
+  const isReviewing = statusNorm === "en_revision";
+  const isLocked = isReserved || isDelivered || isReviewing;
 
   // ✅ bloqueo total del card (por sanción “bloqueado”)
   const isDisabled = isLocked || !!isUserBlocked;
@@ -168,7 +169,7 @@ export default function ProductCard({
 
   const formattedPrice = formatPrice(modeNorm, price);
 
-  const lockLabel = isDelivered ? "Entregado" : isReserved ? "Reservado" : "";
+  const lockLabel = isReviewing ? "En revisión" : isDelivered ? "Entregado" : isReserved ? "Reservado" : "";
 
   // ✅ interesados (solo donación/regalo) — robusto
   const count = toCountRobust(interestedCount);
@@ -298,7 +299,7 @@ export default function ProductCard({
         {isLocked && (
           <div className="absolute inset-0 bg-white/65 backdrop-blur-[2px] flex items-center justify-center z-10">
             <span className="bg-gray-900 text-white px-4 py-2 rounded-full font-black text-xs uppercase shadow-lg flex items-center gap-2">
-              <Lock size={14} />
+              {isReviewing ? <Clock size={14} /> : <Lock size={14} />}
               {lockLabel}
             </span>
           </div>
@@ -315,7 +316,7 @@ export default function ProductCard({
         )}
       </div>
 
-      <div className={`product-card-body flex min-h-0 flex-1 flex-col p-4 ${isReserved ? 'opacity-70' : ''}`}>
+      <div className={`product-card-body flex min-h-0 flex-1 flex-col p-4 ${isReserved || isReviewing ? 'opacity-70' : ''}`}>
         <h3 className="font-bold text-gray-800 truncate">{title || "Sin título"}</h3>
         <p className="mt-1 h-4 truncate text-[11px] text-gray-400" title={category || undefined}>
           {category || ''}
@@ -352,7 +353,7 @@ export default function ProductCard({
                 : "Lo quiero"
             }
           >
-            {isUserBlocked ? "Bloqueado" : isDelivered ? "Finalizado" : isReserved ? "En proceso" : "Lo quiero"}
+            {isUserBlocked ? "Bloqueado" : isReviewing ? "En revisión" : isDelivered ? "Finalizado" : isReserved ? "En proceso" : "Lo quiero"}
           </button>
         </div>
 

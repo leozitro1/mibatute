@@ -1,233 +1,38 @@
-// src/components/HeroBanner.jsx
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { supabase } from "../supabase/supabaseClient";
+import { useEffect,useRef,useState } from 'react';
+import { ChevronLeft,ChevronRight } from 'lucide-react';
+import { recordSponsorClick,useSponsorImpression,useSponsorSlots } from '../sponsors/publicSponsors.js';
+import { sponsorCreative } from '../sponsors/model.js';
 
-/**
- * HeroBanner (Slider)
- * - 3 slides: Cómo funciona, Blog & tutoriales, Publicidad (monetización)
- * - Visualización únicamente: si no pasas callbacks, solo hace console.log
- *
- * Props (opcionales):
- *  - onLearnMore: callback para el botón del slide 1 (compatibilidad con tu versión anterior)
- *  - onBlog: callback para el botón del slide 2
- *  - onAds: callback para el botón del slide 3
- */
-export default function HeroBanner({ onLearnMore, onBlog, onAds }) {
-  const [currentAd, setCurrentAd] = useState(null);
-  const impressionRegisteredRef = useRef(new Set());
-
-  const loadAd = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from("patrocinadores")
-        .select("id,imagen_url,texto,descripcion,enlace")
-        .eq("activo", true)
-        .limit(10);
-      if (error || !data?.length) return;
-      const pick = data[Math.floor(Math.random() * data.length)];
-      setCurrentAd(pick);
-    } catch {}
-  }, []);
-
-  useEffect(() => { loadAd(); }, [loadAd]);
-
-  useEffect(() => {
-    if (!currentAd?.id) return;
-    if (impressionRegisteredRef.current.has(currentAd.id)) return;
-    impressionRegisteredRef.current.add(currentAd.id);
-    (async () => { try { await supabase.rpc("reg_impresion", { p_ad_id: currentAd.id }); } catch {} })();
-  }, [currentAd?.id]);
-
-  const handleAdClick = useCallback(() => {
-    if (!currentAd) { onAds?.(); return; }
-    (async () => { try { await supabase.rpc("reg_clic", { p_ad_id: currentAd.id }); } catch {} })();
-    if (currentAd.enlace) window.open(currentAd.enlace, "_blank", "noopener,noreferrer");
-  }, [currentAd, onAds]);
-
-  const slides = useMemo(
-    () => [
-      {
-        key: "how",
-        badge: "Economía Circular",
-        title: (
-          <>
-            Tu basura es el <span className="text-treasure-gold">tesoro</span> de alguien más.
-          </>
-        ),
-        desc:
-          "Aprende a publicar, donar, vender o intercambiar. Tips para que tu artículo salga más rápido.",
-        cta: "¿Cómo funciona?",
-        onClick: () => (onLearnMore ? onLearnMore() : console.log("CTA: cómo funciona")),
-        img:
-          "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=1600&auto=format&fit=crop",
-        aria: "Ver cómo funciona Mi Batute",
-      },
-      {
-        key: "ads",
-        badge: "Publicidad",
-        title: currentAd?.texto ? <>{currentAd.texto}</> : <>Anuncia tu marca en MiBatute</>,
-        desc: currentAd?.descripcion || (currentAd ? null : "Conecta tu marca con una comunidad que compra, dona y reutiliza. Conoce nuestros planes de publicidad."),
-        cta: currentAd ? "Visitar sitio →" : "Ver planes y precios",
-        onClick: handleAdClick,
-        img: currentAd?.imagen_url || "https://images.unsplash.com/photo-1557838923-2985c318be48?q=80&w=1600&auto=format&fit=crop",
-        aria: currentAd ? "Visitar patrocinador" : "Ver planes y precios para publicidad",
-        isAdSlot: true,
-      },
-      {
-        key: "blog",
-        badge: "Blog y tutoriales",
-        title: <>Ideas reales para reciclar y reutilizar</>,
-        desc:
-          "Guías, ejemplos y trucos prácticos para darle segunda vida a tus cosas (y ayudar al planeta).",
-        cta: "Ver tutoriales",
-        onClick: () => (onBlog ? onBlog() : console.log("CTA: blog y tutoriales")),
-        img:
-          "https://images.unsplash.com/photo-1528323273322-d81458248d40?q=80&w=1600&auto=format&fit=crop",
-        aria: "Ver blog y tutoriales",
-      },
-
-    ],
-    [onLearnMore, onBlog, currentAd, handleAdClick]
-  );
-
-  const [index, setIndex] = useState(0);
-  const [isPaused, setPaused] = useState(false);
-  const total = slides.length;
-
-  const intervalRef = useRef(null);
-
-  function clampNext(i) {
-    const n = i % total;
-    return n < 0 ? n + total : n;
-  }
-
-  const go = (next) => setIndex((i) => clampNext(typeof next === "function" ? next(i) : next));
-  const prev = () => go((i) => i - 1);
-  const next = () => go((i) => i + 1);
-
-  // Auto-advance (pausa al hover/focus)
-  useEffect(() => {
-    if (isPaused) return;
-
-    // 6.5s se siente moderno/relajado
-    intervalRef.current = setInterval(() => {
-      setIndex((i) => clampNext(i + 1));
-    }, 6500);
-
-    return () => clearInterval(intervalRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPaused, total]);
-
-  const active = slides[index];
-
-  return (
-    <section
-      className="relative mb-5 overflow-hidden rounded-lg border border-white/10 bg-forest-green shadow-sm sm:mb-8"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocusCapture={() => setPaused(true)}
-      onBlurCapture={() => setPaused(false)}
-      aria-label="Banner principal"
-    >
-      {active.isAdSlot && (
-        <div className="absolute top-3 right-3 z-10">
-          <span className="inline-flex items-center rounded-full bg-black/40 backdrop-blur-sm px-2.5 py-1 text-[10px] font-bold text-white/70 uppercase tracking-widest border border-white/10">
-            Publicidad
-          </span>
-        </div>
-      )}
-
-      {/* Background image */}
-      <div
-        className="absolute inset-0 bg-cover bg-center transition-opacity duration-500"
-        style={{ backgroundImage: `url('${active.img}')` }}
-        aria-hidden="true"
-      />
-      {/* Overlays for legibility */}
-      <div className={`absolute inset-0 ${active.isAdSlot ? "bg-black/20" : "bg-black/45"}`} aria-hidden="true" />
-      <div
-        className={`absolute inset-0 bg-gradient-to-r ${active.isAdSlot ? "from-black/40 via-black/15 to-black/5" : "from-black/65 via-black/35 to-black/15"}`}
-        aria-hidden="true"
-      />
-
-      {/* Content */}
-      <div className="relative px-4 py-4 sm:px-10 sm:py-7 md:px-14 md:py-8">
-        <div className="flex flex-col gap-2 sm:gap-3 md:max-w-2xl">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-treasure-gold px-3 py-1 text-xs font-black uppercase tracking-wide text-black">
-              {active.badge}
-            </span>
-          </div>
-
-          <h1 className="text-2xl font-black leading-tight text-white sm:text-4xl md:text-5xl">
-            {active.title}
-          </h1>
-
-          {active.desc && (
-            <p className="max-w-xl text-sm text-white/85 sm:text-base">{active.desc}</p>
-          )}
-
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={active.onClick}
-              className="inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-5 py-2 text-sm font-black text-forest-green transition-colors hover:bg-treasure-gold hover:text-black active:opacity-90 sm:px-7 sm:py-3"
-              aria-label={active.aria}
-            >
-              {active.cta}
-            </button>
-
-          </div>
-        </div>
-
-        {/* Controls */}
-        <div className="mt-4 flex items-center justify-between gap-4">
-          {/* Dots */}
-          <div className="flex items-center gap-2">
-            {slides.map((s, i) => {
-              const isActive = i === index;
-              return (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => go(i)}
-                  className={[
-                    "flex h-11 w-8 items-center justify-center rounded transition-colors hover:bg-white/10",
-                  ].join(" ")}
-                  aria-label={`Ir al banner ${i + 1}: ${s.badge}`}
-                  aria-pressed={isActive}
-                >
-                  <span className={`h-2 rounded-full ${isActive ? "w-6 bg-white" : "w-2 bg-white/50"}`} />
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Arrows */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={prev}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 text-white backdrop-blur transition hover:bg-white/15 active:opacity-90"
-              aria-label="Banner anterior"
-              title="Anterior"
-            >
-              <ChevronLeft size={20} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={next}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 text-white backdrop-blur transition hover:bg-white/15 active:opacity-90"
-              aria-label="Siguiente banner"
-              title="Siguiente"
-            >
-              <ChevronRight size={20} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-
+const fallback=[{id:null,texto:'MiBatute',descripcion:'Compra, dona y da una segunda vida a tus cosas.',imagen_url:'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?q=80&w=1600&auto=format&fit=crop',badge:'Economía circular',button_text:'¿Cómo funciona?',destination:'how'}];
+export default function HeroBanner({onLearnMore,onBlog,sponsorFilters}) {
+  const campaigns=useSponsorSlots('hero',sponsorFilters),slides=campaigns.length?campaigns:fallback;
+  const [index,setIndex]=useState(0),[paused,setPaused]=useState(false);
+  const root=useRef(null),active=sponsorCreative(slides[index%slides.length],Math.floor(index/slides.length));
+  useSponsorImpression(root,active.id,'hero');
+  useEffect(()=>{
+    if(paused||(slides.length<2&&!(active.creative_assets?.length>1)))return;
+    const timer=setInterval(()=>setIndex(previous=>previous+1),6500);
+    return()=>clearInterval(timer);
+  },[paused,slides.length,active.creative_assets?.length]);
+  const move=direction=>setIndex(previous=>previous===0&&direction<0?slides.length-1:previous+direction);
+  const click=()=>{if(active.id)recordSponsorClick(active.id,'hero');};
+  const internal=()=>{click();if(active.destination==='blog')(onBlog||onLearnMore)?.();else onLearnMore?.();};
+  const external=active.destination==='external'&&active.enlace;
+  const ctaClass='pointer-events-auto inline-flex min-h-11 max-w-full items-center justify-center rounded-lg bg-white px-5 py-2 text-sm font-black text-forest-green [overflow-wrap:anywhere] transition-colors hover:bg-treasure-gold hover:text-black sm:px-7 sm:py-3';
+  return <section ref={root} aria-label="Banner principal" className="relative mb-5 overflow-hidden rounded-lg border border-white/10 bg-forest-green shadow-sm sm:mb-8"
+    onMouseEnter={()=>setPaused(true)} onMouseLeave={()=>setPaused(false)} onFocusCapture={()=>setPaused(true)} onBlurCapture={event=>{if(!event.currentTarget.contains(event.relatedTarget))setPaused(false);}}>
+    <picture className="pointer-events-none absolute inset-0" aria-hidden="true">{active.mobile_image_url&&<source media="(max-width: 767px)" srcSet={active.mobile_image_url} />}<img src={active.imagen_url} alt="" className="h-full w-full object-cover" /></picture>
+    <div className="pointer-events-none absolute inset-0 bg-black/45" aria-hidden="true" />
+    {external&&<a href={active.enlace} target="_blank" rel="sponsored noopener noreferrer" onClick={click} aria-label={`Abrir anuncio: ${active.texto}`} className="absolute inset-0" />}
+    <div className="pointer-events-none relative px-4 py-4 sm:px-10 sm:py-7 md:px-14 md:py-8">
+      <div className="flex flex-col gap-2 sm:gap-3 md:max-w-2xl"><div><span className="inline-block max-w-full rounded-full bg-treasure-gold px-3 py-1 text-xs font-black uppercase text-black [overflow-wrap:anywhere]">{active.badge}</span></div>
+        <h1 className="break-words text-2xl font-black leading-tight text-white sm:text-4xl md:text-5xl">{active.texto}</h1>
+        {active.descripcion&&<p className="max-w-xl break-words text-sm text-white/85 sm:text-base">{active.descripcion}</p>}
+        <div className="pt-1">{external?<a href={active.enlace} target="_blank" rel="sponsored noopener noreferrer" onClick={click} className={ctaClass} aria-label={`Visitar patrocinador: ${active.texto}`}>{active.button_text}</a>:<button type="button" className={ctaClass} onClick={internal}>{active.button_text}</button>}</div>
       </div>
-    </section>
-  );
+      {(slides.length>1||active.creative_assets?.length>1)&&<div className="pointer-events-auto mt-4 flex items-center justify-between gap-4"><div className="flex min-w-0 flex-wrap items-center gap-1">{slides.map((slide,position)=><button key={slide.id||position} type="button" onClick={()=>setIndex(position)} aria-label={`Ir al banner ${position+1}: ${slide.badge}`} aria-pressed={position===index%slides.length} className="flex h-11 w-8 items-center justify-center rounded hover:bg-white/10"><span className={`h-2 rounded-full ${position===index%slides.length?'w-6 bg-white':'w-2 bg-white/50'}`} /></button>)}</div>
+        <div className="flex shrink-0 gap-2"><button type="button" aria-label="Banner anterior" title="Anterior" onClick={()=>move(-1)} className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 text-white"><ChevronLeft size={20} /></button><button type="button" aria-label="Siguiente banner" title="Siguiente" onClick={()=>move(1)} className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-white/10 text-white"><ChevronRight size={20} /></button></div>
+      </div>}
+    </div>
+  </section>;
 }

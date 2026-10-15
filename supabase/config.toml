@@ -70,7 +70,37 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./schema.sql", "./migrations/2026-09-30-article-condition.sql", "./migrations/2026-10-01-feature-article.sql", "./migrations/2026-10-01-home-pagination.sql", "./migrations/2026-10-01-article-context.sql", "./migrations/2026-10-01-sale-chat-approval.sql", "./migrations/2026-10-01-sale-cancellation.sql", "./migrations/2026-10-01-approved-sale-retention.sql", "./migrations/2026-10-01-donation-decisions.sql", "./migrations/2026-10-01-publication-limit.sql", "./migrations/2026-10-02-publication-expiry.sql", "./migrations/2026-10-08-home-article-search.sql", "./migrations/2026-10-08-related-article-search.sql", "./migrations/2026-10-08-pickup-agreements.sql", "./migrations/2026-10-08-activity-notifications.sql", "./migrations/2026-10-09-condition-filter.sql", "./migrations/2026-10-13-donation-credits.sql", "./migrations/2026-10-13-sale-credits.sql", "./migrations/2026-10-13-home-random-order.sql", "./migrations/2026-10-13-wompi-topups.sql", "./local-storage.sql"]
+sql_paths = [
+  "./schema.sql",
+  "./migrations/2026-09-30-article-condition.sql",
+  "./migrations/2026-10-01-feature-article.sql",
+  "./migrations/2026-10-01-home-pagination.sql",
+  "./migrations/2026-10-01-article-context.sql",
+  "./migrations/2026-10-01-sale-chat-approval.sql",
+  "./migrations/2026-10-01-sale-cancellation.sql",
+  "./migrations/2026-10-01-approved-sale-retention.sql",
+  "./migrations/2026-10-01-donation-decisions.sql",
+  "./migrations/2026-10-01-publication-limit.sql",
+  "./migrations/2026-10-02-publication-expiry.sql",
+  "./migrations/2026-10-08-home-article-search.sql",
+  "./migrations/2026-10-08-related-article-search.sql",
+  "./migrations/2026-10-08-pickup-agreements.sql",
+  "./migrations/2026-10-08-activity-notifications.sql",
+  "./migrations/2026-10-09-condition-filter.sql",
+  "./migrations/2026-10-13-donation-credits.sql",
+  "./migrations/2026-10-13-sale-credits.sql",
+  "./migrations/2026-10-13-home-random-order.sql",
+  "./migrations/2026-10-13-wompi-topups.sql",
+  "./migrations/2026-10-14-staff-console.sql",
+  "./migrations/2026-10-14-report-submission.sql",
+  "./migrations/2026-10-15-staff-edit-article.sql",
+  "./migrations/2026-10-15-staff-user-history.sql",
+  "./migrations/2026-10-15-staff-credit-compensation.sql",
+  "./migrations/2026-10-15-sponsor-campaigns.sql",
+  "./migrations/2026-10-15-sponsor-storage.sql",
+  "./migrations/2026-10-15-staff-audit-filters.sql",
+  "./local-storage.sql",
+]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -162,7 +192,7 @@ site_url = "http://127.0.0.1:5173"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://127.0.0.1:5173/**", "http://localhost:5173/**"]
+additional_redirect_urls = ["http://127.0.0.1:5173/**", "http://localhost:5173/**", "http://127.0.0.1:5174/**", "http://localhost:5174/**"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -206,7 +236,7 @@ anonymous_users = 30
 # Number of sessions that can be refreshed in a 5 minute interval per IP address.
 token_refresh = 150
 # Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
-sign_in_sign_ups = 30
+sign_in_sign_ups = 10
 # Number of OTP / Magic link verifications that can be made in a 5 minute interval per IP address.
 token_verifications = 30
 # Number of Web3 logins that can be made in a 5 minute interval per IP address.
@@ -314,8 +344,8 @@ max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Star, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Star, Users, Clock } from 'lucide-react';
 import { orderFeaturedItems } from './featuredOrder';
 import { isSaleArticle } from '../supabase/articleContext';
 
@@ -36,10 +36,14 @@ export default function FeaturedTicker({ items = [], onItemClick }) {
             || item.imagenes?.[0] || item.imagenes_db?.[0] || item.articulo_imagenes?.[0]?.url;
           const category = item.category || item.categoria || item.categoria_es || item.category_name || '';
           const isSale = isSaleArticle(item);
+          const inReview = ['estado','status','review_status','approval_status','moderation_status','revision_status']
+            .some(key => ['en_revision','en revisión','en revision','reviewing','under_review','pending_review']
+              .includes(String(item[key] || '').trim().toLowerCase()));
           const requestCount = Math.max(0, Math.floor(Number(item.interested_count) || 0));
           return <button key={item.id} type="button" aria-label={`Destacado: ${title}`}
-            onClick={() => onItemClick?.(item)}
-            className="flex w-60 max-w-full shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-yellow-200 bg-white text-left hover:border-yellow-500 focus-visible:outline-forest-green">
+            disabled={inReview} aria-disabled={inReview} title={inReview ? 'Publicación en revisión' : undefined}
+            onClick={() => { if (!inReview) onItemClick?.(item); }}
+            className={`flex w-60 max-w-full shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-yellow-200 bg-white text-left ${inReview ? 'cursor-not-allowed' : 'hover:border-yellow-500'} focus-visible:outline-forest-green`}>
             <div className="relative aspect-[4/3] w-full shrink-0 bg-gray-100">
               {image && <img src={image} alt={title} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
               <span className="absolute left-2 top-2 rounded bg-yellow-400 px-2 py-1 text-[10px] font-black text-gray-900">DESTACADO</span>
@@ -49,8 +53,11 @@ export default function FeaturedTicker({ items = [], onItemClick }) {
                 <Users size={14} aria-hidden="true" />
                 {requestCount} {requestCount === 1 ? 'solicitud' : 'solicitudes'}
               </span>}
+              {inReview && <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/65 backdrop-blur-[2px]">
+                <span className="inline-flex items-center gap-2 rounded bg-gray-900 px-3 py-2 text-xs font-bold text-white"><Clock size={14} aria-hidden="true" />En revisión</span>
+              </div>}
             </div>
-            <div className="w-full min-w-0 p-3">
+            <div className={`w-full min-w-0 p-3 ${inReview ? 'opacity-70' : ''}`}>
               <h3 className="truncate text-sm font-black text-gray-800">{title}</h3>
               <p className="mt-1 h-4 truncate text-[11px] text-gray-400" title={category || undefined}>{category}</p>
               <p className="mt-1 truncate text-xs text-gray-500">

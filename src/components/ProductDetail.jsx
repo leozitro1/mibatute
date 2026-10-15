@@ -5,6 +5,7 @@ import './ProductDetail.css';
 import ArticlePhotoViewer from './ArticlePhotoViewer.jsx';
 import { donationStatus } from '../supabase/donationApplications.js';
 import { supabase } from "../supabase/supabaseClient";
+import { submitArticleReport } from '../supabase/reports.js';
 import { notifyCreditBalance } from './creditBalance.js';
 import { isSaleArticle } from "../supabase/articleContext.js";
 import usePublicationClock from './usePublicationClock.js';
@@ -310,7 +311,7 @@ export default function ProductDetail({
 
       try {
         const { data, error } = await supabase
-          .from("usuarios")
+          .from("usuarios_publicos")
           .select("id, nombre, foto_url")
           .eq("id", ownerId)
           .maybeSingle();
@@ -647,25 +648,8 @@ export default function ProductDetail({
     try {
       setReportSending(true);
 
-      const { error: ensureErr } = await supabase.rpc("ensure_usuario_row", { p_uid: user.id });
-      if (ensureErr) {
-        console.error("ensure_usuario_row error:", ensureErr);
-        alert("No se pudo preparar tu usuario para reportar. Intenta de nuevo.");
-        return;
-      }
-
-      const payload = {
-        reporter_user_id: user.id,
-        target_type: "articulo",
-        target_id: articuloId,
-        reason,
-        details: String(reportDetails || "").trim() || null,
-      };
-
-      const { error } = await supabase.from("reports").insert([payload]);
-      if (error) throw error;
-
-      alert("✅ Gracias. Recibimos tu reporte y lo revisaremos.");
+      const result=await submitArticleReport(supabase,articuloId,reason,String(reportDetails||''));
+      alert(result.alreadyExists?"Tu reporte de esta publicación ya está pendiente de revisión.":"Gracias. Tu reporte fue enviado al equipo de administración.");
       setReportOpen(false);
       setReportDetails("");
       setReportReason("Contenido prohibido");
@@ -1266,10 +1250,11 @@ export default function ProductDetail({
 
               <div className="mt-5 space-y-4">
                 <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
+                  <label htmlFor="article-report-reason" className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
                     Motivo
                   </label>
                   <select
+                    id="article-report-reason"
                     value={reportReason}
                     onChange={(e) => setReportReason(e.target.value)}
                     className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-forest-green bg-white"
@@ -1285,10 +1270,11 @@ export default function ProductDetail({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
+                  <label htmlFor="article-report-details" className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">
                     Detalle (opcional)
                   </label>
                   <textarea
+                    id="article-report-details"
                     value={reportDetails}
                     onChange={(e) => setReportDetails(e.target.value)}
                     className="w-full border-2 border-gray-100 rounded-2xl p-4 text-sm outline-none focus:border-forest-green h-28 resize-none"

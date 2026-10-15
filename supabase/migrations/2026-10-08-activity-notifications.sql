@@ -158,6 +158,8 @@ begin
       kind := 'delivery_completed'; heading := 'Entrega completada'; event_at := coalesce(new.delivered_at,now());
       detail := 'Puedes calificar la transacción desde tu perfil.';
     elsif new.status='en_revision' and old.status is distinct from new.status then
+      -- Staff moderation sends one receipt-backed inbox notice with the actual reason.
+      if current_setting('mibatute.staff_action',true)='on' then return new; end if;
       recipient := new.owner_id; kind := 'publication_review'; heading := 'Publicación en revisión';
     elsif old.status='en_revision' and new.status='disponible' then
       recipient := new.owner_id; kind := 'publication_approved'; heading := 'Publicación aprobada';
@@ -171,7 +173,7 @@ begin
     recipient := new.reviewed_id; article_id := new.articulo_id;
     kind := 'rating_received'; heading := 'Recibiste una calificación'; detail := new.estrellas::text||' de 5 estrellas';
   elsif tg_table_name='cupos_historial' then
-    if new.cantidad<=0 then return new; end if;
+    if new.cantidad<=0 or to_jsonb(new)->>'concepto'='compensacion_administrativa' then return new; end if;
     recipient := new.usuario_id; kind := 'credits_received'; heading := 'Créditos recibidos'; detail := '+'||new.cantidad::text||' créditos';
   elsif tg_table_name='recargas_pendientes' then
     if new.estado is not distinct from old.estado or new.estado not in ('rechazada','rechazado') then return new; end if;

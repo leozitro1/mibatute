@@ -64,7 +64,7 @@ test('server activity records recipient-only events atomically and retains a bou
         status text,approved_at timestamptz,updated_at timestamptz default now(),created_at timestamptz default now());
       create table public.postulaciones_rechazadas(id uuid primary key default gen_random_uuid(),articulo_id uuid,usuario_id uuid,created_at timestamptz default now());
       create table public.reputacion(id uuid primary key default gen_random_uuid(),reviewer_id uuid,reviewed_id uuid,articulo_id uuid,estrellas int,created_at timestamptz default now());
-      create table public.cupos_historial(id uuid primary key default gen_random_uuid(),usuario_id uuid,cantidad int,created_at timestamptz default now());
+      create table public.cupos_historial(id uuid primary key default gen_random_uuid(),usuario_id uuid,cantidad int,concepto text,created_at timestamptz default now());
       create table public.recargas_pendientes(id uuid primary key default gen_random_uuid(),usuario_id uuid,estado text,updated_at timestamptz default now(),created_at timestamptz default now());
       create table public.system_messages(id uuid primary key default gen_random_uuid(),title text,body text,created_at timestamptz default now());
       create table public.system_message_receipts(id uuid primary key default gen_random_uuid(),message_id uuid,user_id uuid,read_at timestamptz,created_at timestamptz default now());
@@ -146,6 +146,22 @@ test('server activity records recipient-only events atomically and retains a bou
       await db.exec("reset role; update public.articulos set status='en_revision'; update public.articulos set status='disponible';");
       await asUser(owner);
       assert.deepEqual((await rows()).map(row=>row.type).sort(),['publication_approved','publication_review'].sort());
+    });
+
+    await t.test('compensation uses the receipt-backed inbox alert without a second generic credit notification',async()=>{
+      await reset();await db.exec('reset role');
+      await db.query("insert into cupos_historial(usuario_id,cantidad,concepto) values($1,5,'compensacion_administrativa')",[buyer]);
+      const message=(await db.query("insert into system_messages(title,body) values('Creditos de compensacion','Motivo de prueba') returning id")).rows[0].id;
+      await db.query('insert into system_message_receipts(message_id,user_id) values($1,$2)',[message,buyer]);
+      await asUser(buyer);assert.deepEqual((await rows()).map(row=>row.type),['system_notice']);assert.ok((await rows())[0].receipt_id);
+    });
+    await t.test('staff review creates only the receipt-backed inbox alert rather than duplicate publication alerts',async()=>{
+      await reset();await db.exec('reset role;');
+      await db.exec("begin;select set_config('mibatute.staff_action','on',true);update public.articulos set status='en_revision';commit;");
+      const message=(await db.query("insert into public.system_messages(title,body) values('Publicacion en revision','Motivo de prueba') returning id")).rows[0].id;
+      await db.query('insert into public.system_message_receipts(message_id,user_id) values($1,$2)',[message,owner]);
+      await asUser(owner);
+      const notifications=await rows();assert.equal(notifications.length,1);assert.equal(notifications[0].type,'system_notice');assert.ok(notifications[0].receipt_id);
     });
 
     await t.test('source deletion does not delete history; a stranger and anonymous callers cannot read or forge it', async () => {

@@ -1,6 +1,8 @@
 // src/components/ChatMessenger.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Flag } from 'lucide-react';
 import { supabase } from "../supabase/supabaseClient";
+import { submitChatReport } from '../supabase/reports.js';
 import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
 import { resolveChatBuyerId } from "../supabase/articleContext";
 import ChatPickupAgreement from "./ChatPickupAgreement";
@@ -184,7 +186,7 @@ async function isBlockedUser(uid) {
   if (cached && Date.now() - cached.ts < _BLOCK_TTL_MS) return cached.blocked;
 
   try {
-    const { data, error } = await supabase.from("usuarios").select("is_blocked").eq("id", id).maybeSingle();
+    const { data, error } = await supabase.from("usuarios_publicos").select("is_blocked").eq("id", id).maybeSingle();
     const blocked = !error ? !!data?.is_blocked : false;
     _blockCache.set(id, { blocked, ts: Date.now() });
     return blocked;
@@ -816,6 +818,7 @@ export default function ChatMessenger({
   };
 
   const sendChatReport = async () => {
+    if(sendingReport)return;
     try {
       if (!userId || !otherUserId) {
         alert("No se pudo identificar al usuario.");
@@ -828,40 +831,14 @@ export default function ChatMessenger({
       }
       setSendingReport(true);
 
-      const context = (Array.isArray(messages) ? messages : [])
-        .slice(-20)
-        .map((m) => ({
-          id: m?.id,
-          created_at: m?.created_at,
-          sender_id: m?.sender_id,
-          body: m?.bodyText ?? m?.message ?? m?.content ?? m?.text ?? m?.mensaje ?? "",
-        }));
-
-      const payload = {
-        reporter_id: userId,
-        reported_user_id: otherUserId,
-        chat_id: chat?.id || null,
-        articulo_id: article?.id || null,
-        reason: reportReason,
-        details,
-        context,
-      };
-
-      const { error } = await supabase.from("chat_reports").insert(payload);
-
-      if (error) {
-        console.log("sendChatReport error:", error);
-        alert("No se pudo enviar la denuncia. Revisa consola.");
-        return;
-      }
-
-      alert("Denuncia enviada. Gracias por reportar.");
+      const result=await submitChatReport(supabase,chat?.id,reportReason,details);
+      alert(result.alreadyExists?"Tu denuncia de esta conversación ya está pendiente de revisión.":"Denuncia enviada al equipo de administración. Gracias por reportar.");
       setShowReport(false);
       setReportDetails("");
       setReportReason("acoso");
     } catch (e) {
       console.log(e);
-      alert("No se pudo enviar la denuncia.");
+      alert(e?.message||"No se pudo enviar la denuncia. Intenta de nuevo.");
     } finally {
       setSendingReport(false);
     }
@@ -875,7 +852,7 @@ export default function ChatMessenger({
 
       <div className="relative ml-auto h-full w-full max-w-xl bg-white shadow-2xl border-l border-gray-200 flex flex-col">
         {/* HEADER */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={onClose}
@@ -906,6 +883,7 @@ export default function ChatMessenger({
             </p>
           </div>
 
+          <button type="button" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-gray-200 text-red-700 disabled:opacity-40" aria-label="Denunciar conversación" title="Denunciar conversación" disabled={!chat?.id||!userId||!otherUserId} onClick={()=>setShowReport(true)}><Flag size={18} aria-hidden="true" /></button>
           {readOnly ? (
             <span className="text-[10px] font-black uppercase px-3 py-2 rounded-2xl bg-gray-100 text-gray-600">
               {meBlocked ? "Bloqueado" : "Solo lectura"}
@@ -1134,8 +1112,9 @@ export default function ChatMessenger({
 
             <div className="p-4 space-y-3">
               <div>
-                <label className="text-[11px] font-black uppercase text-gray-500">Motivo</label>
+                <label htmlFor="chat-report-reason" className="text-[11px] font-black uppercase text-gray-500">Motivo</label>
                 <select
+                  id="chat-report-reason"
                   className="mt-1 w-full border border-gray-200 rounded-2xl px-3 py-2 text-sm"
                   value={reportReason}
                   onChange={(e) => setReportReason(e.target.value)}
@@ -1149,12 +1128,15 @@ export default function ChatMessenger({
               </div>
 
               <div>
-                <label className="text-[11px] font-black uppercase text-gray-500">Descripción</label>
+                <label htmlFor="chat-report-details" className="text-[11px] font-black uppercase text-gray-500">Descripción</label>
                 <textarea
+                  id="chat-report-details"
                   className="mt-1 w-full border border-gray-200 rounded-2xl px-3 py-2 text-sm min-h-[90px]"
                   value={reportDetails}
                   onChange={(e) => setReportDetails(e.target.value)}
                   placeholder="Cuéntanos qué pasó (se adjuntan los últimos 20 mensajes automáticamente)."
+                  maxLength={1000}
+                  disabled={sendingReport}
                 />
               </div>
 

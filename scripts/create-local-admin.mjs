@@ -37,9 +37,10 @@ const { user } = checked(existing
   ? await admin.auth.admin.updateUserById(existing.id, attributes)
   : await admin.auth.admin.createUser({ email, ...attributes }));
 checked(await admin.from('usuarios').update({ role: 'admin', rol: 'admin' }).eq('id', user.id));
+checked(await admin.from('staff_accounts').upsert({user_id:user.id,role:'admin',active:true}));
 const client = createClient(status.API_URL, status.ANON_KEY, options);
 const login = checked(await client.auth.signInWithPassword({ email, password }));
 if (login.user.app_metadata.role !== 'admin') throw new Error('No se confirmo el rol Admin.');
-checked(await client.from('admin_reports_view').select('*').limit(1));
+checked(await client.rpc('staff_bootstrap'));
 checked(await client.auth.signOut({ scope: 'local' }));
-console.log(`Cuenta local ${username} creada; inicio de sesion y consulta de reportes verificados.`);
+console.log(`Cuenta local ${username} creada; requiere segundo factor para acceder al panel.`);
