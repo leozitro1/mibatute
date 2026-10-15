@@ -574,6 +574,23 @@ registrado sigue siendo visible para el equipo autorizado, incluidas notas
 internas incorporadas a ese motivo. No se muestran en el buzon del usuario.
 No hay sondeo ni solicitudes adicionales para traducir nombres.
 
+## Publicacion del 15 de octubre de 2026
+
+Los apartados anteriores documentan el desarrollo local. Las nueve migraciones
+de administracion, reportes, ajustes de notificaciones, edicion, historial,
+compensaciones, campanas, almacenamiento y auditoria se aplicaron al proyecto
+de produccion `sgxzjggxlswvpedrosck` en una sola transaccion, con autorizacion
+explicita del titular. Se habilito la cuenta real designada como primer Super
+Admin, sin cambiar su contrasena ni trasladar cuentas o datos locales.
+
+La comprobacion anonima en produccion devolvio tres campanas publicas, cero
+perfiles privados y sin acceso a auditoria ni metricas internas. El commit
+principal es `51087a2`. El sitio se publico en `https://www.mibatute.com`.
+Vercel no esta conectado automaticamente con GitHub: los despliegues se
+realizan con la CLI vinculada al proyecto existente. `vercel.json` incluye
+solo rutas cliente concretas para paneles, recuperacion y terminos; no
+intercepta `/api` ni recursos estaticos. No se activaron pagos Wompi.
+
 ## Publicar despues de probar
 
 El commit incluye el codigo y las configuraciones de desarrollo, pero no

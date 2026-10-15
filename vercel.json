@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/gestion/:path*", "destination": "/index.html" },
+    { "source": "/auth/callback", "destination": "/index.html" },
+    { "source": "/reset-password", "destination": "/index.html" },
+    { "source": "/terminos", "destination": "/index.html" }
+  ]
+}
