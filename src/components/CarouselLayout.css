@@ -1,0 +1,30 @@
+/* Reserve the full slot before images load and while copy/creative changes. */
+.hero-banner { height: 360px; }
+.hero-banner .hero-banner-content { height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding-block: 24px; }
+.hero-banner .hero-banner-copy { min-height: 0; }
+.hero-banner .hero-banner-copy h1 { font-size: 40px; line-height: 1.15; }
+.hero-banner .hero-banner-copy h1,
+.hero-banner .hero-banner-copy > p,
+.sponsor-carousel-copy h4,
+.sponsor-carousel-copy > p:last-child {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.hero-banner .hero-banner-controls { min-height: 44px; flex-shrink: 0; margin-top: 12px; }
+.sponsor-carousel-heading { height: 46px; }
+.sponsor-carousel-copy { height: 176px; }
+.sponsor-carousel-copy h4 { line-height: 24px; }
+.sponsor-carousel-copy > p:last-child { -webkit-line-clamp: 3; }
+.sponsor-carousel-controls { height: 70px; }
+.sponsor-carousel-dots { min-width: 0; overflow-x: auto; }
+.sponsor-carousel-dots > button { flex-shrink: 0; }
+.sponsor-carousel-controls > div:last-child { flex-shrink: 0; }
+.sponsor-carousel-controls button:disabled { opacity: .35; cursor: default; }
+@media (max-width: 639px) {
+  .hero-banner { height: 384px; }
+  .hero-banner .hero-banner-content { padding-block: 20px; }
+  .hero-banner .hero-banner-copy h1 { font-size: 28px; -webkit-line-clamp: 3; }
+  .hero-banner .hero-banner-copy > p { -webkit-line-clamp: 3; }
+}

@@ -9,6 +9,8 @@ import './TransactionActions.css';
 import WompiTopupDialog from './WompiTopupDialog.jsx';
 import {
   Camera,
+  ArrowLeft,
+  Package,
   ChevronDown,
   CircleDollarSign,
   LockKeyhole,
@@ -2338,13 +2340,13 @@ export default function UserProfile({
 
   return (
     <div className="user-profile max-w-5xl mx-auto p-4 animate-in slide-in-from-bottom-4 duration-300">
-      <button
-        onClick={onBack}
-        className="mb-6 text-forest-green font-bold flex items-center gap-2 hover:underline"
-        type="button"
-      >
-        ← Volver al inicio
-      </button>
+      <header className="profile-page-heading">
+        <h1>Mi cuenta</h1>
+        <button type="button" onClick={onBack} className="profile-return-home">
+          <ArrowLeft size={16} aria-hidden="true" /> Volver al inicio
+        </button>
+        <p>Administra tus publicaciones, rescates y mensajes.</p>
+      </header>
 
       {isUserBlocked ? (
         <div className="mb-6 rounded-3xl border border-red-200 bg-red-50 px-5 py-4">
@@ -2400,7 +2402,7 @@ export default function UserProfile({
                   </label>
                 </div>
                 <div className="min-w-0 flex-1 lg:hidden">
-                  <h1 className="text-lg font-bold text-gray-900 break-words">{profile.nombre || 'Mi perfil'}</h1>
+                  <h2 className="text-lg font-bold text-gray-900 break-words">{profile.nombre || 'Mi perfil'}</h2>
                   <p className="mt-1 text-sm text-gray-500 break-words">{[profile.ciudad, profile.localidad].filter(Boolean).join(' · ')}</p>
                 </div>
               </div>
@@ -2659,6 +2661,7 @@ export default function UserProfile({
                 aria-label="Mis Publicaciones"
                 aria-pressed={activeTab === 'publicaciones'}
               >
+                <Package size={17} aria-hidden="true" className="profile-tab-icon" />
                 <span><span className="hidden sm:inline">Mis </span>Publicaciones</span>
                 {pubNotifCount > 0 ? (
                   <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-black">
@@ -2678,6 +2681,7 @@ export default function UserProfile({
                 aria-label="Mis Rescates"
                 aria-pressed={activeTab === 'rescates'}
               >
+                <ShoppingBag size={17} aria-hidden="true" className="profile-tab-icon" />
                 <span><span className="hidden sm:inline">Mis </span>Rescates</span>
                 {rescNotifCount > 0 ? (
                   <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-black">
@@ -2734,7 +2738,8 @@ export default function UserProfile({
                         return (
                           <div
                             key={m.receipt_id}
-                            className={`relative flex items-center gap-3 px-4 py-3 bg-white rounded-2xl shadow-sm border transition hover:shadow-md cursor-pointer ${isUnread ? "border-gray-300" : "border-gray-100 opacity-70"}`}
+                            className={`profile-inbox-message relative flex items-center gap-3 px-4 py-3 bg-white rounded-2xl shadow-sm border transition hover:shadow-md cursor-pointer ${isUnread ? "border-gray-300" : "border-gray-100 opacity-70"}`}
+                            data-unread={isUnread}
                             onClick={() => {
                               setSysMsgModal(m);
                               if (isUnread) markReceipt(m.receipt_id, "read", m.receipt_kind);

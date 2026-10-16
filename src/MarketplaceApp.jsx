@@ -20,7 +20,11 @@ import { fetchActivityNotifications, publicationExpiryNotifications, activityDes
 import HeroBanner from "./components/HeroBanner";
 import FeaturedTicker from "./components/FeaturedTicker";
 import SponsorCarousel from "./components/SponsorCarousel";
+import SocialBar from './components/SocialBar';
 import './components/HomeCatalog.css';
+import './components/DesignProposal.css';
+import './components/ProfileDesignProposal.css';
+import CategoryIcon from './components/CategoryIcon';
 import { deleteArticleImages, getArticleWithImages } from "./supabase/articleService";
 import { transitionSale } from "./supabase/saleTransaction";
 import { readArticleContext, readNotificationChatContext, resolveChatBuyerId, validateTransactionChat } from "./supabase/articleContext";
@@ -189,6 +193,14 @@ function resolveInterestedMax(item) {
 }
 
 export default function MarketplaceApp() {
+  // Production uses the approved design; local development keeps the comparison.
+  const [designPreview, setDesignPreview] = useState(() => !import.meta.env.DEV || new URLSearchParams(window.location.search).get('design') !== 'actual');
+  const changeDesign = (value) => {
+    setDesignPreview(value);
+    const url = new URL(window.location.href);
+    url.searchParams.set('design', value ? 'propuesta' : 'actual');
+    window.history.replaceState(window.history.state, '', url);
+  };
   const publicationNow = usePublicationClock();
   const [products, setProducts] = useState([]);
 
@@ -260,7 +272,7 @@ export default function MarketplaceApp() {
     search: debouncedSearch, searchMode, category: selectedCategory, subcategory: selectedSubcategory,
     city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive, minCondition,
     hideOwn: !!currentUser?.id && hiddenAdsOwnerId === currentUser.id, sort: sortOrder, featuredSeed,
-    layout: mobileCatalog ? 'mobile' : 'desktop',
+    layout: mobileCatalog ? 'mobile' : 'desktop', desktopPageSize: 12,
   }), [debouncedSearch, searchMode, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
     quickTipo, onlyActive, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id, mobileCatalog]);
   const homeFilterKey = JSON.stringify([homeFilters, currentUser?.id]);
@@ -1590,7 +1602,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       && normEstado(p.estado || p.status || "") !== "entregado");
   }, [products, homePage.featuredIds, publicationNow]);
 
-  const totalPages = homePage.pageCount ?? Math.max(1, Math.ceil(homePage.total / 9));
+  const totalPages = homePage.pageCount ?? Math.max(1, Math.ceil(homePage.total / 12));
   const changeHomePage = page => {
     setPageSelection({ key: homeFilterKey, page });
     listingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1618,7 +1630,12 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       <Route
         path="/"
         element={
-          <div className="min-h-screen bg-[#F5F5F5]" data-realtime-state={realtimeStatus} data-realtime-revision={realtimeRevision}>
+          <div className={`min-h-screen bg-[#F5F5F5]${designPreview ? ' mb-design-preview' : ''}`} data-realtime-state={realtimeStatus} data-realtime-revision={realtimeRevision}>
+            {import.meta.env.DEV && <div className="design-comparison" role="group" aria-label="Comparar diseño local">
+              <span>Vista local</span>
+              <button type="button" aria-pressed={!designPreview} onClick={() => changeDesign(false)}>Actual</button>
+              <button type="button" aria-pressed={designPreview} onClick={() => changeDesign(true)}>Propuesta</button>
+            </div>}
             <Navbar
               onSearch={setSearchTerm}
               searchTerm={searchTerm}
@@ -1731,7 +1748,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     </div>
                   )}
 
-                  <div className={`home-catalog flex flex-col lg:flex-row gap-4 lg:gap-8${filteredProducts.length === 9 && !homeBusy && !homeError ? ' home-catalog--full' : ''}${totalPages > 1 && !homeError ? ' home-catalog--paginated' : ''}`}>
+                  <div className={`home-catalog flex flex-col lg:flex-row gap-4 lg:gap-8${filteredProducts.length === 12 && !homeBusy && !homeError ? ' home-catalog--full' : ''}${totalPages > 1 && !homeError ? ' home-catalog--paginated' : ''}`}>
                     <aside className="contents lg:block lg:w-1/4 shrink-0 min-w-0" aria-label="Filtros del catálogo">
                       <div className="order-1 min-w-0">
                       {/* Categorías */}
@@ -1792,7 +1809,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                                       : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
                                   }`}
                                 >
-                                  <span className="min-w-0 flex-1 break-words">{cat.label}</span>
+                                  {designPreview && <CategoryIcon category={cat.key} />}
+                                  <span className="min-w-0 flex-1 break-words">{designPreview ? cat.key : cat.label}</span>
                                   <ChevronDown size={16} className={`shrink-0 transition-transform motion-reduce:transition-none ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
                                 </button>
 
@@ -1932,6 +1950,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                       </div>
                       <div className="home-catalog-sponsors order-3 min-w-0 lg:mt-6">
                         <SponsorCarousel sponsorFilters={{city:selectedCity,locality:selectedLocality,category:selectedCategory}} />
+                        {designPreview && <SocialBar />}
                       </div>
                     </aside>
 

@@ -1,3 +1,9 @@
+.profile-page-heading { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+.profile-page-heading > h1, .profile-page-heading > p, .profile-tab-icon { display: none; }
+.profile-return-home { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 1px solid #dce5d6; border-radius: 10px; background: #fff; color: #345737; font-size: 13px; font-weight: 500; cursor: pointer; }
+.profile-return-home:hover { background: #edf3e7; border-color: #a6b998; }
+.profile-return-home:focus-visible { outline: 2px solid #2d5a27; outline-offset: 3px; }
+
 .user-profile .profile-tabs > button {
   min-width: 0;
   min-height: 48px;

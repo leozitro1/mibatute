@@ -59,6 +59,36 @@ async function fixture(existingExtension = false) {
   }
 }
 
+test('desktop can request twelve articles without gaps, duplicates or changing mobile pagination', async () => {
+  const { db, page } = await fixture();
+  try {
+    await db.exec('reset role');
+    await db.exec(await migration('2026-10-13-home-random-order'));
+    await db.exec('set role anon');
+    const previousMobile = await page({ layout: 'mobile', featuredSeed: 'size-test' });
+    await db.exec('reset role');
+    await db.exec(await migration('2026-10-16-home-desktop-page-size'));
+    await db.exec('set role anon');
+    for (const sort of ['random', 'newest', 'oldest']) {
+      const filters = { desktopPageSize: 12, sort, featuredSeed: 'size-test' };
+      const first = await page(filters);
+      const second = await page(filters, 2);
+      assert.equal(first.ids.length, 12);
+      assert.equal(second.ids.length, 4);
+      assert.equal(first.pageCount, 2);
+      assert.equal(new Set([...first.ids, ...second.ids]).size, 16);
+      assert.deepEqual(await page(filters, 500), second);
+      const legacy = [...(await page({ ...filters, desktopPageSize: 9 })).ids,
+        ...(await page({ ...filters, desktopPageSize: 9 }, 2)).ids];
+      assert.deepEqual([...first.ids, ...second.ids], legacy);
+    }
+    assert.deepEqual(await page({ layout: 'mobile', desktopPageSize: 12, featuredSeed: 'size-test' }), previousMobile);
+    assert.equal((await page({ desktopPageSize: 10000 })).ids.length, 9);
+    assert.equal((await page({ desktopPageSize: 'invalid' })).ids.length, 9);
+    assert.equal((await page()).ids.length, 9);
+  } finally { await db.close(); }
+});
+
 test('latest catalog shuffles stably, interleaves filtered features every six normal articles and preserves group order', async () => {
   const { db, page } = await fixture();
   try {
