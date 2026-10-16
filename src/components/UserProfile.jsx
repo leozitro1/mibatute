@@ -21,10 +21,12 @@ import {
   Gift,
   ShoppingBag,
   Repeat2,
+  RefreshCw,
   Bell,
   AlertTriangle,
   Eye,
   X,
+  XCircle,
   Inbox,
   Star,
   Users,
@@ -33,6 +35,8 @@ import { LOCATIONS } from "../data/locations";
 import ManageArticleModal from "./ManageArticleModal";
 import ApplicantRow from './ApplicantRow.jsx';
 import ProfileListFilters from "./ProfileListFilters";
+import RescueLimits from './RescueLimits.jsx';
+import ProfileRatingAction from './ProfileRatingAction.jsx';
 import PublicationCountdown from './PublicationCountdown.jsx';
 import usePublicationClock from './usePublicationClock.js';
 import { isPublicationUnavailable } from './articleLifetime.js';
@@ -713,17 +717,11 @@ function ModalSolicitudes({
             </div>
           ) : hasWinner ? (
             <div className="space-y-3">
-              <div className="bg-green-50 border border-green-100 rounded-3xl p-4">
-                <p className="text-sm font-black text-green-800 uppercase">
-                  {normEstado(articulo?.estado || articulo?.status || "disponible") === "entregado"
-                    ? "Entregado ✅"
-                    : "Seleccionado ✅"}
-                </p>
-                <p className="text-xs text-green-700 mt-1 font-bold">
-                  {normEstado(articulo?.estado || articulo?.status || "disponible") === "entregado"
-                    ? "Transacción cerrada. El chat debe abrirse para ver historial, pero debe quedar en solo lectura."
-                    : "Los demás interesados no deben ver a quién fue elegido."}
-                </p>
+              <div className="profile-selection-status" role="status">
+                <CheckCircle2 size={18} aria-hidden="true" />
+                <div><strong>{isEntregado?'Entrega completada':'Persona seleccionada'}</strong>
+                  {!isEntregado&&<span>Pendiente de entrega</span>}
+                </div>
               </div>
 
               {solicitudesVisibles.length ? (
@@ -736,63 +734,67 @@ function ModalSolicitudes({
                   return (
                     <div
                       key={s?.id || `${nombre}-${fecha}`}
-                      className="p-4 rounded-3xl border border-gray-100 bg-forest-green/10"
+                      className="profile-selected-applicant"
+                      data-selected-applicant
                     >
-                      <div className="flex items-start gap-3">
                         <div className="shrink-0">
                           {foto ? (
                             <img
                               src={foto}
                               alt={nombre}
-                              className="w-10 h-10 rounded-full object-cover border border-white shadow"
+                              className="w-10 h-10 rounded-full object-cover border border-gray-200"
                               onError={(e) => {
                                 e.currentTarget.style.display = "none";
                               }}
                             />
                           ) : (
-                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-black text-gray-600">
+                            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-semibold text-gray-600">
                               {String(nombre).charAt(0).toUpperCase()}
                             </div>
                           )}
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-black text-gray-900 truncate">{nombre}</p>
+                          <div className="profile-selected-identity">
+                            <p className="profile-selected-name">{nombre}</p>
                             {fecha ? (
-                              <span className="text-[10px] font-black uppercase text-gray-400 whitespace-nowrap">
+                              <span className="profile-selected-date">
                                 {fecha}
                               </span>
                             ) : null}
                           </div>
 
-                          <p className="mt-2 text-sm text-gray-700 font-medium leading-relaxed whitespace-pre-wrap">
+                          <p className="profile-selected-message">
                             {mensaje}
                           </p>
+                        </div>
 
-                          {normEstado(articulo?.estado || articulo?.status || "disponible") === "entregado" ? null : (
-                            <div className="mt-3 flex items-center gap-2">
+                          {isEntregado ? null : (
+                            <div className="profile-delivery-actions" aria-label="Acciones de entrega">
                               <button
                                 type="button"
                                 onClick={marcarComoEntregado}
-                                disabled={updatingKey === `${articuloId}:deliver`}
-                                className="bg-gray-900 text-white px-3 py-2 rounded-2xl text-[10px] font-black uppercase hover:brightness-110 transition disabled:opacity-50"
+                                disabled={!!updatingKey}
+                                aria-label="Marcar como entregado"
+                                title="Marcar como entregado"
+                                className="profile-delivery-button profile-delivery-confirm"
                               >
-                                {updatingKey === `${articuloId}:deliver` ? "Marcando..." : "Marcar como entregado"}
+                                {updatingKey === `${articuloId}:deliver`?<Loader2 size={16} className="animate-spin" aria-hidden="true" />:<CheckCircle2 size={16} aria-hidden="true" />}
+                                <span>{updatingKey === `${articuloId}:deliver` ? "Marcando..." : "Marcar entregado"}</span>
                               </button>
 
                               <button
                                 type="button"
                                 onClick={cancelarEntrega}
-                                disabled={updatingKey === `${articuloId}:cancel`}
-                                className="bg-red-100 text-red-700 px-3 py-2 rounded-2xl text-[10px] font-black uppercase hover:brightness-110 transition disabled:opacity-50"
+                                disabled={!!updatingKey}
+                                title="Cancelar entrega"
+                                className="profile-delivery-button profile-delivery-cancel"
                               >
-                                {updatingKey === `${articuloId}:cancel` ? "Cancelando..." : "Cancelar entrega"}
+                                {updatingKey === `${articuloId}:cancel`?<Loader2 size={16} className="animate-spin" aria-hidden="true" />:<XCircle size={16} aria-hidden="true" />}
+                                <span>{updatingKey === `${articuloId}:cancel` ? "Cancelando..." : "Cancelar entrega"}</span>
                               </button>
                             </div>
                           )}
-                        </div>
-                      </div>
                     </div>
                   );
                 })
@@ -875,6 +877,10 @@ export default function UserProfile({
   user,
   myProducts = [],
   notifByArticulo = {},
+  notificationBadges = {},
+  onInboxNotifications,
+  onInboxReceiptChange,
+  inboxRevision=0,
   onArticuloSeen,
   onBack,
   onOpenEdit,
@@ -1005,6 +1011,7 @@ export default function UserProfile({
   const [isUserBlocked, setIsUserBlocked] = useState(
     !!(user?.is_blocked || user?.bloqueado || false)
   );
+  useEffect(()=>{if(isUserBlocked)setRecargaOpen(false);},[isUserBlocked]);
 
   useEffect(() => {
     // Si ya tenemos el dato en el prop user, no hacemos query
@@ -1820,32 +1827,50 @@ export default function UserProfile({
   }, [user?.id]);
 
   // ── Cargar mensajes del sistema ──────────────────────────────────────────
+  const sysMsgsPendingRef = useRef(false);
+  const sysMsgsCargadosRef = useRef(false);
+  const receiptRevisionRef = useRef(0);
+  const inboxRevisionRef=useRef(inboxRevision);inboxRevisionRef.current=inboxRevision;
+  const loadedInboxRevisionRef=useRef(-1);
   const loadSysMsgs = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || sysMsgsPendingRef.current) return;
+    sysMsgsPendingRef.current = true;
+    const revision = receiptRevisionRef.current;
+    const signalRevision=inboxRevisionRef.current;
     setSysMsgsLoading(true);
     try {
       let { data, error } = await supabase.rpc('notification_inbox');
       if (error?.code === 'PGRST202' || error?.code === '42883') ({ data, error } = await supabase.rpc('get_my_inbox'));
       if (error) throw error;
+      if (revision !== receiptRevisionRef.current) return;
+      sysMsgsCargadosRef.current = true;
+      loadedInboxRevisionRef.current=signalRevision;
       setSysMsgs(Array.isArray(data) ? data : []);
+      onInboxNotifications?.(user.id, Array.isArray(data) ? data : []);
     } catch (e) {
       console.warn("loadSysMsgs warn:", e?.message || e);
       setSysMsgs([]);
     } finally {
+      sysMsgsPendingRef.current = false;
       setSysMsgsLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, onInboxNotifications]);
 
-  const markReceipt = useCallback(async (receiptId, action) => {
+  const markReceipt = useCallback(async (receiptId, action, kind = 'system') => {
+    receiptRevisionRef.current++;
     try {
-      let { error } = await supabase.rpc('notification_receipt_action', {
+      let { error } = await supabase.rpc(kind === 'staff' ? 'staff_message_receipt_action' : 'notification_receipt_action', kind === 'staff' ? {
+        p_message: receiptId, p_action: action,
+      } : {
         p_receipt_id: receiptId,
         p_action: action,
       });
-      if (error?.code === 'PGRST202' || error?.code === '42883') ({ error } = await supabase.rpc('mark_receipt', {
+      if (kind !== 'staff' && (error?.code === 'PGRST202' || error?.code === '42883')) ({ error } = await supabase.rpc('mark_receipt', {
         p_receipt_id: receiptId, p_action: action,
       }));
       if (error) throw error;
+      receiptRevisionRef.current++;
+      onInboxReceiptChange?.(user?.id, receiptId, action, kind);
       if (action === "delete") {
         setSysMsgs((prev) => prev.filter((m) => m.receipt_id !== receiptId));
       } else if (action === "read") {
@@ -1856,7 +1881,7 @@ export default function UserProfile({
     } catch (e) {
       console.warn("markReceipt warn:", e?.message || e);
     }
-  }, []);
+  }, [user?.id, onInboxReceiptChange]);
 
   // ✅ sysMsgs: solo se carga cuando el usuario abre "buzon" (lazy)
   const openedSystemNotificationRef = useRef(null);
@@ -1867,10 +1892,9 @@ export default function UserProfile({
     if (!message) return;
     openedSystemNotificationRef.current = notificationTarget;
     setSysMsgModal({ ...message, read_at: message.read_at || new Date().toISOString() });
-    if (!message.read_at) markReceipt(message.receipt_id, 'read');
+    if (!message.read_at) markReceipt(message.receipt_id, 'read', message.receipt_kind);
   }, [notificationTarget, activeTab, sysMsgs, markReceipt]);
 
-  const sysMsgsCargadosRef = useRef(false);
   useEffect(() => {
     if (!user?.id) return;
     if (activeTab !== "buzon") return;
@@ -1878,6 +1902,13 @@ export default function UserProfile({
     sysMsgsCargadosRef.current = true;
     loadSysMsgs();
   }, [user?.id, activeTab, loadSysMsgs]);
+
+  useEffect(()=>{
+    if(activeTab==='buzon'&&notificationTarget?.receiptId&&openedSystemNotificationRef.current!==notificationTarget&&sysMsgsCargadosRef.current
+      &&!sysMsgs.some(message=>String(message.receipt_id)===String(notificationTarget.receiptId)))loadSysMsgs();
+    // A notification click may request a new body even when this tab was already loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[notificationTarget,activeTab,loadSysMsgs]);
 
   // ✅ Sin polling — refs para leer estado sin dependencias reactivas
   const publicationsRef = useRef([]);
@@ -1984,37 +2015,7 @@ export default function UserProfile({
     articuloOverridesById,
   ]);
 
-  const inboxUnreadCount = useMemo(() => {
-    return (Array.isArray(sysMsgs) ? sysMsgs : []).filter((m) => !m?.read_at).length;
-  }, [sysMsgs]);
-
-  // Badge de Mis Publicaciones: mensajes sin leer + solicitudes nuevas
-  const pubNotifCount = useMemo(() => {
-    let n = 0;
-    (publications || []).forEach((art0) => {
-      const id = String(getArticuloId(getArtEffective(art0)) || "");
-      if (!id) return;
-      if (unreadByArticulo.get(id) === true) n++;
-      n += Number(notifByArticulo?.[id]?.total || 0);
-    });
-    return n;
-  }, [publications, unreadByArticulo, notifByArticulo, articuloOverridesById]);
-
-  // Badge de Mis Rescates: mensajes sin leer
-  const rescNotifCount = useMemo(() => {
-    let n = 0;
-    (rescates || []).forEach((r) => {
-      const art = r?.articulo || {};
-      const id = String(r?.articulo_id || r?.articuloId || getArticuloId(art) || "");
-      if (id && unreadByArticulo.get(id) === true) n++;
-      // +1 si fue elegido ganador y el artículo está reservado (donación)
-      const estado = normEstado(art?.estado || art?.status || "");
-      const ganadorId = art?.ganador_id || art?.winner_id || art?.winnerUid || art?.recipient_id || null;
-      const isVenta = isVentaArticulo(art);
-      if (!isVenta && ganadorId && String(ganadorId) === String(user?.id || "") && estado === "reservado") n++;
-    });
-    return n;
-  }, [rescates, unreadByArticulo, user?.id]);
+  const {publicaciones:pubNotifCount=0,rescates:rescNotifCount=0,buzon:inboxUnreadCount=0}=notificationBadges;
 
   const formatDate = (item) => {
     try {
@@ -2399,6 +2400,7 @@ export default function UserProfile({
           <p className="mt-1 text-xs font-bold text-red-700">
             Tus acciones están desactivadas (chats, edición, gestión, eliminación).
           </p>
+          <p className="mt-2 text-xs text-red-700">Tus créditos están bloqueados y no puedes realizar recargas. Para solicitar la devolución de créditos comprados, comunícate con administración en <a className="underline" href="mailto:hola@mibatute.com">hola@mibatute.com</a>.</p>
         </div>
       ) : null}
 
@@ -2663,26 +2665,28 @@ export default function UserProfile({
                 <CircleDollarSign size={24} strokeWidth={1.5} aria-hidden="true" />
               </div>
               <div className="flex-1 min-w-[140px]">
-                <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">Saldo de créditos</p>
+                <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">{isUserBlocked ? 'Créditos bloqueados' : 'Saldo de créditos'}</p>
                 <p className="text-2xl font-black text-gray-800">
                   {cuposSaldo === null ? "..." : cuposSaldo}
                   <span className="text-sm font-semibold text-gray-400 ml-1">crédito{cuposSaldo !== 1 ? "s" : ""}</span>
                 </p>
-                <p className="text-[11px] text-gray-400 mt-0.5">Los créditos sirven para destacar, solicitar donaciones adicionales o reservar compras adicionales. Los destacados no son reembolsables.</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">{isUserBlocked ? 'El saldo se conserva, pero no puede utilizarse mientras la cuenta esté bloqueada.' : 'Los créditos sirven para destacar, solicitar donaciones adicionales o reservar compras adicionales. Los destacados no son reembolsables.'}</p>
                 {donacionLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{donacionLimit.heldCredits} crédito{donacionLimit.heldCredits === 1 ? '' : 's'} retenido{donacionLimit.heldCredits === 1 ? '' : 's'} en solicitudes pendientes. El saldo muestra los disponibles.</p>}
                 {purchaseLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{purchaseLimit.heldCredits} crédito{purchaseLimit.heldCredits === 1 ? '' : 's'} retenido{purchaseLimit.heldCredits === 1 ? '' : 's'} en compras adicionales.</p>}
               </div>
               <button
                 type="button"
-                onClick={() => setRecargaOpen(true)}
-                className="profile-topup shrink-0 min-h-11 px-4 py-2 rounded-lg bg-forest-green text-white font-bold text-sm hover:bg-green-700 transition"
+                onClick={() => {if(!isUserBlocked)setRecargaOpen(true);}}
+                disabled={isUserBlocked}
+                title={isUserBlocked ? 'Recargas desactivadas por bloqueo de cuenta' : 'Recargar con Wompi'}
+                className="profile-topup shrink-0 min-h-11 px-4 py-2 rounded-lg bg-forest-green text-white font-bold text-sm hover:bg-green-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Recargar con Wompi
               </button>
             </div>
           </section>
 
-          {recargaOpen && <WompiTopupDialog onClose={() => setRecargaOpen(false)} onConfirmed={balance => {
+          {recargaOpen && !isUserBlocked && <WompiTopupDialog onClose={() => setRecargaOpen(false)} onConfirmed={balance => {
             setCuposSaldo(balance);
             notifyCreditBalance(user.id,balance);
           }} />}
@@ -2728,7 +2732,10 @@ export default function UserProfile({
               </button>
 
               <button
-                onClick={() => setActiveTab("buzon")}
+                onClick={() => {
+                  setActiveTab("buzon");
+                  if(sysMsgsCargadosRef.current&&loadedInboxRevisionRef.current!==inboxRevisionRef.current)loadSysMsgs();
+                }}
                 className={`flex-1 py-4 text-sm font-bold transition flex items-center justify-center gap-2 ${
                   activeTab === "buzon"
                     ? "border-b-2 border-forest-green text-forest-green"
@@ -2751,6 +2758,7 @@ export default function UserProfile({
               {activeTab === "buzon" && (
                 <>
                   {/* ── Mensajes del sistema ──────────────────────────── */}
+                  <div className="flex items-center justify-between gap-3"><h3 className="text-xs font-bold text-gray-500">Mensajes de MiBatute</h3><button type="button" aria-label="Actualizar buzón" title="Actualizar buzón" disabled={sysMsgsLoading} onClick={loadSysMsgs} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40"><RefreshCw size={16} className={sysMsgsLoading?'animate-spin':''} /></button></div>
                   {sysMsgsLoading ? (
                     <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm mb-3">
                       <Loader2 size={14} className="animate-spin text-gray-400" />
@@ -2758,9 +2766,6 @@ export default function UserProfile({
                     </div>
                   ) : sysMsgs.length > 0 ? (
                     <div className="space-y-2 mb-5">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-1">
-                        Mensajes del sistema
-                      </p>
                       {sysMsgs.map((m) => {
                         const isUnread = !m?.read_at;
                         const sevBadge = {
@@ -2777,7 +2782,7 @@ export default function UserProfile({
                             className={`relative flex items-center gap-3 px-4 py-3 bg-white rounded-2xl shadow-sm border transition hover:shadow-md cursor-pointer ${isUnread ? "border-gray-300" : "border-gray-100 opacity-70"}`}
                             onClick={() => {
                               setSysMsgModal(m);
-                              if (isUnread) markReceipt(m.receipt_id, "read");
+                              if (isUnread) markReceipt(m.receipt_id, "read", m.receipt_kind);
                             }}
                           >
                             {/* punto no leído */}
@@ -2805,7 +2810,7 @@ export default function UserProfile({
                               <button
                                 type="button"
                                 title={isUnread ? "Marcar como leído" : "Marcar como no leído"}
-                                onClick={() => markReceipt(m.receipt_id, isUnread ? "read" : "unread")}
+                                onClick={() => markReceipt(m.receipt_id, isUnread ? "read" : "unread", m.receipt_kind)}
                                 className={`p-2 rounded-xl transition ${isUnread ? "bg-forest-green/10 text-forest-green hover:bg-forest-green hover:text-white" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}
                               >
                                 <CheckCircle2 size={14} />
@@ -2813,7 +2818,7 @@ export default function UserProfile({
                               <button
                                 type="button"
                                 title="Borrar mensaje"
-                                onClick={() => { if (window.confirm("¿Borrar este mensaje? No se puede deshacer.")) markReceipt(m.receipt_id, "delete"); }}
+                                onClick={() => { if (window.confirm("¿Borrar este mensaje? No se puede deshacer.")) markReceipt(m.receipt_id, "delete", m.receipt_kind); }}
                                 className="p-2 rounded-xl bg-gray-100 text-gray-700 hover:bg-red-50 hover:text-red-600 transition"
                               >
                                 <Trash2 size={14} />
@@ -2834,7 +2839,7 @@ export default function UserProfile({
                       <div
                         role="dialog" aria-modal="true" aria-labelledby="system-message-title"
                         data-system-message-receipt={sysMsgModal.receipt_id}
-                        className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6"
+                        className="w-full max-w-md max-h-[85dvh] overflow-y-auto bg-white rounded-3xl shadow-2xl p-6 [overflow-wrap:anywhere]"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {/* cabecera */}
@@ -2878,7 +2883,7 @@ export default function UserProfile({
                           <button
                             type="button"
                             onClick={() => {
-                              markReceipt(sysMsgModal.receipt_id, sysMsgModal.read_at ? "unread" : "read");
+                              markReceipt(sysMsgModal.receipt_id, sysMsgModal.read_at ? "unread" : "read", sysMsgModal.receipt_kind);
                               setSysMsgModal((prev) => prev ? { ...prev, read_at: prev.read_at ? null : new Date().toISOString() } : null);
                             }}
                             className="flex-1 py-2.5 rounded-2xl bg-gray-100 text-gray-800 font-bold text-sm hover:bg-gray-200 transition"
@@ -2889,7 +2894,7 @@ export default function UserProfile({
                             type="button"
                             onClick={() => {
                               if (!window.confirm("¿Borrar este mensaje? No se puede deshacer.")) return;
-                              markReceipt(sysMsgModal.receipt_id, "delete");
+                              markReceipt(sysMsgModal.receipt_id, "delete", sysMsgModal.receipt_kind);
                               setSysMsgModal(null);
                             }}
                             className="flex-1 py-2.5 rounded-2xl bg-red-50 text-red-700 font-bold text-sm hover:bg-red-100 transition"
@@ -3034,7 +3039,7 @@ export default function UserProfile({
                           />
 
                           <div data-profile-content className="flex-1 min-w-0">
-                            {pendingRating && <p data-rating-notice className="mb-1 text-xs font-bold text-forest-green">Pendiente calificación</p>}
+                            {pendingRating && <p data-rating-notice className="profile-rating-notice">Calificación pendiente</p>}
                             <h4 className="font-bold text-gray-800 truncate">{titulo}</h4>
                             {isVenta && hasBuyer && art.buyer_public?.nombre && (
                               <p className="mt-1 truncate text-xs font-semibold text-gray-600">
@@ -3084,7 +3089,17 @@ export default function UserProfile({
                             </div>
                           </div>
 
-                          <div data-profile-actions className={`flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start ${isEntregado ? "[&>button:not([data-rating-pending])]:opacity-50" : ""}`}>
+                          <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start ${isEntregado ? "[&>button:not([data-rating-action])]:opacity-50" : ""}`}>
+                            {canRate && (
+                              <ProfileRatingAction
+                                rated={yaCalifique.has(String(currentId))}
+                                onClick={() => {
+                                  const target = isVenta ? buyerId : ganadorId;
+                                  setCalificarModal({ reviewedId: target, articuloId: currentId, rol: "vendedor" });
+                                  setCalificarEstrellas(0);
+                                }}
+                              />
+                            )}
                             <button
                               type="button"
                               onPointerDown={(e) => e.stopPropagation()}
@@ -3096,7 +3111,7 @@ export default function UserProfile({
                                 await verMensajes(art);
                               }}
                               className="relative bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
-                              disabled={isLoadingThis || !canOpenMsgs}
+                              disabled={isUserBlocked || isLoadingThis || !canOpenMsgs}
                               aria-label="Ver mensajes"
                             >
                               {(hasUnread || (notif?.unreadChats > 0)) ? (
@@ -3118,7 +3133,7 @@ export default function UserProfile({
                                   onPointerDown={(e) => e.stopPropagation()}
                                   onMouseDown={(e) => e.stopPropagation()}
                                   onClick={(e) => { e.stopPropagation(); toggleDestacado(art); }}
-                                  disabled={isFeat || destacandoId === currentId}
+                                  disabled={isUserBlocked || isFeat || destacandoId === currentId}
                                   className={`p-3 rounded-2xl transition ${
                                     isFeat ? "bg-yellow-100 text-yellow-500 cursor-default" : "bg-gray-100 text-gray-400 hover:bg-yellow-50 hover:text-yellow-500 disabled:opacity-50"
                                   }`}
@@ -3129,28 +3144,6 @@ export default function UserProfile({
                                 </button>
                               );
                             })()}
-
-                            {/* Calificar: donación→ganador, venta→comprador */}
-                            {canRate && (
-                              <button
-                                type="button"
-                                disabled={yaCalifique.has(String(currentId))}
-                                data-rating-pending={!yaCalifique.has(String(currentId)) ? "true" : undefined}
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const target = isVenta ? buyerId : ganadorId;
-                                  setCalificarModal({ reviewedId: target, articuloId: currentId, rol: "vendedor" });
-                                  setCalificarEstrellas(0);
-                                }}
-                                className="bg-forest-green text-white p-3 rounded-2xl enabled:hover:brightness-110 transition disabled:cursor-default"
-                                title={yaCalifique.has(String(currentId)) ? "Transacción calificada" : "Calificar transacción"}
-                                aria-label={yaCalifique.has(String(currentId)) ? "Transacción calificada" : "Calificar transacción"}
-                              >
-                                <CheckCircle2 size={16} />
-                              </button>
-                            )}
 
                             {!isEntregado ? (
                               <button
@@ -3246,10 +3239,10 @@ export default function UserProfile({
                                   if (!ok) return;
                                   eliminarPublicacion(art);
                                 }}
-                                disabled={!!isDeletingThis}
-                                className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition"
+                                disabled={isUserBlocked || !!isDeletingThis || pendingRating}
+                                className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                                 aria-label="Eliminar publicación"
-                                title="Eliminar publicación"
+                                title={pendingRating ? "Califica la transacción antes de eliminar" : "Eliminar publicación"}
                               >
                                 {isDeletingThis ? (
                                   <Loader2 className="animate-spin" size={16} />
@@ -3259,7 +3252,7 @@ export default function UserProfile({
                               </button>
                             </div>
                             ) : null}
-                          </div>
+                          </fieldset>
                         </div>
                       );
                     })
@@ -3272,21 +3265,6 @@ export default function UserProfile({
 
               {activeTab === "rescates" && (
                 <>
-                  {/* Banner cupo de donaciones */}
-                  {purchaseLimit && <section aria-label="Cupos de compras" className="mb-4 border-y border-gray-200 py-3 text-sm text-gray-700 space-y-2">
-                    <p><strong>{purchaseLimit.active}/8 compras simultáneas</strong>.</p>
-                    <p className="text-xs text-gray-500">{purchaseLimit.freeActive}/5 cupos gratuitos y {purchaseLimit.paidActive}/3 adicionales. Cada adicional retiene 1 crédito. Al entregar o cancelar, se libera el cupo.</p>
-                    <p className="text-xs text-gray-500">Solo se devuelve el crédito si rechaza o cancela el vendedor. Las donaciones tienen un límite independiente.</p>
-                  </section>}
-                  {donacionLimit && (
-                    <div className="mb-4 border-y border-gray-200 py-3 text-sm text-gray-700 space-y-2" aria-label="Solicitudes de donación">
-                      <p><strong>{donacionLimit.pending}/3 solicitudes pendientes</strong>. Una solicitud gratuita cada 6 horas.</p>
-                      {donacionLimit.pending >= 3 && <p className="text-xs font-semibold text-amber-800">Espera una decisión o cancela una solicitud antes de enviar otra.</p>}
-                      <p className="text-xs text-gray-500">{donacionLimit.freeAvailable ? 'Solicitud gratuita disponible.' : `Próxima gratuita: ${new Date(donacionLimit.nextFreeAt).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}.`}</p>
-                      <p className="text-xs text-gray-500">Las adicionales retienen 1 crédito al solicitar desde el artículo. Si no eres elegido se devuelve; cancelar voluntariamente no lo devuelve.</p>
-                    </div>
-                  )}
-
                   <ProfileListFilters value={rescateFilters} onChange={setRescateFilters} rescates
                     count={filteredRescates.length} total={rescatesSorted.length} />
 
@@ -3396,7 +3374,7 @@ export default function UserProfile({
                           />
 
                           <div data-profile-content className="flex-1 min-w-0">
-                            {pendingRating && <p data-rating-notice className="mb-1 text-xs font-bold text-forest-green">Pendiente calificación</p>}
+                            {pendingRating && <p data-rating-notice className="profile-rating-notice">Calificación pendiente</p>}
                             <h4 className="font-bold text-gray-800 truncate">{titulo}</h4>
 
                             <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -3452,7 +3430,16 @@ export default function UserProfile({
                             ) : null}
                           </div>
 
-                          <div data-profile-actions className={`shrink-0 flex items-center gap-2 ${isEntregadoRescate ? "[&>button:not([data-rating-pending])]:opacity-50" : ""}`}>
+                          <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 shrink-0 flex items-center gap-2 ${isEntregadoRescate ? "[&>button:not([data-rating-action])]:opacity-50" : ""}`}>
+                            {canRate && (
+                              <ProfileRatingAction
+                                rated={yaCalifique.has(String(articuloId))}
+                                onClick={() => {
+                                  setCalificarModal({ reviewedId: art.owner_id, articuloId, rol: "ganador" });
+                                  setCalificarEstrellas(0);
+                                }}
+                              />
+                            )}
                             <button
                               type="button"
                               onClick={() => {
@@ -3460,7 +3447,7 @@ export default function UserProfile({
                                 if (isReview) return alert(revisionBlockMsg(titulo));
                                 verMensajesRescate(r);
                               }}
-                              disabled={cargandoChatRescate === articuloId || isDeletingMine || !canOpenMsgsRescate}
+                              disabled={isUserBlocked || cargandoChatRescate === articuloId || isDeletingMine || !canOpenMsgsRescate}
                               className="relative bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
                               aria-label="Ver mensajes"
                               title={isEntregadoRescate ? "Ver historial del chat" : canOpenMsgsRescate ? "Abrir chat" : "Chat disponible al confirmar la reserva"}
@@ -3489,25 +3476,6 @@ export default function UserProfile({
                               </button>
                             ) : null}
 
-                            {/* Calificar vendedor/donante: donación→ganador, venta→comprador */}
-                            {canRate && (
-                              <button
-                                type="button"
-                                disabled={yaCalifique.has(String(articuloId))}
-                                data-rating-pending={!yaCalifique.has(String(articuloId)) ? "true" : undefined}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCalificarModal({ reviewedId: art.owner_id, articuloId, rol: "ganador" });
-                                  setCalificarEstrellas(0);
-                                }}
-                                className="bg-forest-green text-white p-3 rounded-2xl enabled:hover:brightness-110 transition disabled:cursor-default"
-                                title={yaCalifique.has(String(articuloId)) ? "Transacción calificada" : "Calificar transacción"}
-                                aria-label={yaCalifique.has(String(articuloId)) ? "Transacción calificada" : "Calificar transacción"}
-                              >
-                                <CheckCircle2 size={16} />
-                              </button>
-                            )}
-
                             <button
                               type="button"
                               onClick={() => {
@@ -3515,10 +3483,10 @@ export default function UserProfile({
                                 if (isReview) return alert(revisionBlockMsg(titulo));
                                 eliminarRescate(r);
                               }}
-                              disabled={isDeletingMine || isReview || isUserBlocked || rejectedDonation || (isVenta && isBuyer && isRescateSaleLocked(r))}
+                              disabled={pendingRating || isDeletingMine || isReview || isUserBlocked || rejectedDonation || (isVenta && isBuyer && isRescateSaleLocked(r))}
                               className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50"
                               aria-label={isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
-                              title={isVenta && isBuyer && isRescateSaleLocked(r) ? "Compra aprobada: se conserva hasta siete días después de la entrega" : isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
+                              title={pendingRating ? "Califica la transacción antes de eliminar" : isVenta && isBuyer && isRescateSaleLocked(r) ? "Compra aprobada: se conserva hasta siete días después de la entrega" : isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
                             >
                               {isDeletingMine ? (
                                 <Loader2 className="animate-spin" size={16} />
@@ -3526,7 +3494,7 @@ export default function UserProfile({
                                 <Trash2 size={16} />
                               )}
                             </button>
-                          </div>
+                          </fieldset>
                         </div>
                       );
                     })
@@ -3536,6 +3504,7 @@ export default function UserProfile({
 
               {activeTab === "rescates" && <ProfilePagination {...rescateListing}
                 onChange={page => setRescatePage({ key: rescatePageKey, page })} />}
+              {activeTab === "rescates" && <RescueLimits purchaseLimit={purchaseLimit} donacionLimit={donacionLimit} />}
 
 </div>
           </div>

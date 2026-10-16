@@ -1,6 +1,9 @@
 import { CONVERSATION_NOTIFICATION_TYPES } from './activityNotifications.js';
 
 export const NOTIFICATION_HISTORY_LIMIT = 10;
+export const NOTIFICATION_STATE_LIMIT = 300;
+export const notificationGroupKey = item => item.type === 'system_notice' && item.receipt_id != null
+  ? `receipt|${item.receipt_kind || 'system'}|${item.receipt_id}` : String(item.id);
 
 const STORAGE_PREFIX = 'mb_notification_history_';
 const MAX_STORAGE_LENGTH = 65_536;
@@ -35,6 +38,7 @@ function timestamp(value) {
 
 function sanitize(value) {
   try {
+    if (value?.type === 'rating_received') return null;
     if (!value || typeof value !== 'object' || Array.isArray(value)
       || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) return null;
     if (!hasOwn(value, 'id') || !validId(value.id)
@@ -50,12 +54,20 @@ function sanitize(value) {
       else if (validId(value[key])) item[key] = value[key];
       else return null;
     }
+    if (hasOwn(value, 'receipt_kind')) {
+      if (!['system', 'staff'].includes(value.receipt_kind)) return null;
+      item.receipt_kind = value.receipt_kind;
+    }
     for (const [key, limit] of [['title', 512], ['subtitle', 1_024], ['thumb', 2_048]]) {
       if (!hasOwn(value, key)) continue;
       if (typeof value[key] !== 'string' || value[key].length > limit) return null;
       item[key] = value[key];
     }
     if (hasOwn(value, 'read') && typeof value.read !== 'boolean') return null;
+    if (hasOwn(value, 'bellRead')) {
+      if (typeof value.bellRead !== 'boolean') return null;
+      item.bellRead = value.bellRead;
+    }
     if (hasOwn(value, 'unreadCount') && (!Number.isSafeInteger(value.unreadCount)
       || value.unreadCount < 0 || value.unreadCount > 1_000_000)) return null;
     item.read = hasOwn(value, 'read') && value.read === true;
@@ -66,34 +78,36 @@ function sanitize(value) {
   }
 }
 
-function sorted(items) {
+function sorted(items, limit) {
   return [...items].sort((a, b) => {
     const dateOrder = Date.parse(b.created_at) - Date.parse(a.created_at);
     const aId = String(a.id);
     const bId = String(b.id);
     return dateOrder || (aId < bId ? -1 : aId > bId ? 1 : 0);
-  }).slice(0, NOTIFICATION_HISTORY_LIMIT);
+  }).slice(0, limit);
 }
 
-export function mergeNotificationHistory(previous, incoming) {
+export function mergeNotificationHistory(previous, incoming, limit = NOTIFICATION_HISTORY_LIMIT) {
   const groups = new Map();
   for (const source of [previous, incoming]) {
     if (!Array.isArray(source)) continue;
     for (const value of source) {
       const item = sanitize(value);
       if (!item) continue;
-      const key = String(item.id);
+      const receipt = item.type === 'system_notice' && item.receipt_id != null;
+      const key = notificationGroupKey(item);
       const existing = groups.get(key);
       if (existing && Date.parse(existing.created_at) > Date.parse(item.created_at)) continue;
       // A read acknowledgement belongs to this event, not to future events in the group.
-      if (existing && existing.created_at === item.created_at && existing.read) {
+      if (existing && (receipt || existing.created_at === item.created_at) && existing.read) {
         item.read = true;
         item.unreadCount = 0;
       }
+      if (existing && (receipt || existing.created_at === item.created_at) && existing.bellRead) item.bellRead = true;
       groups.set(key, item);
     }
   }
-  return sorted(groups.values());
+  return sorted(groups.values(), Number.isSafeInteger(limit) ? Math.max(1, Math.min(limit, NOTIFICATION_STATE_LIMIT)) : NOTIFICATION_HISTORY_LIMIT);
 }
 
 export function readNotificationHistory(storage, uid) {
@@ -117,15 +131,25 @@ export function writeNotificationHistory(storage, uid, items) {
   }
 }
 
-export function markNotificationHistoryRead(items, { id, chatId, articleId, through = Date.now() } = {}) {
+export function markNotificationHistoryRead(items, { id, chatId, articleId, receiptId, receiptKind = 'system', through = Date.now() } = {}, limit = NOTIFICATION_HISTORY_LIMIT) {
   const cutoff = timestamp(through);
-  return mergeNotificationHistory([], items).map((item) => {
+  return mergeNotificationHistory([], items, limit).map((item) => {
     const matches = (validId(id) && item.id === id)
       || (validId(chatId) && CONVERSATION_NOTIFICATION_TYPES.has(item.type) && item.chat_id != null
         && String(item.chat_id) === String(chatId))
       || (validId(articleId) && item.type === 'postulacion' && item.articulo_id != null
-        && String(item.articulo_id) === String(articleId));
+        && String(item.articulo_id) === String(articleId))
+      || (validId(receiptId) && item.receipt_id != null && String(item.receipt_id) === String(receiptId)
+        && (item.receipt_kind || 'system') === receiptKind);
     return matches && cutoff !== null && Date.parse(item.created_at) <= cutoff
       ? { ...item, read: true, unreadCount: 0 } : item;
   });
+}
+
+export function markNotificationBellRead(items, snapshot) {
+  const cutoffs = new Map(mergeNotificationHistory([], snapshot, NOTIFICATION_STATE_LIMIT)
+    .map(item => [notificationGroupKey(item), Date.parse(item.created_at)]));
+  return mergeNotificationHistory([], items, NOTIFICATION_STATE_LIMIT).map(item =>
+    Date.parse(item.created_at) <= (cutoffs.get(notificationGroupKey(item)) ?? -1)
+      ? { ...item, bellRead:true } : item);
 }

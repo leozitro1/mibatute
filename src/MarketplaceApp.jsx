@@ -11,7 +11,9 @@ import usePublicationClock from './components/usePublicationClock.js';
 import useDetailScroll from './components/useDetailScroll.js';
 import { createListingCache } from './components/listingCache.js';
 import { readNotificationHistory, writeNotificationHistory, mergeNotificationHistory,
-  markNotificationHistoryRead } from './components/notificationHistory.js';
+  markNotificationHistoryRead, markNotificationBellRead, NOTIFICATION_STATE_LIMIT } from './components/notificationHistory.js';
+import { profileNotificationBadges,mergeInboxNotifications,updateInboxNotification } from './components/profileNotificationBadges.js';
+import { subscribeStaffInbox } from './components/staffInboxSignals.js';
 import { isPublicationExpired } from './components/articleLifetime.js';
 import { fetchActivityNotifications, publicationExpiryNotifications, activityDestination, CONVERSATION_NOTIFICATION_TYPES } from './components/activityNotifications.js';
 import HeroBanner from "./components/HeroBanner";
@@ -26,6 +28,8 @@ import { queryArticlesWithCondition } from "./supabase/articleQuery";
 
 import { COLOMBIA_DATA } from "./data/locations";
 import { supabase } from "./supabase/supabaseClient";
+import { searchMetric } from './analytics/metrics.js';
+import { recordMarketMetric } from './analytics/publicMetrics.js';
 
 
 import { crearPostulacionConLimite } from "./supabase/solicitudesService";
@@ -205,6 +209,14 @@ export default function MarketplaceApp() {
 
   const [currentView, setCurrentView] = useState("home"); // home | profile | how-it-works
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const viewedArticleId = selectedProduct && currentUser?.id !== (selectedProduct.owner_id || selectedProduct.usuario_id) ? selectedProduct.id : null;
+  useEffect(() => {
+    if (!viewedArticleId || document.visibilityState !== 'visible') return;
+    const timer = setTimeout(() => {
+      if (document.visibilityState === 'visible') recordMarketMetric({ kind:'view',id:viewedArticleId });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [viewedArticleId]);
   useDetailScroll(!!selectedProduct);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -255,6 +267,13 @@ export default function MarketplaceApp() {
   }), [debouncedSearch, searchMode, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
     quickTipo, onlyActive, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id, mobileCatalog]);
   const homeFilterKey = JSON.stringify([homeFilters, currentUser?.id]);
+  useEffect(() => {
+    if (homeBusy || homeError || searchTerm !== debouncedSearch || currentView !== 'home' || document.visibilityState !== 'visible') return;
+    const timer = setTimeout(() => {
+      if (document.visibilityState === 'visible') recordMarketMetric(searchMetric(homeFilters, homePage.total));
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [homeFilters, homePage.total, homeBusy, homeError, searchTerm, debouncedSearch, currentView]);
   // Reset even when returning to a filter combination visited on another page.
   if (pageSelection.key !== homeFilterKey) {
     setPageSelection({ key: homeFilterKey, page: 1 });
@@ -288,20 +307,31 @@ export default function MarketplaceApp() {
   const activityRefreshRef = useRef({ uid: null, at: 0, pending: null, items: [] });
   const activityRefreshTimerRef = useRef(null);
   const [profileNotificationTarget, setProfileNotificationTarget] = useState(null);
+  const [inboxRevision,setInboxRevision]=useState(0);
 
   const saveNotificationHistory = useCallback((items, uid) => {
     if (!uid || uid !== notificationUidRef.current) return;
-    notificationsRef.current = items;
+    const next = mergeNotificationHistory([], items, NOTIFICATION_STATE_LIMIT);
+    notificationsRef.current = next;
     historyUidRef.current = uid;
-    writeNotificationHistory(localStorage, uid, items);
-    setNotifications(items);
+    writeNotificationHistory(localStorage, uid, next);
+    setNotifications(next);
   }, []);
+
+  const syncInboxNotifications = useCallback((uid, messages) => {
+    if (uid !== notificationUidRef.current) return;
+    saveNotificationHistory(mergeInboxNotifications(historyUidRef.current === uid ? notificationsRef.current : [], messages), uid);
+  }, [saveNotificationHistory]);
+  const syncInboxReceipt = useCallback((uid, receiptId, action, kind) => {
+    if (uid !== notificationUidRef.current || historyUidRef.current !== uid) return;
+    saveNotificationHistory(updateInboxNotification(notificationsRef.current, receiptId, action, kind), uid);
+  }, [saveNotificationHistory]);
 
   const markRecentNotificationsRead = useCallback(criteria => {
     const uid = notificationUidRef.current;
     if (!uid) return;
     const previous = notificationsRef.current;
-    const next = markNotificationHistoryRead(previous, criteria);
+    const next = markNotificationHistoryRead(previous, criteria, NOTIFICATION_STATE_LIMIT);
     const readIds = new Set(next.filter(item => item.read).map(item => item.id));
     const newlyRead = previous.filter(item => !item.read && readIds.has(item.id));
     saveNotificationHistory(next, uid);
@@ -350,6 +380,14 @@ export default function MarketplaceApp() {
     try {
       localStorage.setItem(key, JSON.stringify(mapObj || {}));
     } catch {}
+  };
+
+  const markAllNotificationsRead=async()=>{
+    const uid=getActiveUid();
+    if(!uid||historyUidRef.current!==uid)return;
+    const snapshot=notificationsRef.current.filter(item=>!item.read&&!item.bellRead&&item.unreadCount>0);
+    if(!snapshot.length)return;
+    saveNotificationHistory(markNotificationBellRead(notificationsRef.current,snapshot),uid);
   };
 
   const markChatSeen = useCallback(
@@ -533,7 +571,8 @@ export default function MarketplaceApp() {
         const items = incoming.map(item => CONVERSATION_NOTIFICATION_TYPES.has(item.type)
           && Date.parse(latestReads[String(item.chat_id)] || '') >= Date.parse(item.created_at)
           ? { ...item, read: true, unreadCount: 0 } : item);
-        saveNotificationHistory(mergeNotificationHistory(notificationsRef.current, items), uid);
+        if(items.some(item=>item.receipt_kind==='staff'&&!notificationsRef.current.some(previous=>previous.receipt_kind==='staff'&&previous.receipt_id===item.receipt_id)))setInboxRevision(value=>value+1);
+        saveNotificationHistory(mergeNotificationHistory(notificationsRef.current, items, NOTIFICATION_STATE_LIMIT), uid);
         return items;
       } catch (error) {
         console.error('No se pudo actualizar la actividad de notificaciones:', error);
@@ -828,7 +867,7 @@ export default function MarketplaceApp() {
       item.read = true;
       item.unreadCount = 0;
     }
-    const history = mergeNotificationHistory(notificationsRef.current, sortedDropdown);
+    const history = mergeNotificationHistory(notificationsRef.current, sortedDropdown, NOTIFICATION_STATE_LIMIT);
     for (const item of history) {
       if (item.type !== 'venta' || !item.read) continue;
       const row = byArticulo[String(item.articulo_id)];
@@ -1292,6 +1331,16 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   }, [currentUser?.id]);
 
   // Hydrate history immediately; server refresh follows the article load.
+  useEffect(()=>subscribeStaffInbox(supabase,{id:currentUser?.id,created_at:currentUser?.created_at},notice=>{
+    const uid=currentUser?.id;if(!uid||notificationUidRef.current!==uid)return;
+    if(!notificationsRef.current.some(item=>item.receipt_kind==='staff'&&item.receipt_id===notice.receipt_id))setInboxRevision(value=>value+1);
+    saveNotificationHistory(mergeNotificationHistory(notificationsRef.current,[notice],NOTIFICATION_STATE_LIMIT),uid);
+  },profile=>{
+    const uid=currentUser?.id;
+    setCurrentUser(previous=>previous?.id===uid?{...previous,is_blocked:profile.is_blocked,bloqueado:profile.bloqueado}:previous);
+    if(profile.is_blocked||profile.bloqueado){setIsPublishOpen(false);setChatOpen(null);setSelectedProduct(null);}
+  }),[currentUser?.id,currentUser?.created_at,saveNotificationHistory]);
+
   useEffect(() => {
     notificationRefreshRef.current = { uid: null, at: 0, pending: null };
     activityRefreshRef.current = { uid: null, at: 0, pending: null, items: [] };
@@ -1314,6 +1363,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   const handlePublishClick = () => {
     if (!currentUser) setIsAuthOpen(true);
+    else if (isUserBlocked) return;
     else setIsPublishOpen(true);
   };
 
@@ -1579,6 +1629,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     if (!uid) return [];
     return products.filter((p) => p.owner_id === uid || p.usuario_id === uid);
   }, [products, getActiveUid]);
+  const profileBadges = useMemo(() => profileNotificationBadges(
+    historyUidRef.current === currentUser?.id ? notifications : [], currentUser?.id, myProducts
+  ), [notifications, currentUser?.id, myProducts]);
 
   if (loading) {
     return <div className="h-screen flex items-center justify-center font-black uppercase">Cargando MiBatute...</div>;
@@ -1612,8 +1665,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               notifProfileCount={notifProfileCount}
               notifChatCount={notifChatCount}
               isProfile={currentView === "profile"}
-              notifications={historyUidRef.current === currentUser?.id ? notifications : []}
+              notifications={historyUidRef.current === currentUser?.id ? notifications.map(item=>({...item,read:item.read||!!item.bellRead})) : []}
               onNotificationsOpen={() => loadNotifications({ reuseCached: true })}
+              onMarkAllNotificationsRead={markAllNotificationsRead}
               onNotificationClick={async (item) => {
                 const uid = getActiveUid();
                 if (!uid) {
@@ -2030,6 +2084,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   user={currentUser}
                   myProducts={myProducts}
                   notifByArticulo={notifByArticulo}
+                  notificationBadges={profileBadges}
+                  onInboxNotifications={syncInboxNotifications}
+                  onInboxReceiptChange={syncInboxReceipt}
+                  inboxRevision={inboxRevision}
                   onArticuloSeen={(articuloId) => {
                     if (articuloId) markSolicitudesSeenForArticulo(articuloId);
                   }}

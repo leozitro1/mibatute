@@ -5,6 +5,7 @@ returns text language sql immutable set search_path='' as $$
   select case p_action
     when 'session.open' then 'Inicio de sesión'
     when 'session.close' then 'Cierre de sesión'
+    when 'message.send' then 'Mensaje enviado al buzón'
     when 'article.approve' then 'Publicación aprobada'
     when 'article.pause' then 'Publicación puesta en revisión'
     when 'article.delete' then 'Publicación eliminada'
@@ -51,6 +52,7 @@ $$;
 create or replace function public.staff_audit_group(p_action text)
 returns text language sql immutable set search_path='' as $$
   select case when p_action='user.credit_compensation' then 'credits'
+    when p_action='message.send' then 'messages'
     else case split_part(p_action,'.',1) when 'session' then 'sessions' when 'article' then 'articles'
       when 'report' then 'reports' when 'chat_report' then 'reports' when 'user' then 'users'
       when 'chat' then 'chats' when 'sponsor' then 'campaigns' when 'staff' then 'team' else 'other' end end;
@@ -63,7 +65,7 @@ declare result jsonb;term text:=translate(lower(left(trim(coalesce(p_search,''))
 begin
   perform public.staff_require('access');
   view_all:=public.staff_permission('team');
-  if p_group is null or p_group not in ('','sessions','articles','reports','users','credits','chats','campaigns','team','other')
+  if p_group is null or p_group not in ('','sessions','articles','reports','users','credits','chats','campaigns','team','messages','other')
     or p_days is null or p_days not in (0,1,7,30,90) or p_actor is null
     or (p_actor not in ('','me','system') and p_actor!~*'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') then raise exception 'Filtros de auditoria no validos.'; end if;
   if p_actor not in ('','me','system') then

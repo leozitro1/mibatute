@@ -99,6 +99,11 @@ sql_paths = [
   "./migrations/2026-10-15-sponsor-campaigns.sql",
   "./migrations/2026-10-15-sponsor-storage.sql",
   "./migrations/2026-10-15-staff-audit-filters.sql",
+  "./migrations/2026-10-15-staff-messages.sql",
+  "./migrations/2026-10-16-market-analytics.sql",
+  "./migrations/2026-10-16-staff-inbox-signals.sql",
+  "./migrations/2026-10-16-private-rating-notifications.sql",
+  "./migrations/2026-10-16-permanent-user-block.sql",
   "./local-storage.sql",
 ]
 

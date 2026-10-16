@@ -1,6 +1,6 @@
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus, Coins } from "lucide-react";
+import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus, Coins, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
 import { ACTIVE_COLOMBIA_DATA } from "../data/locations";
 import { supabase } from "../supabase/supabaseClient";
 import { NOTIFICATION_HISTORY_LIMIT } from './notificationHistory.js';
@@ -77,6 +77,10 @@ function NotificationsDropdown({
   onClose,
   items = [],
   onItemClick,
+  onMarkAllRead,
+  hasUnread,
+  marking,
+  markError,
   emptyText = "No tienes notificaciones",
 }) {
   const panelRef = useRef(null);
@@ -129,6 +133,16 @@ function NotificationsDropdown({
           <X size={18} />
         </button>
       </div>
+
+      {onMarkAllRead && <div className="px-4 py-2 border-b border-gray-100">
+        <button type="button" onClick={onMarkAllRead} disabled={marking||!hasUnread}
+          aria-label="Marcar todas como leídas" title="Marcar todas como leídas"
+          className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-forest-green disabled:text-gray-400 disabled:cursor-default">
+          {marking?<Loader2 size={16} className="animate-spin" aria-hidden="true" />:<CheckCheck size={16} aria-hidden="true" />}
+          {marking?'Marcando...':'Marcar todas como leídas'}
+        </button>
+        {markError&&<p role="alert" className="mt-1 text-xs text-red-700">{markError}</p>}
+      </div>}
 
       <div className="max-h-[60vh] overflow-auto">
         {!items?.length ? (
@@ -224,6 +238,7 @@ export default function Navbar({
   notifications = [],
   onNotificationClick,
   onNotificationSeen,
+  onMarkAllNotificationsRead,
   onNotificationsOpen,
   isProfile = false,
 }) {
@@ -280,6 +295,7 @@ export default function Navbar({
 
   const [banUntil, setBanUntil] = useState(null);
   const [isBlocked, setIsBlocked] = useState(false);
+  useEffect(()=>{setIsBlocked(!!(user?.is_blocked||user?.bloqueado));},[user?.id,user?.is_blocked,user?.bloqueado]);
   const [remainingMs, setRemainingMs] = useState(0);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -425,6 +441,15 @@ export default function Navbar({
 
   const msgBtnRef = useRef(null);
   const [openNotifs, setOpenNotifs] = useState(false);
+  const [markingNotifications,setMarkingNotifications]=useState(false);
+  const [notificationMarkError,setNotificationMarkError]=useState('');
+  const markingRef=useRef(false);
+  const markAllNotifications=async()=>{
+    if(markingRef.current)return;markingRef.current=true;setMarkingNotifications(true);setNotificationMarkError('');
+    try{await onMarkAllNotificationsRead?.();}
+    catch{setNotificationMarkError('No se pudieron marcar. Inténtalo de nuevo.');}
+    finally{markingRef.current=false;setMarkingNotifications(false);}
+  };
 
   useEffect(() => {
     setOpenNotifs(false);
@@ -710,6 +735,10 @@ export default function Navbar({
                   onClose={() => setOpenNotifs(false)}
                   items={visibleNotifs}
                   onItemClick={handleNotifClick}
+                  onMarkAllRead={onMarkAllNotificationsRead?markAllNotifications:undefined}
+                  hasUnread={notifications.some(item=>!item.read&&item.unreadCount>0)}
+                  marking={markingNotifications}
+                  markError={notificationMarkError}
                   emptyText="No tienes notificaciones"
                 />
               </div>
@@ -734,9 +763,9 @@ export default function Navbar({
                     {displayName}
                   </span>
                   <span className="inline-flex items-center gap-1 pr-1 text-xs font-bold tabular-nums text-gray-700"
-                    title={creditBalance === null ? "Saldo no disponible" : `${creditBalance} créditos disponibles`}
-                    aria-label={creditBalance === null ? "Saldo no disponible" : `${creditBalance} créditos disponibles`}>
-                    <Coins size={16} className="shrink-0 text-amber-600" aria-hidden="true" />
+                    title={isBlocked ? `${creditBalance ?? '...'} créditos bloqueados` : creditBalance === null ? "Saldo no disponible" : `${creditBalance} créditos disponibles`}
+                    aria-label={isBlocked ? `${creditBalance ?? '...'} créditos bloqueados` : creditBalance === null ? "Saldo no disponible" : `${creditBalance} créditos disponibles`}>
+                    {isBlocked ? <LockKeyhole size={16} className="shrink-0 text-gray-400" aria-hidden="true" /> : <Coins size={16} className="shrink-0 text-amber-600" aria-hidden="true" />}
                     {creditBalance === null ? '...' : creditBalance.toLocaleString('es-CO')}
                   </span>
                 </button>

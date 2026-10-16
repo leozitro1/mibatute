@@ -1,7 +1,7 @@
 import { createElement, lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, Inbox, Package, Flag, Users, Megaphone, History, Menu, X, LogOut,
-  ArrowLeft, ArrowRight, Search, RefreshCw, Check, Pause, Play, Clock, Settings2, UserPlus, Pencil, LockKeyhole, CreditCard, Loader2, Trash2, MessageSquare, Star, Eye, Coins } from 'lucide-react';
+  ArrowLeft, ArrowRight, Search, RefreshCw, Check, Pause, Play, Clock, Ban, Settings2, UserPlus, Pencil, LockKeyhole, CreditCard, Loader2, Trash2, MessageSquare, Star, Eye, Coins, Mail, Send, ChartNoAxesCombined } from 'lucide-react';
 import { staffClient, staffRpc, allowedSections } from '../staff/staffClient.js';
 import { passwordError, recoveryCredentials, staffEmail } from '../staff/passwords.js';
 import { ARTICLE_CATEGORIES, DELETION_REASONS, EMPTY_ARTICLE_FILTERS, articleImages } from '../staff/moderation.js';
@@ -10,17 +10,19 @@ import StaffChatAudit from '../staff/StaffChatAudit.jsx';
 import StaffReportDetail from '../staff/StaffReportDetail.jsx';
 import StaffArticleEditor from '../staff/StaffArticleEditor.jsx';
 import StaffUserDetail from '../staff/StaffUserDetail.jsx';
+import StaffMessageComposer from '../staff/StaffMessageComposer.jsx';
 import PublicationCountdown from '../components/PublicationCountdown.jsx';
 import { AUDIT_GROUPS,EMPTY_AUDIT_FILTERS,auditMemberLabel } from '../staff/audit.js';
 import './StaffConsole.css';
 
 const StaffSponsors=lazy(()=>import('../staff/StaffSponsors.jsx'));
+const StaffStatistics=lazy(()=>import('../staff/StaffStatistics.jsx'));
 
-const icons={inbox:Inbox,package:Package,flag:Flag,users:Users,megaphone:Megaphone,history:History,shield:ShieldCheck};
+const icons={inbox:Inbox,package:Package,flag:Flag,users:Users,megaphone:Megaphone,history:History,shield:ShieldCheck,chart:ChartNoAxesCombined};
 const permissions={moderation:'Moderación',reports:'Reportes',users:'Usuarios',chat_audit:'Auditar chats'};
 const labels={disponible:'Disponible',reservado:'Reservado',entregado:'Entregado',pausado:'Pausado',en_revision:'En revisión',open:'Nuevo',reviewing:'En revisión',resolved:'Resuelto',dismissed:'Descartado',approved:'Aprobado',pending:'Pendiente'};
 const date=value=>value?new Date(value).toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bogota'}):'';
-const titleFor=(section,row)=>section==='articles'?row.title:section==='reports'?row.reason:section==='sponsors'?row.texto:section==='audit'?row.action_label||'Acción administrativa':row.nombre||row.email||'Cuenta';
+const titleFor=(section,row)=>section==='articles'?row.title:section==='reports'?row.reason:section==='sponsors'?row.texto:section==='audit'?(row.action==='user.block'?'Usuario bloqueado permanentemente':row.action_label||'Acción administrativa'):row.nombre||row.email||'Cuenta';
 
 function IconButton({label,icon,onClick,disabled,danger=false}) {
   return <button type="button" className={`staff-icon-button ${danger?'staff-danger':''}`} aria-label={label} title={label} onClick={onClick} disabled={disabled}>{createElement(icon,{size:17})}</button>;
@@ -67,6 +69,7 @@ export default function StaffConsole({ requireMaster=false }) {
   const [userFilters,setUserFilters]=useState({city:'',locality:'',state:'',reported:''});
   const [auditFilters,setAuditFilters]=useState(EMPTY_AUDIT_FILTERS);
   const [auditMembers,setAuditMembers]=useState([]);
+  const [selectedUsers,setSelectedUsers]=useState([]),[messageComposer,setMessageComposer]=useState(null);
   const previewId=useRef(0);
   const previewRef=useRef(null);
   const [idleDeadline,setIdleDeadline]=useState(Date.now()+15*60000);
@@ -81,7 +84,7 @@ export default function StaffConsole({ requireMaster=false }) {
   const markStaffActivity=useCallback(()=>setIdleDeadline(Date.now()+15*60000),[]);
 
   const leave=useCallback(async(message='')=>{
-    requestId.current++;previewId.current++;setPreview(null);setChatAudit(null);setReportDetail(null);setArticleEditor(null);setUserDetail(null);
+    requestId.current++;previewId.current++;setPreview(null);setChatAudit(null);setReportDetail(null);setArticleEditor(null);setUserDetail(null);setSelectedUsers([]);setMessageComposer(null);
     credentialMode.current=null;
     setStage('login');setAccount(null);setData(null);setAuditMembers([]);setAuditFilters(EMPTY_AUDIT_FILTERS);setModal(null);setEnrollment(null);setFactor(null);setPassword('');setNewPassword('');setConfirmation('');setCode('');setError(message);
     try {await staffRpc('staff_close_session');} catch {
@@ -136,7 +139,7 @@ export default function StaffConsole({ requireMaster=false }) {
 
   const load=useCallback(async()=>{
     if(activeStage.current!=='app')return;
-    if(section==='sponsors'){requestId.current++;setBusy(false);return;}
+    if(['sponsors','statistics'].includes(section)){requestId.current++;setBusy(false);return;}
     const id=++requestId.current;
     setBusy(true);setError('');
     try {
@@ -217,10 +220,24 @@ export default function StaffConsole({ requireMaster=false }) {
     } catch(err) {setError(err.code==='same_password'?'Elige una contraseña distinta de la actual.':'No se pudo actualizar. Verifica tu acceso nuevamente o solicita otro enlace.');}
     finally {gateInFlight.current=false;setBusy(false);}
   };
-  const navigate=id=>{setSection(id);setPage(1);setSearch('');setQuery('');setData(null);setError('');setNotice('');setMenu(false);};
+  const navigate=id=>{setSection(id);setPage(1);setSearch('');setQuery('');setData(null);setError('');setNotice('');setMenu(false);setSelectedUsers([]);};
   const openAction=(row,action,label)=>{setModal({row,action,label,...(action==='compensate'?{requestId:crypto.randomUUID()}:{})});setReason('');setDeletionReason('');setDays('1');setCreditAmount('1');setSelectedPermissions(row.permissions||[]);setError('');};
   const filterArticles=(key,value)=>{setArticleFilters(previous=>({...previous,[key]:value,...(key==='city'?{locality:''}:{})}));setPage(1);setData(null);};
-  const filterUsers=(key,value)=>{setUserFilters(previous=>({...previous,[key]:value,...(key==='city'?{locality:''}:{})}));setPage(1);setData(null);};
+  const filterUsers=(key,value)=>{setUserFilters(previous=>({...previous,[key]:value,...(key==='city'?{locality:''}:{})}));setPage(1);setData(null);setSelectedUsers([]);};
+  const toggleUser=row=>{
+    if(selectedUsers.some(user=>user.id===row.id))setSelectedUsers(previous=>previous.filter(user=>user.id!==row.id));
+    else if(selectedUsers.length>=100)setError('Selecciona hasta 100 usuarios por envío.');
+    else setSelectedUsers(previous=>[...previous,{id:row.id,nombre:row.nombre}]);
+  };
+  const pageUsers=data?.rows||[],pageSelected=pageUsers.length>0&&pageUsers.every(row=>selectedUsers.some(user=>user.id===row.id));
+  const togglePageUsers=()=>{
+    if(pageSelected)setSelectedUsers(previous=>previous.filter(user=>!pageUsers.some(row=>row.id===user.id)));
+    else {
+      const added=pageUsers.filter(row=>!selectedUsers.some(user=>user.id===row.id)).map(row=>({id:row.id,nombre:row.nombre}));
+      if(selectedUsers.length+added.length>100)setError('Selecciona hasta 100 usuarios por envío.');
+      else setSelectedUsers(previous=>[...previous,...added]);
+    }
+  };
   const filterAudit=(key,value)=>{setAuditFilters(previous=>({...previous,[key]:value}));setPage(1);setData(null);};
   const openArticle=async row=>{
     const id=++previewId.current;setPreview({loading:true,title:row.title});setError('');
@@ -235,6 +252,7 @@ export default function StaffConsole({ requireMaster=false }) {
     try {
       let result;
       if(modal.action==='add')await staffRpc('staff_add_account',{p_email:teamEmail,p_role:teamRole,p_reason:reason});
+      else if(modal.action==='block')result=await staffRpc('staff_block_user',{p_user:modal.row.id,p_reason:reason});
       else if(modal.action==='compensate')result=await staffRpc('staff_compensate_credits',{p_user:modal.row.id,p_amount:Number(creditAmount),p_reason:reason,p_request_id:modal.requestId});
       else {
         const kind=section==='articles'?'article':section==='reports'?(modal.row.kind==='chat'?'chat_report':'report'):section==='users'?'user':section==='sponsors'?'sponsor':'staff';
@@ -293,9 +311,9 @@ export default function StaffConsole({ requireMaster=false }) {
       <header className="staff-header"><div className="flex items-center gap-3"><button type="button" className="staff-icon-button staff-menu-toggle" aria-label="Abrir menú" onClick={()=>setMenu(true)}><Menu size={20} /></button><strong>Espacio de gestión</strong></div><small className="flex items-center gap-2"><ShieldCheck size={15} /> MFA verificado</small></header>
       <main className="staff-content">
         <div className="staff-heading"><div><h1>{current?.label}</h1>{section==='articles'&&<p className="staff-results-count" role="status">{articleActionsBusy||!data?'Calculando publicaciones…':`${new Intl.NumberFormat('es-CO').format(data.total)} ${data.total===1?'publicación':'publicaciones'}`}</p>}</div><div className="staff-tools">
-          {section!=='pending'&&<label className="staff-search"><Search size={16} /><input aria-label="Buscar en el panel" placeholder={section==='users'?'Nombre, correo, teléfono o ID':'Buscar'} value={search} onChange={event=>setSearch(event.target.value)} /></label>}
+          {!['pending','statistics'].includes(section)&&<label className="staff-search"><Search size={16} /><input aria-label="Buscar en el panel" placeholder={section==='users'?'Nombre, correo, teléfono o ID':'Buscar'} value={search} onChange={event=>{setSearch(event.target.value);setSelectedUsers([]);}} /></label>}
           {section==='team'&&<button type="button" className="staff-button staff-button-primary" onClick={()=>{setModal({action:'add',label:'Incorporar cuenta verificada'});setTeamEmail('');setTeamRole('admin');setReason('');setError('');}}><UserPlus size={16} />Incorporar</button>}
-          <IconButton label="Actualizar" icon={RefreshCw} onClick={()=>section==='sponsors'?setSponsorRevision(previous=>previous+1):load()} disabled={busy} />
+          {section!=='statistics'&&<IconButton label="Actualizar" icon={RefreshCw} onClick={()=>section==='sponsors'?setSponsorRevision(previous=>previous+1):load()} disabled={busy} />}
         </div></div>
         {section==='articles'&&<div className="staff-filters" aria-label="Filtros de publicaciones">
           <div><label htmlFor="staff-filter-mode">Tipo de publicación</label><select id="staff-filter-mode" value={articleFilters.mode} onChange={event=>filterArticles('mode',event.target.value)}><option value="">Todos los tipos</option><option value="venta">Venta</option><option value="donacion">Donación</option></select></div>
@@ -313,9 +331,10 @@ export default function StaffConsole({ requireMaster=false }) {
           <div><label htmlFor="staff-user-locality">Barrio / localidad</label><select id="staff-user-locality" value={userFilters.locality} onChange={event=>filterUsers('locality',event.target.value)} disabled={!userFilters.city}><option value="">Todos los barrios / localidades</option>{(COLOMBIA_DATA.find(item=>item.city===userFilters.city)?.localities||[]).map(item=><option key={item}>{item}</option>)}</select></div>
           <div><label htmlFor="staff-user-state">Estado de cuenta</label><select id="staff-user-state" value={userFilters.state} onChange={event=>filterUsers('state',event.target.value)}><option value="">Todos los estados</option><option value="active">Activos</option><option value="suspended">Suspendidos</option><option value="blocked">Bloqueados</option></select></div>
           <div><label htmlFor="staff-user-reported">Publicaciones con reportes</label><select id="staff-user-reported" value={userFilters.reported} onChange={event=>filterUsers('reported',event.target.value)}><option value="">Todos los usuarios</option><option value="yes">Con publicaciones reportadas</option></select></div>
-          <button type="button" className="staff-button" onClick={()=>{setUserFilters({city:'',locality:'',state:'',reported:''});setPage(1);setSearch('');setQuery('');setData(null);}}>Limpiar filtros</button>
+          <button type="button" className="staff-button" onClick={()=>{setUserFilters({city:'',locality:'',state:'',reported:''});setPage(1);setSearch('');setQuery('');setData(null);setSelectedUsers([]);}}>Limpiar filtros</button>
           <span className="staff-results-count" role="status">{articleActionsBusy||!data?'Calculando usuarios…':`${data.total} ${data.total===1?'usuario':'usuarios'}`}</span>
         </div>}
+        {section==='users'&&<div className="staff-message-toolbar"><span>{selectedUsers.length} seleccionados</span><button type="button" className="staff-button" disabled={!selectedUsers.length||articleActionsBusy} onClick={()=>setMessageComposer({all:false,recipients:selectedUsers})}><Send size={16} />Mensaje a seleccionados</button><button type="button" className="staff-button" disabled={articleActionsBusy} onClick={()=>setMessageComposer({all:true,recipients:[]})}><Megaphone size={16} />Comunicado a todos</button>{selectedUsers.length>0&&<button type="button" className="staff-icon-button" title="Limpiar selección" aria-label="Limpiar selección" onClick={()=>setSelectedUsers([])}><X size={16} /></button>}</div>}
         {section==='audit'&&<div className="staff-filters" aria-label="Filtros de auditoría">
           <div><label htmlFor="staff-audit-group">Tipo de actividad</label><select id="staff-audit-group" value={auditFilters.group} onChange={event=>filterAudit('group',event.target.value)}><option value="">Todas las actividades</option>{Object.entries(AUDIT_GROUPS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div>
           <div><label htmlFor="staff-audit-period">Período</label><select id="staff-audit-period" value={auditFilters.days} onChange={event=>filterAudit('days',Number(event.target.value))}><option value={0}>Todo el historial</option><option value={1}>Hoy</option><option value={7}>Últimos 7 días</option><option value={30}>Últimos 30 días</option><option value={90}>Últimos 90 días</option></select></div>
@@ -335,9 +354,9 @@ export default function StaffConsole({ requireMaster=false }) {
           <div className="staff-status-band"><ShieldCheck size={20} className="text-forest-green" /><span>Verificación en dos pasos activa</span></div>
           <div className="staff-status-band"><History size={20} className="text-teal-700" /><span>Historial de acciones</span><button type="button" className="ml-auto staff-button" onClick={()=>navigate('audit')}>Consultar</button></div>
           {account.role==='master'&&<div className="staff-status-band"><CreditCard size={20} className="text-amber-700" /><span>Pagos y ajustes de créditos</span><span className="ml-auto staff-badge staff-badge-muted">Desactivados</span></div>}
-        </>:section==='sponsors'?<Suspense fallback={<p role="status">Cargando campañas...</p>}><StaffSponsors query={query} revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:<>
-          <table className={`staff-table ${section==='articles'?'staff-publications-table':section==='users'?'staff-users-table':''}`}><thead><tr><th>{section==='audit'?'Acción':section==='reports'?'Caso':'Registro'}</th>{section==='users'&&<><th>Publicaciones</th><th>Calificación</th><th>Créditos</th></>}<th>{section==='audit'?'Tipo':'Estado'}</th><th>Fecha</th><th>{section==='audit'?'Responsable':'Acciones'}</th></tr></thead>
-            <tbody>{(data?.rows||[]).map(row=><tr key={row.id}>
+        </>:section==='sponsors'?<Suspense fallback={<p role="status">Cargando campañas...</p>}><StaffSponsors query={query} revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:section==='statistics'?<Suspense fallback={<p role="status">Cargando estadísticas...</p>}><StaffStatistics revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:<>
+          <table className={`staff-table ${section==='articles'?'staff-publications-table':section==='users'?'staff-users-table':''}`}><thead><tr>{section==='users'&&<th className="staff-user-selection"><input type="checkbox" aria-label="Seleccionar usuarios de esta página" checked={pageSelected} ref={node=>{if(node)node.indeterminate=!pageSelected&&pageUsers.some(row=>selectedUsers.some(user=>user.id===row.id));}} disabled={articleActionsBusy||!pageUsers.length} onChange={togglePageUsers} /></th>}<th>{section==='audit'?'Acción':section==='reports'?'Caso':'Registro'}</th>{section==='users'&&<><th>Publicaciones</th><th>Calificación</th><th>Créditos</th></>}<th>{section==='audit'?'Tipo':'Estado'}</th><th>Fecha</th><th>{section==='audit'?'Responsable':'Acciones'}</th></tr></thead>
+            <tbody>{(data?.rows||[]).map(row=><tr key={row.id}>{section==='users'&&<td className="staff-user-selection"><input type="checkbox" aria-label={`Seleccionar usuario: ${row.nombre||'Usuario'}`} checked={selectedUsers.some(user=>user.id===row.id)} disabled={articleActionsBusy} onChange={()=>toggleUser(row)} /></td>}
               <td>{section==='articles'?<><button type="button" className="staff-item staff-article-link" onClick={()=>openArticle(row)} aria-label={`Abrir publicación: ${row.title}`}>
                 {row.image_url&&<img src={row.image_url} alt="" loading="lazy" />}<span><span className="staff-article-title"><span className="staff-item-title">{row.title}</span>{row.is_featured&&<span className="staff-featured-star" role="img" aria-label="Publicación destacada" title="Publicación destacada"><Star size={16} aria-hidden="true" /></span>}</span><span className="staff-item-detail">{row.mode==='venta'?'Venta':'Donación'} · {row.city} · {row.locality}</span>{Number(row.chat_count)>0&&<span className="staff-chat-indicator" title={`${row.active_chat_count} abiertos o pendientes`}><MessageSquare size={14} aria-hidden="true" />{row.chat_count} {Number(row.chat_count)===1?'chat':'chats'}</span>}</span>
               </button><button type="button" className="staff-owner-link" aria-label={`Ver publicaciones de ${row.owner_name||'Usuario'}`} onClick={()=>{setOwnerName(row.owner_name||'Usuario');filterArticles('owner_id',row.owner_id);}} disabled={!row.owner_id}>Publicado por: <strong>{row.owner_name||'Usuario'}</strong></button></>:section==='reports'?<button type="button" className="staff-article-link" aria-label={`Abrir reporte: ${row.reason}`} onClick={()=>setReportDetail(row)}><span className="staff-item-title">{row.kind==='chat'?'Chat':'Publicación'} · {row.article_title||'Publicación no disponible'}</span><span className="staff-item-detail">{row.reason}</span><span className="staff-item-detail">Reportado: {row.reported_name||'Usuario'}</span></button>:section==='users'?<button type="button" className="staff-item staff-article-link" aria-label={`Ver usuario: ${row.nombre||'Usuario'}`} onClick={()=>setUserDetail(row)}>{row.foto_url&&<img src={row.foto_url} alt="" loading="lazy" />}<span><span className="staff-item-title">{row.nombre||'Usuario'}</span><span className="staff-item-detail">{[row.ciudad,row.localidad].filter(Boolean).join(' · ')||'Sin ubicación'}</span></span></button>:<div className="staff-item"><div><span className="staff-item-title">{titleFor(section,row)}</span><span className="staff-item-detail">{section==='team'?row.email:section==='audit'?row.reason:section==='sponsors'?row.descripcion:''}</span></div></div>}</td>
@@ -351,7 +370,7 @@ export default function StaffConsole({ requireMaster=false }) {
                 {section==='articles'&&canAuditChats&&<button type="button" className="staff-button" aria-label="Auditar chats de publicación" title={Number(row.chat_count)>0?'Consultar historial de chats':'Esta publicación no tiene conversaciones'} disabled={articleActionsBusy||!(Number(row.chat_count)>0)} onClick={()=>setChatAudit(row)}><MessageSquare size={17} aria-hidden="true" />Chats</button>}
                 {section==='articles'&&<><IconButton label="Aprobar publicación" icon={Check} disabled={articleActionsBusy||['reservado','entregado'].includes(row.status)} onClick={()=>openAction(row,'approve','Aprobar publicación')} /><IconButton label={['en_revision','pausado'].includes(row.status)?'Reactivar publicación':'Pausar publicación'} icon={['en_revision','pausado'].includes(row.status)?Play:Pause} disabled={articleActionsBusy||['reservado','entregado'].includes(row.status)} onClick={()=>openAction(row,['en_revision','pausado'].includes(row.status)?'approve':'pause',['en_revision','pausado'].includes(row.status)?'Reactivar publicación':'Pausar publicación')} /><IconButton label="Eliminar publicación" icon={Trash2} danger disabled={articleActionsBusy||['reservado','entregado'].includes(row.status)} onClick={()=>openAction(row,'delete','Eliminar publicación')} /></>}
                 {section==='reports'&&<><button type="button" className="staff-icon-button staff-report-review" aria-label="En revisión" title="En revisión" disabled={busy||row.status==='reviewing'} onClick={()=>openAction(row,'reviewing','Poner en revisión')}><Clock size={16} aria-hidden="true" /></button><button type="button" className="staff-icon-button staff-report-approve" aria-label="Aprobado" title="Aprobado" disabled={busy} onClick={()=>openAction(row,'approved','Aprobar publicación reportada')}><Check size={16} aria-hidden="true" /></button><button type="button" className="staff-icon-button staff-danger" aria-label="Eliminar" title="Eliminar publicación" disabled={busy} onClick={()=>openAction(row,'delete','Eliminar publicación reportada')}><Trash2 size={16} aria-hidden="true" /></button></>}
-                {section==='users'&&<><IconButton label="Agregar créditos" icon={Coins} disabled={articleActionsBusy||row.id===account.userId} onClick={()=>openAction(row,'compensate','Agregar créditos por compensación')} /><IconButton label="Suspender usuario" icon={Clock} disabled={busy} onClick={()=>openAction(row,'suspend','Suspender usuario')} /><IconButton label="Restablecer usuario" icon={Play} disabled={busy} onClick={()=>openAction(row,'restore','Restablecer usuario')} /></>}
+                {section==='users'&&<><IconButton label="Enviar mensaje" icon={Mail} disabled={articleActionsBusy} onClick={()=>setMessageComposer({all:false,recipients:[{id:row.id,nombre:row.nombre}]})} /><IconButton label="Agregar créditos" icon={Coins} disabled={articleActionsBusy||row.id===account.userId} onClick={()=>openAction(row,'compensate','Agregar créditos por compensación')} /><IconButton label="Suspender usuario" icon={Clock} disabled={busy||row.is_blocked} onClick={()=>openAction(row,'suspend','Suspender usuario')} />{account.role==='master'&&<IconButton label="Bloquear permanentemente" icon={Ban} danger disabled={busy||row.is_blocked||row.id===account.userId} onClick={()=>openAction(row,'block','Bloquear usuario permanentemente')} />}<IconButton label="Restablecer usuario" icon={Play} disabled={busy||(row.is_blocked&&account.role!=='master')} onClick={()=>openAction(row,'restore','Restablecer usuario')} /></>}
                 {section==='team'&&<><IconButton label={row.active?'Desactivar cuenta':'Activar cuenta'} icon={row.active?Pause:Play} disabled={busy||row.id===account.userId} onClick={()=>openAction(row,row.active?'disable':'enable',row.active?'Desactivar cuenta':'Activar cuenta')} />{row.role==='admin'&&<IconButton label="Editar permisos" icon={Settings2} disabled={busy||row.id===account.userId} onClick={()=>openAction(row,'permissions','Editar permisos')} />}</>}
               </div>}</td>
             </tr>)}</tbody>
@@ -361,6 +380,7 @@ export default function StaffConsole({ requireMaster=false }) {
         </>}
       </main>
     </div>
+    {messageComposer&&<StaffMessageComposer recipients={messageComposer.recipients} all={messageComposer.all} onReady={markStaffActivity} onClose={()=>setMessageComposer(null)} onSent={result=>{setMessageComposer(null);setSelectedUsers([]);setNotice(`${result.notice} ${result.count} ${result.count===1?'destinatario':'destinatarios'}.`);}} />}
     {articleEditor&&<StaffArticleEditor key={articleEditor.id} article={articleEditor} onReady={markStaffActivity} onClose={()=>setArticleEditor(null)} onSaved={result=>{setArticleEditor(null);setNotice(result.notice);load();}} />}
     {userDetail&&<StaffUserDetail key={userDetail.id} user={userDetail} onReady={markStaffActivity} onClose={()=>setUserDetail(null)} onAccessExpired={leave} onOpenArticle={account?.role==='master'||account?.permissions?.includes('moderation')?row=>{setUserDetail(null);openArticle(row);}:undefined} />}
     {reportDetail&&<StaffReportDetail key={`${reportDetail.kind}-${reportDetail.id}`} report={reportDetail} onClose={()=>setReportDetail(null)} onOpenArticle={account?.role==='master'||account?.permissions?.includes('moderation')?row=>{setReportDetail(null);openArticle(row);}:undefined} />}
@@ -379,12 +399,13 @@ export default function StaffConsole({ requireMaster=false }) {
       {modal.row&&<p className="text-sm text-gray-600">{titleFor(section,modal.row)}</p>}
       {modal.action==='add'&&<><label htmlFor="staff-team-email">Correo confirmado de la cuenta</label><input id="staff-team-email" type="email" value={teamEmail} onChange={event=>setTeamEmail(event.target.value)} required /><label htmlFor="staff-team-role">Rol</label><select id="staff-team-role" value={teamRole} onChange={event=>setTeamRole(event.target.value)}><option value="admin">Admin</option><option value="master">Super Admin</option></select></>}
       {modal.action==='suspend'&&<><label htmlFor="staff-days">Días de suspensión</label><select id="staff-days" value={days} onChange={event=>setDays(event.target.value)}>{[1,3,7,15,30].map(value=><option key={value} value={value}>{value}</option>)}</select></>}
+      {modal.action==='block'&&<p className="staff-error">Este bloqueo es permanente y no vence automáticamente. El usuario no podrá publicar, solicitar artículos ni enviar mensajes. Recibirá el motivo y la opción de solicitar una revisión en su buzón. Solo un super admin podrá restablecer su cuenta.</p>}
       {modal.action==='compensate'&&<><p className="staff-item-detail">Saldo actual: {modal.row.credits??0} créditos</p><label htmlFor="staff-credit-amount">Créditos a agregar</label><input id="staff-credit-amount" type="number" min="1" max="5" step="1" required value={creditAmount} onChange={event=>setCreditAmount(event.target.value)} disabled={busy} /></>}
       {modal.action==='permissions'&&Object.entries(permissions).map(([value,label])=><label className="staff-permission" key={value}><input type="checkbox" checked={selectedPermissions.includes(value)} onChange={event=>setSelectedPermissions(previous=>event.target.checked?[...previous,value]:previous.filter(item=>item!==value))} />{label}</label>)}
       {modal.action==='delete'&&<><p className="staff-error">La publicación se eliminará. El propietario recibirá el motivo y el detalle en su buzón.</p><label htmlFor="staff-delete-reason">Razón de eliminación</label><select id="staff-delete-reason" value={deletionReason} onChange={event=>setDeletionReason(event.target.value)} required><option value="">Selecciona una razón</option>{DELETION_REASONS.map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></>}
       <label htmlFor="staff-reason">{modal.action==='delete'?'Detalle para el propietario':'Motivo'}</label><textarea id="staff-reason" value={reason} onChange={event=>setReason(event.target.value)} minLength={8} maxLength={500} required disabled={busy} />
       {error&&<p role="alert" className="staff-error">{error}</p>}
-      <button type="submit" className={`staff-button ${modal.action==='delete'?'staff-delete-button':'staff-button-primary'} w-full`} disabled={busy||reason.trim().length<8||(modal.action==='delete'&&!deletionReason)||(modal.action==='compensate'&&(!Number.isInteger(Number(creditAmount))||Number(creditAmount)<1||Number(creditAmount)>5))}>{busy?<Loader2 size={17} className="animate-spin" />:modal.action==='delete'?<Trash2 size={17} />:<Check size={17} />}{modal.action==='delete'?'Eliminar y notificar':modal.action==='compensate'?'Agregar y notificar':'Confirmar'}</button>
+      <button type="submit" className={`staff-button ${['delete','block'].includes(modal.action)?'staff-delete-button':'staff-button-primary'} w-full`} disabled={busy||reason.trim().length<8||(modal.action==='delete'&&!deletionReason)||(modal.action==='compensate'&&(!Number.isInteger(Number(creditAmount))||Number(creditAmount)<1||Number(creditAmount)>5))}>{busy?<Loader2 size={17} className="animate-spin" />:modal.action==='block'?<Ban size={17} />:modal.action==='delete'?<Trash2 size={17} />:<Check size={17} />}{modal.action==='block'?'Bloquear permanentemente y notificar':modal.action==='delete'?'Eliminar y notificar':modal.action==='compensate'?'Agregar y notificar':'Confirmar'}</button>
     </form></dialog>}
   </div>;
 }

@@ -23,6 +23,14 @@ const memoryStorage = () => {
   };
 };
 
+test('rating notices are removed from both saved history and incoming events', () => {
+  const rating=notification('rating',0,{type:'rating_received'}),chat=notification('chat');
+  assert.deepEqual(mergeNotificationHistory([rating],[chat,rating]).map(item=>item.id),['chat']);
+  const storage=memoryStorage();
+  storage.setItem('mb_notification_history_user',JSON.stringify([rating,chat]));
+  assert.deepEqual(readNotificationHistory(storage,'user').map(item=>item.id),['chat']);
+});
+
 test('history evicts oldest groups at ten and orders tied dates by ID', () => {
   assert.equal(NOTIFICATION_HISTORY_LIMIT, 10);
   const items = Array.from({ length: 12 }, (_, i) => notification(`chat-${i}`, i));

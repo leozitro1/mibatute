@@ -11,6 +11,13 @@ const other = '33333333-3333-3333-3333-333333333333';
 const article = '44444444-4444-4444-4444-444444444444';
 const chat = '55555555-5555-5555-5555-555555555555';
 
+test('activity feed hides rating notifications even before the server migration', async () => {
+  let calls=0;
+  const result=await fetchActivityNotifications({rpc:async()=>{calls++;return{data:[{id:'rating',type:'rating_received'},{id:'delivery',type:'delivery_completed'}]};}},owner);
+  assert.equal(calls,1);
+  assert.deepEqual(result.map(item=>item.id),['delivery']);
+});
+
 test('activity read is bounded and legacy installations remain usable', async () => {
   const calls = [];
   const query = new Proxy({}, { get: (_, method) => (...args) => {
@@ -143,6 +150,13 @@ test('server activity records recipient-only events atomically and retains a bou
       await asUser(buyer);
       assert.deepEqual((await rows()).map(row=>row.type).sort(),['sale_approved','donation_rejected','rating_received','credits_received','topup_rejected','system_notice'].sort());
       assert.equal(JSON.stringify(await rows()).includes('Texto privado'),false);
+      await db.exec('reset role;');
+      const privacy=await readFile(new URL('../supabase/migrations/2026-10-16-private-rating-notifications.sql',import.meta.url),'utf8');
+      await db.exec(privacy);await db.exec(privacy);
+      const ratingCount=(await db.query('select count(*)::int as count from public.reputacion')).rows[0].count;
+      await db.query('insert into public.reputacion(reviewer_id,reviewed_id,articulo_id,estrellas) values($1,$2,$3,4)',[buyer,owner,article]);
+      assert.equal((await db.query('select count(*)::int as count from public.reputacion')).rows[0].count,ratingCount+1);
+      assert.equal((await db.query("select count(*)::int as count from public.activity_notifications where type='rating_received'")).rows[0].count,0);
       await db.exec("reset role; update public.articulos set status='en_revision'; update public.articulos set status='disponible';");
       await asUser(owner);
       assert.deepEqual((await rows()).map(row=>row.type).sort(),['publication_approved','publication_review'].sort());

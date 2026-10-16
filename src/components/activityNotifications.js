@@ -7,13 +7,18 @@ export const CONVERSATION_NOTIFICATION_TYPES = new Set([
 
 export async function fetchActivityNotifications(client, uid) {
   if (!uid) return [];
+  if (typeof client.rpc === 'function') {
+    const {data,error}=await client.rpc('notification_activity_feed');
+    if(!error)return(data||[]).filter(item=>item.type!=='rating_received').map(item=>({...item,read:item.read===true,unreadCount:item.read?0:1}));
+    if(!['PGRST202','42883'].includes(error.code))throw error;
+  }
   const { data, error } = await client.from('activity_notifications')
     .select('id,type,articulo_id,chat_id,buyer_id,receipt_id,created_at,title,subtitle,thumb')
     .eq('recipient_id', uid).order('created_at', { ascending: false }).order('id').limit(10);
   // Older deployments keep their existing notifications until the migration is installed.
   if (error?.code === '42P01' || error?.code === 'PGRST205') return [];
   if (error) throw error;
-  return (data || []).map(item => ({ ...item, read: false, unreadCount: 1 }));
+  return (data || []).filter(item=>item.type!=='rating_received').map(item => ({ ...item, read: false, unreadCount: 1 }));
 }
 
 export function publicationExpiryNotifications(articles, uid, now = Date.now()) {
@@ -31,6 +36,6 @@ export function publicationExpiryNotifications(articles, uid, now = Date.now()) 
 export function activityDestination(type) {
   if (CONVERSATION_NOTIFICATION_TYPES.has(type)) return 'chat';
   if (type === 'system_notice') return 'buzon';
-  if (['donation_rejected', 'reservation_canceled', 'rating_received'].includes(type)) return 'rescates';
+  if (['donation_rejected', 'reservation_canceled'].includes(type)) return 'rescates';
   return 'publicaciones';
 }

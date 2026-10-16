@@ -574,6 +574,35 @@ registrado sigue siendo visible para el equipo autorizado, incluidas notas
 internas incorporadas a ese motivo. No se muestran en el buzon del usuario.
 No hay sondeo ni solicitudes adicionales para traducir nombres.
 
+## Mensajes administrativos (solo local)
+
+En Usuarios, Admin con permiso `users` y Super Admin pueden escribir a una
+persona, seleccionar hasta 100 usuarios entre paginas o publicar para todos.
+Cambiar la busqueda o los filtros limpia la seleccion; `Comunicado a todos`
+significa toda la plataforma, no solo el resultado filtrado. Una llamada de
+preparacion obtiene el alcance y otra unica llamada confirma el envio. El
+comunicado general exige MFA de los ultimos cinco minutos y escribir
+`ENVIAR A TODOS`. No hay asignacion de ciudades al equipo todavia.
+
+`2026-10-15-staff-messages.sql` guarda una sola copia del cuerpo; para envios
+seleccionados inserta los enlaces de destinatarios en bloque. Los generales
+no generan enlaces, recibos, notificaciones individuales ni trabajos de fondo:
+el buzon combina mensajes anteriores y nuevos en su misma RPC, con limite 50.
+Solo leer, marcar no leido u ocultar crea estado por destinatario. Una cuenta
+registrada despues del corte del comunicado no recibe anuncios antiguos.
+No se anaden correos, polling, suscripciones Realtime ni funciones de Vercel.
+El buzon dispone de actualizacion manual y agrupa solicitudes simultaneas de
+lectura; conserva la carga diferida y los mecanismos previos para otros avisos.
+
+La solicitud usa UUID estable, validacion de audiencia y bloqueo transaccional
+para deduplicar reintentos. Limites: 20 envios por hora y remitente y 2 generales
+por cada 24 horas para toda la plataforma. La auditoria guarda responsable,
+fecha, asunto y alcance, no el cuerpo del mensaje. Para desplegar posteriormente,
+reaplicar `2026-10-15-staff-audit-filters.sql` (nueva etiqueta y grupo Mensajes)
+y despues la migracion de mensajes, antes del frontend. No se aplico en nube.
+Prueba integral: `scripts/check-staff-messages-local.mjs`, con cuentas y
+comunicados temporales que se eliminan al terminar.
+
 ## Publicacion del 15 de octubre de 2026
 
 Los apartados anteriores documentan el desarrollo local. Las nueve migraciones
@@ -590,6 +619,147 @@ Vercel no esta conectado automaticamente con GitHub: los despliegues se
 realizan con la CLI vinculada al proyecto existente. `vercel.json` incluye
 solo rutas cliente concretas para paneles, recuperacion y terminos; no
 intercepta `/api` ni recursos estaticos. No se activaron pagos Wompi.
+
+## Estadisticas del mercado (16 de octubre de 2026, solo local)
+
+Menu Estadisticas exclusivo de Super Admin; `staff_market_dashboard` requiere
+sesion de equipo vigente, MFA y permiso exclusivo `team`. Panel diferido con
+periodos 7/30/90 dias, filtros ciudad/localidad/categoria, tendencia diaria,
+busquedas (incluidas sin resultados), localidades/categorias consultadas,
+articulos mas vistos, vendedores, publicaciones y entregas de venta/donacion.
+Una RPC por combinacion de filtros; cache de 60 s (hasta 10 combinaciones),
+250 ms de espera al cambiar filtros y actualizacion manual, sin polling.
+
+La medicion publica empieza en la fecha de aplicacion de
+`2026-10-16-market-analytics.sql`: no se inventa historial de busquedas.
+Espera 1,2 s tras estabilizar resultados y 1 s de apertura de la ficha;
+no cuenta las propias fichas. Lotes hasta 20 cada 30 s solo si hay eventos,
+o al ocultar/salir; hasta 3 reintentos, 200 eventos distintos por carga/dia,
+sin duplicar paginacion ni consultas repetidas dentro de esa carga.
+No registra identidad, IP, correo, telefono ni cookies de seguimiento; descarta
+terminos con correos/enlaces, 7 o mas digitos, mas de 60 caracteres o 6 palabras.
+Si admite modelos y tallas como "iPhone 15" o "zapatos 40".
+Respeta Do Not Track y Global Privacy Control. Los contadores anonimos son
+orientativos, no una medida antifraude ni una base para facturacion.
+
+Tablas privadas con RLS; solo la ingesta publica acotada puede incrementar
+contadores. Claves aleatorias de carga retenidas hasta 2 dias y agregados
+diarios hasta 365 dias; limpieza acotada de hasta 5000 filas por tabla al
+consultar el panel (sin cron; las filas antiguas se limpian gradualmente).
+Las consultas de fecha usan America/Bogota. Ventas cuentan primera entrega,
+no reserva; fecha y categoria se conservan en el historial al borrar el anuncio.
+Entregas antiguas sin fecha conocida se avisan y no se atribuyen a un periodo.
+La migracion requiere previamente el historial de publicaciones del 15 de octubre.
+Aplicada solo en Docker local; pendiente produccion antes de desplegar frontend.
+
+Pruebas: `tests/market-metrics.test.js`, permiso real en `tests/staff-console.test.js`
+y `scripts/check-market-analytics-local.mjs` con cuentas temporales y limpieza.
+
+## Perfil compacto y globos sincronizados (16 de octubre, solo local)
+
+Busqueda del perfil compacta con Solo destacados junto al campo; los cuatro
+selectores comparten fila en escritorio. En Mis Rescates, Cupos y solicitudes
+esta debajo de la lista/paginacion en un details cerrado inicialmente, con
+resumen de donaciones pendientes y compras activas. Desplegarlo no consulta datos.
+
+Los globos de Publicaciones, Rescates y Buzon derivan del mismo estado de avisos
+que la campana, sin esperar a cargar cada pestana. Clasificacion por propiedad,
+tipo de aviso y buyer_id; no suma de nuevo mensajes presentes en mapas locales.
+Estado en memoria acotado a 300 grupos; el desplegable y la persistencia local
+siguen limitados a las diez entradas recientes. Avisos del buzon se deduplican
+por recibo y namespace system/staff, no por el ID de origen de la actividad.
+La lectura, no lectura y borrado reutilizan la respuesta de la accion existente;
+una respuesta antigua del buzon no puede deshacer una lectura posterior.
+Se conservan la carga diferida, cache y mecanismos actuales de llegada de avisos;
+no se habilito el realtime general (ENABLE_BACKGROUND_REALTIME sigue false),
+ni se anadieron polling, canales, RPC, migraciones o funciones Vercel.
+No se promete entrega instantanea de avisos que aun no hayan llegado a la campana.
+
+Pruebas de estado: `tests/profile-notification-badges.test.js` y las pruebas de
+historial existentes. Integracion: `scripts/check-profile-badges-local.mjs`,
+con cuentas temporales, casos de ambos roles de transaccion, contadores antes
+de abrir pestanas y comprobacion de lecturas de red al leer/no leer/borrar.
+
+La campana incluye "Marcar todas como leidas". Por solicitud del usuario,
+esta accion solo cambia `bellRead` local: no modifica `read`, los mensajes,
+los recibos ni los globos del perfil. Cero llamadas de red. El indicador persiste
+en el historial local de este navegador para el mismo evento; uno nuevo vuelve
+a aparecer como no leido. Cargar el buzon no deshace esa marca de la campana.
+
+## Avisos ligeros de mensajes administrativos (16 de octubre, solo local)
+
+`2026-10-16-staff-inbox-signals.sql` emite Broadcast privado al confirmar el
+envio: topic personal para seleccionados (maximo 100) y una sola senal general
+para comunicados, sin crear recibos ni copias por cada miembro de la plataforma.
+Payload: UUID del mensaje, fecha y corte de audiencia. Sin asunto, cuerpo,
+remitente ni lista de destinatarios. Politicas RLS restringen escucha al canal
+propio o general autenticado y niegan publicaciones de clientes en esos topics,
+incluso si otra politica Realtime es permisiva. Los mensajes completos y sus
+estados siguen siendo privados; generales mantienen la elegibilidad por fecha.
+
+Cada sesion autenticada escucha dos topics en el WebSocket compartido del SDK;
+sin anonimos, polling, reconexiones manuales ni funciones Vercel. La senal solo
+actualiza el estado local de campana/Buzon, deduplicado por recibo. No pide datos.
+El contenido se descarga al entrar/reentrar en Buzon, abrir un aviso de la
+campana o pulsar Actualizar. Si el buzon ya estaba abierto, recibir una senal
+no descarga automaticamente el texto; basta pulsar Buzon o actualizar.
+
+`notification_activity_feed` reemplaza la lectura anterior de actividad, no
+anade otra llamada: entrega los diez avisos previos y hasta 50 identificadores
+de mensajes administrativos elegibles, con texto generico y estado leido.
+Sirve de recuperacion para avisos enviados sin conexion, durante la carga o
+actualizacion existente de la campana. Broadcast no es una cola de entrega:
+si se pierde la conexion, los indicadores se recuperan en esa lectura existente
+o al entrar al buzon. Respeta "Marcar todas como leidas" exclusivo de la campana.
+
+Pruebas: `tests/staff-inbox-signals.test.js` (payload, permisos, rollback,
+retencion acotada y lifecycle); `scripts/check-staff-inbox-signals-local.mjs`
+(envios de Super Admin reales por WebSocket, dos tamanos, usuario ajeno,
+general sin fanout, corte de audiencia y conteo de consultas antes de entrar).
+Migracion aplicada solo en Docker local; para publicar requiere las migraciones
+de mensajes del 15 de octubre y esta, antes del frontend. Sin deploy por ahora.
+
+## Accion de calificacion discreta (solo local)
+
+`ProfileRatingAction` unifica el control en Mis Publicaciones y Mis Rescates:
+estrella y texto Calificar sobre fondo blanco, aviso Calificacion pendiente,
+ancho estable y area tactil de 44 px. Una animacion CSS de sombra/borde dura
+1,4 s por tres ciclos al aparecer, sin escalado, sondeos ni temporizadores JS.
+`prefers-reduced-motion: reduce` elimina la animacion. Al estar calificado,
+el control gris dice Calificado y queda desactivado, sin pulsacion.
+Se mantienen destinatarios, prioridades y flujo de calificacion existentes.
+Prueba: `scripts/check-profile-rating-action-local.mjs`, con venta y donacion
+temporales, ambos roles, pantallas 320/390/1440, movimiento reducido y estados
+pendiente/completado. No genera capturas ni modifica cuentas reales.
+
+## Bloqueo permanente de usuarios (solo local)
+
+La lista de Usuarios muestra Bloquear permanentemente solo para Super Admin.
+Requiere confirmacion y motivo de 8 a 500 caracteres. Usa una sola RPC,
+`staff_block_user`, para actualizar ambos indicadores de bloqueo sin fecha de
+vencimiento, enviar el motivo al buzon y registrar actor y destinatario en auditoria.
+Solo Super Admin puede restablecer un bloqueo permanente; las cuentas del equipo
+se gestionan desde Equipo. Se conserva la desactivacion voluntaria del perfil.
+Los bloqueados no pueden escribir publicaciones, postulaciones, chats ni mensajes.
+Una politica restrictiva oculta sus publicaciones del catalogo y destacados antes
+del conteo y la paginacion para otros usuarios, incluso por enlace directo.
+El propietario conserva su listado privado con acciones desactivadas y administracion
+conserva acceso. El saldo se muestra como Creditos bloqueados, sin descontarlo;
+Recargar con Wompi queda desactivado y cualquier dialogo de recarga abierto se cierra.
+El perfil y el mensaje de bloqueo indican que las solicitudes de devolucion de
+creditos comprados deben gestionarse con administracion en hola@mibatute.com.
+No se realizan devoluciones automaticas ni llamadas al checkout estando bloqueado.
+Al bloquear se cierran los chats abiertos o pendientes donde participa, sin borrar
+el historial ni reabrirlos automaticamente al restablecer. La contraparte tampoco
+puede enviar mensajes ni reabrir esos chats. El canal personal ya existente recibe
+los cambios del propio perfil y desactiva Publicar/cierra los dialogos de acciones,
+sin otro canal ni consultas por evento.
+Las acciones de la lista conservan un maximo de dos filas.
+
+Migracion local: `2026-10-16-permanent-user-block.sql`.
+Prueba real sin capturas: `scripts/check-permanent-user-block-local.mjs`.
+Antes de publicar tambien se debe aplicar `2026-10-16-private-rating-notifications.sql`,
+que elimina los avisos de estrellas recibidas sin borrar las calificaciones.
 
 ## Publicar despues de probar
 
