@@ -139,7 +139,8 @@ try {
     title: 'Recogida donacion - PRUEBA TEMPORAL', mode: 'donacion', estado_producto: 8,
     status: 'disponible', estado: 'disponible', city: 'Bogotá' }).select('id').single()).id;
   articles.push(donationId);
-  checked(await buyer.from('postulaciones').insert({ articulo_id: donationId, usuario_id: buyerSession.user.id,
+  // Application writes now go through the credit RPC; seed this unrelated pickup fixture privately.
+  checked(await admin.from('postulaciones').insert({ articulo_id: donationId, usuario_id: buyerSession.user.id,
     justificacion: 'Comprobar el acuerdo de recogida local' }));
   checked(await seller.from('articulos').update({ ganador_id: buyerSession.user.id, status: 'reservado', estado: 'reservado' }).eq('id', donationId));
   const donationChat = checked(await buyer.from('chats').select('id').eq('articulo_id', donationId).single());

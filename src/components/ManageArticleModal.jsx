@@ -2,6 +2,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { X, Users, MessageCircle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import './TransactionActions.css';
+import { listenMarketSignals } from "./marketSignals.js";
 import ApplicantRow from './ApplicantRow.jsx';
 import { isSaleApproved } from './articleState.js';
 import { supabase } from "../supabase/supabaseClient";
@@ -106,6 +107,7 @@ export default function ManageArticleModal({
   }, [isOpen]);
   const [postulados, setPostulados] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [applicationRevision, setApplicationRevision] = useState(0);
   const [savingWinner, setSavingWinner] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -147,6 +149,17 @@ export default function ManageArticleModal({
   // ✅ DONACIÓN: cargar postulaciones
   // ===========================
   useEffect(() => {
+    if (!isOpen || !articuloId || isVenta) return;
+    let timer;
+    const stop = listenMarketSignals(signal => {
+      if (signal.kind !== 'application' || String(signal.articulo_id) !== String(articuloId)) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => setApplicationRevision(value => value + 1), 250);
+    });
+    return () => { clearTimeout(timer); stop(); };
+  }, [isOpen, articuloId, isVenta]);
+
+  useEffect(() => {
     if (!isOpen) return;
     if (!articuloId) return;
     if (isVenta) return;
@@ -176,7 +189,7 @@ export default function ManageArticleModal({
     return () => {
       alive = false;
     };
-  }, [articuloId, isOpen, isVenta]);
+  }, [articuloId, isOpen, isVenta, applicationRevision]);
 
   // ===========================
   // ✅ DONACIÓN: cargar ganador (usuarios_publicos) + fallback

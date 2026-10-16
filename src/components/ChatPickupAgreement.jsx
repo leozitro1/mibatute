@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { CalendarClock, Check, X, Plus, RefreshCw, Ban } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
+import { singleFlight } from "./marketSignals.js";
 import { bogotaDate, formatPickupSlot, pickupStatusLabel, validatePickupSlot } from "./pickupAgreement";
 
 const fields = "id,chat_id,proposed_by,pickup_date,start_time,end_time,status,confirmed_by,confirmed_at,ended_by,ended_at,created_at";
@@ -17,15 +18,23 @@ export default function ChatPickupAgreement({ chatId, userId, canAct, onActivity
   const request = useRef(0);
   const working = useRef(false);
   const id = useId();
+  const changedRows = useRef(new Map());
+  const changeCallback = useRef(onActivityChange);
+  changeCallback.current = onActivityChange;
+  const mergeRows = rows => [...new Map(rows.map(row => [row.id, row])).values()]
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id.localeCompare(a.id)).slice(0, 10);
 
   const load = useCallback(async () => {
     const version = ++request.current;
+    // Overlay only events arriving during this request, not an old state from
+    // before a disconnect that could overwrite the fresh database snapshot.
+    changedRows.current.clear();
     try {
       const result = await supabase.from("chat_pickups").select(fields).eq("chat_id", chatId)
         .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(10);
       if (!alive.current || version !== request.current) return;
       if (result.error) throw result.error;
-      setRows(result.data || []);
+      setRows(mergeRows([...(result.data || []), ...changedRows.current.values()]));
       setLoaded(true);
       setError("");
     } catch {
@@ -39,12 +48,21 @@ export default function ChatPickupAgreement({ chatId, userId, canAct, onActivity
   useEffect(() => {
     alive.current = true;
     let subscribed = false;
-    const fallback = setTimeout(() => { if (!subscribed) load(); }, 2000);
+    changedRows.current.clear();
+    const refresh = singleFlight(load);
+    const fallback = setTimeout(() => { if (!subscribed) refresh(); }, 2000);
     const channel = supabase.channel(`chat_pickups_${chatId}_${userId}`)
       .on("postgres_changes", {
         event: "*", schema: "public", table: "chat_pickups", filter: `chat_id=eq.${chatId}`,
-      }, () => { load(); onActivityChange?.(); }).subscribe(status => {
-        if (status === "SUBSCRIBED") { subscribed = true; clearTimeout(fallback); load(); }
+      }, ({ eventType, new: row, old }) => {
+        if (!alive.current) return;
+        if (eventType === "DELETE") { changedRows.current.delete(old.id); setRows(previous => previous.filter(item => item.id !== old.id)); }
+        else if (row?.id) {
+          changedRows.current.set(row.id, row);
+          setRows(previous => mergeRows([...previous, row]));
+        }
+      }).subscribe(status => {
+        if (status === "SUBSCRIBED") { subscribed = true; clearTimeout(fallback); refresh(); }
       });
     return () => {
       clearTimeout(fallback);
@@ -52,7 +70,7 @@ export default function ChatPickupAgreement({ chatId, userId, canAct, onActivity
       request.current += 1;
       supabase.removeChannel(channel);
     };
-  }, [chatId, userId, load, onActivityChange]);
+  }, [chatId, userId, load]);
 
   const active = rows.find(row => row.status === "pending" || row.status === "confirmed");
   const displayed = active || (rows[0]?.status === "completed" ? rows[0] : null);
@@ -68,8 +86,13 @@ export default function ChatPickupAgreement({ chatId, userId, canAct, onActivity
       if (result.error) throw result.error;
       if (!alive.current) return;
       setForm(null);
-      onActivityChange?.();
-      await load();
+      changeCallback.current?.();
+      if (result.data?.id) {
+        changedRows.current.set(result.data.id, result.data);
+        // A replacement ends the preceding active slot atomically.
+        setRows(previous => mergeRows([...previous.map(row => row.id !== result.data.id && ["pending", "confirmed"].includes(row.status)
+          && name === "propose_chat_pickup" ? { ...row, status: "replaced" } : row), result.data]));
+      } else await load();
     } catch (failure) {
       if (!alive.current) return;
       await load();

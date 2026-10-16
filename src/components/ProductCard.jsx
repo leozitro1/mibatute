@@ -1,5 +1,6 @@
 // src/components/ProductCard.jsx
 import { MapPin, Lock, Users, BadgeCheck, Clock } from "lucide-react";
+import { cardImageUrl } from '../imagekit/imageUrls.js';
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -159,7 +160,7 @@ export default function ProductCard({
   // ✅ bloqueo total del card (por sanción “bloqueado”)
   const isDisabled = isLocked || !!isUserBlocked;
 
-  const imageSrc = pickImageSrc(image);
+  const imageSrc = cardImageUrl(pickImageSrc(image));
 
   // ✅ estado del producto (1–10) para badge en card
   const conditionInfo = conditionMeta(
@@ -247,6 +248,7 @@ export default function ProductCard({
           alt={title || "Artículo"}
           className={`w-full h-full object-cover ${isDisabled ? "opacity-90" : ""}`}
           loading="lazy"
+          decoding="async"
           onError={(e) => {
             if (e.currentTarget.dataset.fallbackApplied) return;
             e.currentTarget.dataset.fallbackApplied = "1";

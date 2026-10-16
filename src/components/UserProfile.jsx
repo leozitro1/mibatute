@@ -1,4 +1,5 @@
 // src/components/UserProfile.jsx
+import { createReadCache, listenMarketSignals } from "./marketSignals.js";
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
 import { getProfile, updateProfile } from "../supabase/profileService";
 import { notifyCreditBalance } from './creditBalance.js';
@@ -61,7 +62,6 @@ import { preferLatestArticle, articleHistoryExpiresAt } from "./articleState";
 // ✅ para cancelar postulación directamente + actualizar entrega
 import { supabase } from "../supabase/supabaseClient";
 
-const ENABLE_PROFILE_REALTIME = false;
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -939,6 +939,10 @@ export default function UserProfile({
   const [featuredOverrides, setFeaturedOverrides] = useState({});
   const [profileProducts, setProfileProducts] = useState([]);
   const [profileProductsLoading, setProfileProductsLoading] = useState(false);
+  const readCacheRef = useRef(null);
+  if (!readCacheRef.current) readCacheRef.current = createReadCache();
+  const liveArticlesRef = useRef(new Map());
+  const [signalRevision, setSignalRevision] = useState(0);
 
   // \u2b50 Reputación
   const [miReputacion, setMiReputacion] = useState(null); // { promedio, total }
@@ -1059,35 +1063,6 @@ export default function UserProfile({
     };
   }, []);
 
-  // ✅ REALTIME bloqueo / desbloqueo instantáneo
-  useEffect(() => {
-    if (!ENABLE_PROFILE_REALTIME) return;
-    if (!user?.id) return;
-
-    const channel = supabase
-      .channel(`realtime-user-block-${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "usuarios",
-          filter: `id=eq.${user.id}`,
-        },
-        (payload) => {
-          const newRow = payload.new;
-          if (typeof newRow?.is_blocked !== "undefined") {
-            setIsUserBlocked(!!newRow.is_blocked);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
-
   const loadUnreadForArticuloIds = useCallback(
     async (articuloIds = [], knownChats = null) => {
       if (!user?.id) return;
@@ -1101,7 +1076,7 @@ export default function UserProfile({
       }
 
       const { data: chats, error: chatErr } = knownChats
-        ? { data: knownChats } : await selectChatsForArticuloIds(ids);
+        ? { data: knownChats } : await readCacheRef.current.get(`chats:${user.id}:${[...ids].sort().join(",")}`, () => selectChatsForArticuloIds(ids));
 
       if (chatErr) {
         console.log("Warn loadUnread chats:", chatErr);
@@ -1125,11 +1100,11 @@ export default function UserProfile({
         return;
       }
 
-      const { data: reads, error: readErr } = await supabase
+      const { data: reads, error: readErr } = await readCacheRef.current.get(`reads:${user.id}:${[...chatIds].sort().join(",")}`, () => supabase
         .from("chat_reads")
         .select("chat_id,last_read_at")
         .eq("user_id", user.id)
-        .in("chat_id", chatIds);
+        .in("chat_id", chatIds));
 
       if (readErr) {
         console.log("Warn loadUnread chat_reads:", readErr);
@@ -1214,6 +1189,7 @@ export default function UserProfile({
         return;
       }
 
+      readCacheRef.current.clear();
       setUnreadByArticulo((prev) => {
         const next = new Map(prev);
         next.set(String(articuloId), false);
@@ -1304,12 +1280,11 @@ export default function UserProfile({
       setCargandoRescates(true);
       setRescatesError("");
       try {
-        const { data, error } = await obtenerMisRescates(user.id);
+        const { data, error } = await readCacheRef.current.get(`rescates:${user.id}:${rescatesReload}`, () => obtenerMisRescates(user.id));
         if (error) throw error;
         if (!alive) return;
-        const visible = data || [];
+        const visible = (data || []).map(row => ({ ...row, articulo: preferLatestArticle(row.articulo, liveArticlesRef.current.get(String(row.articulo_id))) }));
         setRescates(visible);
-        await loadUnreadRef.current?.(visible.map(row => row.articulo_id));
       } catch (error) {
         console.error("Error cargando rescates:", error);
         if (alive) setRescatesError("No se pudieron cargar tus postulaciones y compras. Intenta de nuevo.");
@@ -1319,7 +1294,7 @@ export default function UserProfile({
     })();
 
     return () => { alive = false; };
-  }, [user?.id, activeTab, rescatesReload]);
+  }, [user?.id, activeTab, rescatesReload, signalRevision]);
 
   // ✅ Carga saldo de créditos del usuario
   useEffect(() => {
@@ -1511,7 +1486,7 @@ export default function UserProfile({
     (async () => {
       setProfileProductsLoading(true);
       try {
-        const { data, error } = await supabase.rpc("article_context", { p_article_id: null });
+        const { data, error } = await readCacheRef.current.get(`publications:${user.id}`, () => supabase.rpc("article_context", { p_article_id: null }));
 
         if (!alive) return;
 
@@ -1521,7 +1496,7 @@ export default function UserProfile({
           return;
         }
 
-        setProfileProducts(Array.isArray(data) ? data : []);
+        setProfileProducts(Array.isArray(data) ? data.map(article => preferLatestArticle(article, liveArticlesRef.current.get(String(article.id)))) : []);
       } catch (e) {
         if (!alive) return;
         console.log("Warn cargando publicaciones perfil:", e);
@@ -1534,7 +1509,7 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [user?.id, activeTab]);
+  }, [user?.id, activeTab, signalRevision]);
 
   useEffect(() => {
     const now = Date.now();
@@ -1673,16 +1648,17 @@ export default function UserProfile({
 
     (async () => {
       try {
-        const { data: postRows, error: postErr } = await supabase
-          .from("postulaciones")
-          .select("articulo_id")
-          .in("articulo_id", ids);
+        const countersAvailable = publications.every(article => Number.isInteger(article.interested_count));
+        const { data: postRows, error: postErr } = countersAvailable
+          ? { data: publications.filter(article => article.interested_count > 0).map(article => ({ articulo_id: article.id })) }
+          : await readCacheRef.current.get(`posts:${user.id}:${[...ids].sort().join(",")}`, () => supabase
+            .from("postulaciones").select("articulo_id").in("articulo_id", ids));
         if (postErr) console.log("Warn postulaciones map:", postErr);
 
         const contextAvailable = publications.every(article => Object.hasOwn(article, "transaction_chat"));
         const knownChats = contextAvailable ? publications.map(article => article.transaction_chat).filter(Boolean) : null;
         const { data: chats, error: chatErr } = knownChats
-          ? { data: knownChats } : await selectChatsForArticuloIds(ids);
+          ? { data: knownChats } : await readCacheRef.current.get(`chats:${user.id}:${[...ids].sort().join(",")}`, () => selectChatsForArticuloIds(ids));
         if (chatErr) console.log("Warn chats(owner) map:", chatErr);
 
         if (!alive) return;
@@ -1712,7 +1688,9 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [activeTab, user?.id, loadUnreadForArticuloIds, publications]);
+  // IDs determine this read; live state and counters arrive through the shared user topic.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, user?.id, loadUnreadForArticuloIds, publications.map(getArticuloId).join("|")]);
 
   // ✅ OPT: maps rescates + unread (buyer) — solo corre en pestaña rescates o buzon
   useEffect(() => {
@@ -1732,11 +1710,8 @@ export default function UserProfile({
 
     (async () => {
       try {
-        const { data: chatRows, error: chatErr } = await supabase
-          .from("chats")
-          .select("articulo_id")
-          .in("articulo_id", ids)
-          .eq("buyer_id", user.id);
+        const { data: chatRows, error: chatErr } = await readCacheRef.current.get(`buyer-chats:${user.id}:${[...ids].sort().join(",")}`, () => supabase
+          .from("chats").select("articulo_id").in("articulo_id", ids).eq("buyer_id", user.id));
 
         if (chatErr) console.log("Warn chats(buyer) map:", chatErr);
 
@@ -1760,72 +1735,60 @@ export default function UserProfile({
     return () => {
       alive = false;
     };
-  }, [activeTab, user?.id, loadUnreadForArticuloIds, rescates]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, user?.id, loadUnreadForArticuloIds, rescates.map(row => row.articulo_id).join("|")]);
 
-  // ✅ REALTIME: mensajes + solicitudes en vivo
+  // The parent owns the connection; profile panels consume the same events.
+  // Live article patches do not trigger reads of applicants, chat history or bodies.
+  useEffect(() => listenMarketSignals(signal => {
+    if (signal.uid !== user?.id) return;
+    if (signal.kind === 'balance') setCuposSaldo(Number(signal.saldo));
+    if (['message', 'application'].includes(signal.kind)) readCacheRef.current.clear();
+    if (signal.kind === 'article' && signal.article?.id) {
+      const article = signal.article;
+      liveArticlesRef.current.set(String(article.id), article);
+      readCacheRef.current.clear();
+      if (signal.action === 'DELETE') {
+        setDeletedIds(previous => new Set([...previous, String(article.id)]));
+        setRescates(previous => previous.filter(row => String(row.articulo_id) !== String(article.id)));
+      } else {
+        setProfileProducts(previous => previous.some(row => row.id === article.id)
+          ? previous.map(row => row.id === article.id ? { ...row, ...article } : row)
+          : article.owner_id === user.id ? [...previous, article] : previous);
+        setArticuloOverridesById(previous => new Map(previous).set(String(article.id), article));
+        setRescates(previous => previous.map(row => row.articulo_id === article.id ? { ...row, articulo: { ...row.articulo, ...article } } : row));
+      }
+    }
+    if (signal.kind === 'application') {
+      setHasPostulacionesByArticulo(previous => new Map(previous).set(String(signal.articulo_id), signal.interested_count > 0));
+    }
+    if (signal.kind === 'chat' && signal.chat?.id) {
+      const chat = signal.chat;
+      const update = article => article.id === chat.articulo_id ? { ...article, transaction_chat: signal.action === 'DELETE' ? null : chat } : article;
+      setProfileProducts(previous => previous.map(update));
+      setRescates(previous => previous.map(row => row.articulo_id === chat.articulo_id ? { ...row,
+        _chatStatus: signal.action === 'DELETE' ? 'closed' : chat.status, _chatApprovedAt: chat.approved_at,
+        _canceledAt: chat.canceled_at, _canceledBy: chat.canceled_by, articulo: update(row.articulo) } : row));
+      setHasChatOwnerByArticulo(previous => new Map(previous).set(String(chat.articulo_id), signal.action !== 'DELETE'));
+      setHasChatBuyerByArticulo(previous => new Map(previous).set(String(chat.articulo_id), signal.action !== 'DELETE'));
+      readCacheRef.current.clear();
+    }
+    if (signal.kind === 'activity' && signal.notice?.type === 'donation_rejected') {
+      setRescates(previous => previous.map(row => row.articulo_id === signal.notice.articulo_id
+        ? { ...row, _source: 'rechazadas', _rejectedAt: signal.notice.created_at } : row));
+      readCacheRef.current.clear();
+    }
+    if (signal.kind === 'reconnect') { readCacheRef.current.clear(); setSignalRevision(value => value + 1); }
+  }), [user?.id]);
+
   useEffect(() => {
-    if (!ENABLE_PROFILE_REALTIME) return;
-    if (!user?.id) return;
-
-    const channel = supabase
-      .channel("realtime-userprofile-v3-" + user.id)
-
-      // ✅ OPT: Mensaje nuevo — actualización optimista sin query si ya tenemos el chat en memoria
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
-        const chatId = payload?.new?.chat_id;
-        if (!chatId) return;
-        if (String(payload?.new?.sender_id || "") === String(user.id)) return;
-
-        // Buscar articulo_id en memoria: rescates + publicaciones ya cargadas
-        const allArts = [
-          ...(publicationsRef.current || []),
-          ...(rescatesRef.current || []).map(r => r?.articulo || {}),
-        ];
-        // No tenemos chatId→articuloId en memoria directamente, así que hacemos 1 query pequeña
-        // pero SOLO si el tab está activo (publicaciones, rescates o buzon)
-        supabase.from("chats").select("articulo_id").eq("id", chatId).maybeSingle()
-          .then(({ data }) => {
-            if (data?.articulo_id) {
-              setUnreadByArticulo((prev) => {
-                const next = new Map(prev);
-                next.set(String(data.articulo_id), true);
-                return next;
-              });
-              // ✅ No llamamos loadUnreadForArticuloIds (evita 2 queries extra)
-            }
-          });
-      })
-
-      // ✅ OPT: Chat actualizado — solo marcamos como unread localmente si hay nuevo mensaje
-      // No relanzamos loadUnreadForArticuloIds (2 queries); el INSERT en chat_messages ya lo cubre
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chats" }, (payload) => {
-        const articuloId = payload?.new?.articulo_id;
-        const lastMsg = payload?.new?.last_message_at;
-        if (articuloId && lastMsg) {
-          setUnreadByArticulo((prev) => {
-            const next = new Map(prev);
-            // Solo marcar si no estamos ya en ese artículo
-            if (!next.get(String(articuloId))) next.set(String(articuloId), true);
-            return next;
-          });
-        }
-      })
-
-      // ✅ OPT: Nueva postulación — el padre (App.jsx) ya maneja notifByArticulo vía realtime
-      // No hacemos loadUnreadForArticuloIds aquí (no agrega info de mensajes, solo postulaciones)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "postulaciones" }, () => {
-        // Noop: App.jsx ya incrementa notifByArticulo vía su propio canal realtime
-      })
-
-
-      // ✅ OPT: DELETE en postulaciones — ya no hacemos re-query global.
-      // El backend elimina la fila; el rescate desaparece en el próximo cambio de tab
-      // o cuando el usuario recarga manualmente. Evita 1 query a toda la tabla por cada DELETE.
-
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user?.id]);
+    setUnreadByArticulo(previous => {
+      const next = new Map(previous);
+      for (const id of next.keys()) next.set(id, (notifByArticulo[id]?.unreadChats || 0) > 0);
+      for (const [id, value] of Object.entries(notifByArticulo)) next.set(id, (value.unreadChats || 0) > 0);
+      return next;
+    });
+  }, [notifByArticulo]);
 
   // ── Cargar mensajes del sistema ──────────────────────────────────────────
   const sysMsgsPendingRef = useRef(false);
@@ -1931,23 +1894,14 @@ export default function UserProfile({
         const rescIds = rescatesRef.current.map((r) => String(r?.articulo_id || getArticuloId(r?.articulo) || "")).filter(Boolean);
         const allIds = [...new Set([...pubIds, ...rescIds])];
         if (allIds.length) await loadUnreadRef.current?.(allIds);
-        if (sysMsgsCargadosRef.current) await loadSysMsgs();
+        if (activeTab === "buzon" && sysMsgsCargadosRef.current) await loadSysMsgs();
       } catch {}
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [user?.id, loadSysMsgs]);
+  }, [user?.id, activeTab, loadSysMsgs]);
 
 
-
-  useEffect(() => {
-    if (!user?.id) return;
-    const ch = supabase
-      .channel("sys-msgs-" + user.id)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "system_message_receipts", filter: "user_id=eq." + user.id }, () => { loadSysMsgs(); })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [user?.id, loadSysMsgs]);
 
   // ✅ Buzón (Inbox): mezcla publicaciones + rescates, y muestra lo que tenga chat / notificación / unread
   const inboxItems = useMemo(() => {

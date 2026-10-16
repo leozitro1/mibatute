@@ -31,7 +31,11 @@ try {
   });
   console.log('Midiendo 65 segundos en reposo con sesion iniciada...');
   await page.waitForTimeout(65000);
-  console.log(JSON.stringify({ idleMs: 65000, requests }));
+  const metrics = Object.fromEntries(Object.entries(requests).filter(([path]) => ['/rest/v1/rpc/record_sponsor_metrics', '/rest/v1/rpc/record_market_metrics'].includes(path)));
+  const media = Object.fromEntries(Object.entries(requests).filter(([path]) => path.startsWith('/storage/v1/object/public/sponsor-media/')));
+  const stateRequests = Object.fromEntries(Object.entries(requests).filter(([path]) => !Object.hasOwn(metrics, path) && !Object.hasOwn(media, path)));
+  console.log(JSON.stringify({ idleMs: 65000, stateRequests, metrics, media, requests }));
+  if (process.env.EXPECT_ZERO_STATE_READS === 'true') assert.deepEqual(stateRequests, {});
   if (process.env.EXPECT_ZERO_IDLE === 'true') assert.deepEqual(requests, {});
 } finally {
   await browser.close();

@@ -20,7 +20,7 @@ test('Realtime notices contain only generic metadata and honor the general-messa
 test('one authenticated socket uses two receive-only topics; events never request message bodies',async()=>{
   const channels=[],removed=[],received=[];let authCalls=0;
   const client={realtime:{setAuth:async()=>{authCalls++;}},channel(topic,options){
-    const channel={topic,options,on(type,filter,callback){this.callback=callback;return this;},subscribe(){return this;}};
+    const channel={topic,options,on(type,filter,callback){if(filter.event==='inbox_notice')this.callback=callback;return this;},subscribe(){return this;}};
     channels.push(channel);return channel;
   },removeChannel:channel=>removed.push(channel),rpc:()=>{throw new Error('Unexpected request');}};
   const stop=subscribeStaffInbox(client,{id:id(10),created_at:at},notice=>received.push(notice));

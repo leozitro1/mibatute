@@ -14,6 +14,7 @@ import { readNotificationHistory, writeNotificationHistory, mergeNotificationHis
   markNotificationHistoryRead, markNotificationBellRead, NOTIFICATION_STATE_LIMIT } from './components/notificationHistory.js';
 import { profileNotificationBadges,mergeInboxNotifications,updateInboxNotification } from './components/profileNotificationBadges.js';
 import { subscribeStaffInbox } from './components/staffInboxSignals.js';
+import { catalogTopic, dispatchMarketSignal, noticeFromSignal, notificationCounts } from './components/marketSignals.js';
 import { isPublicationExpired } from './components/articleLifetime.js';
 import { fetchActivityNotifications, publicationExpiryNotifications, activityDestination, CONVERSATION_NOTIFICATION_TYPES } from './components/activityNotifications.js';
 import HeroBanner from "./components/HeroBanner";
@@ -64,9 +65,7 @@ const HOME_QUERY_LIMIT = 100;
 const NOTIFICATION_POST_LIMIT = 80;
 const NOTIFICATION_MESSAGE_LIMIT = 100;
 const NOTIFICATION_REFRESH_MS = 60 * 1000;
-const INTERESTED_COUNT_LIMIT = 200;
 const HOME_REFRESH_MS = 10 * 60 * 1000;
-const ENABLE_BACKGROUND_REALTIME = false;
 const PUBLICATION_TYPES = [
   { key: "todo", label: "Todas", icon: <LayoutGrid size={16} aria-hidden="true" /> },
   { key: "donacion", label: "Donaciones", icon: <Gift size={16} aria-hidden="true" /> },
@@ -170,14 +169,6 @@ function isInReview(article) {
   );
 }
 
-// ✅ helper: chunk para IN() (evita límites)
-function chunkArray(arr, size) {
-  const out = [];
-  const s = Math.max(1, size || 200);
-  for (let i = 0; i < (arr || []).length; i += s) out.push(arr.slice(i, i + s));
-  return out;
-}
-
 // ✅ helper: sacar max interesados si existe en el artículo (opcional)
 function resolveInterestedMax(item) {
   const candidates = [
@@ -248,6 +239,12 @@ export default function MarketplaceApp() {
   const [homePage, setHomePage] = useState({ ids: [], featuredIds: [], total: 0, page: 1 });
   const [homeBusy, setHomeBusy] = useState(true);
   const [homeError, setHomeError] = useState("");
+  const [catalogChanged, setCatalogChanged] = useState(false);
+  const catalogVersionRef = useRef(0);
+  const realtimeReadyRef = useRef(false);
+  const [realtimeStatus, setRealtimeStatus] = useState("CONNECTING");
+  const [realtimeRevision, setRealtimeRevision] = useState(0);
+  const reconnectTimerRef = useRef(null);
   const homeRequestRef = useRef(0);
   const listingCacheRef = useRef(null);
   if (!listingCacheRef.current) listingCacheRef.current = createListingCache();
@@ -305,7 +302,6 @@ export default function MarketplaceApp() {
   notificationUidRef.current = currentUser?.id || null;
   const notificationRefreshRef = useRef({ uid: null, at: 0, pending: null });
   const activityRefreshRef = useRef({ uid: null, at: 0, pending: null, items: [] });
-  const activityRefreshTimerRef = useRef(null);
   const [profileNotificationTarget, setProfileNotificationTarget] = useState(null);
   const [inboxRevision,setInboxRevision]=useState(0);
 
@@ -316,6 +312,10 @@ export default function MarketplaceApp() {
     historyUidRef.current = uid;
     writeNotificationHistory(localStorage, uid, next);
     setNotifications(next);
+    const counts = notificationCounts(next);
+    setNotifChatCount(counts.chats);
+    setNotifProfileCount(counts.profile);
+    setNotifByArticulo(counts.byArticle);
   }, []);
 
   const syncInboxNotifications = useCallback((uid, messages) => {
@@ -332,30 +332,10 @@ export default function MarketplaceApp() {
     if (!uid) return;
     const previous = notificationsRef.current;
     const next = markNotificationHistoryRead(previous, criteria, NOTIFICATION_STATE_LIMIT);
-    const readIds = new Set(next.filter(item => item.read).map(item => item.id));
-    const newlyRead = previous.filter(item => !item.read && readIds.has(item.id));
     saveNotificationHistory(next, uid);
-    const chatCount = newlyRead.filter(item => item.type === 'chat').reduce((sum, item) => sum + (item.unreadCount || 0), 0);
-    const profileCount = newlyRead.filter(item => ['chat', 'postulacion', 'venta'].includes(item.type))
-      .reduce((sum, item) => sum + (item.unreadCount || 0), 0);
-    setNotifChatCount(count => Math.max(0, count - chatCount));
-    setNotifProfileCount(count => Math.max(0, count - profileCount));
-    setNotifByArticulo(previousCounts => {
-      const counts = { ...previousCounts };
-      for (const item of newlyRead) {
-        const row = counts[String(item.articulo_id)];
-        if (!row) continue;
-        const key = item.type === 'chat' ? 'unreadChats' : item.type === 'postulacion' ? 'newSolicitudes' : item.type === 'venta' ? 'pendingVentas' : null;
-        if (!key) continue;
-        const updated = { ...row, [key]: Math.max(0, row[key] - (item.unreadCount || 0)) };
-        updated.total = updated.unreadChats + updated.newSolicitudes + updated.pendingVentas;
-        counts[String(item.articulo_id)] = updated;
-      }
-      return counts;
-    });
   }, [saveNotificationHistory]);
 
-  const getActiveUid = useCallback(() => currentUser?.id || null, [currentUser]);
+  const getActiveUid = useCallback(() => currentUser?.id || null, [currentUser?.id]);
   const isUserBlocked = !!(currentUser?.is_blocked || currentUser?.bloqueado);
 
 
@@ -589,13 +569,6 @@ export default function MarketplaceApp() {
     return items;
   }, [getActiveUid, saveNotificationHistory, lsKeyChats]);
 
-  const refreshActivityNotifications = useCallback(() => {
-    clearTimeout(activityRefreshTimerRef.current);
-    activityRefreshTimerRef.current = setTimeout(() => loadActivityNotifications({ force: true }), 150);
-  }, [loadActivityNotifications]);
-
-  useEffect(() => () => clearTimeout(activityRefreshTimerRef.current), [currentUser?.id]);
-
   const loadNotifications = useCallback(async ({ reuseCached = false } = {}) => {
     const uid = getActiveUid();
     if (!uid) {
@@ -613,22 +586,6 @@ export default function MarketplaceApp() {
     // ✅ Usa ref en vez de closure sobre products — rompe la dependencia circular
     const currentProducts = productsRef.current;
 
-    const byArticulo = {}; // { [articuloId]: { unreadChats, newSolicitudes, pendingVentas, total } }
-
-    const addArticulo = (articuloId, patch) => {
-      if (!articuloId) return;
-      const k = String(articuloId);
-      byArticulo[k] = byArticulo[k] || { unreadChats: 0, newSolicitudes: 0, pendingVentas: 0, total: 0 };
-      byArticulo[k] = {
-        ...byArticulo[k],
-        ...patch,
-      };
-      byArticulo[k].total =
-        (byArticulo[k].unreadChats || 0) +
-        (byArticulo[k].newSolicitudes || 0) +
-        (byArticulo[k].pendingVentas || 0);
-    };
-
     // Para títulos/imagenes rápidos
     const articleById = Object.fromEntries((currentProducts || []).map((p) => [String(getArticuloId(p) || ""), p]));
 
@@ -636,7 +593,6 @@ export default function MarketplaceApp() {
     const dropdownItems = [...activityItems, ...publicationExpiryNotifications(currentProducts, uid)];
 
     // 1) Ventas pendientes (desde products ya cargados)
-    let pendingVentas = 0;
     try {
       const mine = (currentProducts || []).filter((p) => String(p?.owner_id || p?.usuario_id || "") === String(uid));
       for (const it of mine) {
@@ -647,10 +603,7 @@ export default function MarketplaceApp() {
 
         if (tipo === "venta" && estado === "reservado" && buyerId) {
           const approved = isSaleApproved(it);
-          if (!approved) pendingVentas += 1;
 
-          const prev = byArticulo[String(artId)]?.pendingVentas || 0;
-          addArticulo(artId, { pendingVentas: prev + (approved ? 0 : 1) });
 
           dropdownItems.push({
             id: `venta-${String(artId)}`,
@@ -669,7 +622,6 @@ export default function MarketplaceApp() {
     } catch {}
 
     // 2) Solicitudes nuevas (postulaciones) para MIS artículos
-    let newSolicitudes = 0;
     const solicitudesAgg = {}; // { [artId]: { count, latestAt } }
     try {
       const myArticuloIds = Array.from(
@@ -703,11 +655,6 @@ export default function MarketplaceApp() {
             solicitudesAgg[String(artId)].latestAt = Math.max(solicitudesAgg[String(artId)].latestAt, createdAtMs);
 
             if (createdAtMs && createdAtMs > seenAtMs) {
-              newSolicitudes += 1;
-
-              const prev = byArticulo[String(artId)]?.newSolicitudes || 0;
-              addArticulo(artId, { newSolicitudes: prev + 1 });
-
               solicitudesAgg[String(artId)].unread += 1;
             }
           }
@@ -735,7 +682,6 @@ export default function MarketplaceApp() {
     } catch {}
 
     // 3) Mensajes no vistos (chat_messages) usando seenMap por chatId
-    let totalUnread = 0;
     const unreadChatAgg = {}; // { [chatId]: { count, latestAt, chatRow } }
 
     try {
@@ -757,7 +703,6 @@ export default function MarketplaceApp() {
 
         if (!msgErr && Array.isArray(msgs)) {
           const chatById = Object.fromEntries(chats.map((c) => [String(c.id), c]));
-          const chatToArticulo = Object.fromEntries(chats.map((c) => [String(c.id), c?.articulo_id]));
 
           for (const m of msgs) {
             const chatId = m?.chat_id;
@@ -775,12 +720,6 @@ export default function MarketplaceApp() {
             unreadChatAgg[String(chatId)].latestAt = Math.max(unreadChatAgg[String(chatId)].latestAt, createdAt);
 
             if (createdAt && createdAt > seenAt) {
-              totalUnread += 1;
-
-              const artId = chatToArticulo[String(chatId)];
-              const prev = byArticulo[String(artId)]?.unreadChats || 0;
-              addArticulo(artId, { unreadChats: prev + 1 });
-
               unreadChatAgg[String(chatId)].unread += 1;
             }
           }
@@ -855,31 +794,10 @@ export default function MarketplaceApp() {
       const seen = item.type === 'chat' ? latestChatReads[String(item.chat_id)]
         : item.type === 'postulacion' ? latestPostReads[String(item.articulo_id)] : null;
       if (!seen || Date.parse(seen) < Date.parse(item.created_at) || item.read) continue;
-      const row = byArticulo[String(item.articulo_id)];
-      if (item.type === 'chat') {
-        totalUnread -= item.unreadCount;
-        if (row) row.unreadChats -= item.unreadCount;
-      } else {
-        newSolicitudes -= item.unreadCount;
-        if (row) row.newSolicitudes -= item.unreadCount;
-      }
-      if (row) row.total = row.unreadChats + row.newSolicitudes + row.pendingVentas;
       item.read = true;
       item.unreadCount = 0;
     }
     const history = mergeNotificationHistory(notificationsRef.current, sortedDropdown, NOTIFICATION_STATE_LIMIT);
-    for (const item of history) {
-      if (item.type !== 'venta' || !item.read) continue;
-      const row = byArticulo[String(item.articulo_id)];
-      if (row?.pendingVentas) {
-        pendingVentas -= row.pendingVentas;
-        row.pendingVentas = 0;
-        row.total = row.unreadChats + row.newSolicitudes;
-      }
-    }
-    setNotifChatCount(totalUnread);
-    setNotifProfileCount(totalUnread + newSolicitudes + pendingVentas);
-    setNotifByArticulo(byArticulo);
     saveNotificationHistory(history, uid);
     })();
     notificationRefreshRef.current = { uid, at: refresh.uid === uid ? refresh.at : 0, pending };
@@ -995,11 +913,17 @@ export default function MarketplaceApp() {
 
   useEffect(() => {
     let alive = true;
+    let requestedUid;
+    let hydrationVersion = 0;
 
-    const hydrateUser = async (session) => {
+    const hydrateUser = async (session, force = false) => {
+      const sbUser = session?.user || null;
+      const uid = sbUser?.id || null;
+      if (!force && requestedUid === uid) return;
+      requestedUid = uid;
+      const version = ++hydrationVersion;
       try {
-        const sbUser = session?.user || null;
-        if (!alive) return;
+        if (!alive || version !== hydrationVersion) return;
 
         if (!sbUser) {
           setCurrentUser(null);
@@ -1023,11 +947,12 @@ export default function MarketplaceApp() {
         }
 
         const { data: verified, error: verifyError } = await supabase.auth.getUser();
+        if (!alive || version !== hydrationVersion) return;
         const verifiedUser = verified?.user || null;
 
         if (verifyError || !verifiedUser || verifiedUser.id !== sbUser.id) {
           await supabase.auth.signOut();
-          if (!alive) return;
+          if (!alive || version !== hydrationVersion) return;
           setCurrentUser(null);
           setCurrentView("home");
           setSelectedProduct(null);
@@ -1047,7 +972,7 @@ export default function MarketplaceApp() {
 // 1) intenta DB pero SIN romper si no hay fila o RLS
 const dbRes = await supabase
   .from("usuarios")
-  .select("id,nombre,movil,ciudad,localidad,direccion,foto_url,is_blocked,bloqueado,blocked,estado,status,rol,role")
+  .select("id,nombre,movil,ciudad,localidad,direccion,foto_url,is_blocked,bloqueado,ban_until,blocked,estado,status,rol,role")
   .eq("id", verifiedUser.id)
   .maybeSingle();
 
@@ -1062,21 +987,22 @@ const metaFoto = m.foto_url || m.avatar_url || m.photo_url || "";
 if (!merged.foto_url && metaFoto) merged.foto_url = metaFoto;
 if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nombre || m.full_name || m.name;
 
-        if (!alive) return;
+        if (!alive || version !== hydrationVersion) return;
         setCurrentUser(merged);
         setLoading(false);
       } catch (e) {
         console.error("Error cargando sesión/perfil:", e);
-        if (!alive) return;
+        if (!alive || version !== hydrationVersion) return;
         setCurrentUser(null);
         setLoading(false);
       }
     };
 
-    supabase.auth.getSession().then(({ data }) => hydrateUser(data?.session));
+    supabase.auth.getSession().then(({ data }) => { if (!hydrationVersion) hydrateUser(data?.session); });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      hydrateUser(session);
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED') return;
+      hydrateUser(session, event === 'USER_UPDATED');
     });
 
     return () => {
@@ -1091,6 +1017,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   const load = useCallback(async ({ refreshPersonal = false, reuseCached = false } = {}) => {
     const request = ++homeRequestRef.current;
+    const catalogVersion = catalogVersionRef.current;
     const cacheKey = JSON.stringify([homeFilters, requestedPage, currentUser?.id || null]);
     if (!reuseCached || refreshPersonal) listingCacheRef.current.clear();
     const cached = reuseCached && !refreshPersonal ? listingCacheRef.current.get(cacheKey) : null;
@@ -1113,7 +1040,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     // ✅ Solo columnas necesarias para el listado — sin select("*")
     const columns = `id, titulo, title, mode, tipo, estado, status,
          city, locality, description,
-         price, usuario_id, owner_id, buyer_id,
+         price, interested_count, usuario_id, owner_id, buyer_id,
          ganador_id, winner_id, recipient_id,
          reserved_at, delivered_at, updated_at, created_at,
          image_url, imagen_url_principal, imagenes,
@@ -1158,7 +1085,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     }
 
     // ✅ Normaliza artículos
-    let normalized = raw.map((it) => {
+    const normalized = raw.map((it) => {
       const imgsRel = Array.isArray(it.articulo_imagenes) ? it.articulo_imagenes : [];
       const imgsRelUrls = imgsRel.map((x) => x?.url).filter(Boolean);
       const imgsDb = Array.isArray(it.imagenes) ? it.imagenes.filter(Boolean) : [];
@@ -1176,44 +1103,14 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         owner_photo: ownerPublic?.foto_url || "",
         owner_public: ownerPublic || it.owner_public || null,
         buyer_public: ownersMap[it.buyer_id] || it.buyer_public || null,
-        interested_count: 0,
+        interested_count: Number(it.interested_count || 0),
       };
     });
 
-    // ✅ Conteo de interesados: una sola query con count por grupo
-    // Evita iterar con múltiples chunks y traer todos los registros
-    try {
-      const ids = normalized.map((x) => getArticuloId(x)).filter(Boolean);
-      if (ids.length) {
-        const counts = {};
-        const chunks = chunkArray(ids, 200);
-        for (const ch of chunks) {
-          // ✅ Solo trae articulo_id — sin payload extra
-          const { data: posts, error: postErr } = await supabase
-            .from("postulaciones")
-            .select("articulo_id")
-            .in("articulo_id", ch)
-            .limit(INTERESTED_COUNT_LIMIT);
-
-          if (postErr) break;
-          if (Array.isArray(posts)) {
-            for (const p of posts) {
-              const aid = p?.articulo_id;
-              if (!aid) continue;
-              const k = String(aid);
-              counts[k] = (counts[k] || 0) + 1;
-            }
-          }
-        }
-        normalized = normalized.map((it) => {
-          const id = getArticuloId(it);
-          return { ...it, interested_count: id ? (counts[String(id)] || 0) : 0 };
-        });
-      }
-    } catch {}
-
+    // The database already maintains interested_count; no applicants read is needed.
     if (request !== homeRequestRef.current) return;
     listingCacheRef.current.set(cacheKey, { page: pageData, products: normalized });
+    if (catalogVersion === catalogVersionRef.current) setCatalogChanged(false);
     setHomePage(pageData);
     productsRef.current = normalized;
     setProducts(normalized);
@@ -1269,77 +1166,153 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
-  // =========================================================
-  // ✅ REALTIME: refresca dropdown al llegar postulación/mensaje
-  // =========================================================
-  const rtRef = useRef({ channel: null, uid: null });
-
-  // ✅ Suscripción realtime: depende SOLO de currentUser.id
-  // Usa productsRef para leer products sin rehacer el canal en cada refresh
-  useEffect(() => {
-    if (!ENABLE_BACKGROUND_REALTIME) return;
-
-    const uid = getActiveUid();
-
-    if (rtRef.current.channel) {
-      try { supabase.removeChannel(rtRef.current.channel); } catch {}
-      rtRef.current.channel = null;
-      rtRef.current.uid = null;
-    }
-
-    if (!uid) return;
-
-    const ch = supabase.channel(`mb-notifs-${uid}`);
-
-    ch.on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "postulaciones" },
-      (payload) => {
-        const artId = payload?.new?.articulo_id;
-        if (!artId) return;
-
-        // ✅ Lee productsRef (no recrea el canal cuando products cambia)
-        const isMine = (productsRef.current || []).some(
-          (p) =>
-            String(getArticuloId(p)) === String(artId) &&
-            String(p?.owner_id || p?.usuario_id || "") === String(uid)
-        );
-
-        if (!isMine) return;
-        loadNotifications();
+  // One receive-only private user topic serves bell, profile, balance and chat state.
+  // Keep callbacks current without tearing down a channel on every UI update.
+  const liveHandlersRef = useRef({});
+  liveHandlersRef.current = {
+    market: signal => {
+      const uid = notificationUidRef.current;
+      if (!uid) return;
+      if (signal.kind === 'balance') notifyCreditBalance(uid, Number(signal.saldo));
+      if (signal.notice) {
+        let notice = signal.notice;
+        if (['chat', 'postulacion'].includes(notice.type)) {
+          const key = notice.type === 'chat' ? lsKeyChats(uid) : lsKeyPosts(uid);
+          const seenAt = readSeenMap(key)[String(notice.chat_id || notice.articulo_id)];
+          notice = noticeFromSignal(signal, notificationsRef.current.find(item => item.id === notice.id), seenAt);
+        } else {
+          const seenAt = readSeenMap(lsKeyChats(uid))[String(notice.chat_id)];
+          if (CONVERSATION_NOTIFICATION_TYPES.has(notice.type) && Date.parse(seenAt || '') >= Date.parse(notice.created_at))
+            notice = { ...notice, read: true, unreadCount: 0 };
+        }
+        saveNotificationHistory(mergeNotificationHistory(notificationsRef.current, [notice], NOTIFICATION_STATE_LIMIT), uid);
+        if (notice.type === 'system_notice') setInboxRevision(value => value + 1);
       }
-    );
+      if (signal.kind === 'application' && Number.isInteger(signal.interested_count)) {
+        const update = rows => rows.map(article => String(article.id) === String(signal.articulo_id)
+          ? { ...article, interested_count: signal.interested_count } : article);
+        productsRef.current = update(productsRef.current);
+        setProducts(productsRef.current);
+        if (personalArticlesRef.current.rows) personalArticlesRef.current.rows = update(personalArticlesRef.current.rows);
+        listingCacheRef.current.clear();
+        if (signal.action === 'DELETE') {
+          saveNotificationHistory(notificationsRef.current.map(item => {
+            if (item.id !== `post-${signal.articulo_id}`) return item;
+            const unreadCount = Math.min(item.unreadCount || 0, signal.interested_count);
+            return { ...item, unreadCount, read: unreadCount === 0 };
+          }), uid);
+        }
+      }
+      if (signal.kind === 'article' && signal.article?.id) {
+        const article = signal.article;
+        const update = rows => signal.action === 'DELETE' ? rows.filter(row => row.id !== article.id)
+          : rows.some(row => row.id === article.id)
+            ? rows.map(row => row.id === article.id ? { ...row, ...article, isFeatured: !!article.is_featured } : row)
+            : article.owner_id === uid ? [...rows, { ...article, isFeatured: !!article.is_featured }] : rows;
+        productsRef.current = update(productsRef.current);
+        setProducts(productsRef.current);
+        if (personalArticlesRef.current.rows) personalArticlesRef.current.rows = update(personalArticlesRef.current.rows);
+        listingCacheRef.current.clear();
+        const patch = row => row?.id === article.id ? (signal.action === 'DELETE' ? null : { ...row, ...article }) : row;
+        setSelectedProduct(patch);
+        setManageArticle(patch);
+        setChatOpen(previous => previous?.article?.id === article.id
+          ? (signal.action === 'DELETE' ? null : { ...previous, article: { ...previous.article, ...article } }) : previous);
+        if (article.owner_id === uid && article.mode === 'venta') {
+          if (signal.action !== 'DELETE' && article.status === 'reservado' && article.buyer_id) {
+            const existing = notificationsRef.current.find(item => item.id === `venta-${article.id}`);
+            const notice = { id: `venta-${article.id}`, type: 'venta', articulo_id: article.id, buyer_id: article.buyer_id,
+              created_at: article.reserved_at || article.updated_at, title: 'Venta pendiente',
+              subtitle: `${article.title || 'Artículo'} · Solicitud de compra recibida.`,
+              thumb: buildArticleThumb(article), read: existing?.read === true, unreadCount: existing?.read ? 0 : 1 };
+            saveNotificationHistory(mergeNotificationHistory(notificationsRef.current, [notice], NOTIFICATION_STATE_LIMIT), uid);
+          } else {
+            saveNotificationHistory(notificationsRef.current.map(item => item.id === `venta-${article.id}`
+              ? { ...item, read: true, unreadCount: 0 } : item), uid);
+          }
+        }
+      }
+      if (signal.kind === 'chat' && signal.chat?.status === 'open') {
+        saveNotificationHistory(notificationsRef.current.map(item => item.id === `venta-${signal.chat.articulo_id}`
+          ? { ...item, title: 'Venta en curso', read: true, unreadCount: 0 } : item), uid);
+      }
+      dispatchMarketSignal({ ...signal, uid });
+    },
+    reconnect: () => {
+      // Coalesce socket flaps. Recover missed personal state, then notifications;
+      // this runs only after rejoining, never on a repeating interval.
+      clearTimeout(reconnectTimerRef.current);
+      const uid = notificationUidRef.current;
+      reconnectTimerRef.current = setTimeout(async () => {
+        if (!uid || notificationUidRef.current !== uid) return;
+        setRealtimeStatus('RECOVERING');
+        try {
+          const [account, balance] = await Promise.all([
+            supabase.from('usuarios').select('id,is_blocked,bloqueado,ban_until').eq('id', uid).maybeSingle(),
+            supabase.from('cupos').select('saldo').eq('usuario_id', uid).maybeSingle(),
+          ]);
+          if (notificationUidRef.current !== uid) return;
+          if (!account.error && account.data) setCurrentUser(previous => previous?.id === uid ? { ...previous, ...account.data } : previous);
+          if (!balance.error) notifyCreditBalance(uid, Number(balance.data?.saldo || 0));
+          await load({ refreshPersonal: true });
+          if (notificationUidRef.current !== uid) return;
+          await loadNotifications();
+          dispatchMarketSignal({ kind: 'reconnect', uid });
+          setRealtimeRevision(value => value + 1);
+          setRealtimeStatus(realtimeReadyRef.current ? 'SUBSCRIBED' : 'CHANNEL_ERROR');
+        } catch (error) {
+          if (notificationUidRef.current === uid) setRealtimeStatus('CHANNEL_ERROR');
+          console.error('No se pudieron sincronizar los avisos:', error);
+        }
+      }, 400);
+    },
+  };
 
-    ch.on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "chat_messages" },
-      () => { loadNotifications(); }
-    );
+  useEffect(() => {
+    realtimeReadyRef.current = false;
+    let firstJoin = true;
+    const stop = subscribeStaffInbox(supabase, { id: currentUser?.id, created_at: currentUser?.created_at }, notice => {
+      const uid = notificationUidRef.current;
+      if (!uid) return;
+      if (!notificationsRef.current.some(item => item.receipt_kind === 'staff' && item.receipt_id === notice.receipt_id)) setInboxRevision(value => value + 1);
+      saveNotificationHistory(mergeNotificationHistory(notificationsRef.current, [notice], NOTIFICATION_STATE_LIMIT), uid);
+    }, profile => {
+      const uid = notificationUidRef.current;
+      setCurrentUser(previous => previous?.id === uid ? { ...previous, ...profile } : previous);
+      if (profile.is_blocked || profile.bloqueado) { setIsPublishOpen(false); setChatOpen(null); setSelectedProduct(null); }
+    }, {
+      onMarketSignal: signal => liveHandlersRef.current.market(signal),
+      onReconnect: () => liveHandlersRef.current.reconnect(),
+      onStatus: status => {
+        realtimeReadyRef.current = status === 'SUBSCRIBED'; setRealtimeStatus(status);
+        if (status === 'SUBSCRIBED') {
+          // A slow first join may happen after the initial HTTP snapshot.
+          if (firstJoin && notificationRefreshRef.current.at > 0) liveHandlersRef.current.reconnect();
+          firstJoin = false;
+        }
+      },
+    });
+    return () => { clearTimeout(reconnectTimerRef.current); stop(); };
+  }, [currentUser?.id, currentUser?.created_at, saveNotificationHistory]);
 
-    ch.subscribe();
-
-    rtRef.current.channel = ch;
-    rtRef.current.uid = uid;
-
-    return () => {
-      try { supabase.removeChannel(ch); } catch {}
-      rtRef.current.channel = null;
-      rtRef.current.uid = null;
-    };
-  // ✅ Solo se rehace cuando cambia el usuario — no cuando cambian products
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.id]);
-
-  // Hydrate history immediately; server refresh follows the article load.
-  useEffect(()=>subscribeStaffInbox(supabase,{id:currentUser?.id,created_at:currentUser?.created_at},notice=>{
-    const uid=currentUser?.id;if(!uid||notificationUidRef.current!==uid)return;
-    if(!notificationsRef.current.some(item=>item.receipt_kind==='staff'&&item.receipt_id===notice.receipt_id))setInboxRevision(value=>value+1);
-    saveNotificationHistory(mergeNotificationHistory(notificationsRef.current,[notice],NOTIFICATION_STATE_LIMIT),uid);
-  },profile=>{
-    const uid=currentUser?.id;
-    setCurrentUser(previous=>previous?.id===uid?{...previous,is_blocked:profile.is_blocked,bloqueado:profile.bloqueado}:previous);
-    if(profile.is_blocked||profile.bloqueado){setIsPublishOpen(false);setChatOpen(null);setSelectedProduct(null);}
-  }),[currentUser?.id,currentUser?.created_at,saveNotificationHistory]);
+  useEffect(() => {
+    if (currentView !== 'home') return;
+    let active = true, joined = false;
+    const channel = supabase.channel(catalogTopic(selectedCity, selectedCategory))
+      .on('broadcast', { event: 'catalog_changed' }, ({ payload }) => {
+        // Public broadcasts are advisory only. Authoritative data is read on click.
+        if (!active || !payload?.id || !['INSERT', 'UPDATE', 'DELETE'].includes(payload.action)) return;
+        catalogVersionRef.current++;
+        listingCacheRef.current.clear();
+        setCatalogChanged(true);
+      }).subscribe(status => {
+        if (active && status === 'SUBSCRIBED') {
+          if (joined) { listingCacheRef.current.clear(); setCatalogChanged(true); }
+          joined = true;
+        }
+      });
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, [currentView, selectedCity, selectedCategory]);
 
   useEffect(() => {
     notificationRefreshRef.current = { uid: null, at: 0, pending: null };
@@ -1645,7 +1618,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       <Route
         path="/"
         element={
-          <div className="min-h-screen bg-[#F5F5F5]">
+          <div className="min-h-screen bg-[#F5F5F5]" data-realtime-state={realtimeStatus} data-realtime-revision={realtimeRevision}>
             <Navbar
               onSearch={setSearchTerm}
               searchTerm={searchTerm}
@@ -1666,7 +1639,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               notifChatCount={notifChatCount}
               isProfile={currentView === "profile"}
               notifications={historyUidRef.current === currentUser?.id ? notifications.map(item=>({...item,read:item.read||!!item.bellRead})) : []}
-              onNotificationsOpen={() => loadNotifications({ reuseCached: true })}
+              onNotificationsOpen={() => { if (!realtimeReadyRef.current) loadNotifications({ reuseCached: true }); }}
+              realtimeStatus={realtimeStatus}
               onMarkAllNotificationsRead={markAllNotificationsRead}
               onNotificationClick={async (item) => {
                 const uid = getActiveUid();
@@ -1989,6 +1963,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                         </div>
                       </div>
 
+                      {catalogChanged && <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-forest-green">
+                        <span>Hay novedades en las publicaciones.</span>
+                        <button type="button" disabled={homeBusy} onClick={() => load()} className="shrink-0 font-bold underline disabled:opacity-50">Actualizar</button>
+                      </div>}
                       {homeError ? (
                         <div role="alert" className="py-12 text-center">
                           <p className="text-sm text-red-600">{homeError}</p>
@@ -2273,7 +2251,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               role={chatOpen?.role}
               errorMessage={chatOpen?.errorMessage}
               onSeenChange={markChatSeen}
-              onActivityChange={refreshActivityNotifications}
             />
             </DeferredPanel>
           </div>

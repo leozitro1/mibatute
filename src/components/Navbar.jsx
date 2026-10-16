@@ -1,5 +1,5 @@
 // src/components/Navbar.jsx
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus, Coins, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
 import { ACTIVE_COLOMBIA_DATA } from "../data/locations";
 import { supabase } from "../supabase/supabaseClient";
@@ -7,8 +7,6 @@ import { NOTIFICATION_HISTORY_LIMIT } from './notificationHistory.js';
 import { CREDIT_BALANCE_CHANGED } from './creditBalance.js';
 
 const logoMiBatute = "/logo.png";
-const MODERATION_REFRESH_MS = 10 * 60 * 1000;
-const ENABLE_NAVBAR_MODERATION_REALTIME = false;
 
 function Badge({ count = 0 }) {
   const n = Number(count || 0);
@@ -241,6 +239,7 @@ export default function Navbar({
   onMarkAllNotificationsRead,
   onNotificationsOpen,
   isProfile = false,
+  realtimeStatus = "CONNECTING",
 }) {
   const displayName = user?.nombre?.trim() || user?.displayName?.trim() || user?.email?.trim() || "";
   const avatarLetter = (displayName?.[0] || "U").toUpperCase();
@@ -249,8 +248,8 @@ export default function Navbar({
   const searchValue = searchTerm ?? localSearchValue;
   const searchInputRef = useRef(null);
   const [credits, setCredits] = useState({ uid: null, saldo: null });
-  const creditNotificationKey = notifications.filter(item => item?.type === 'credits_received')
-    .map(item => item.id).sort().join('|');
+  const liveStatusRef = useRef(realtimeStatus);
+  liveStatusRef.current = realtimeStatus;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -272,7 +271,7 @@ export default function Navbar({
       } finally { pending = false; }
     };
     const onVisible = () => {
-      if (document.visibilityState === "visible" && Date.now() - lastRefresh >= 60000) refresh();
+      if (liveStatusRef.current !== "SUBSCRIBED" && document.visibilityState === "visible" && Date.now() - lastRefresh >= 60000) refresh();
     };
     const onBalanceChanged = ({ detail }) => {
       if (detail?.uid !== user.id || !Number.isFinite(detail.saldo) || detail.saldo < 0) return;
@@ -290,10 +289,11 @@ export default function Navbar({
       window.removeEventListener("focus", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [user?.id, creditNotificationKey]);
+  }, [user?.id]);
   const creditBalance = credits.uid === user?.id ? credits.saldo : null;
 
-  const [banUntil, setBanUntil] = useState(null);
+  const [banUntil, setBanUntil] = useState(user?.ban_until || null);
+  useEffect(() => { setBanUntil(user?.ban_until || null); }, [user?.id, user?.ban_until]);
   const [isBlocked, setIsBlocked] = useState(false);
   useEffect(()=>{setIsBlocked(!!(user?.is_blocked||user?.bloqueado));},[user?.id,user?.is_blocked,user?.bloqueado]);
   const [remainingMs, setRemainingMs] = useState(0);
@@ -304,41 +304,6 @@ export default function Navbar({
     const t = new Date(banUntil).getTime();
     return Number.isFinite(t) && t > Date.now();
   }, [banUntil]);
-
-  const loadModerationState = useCallback(async () => {
-    if (!user?.id) {
-      setBanUntil(null);
-      setIsBlocked(false);
-      setRemainingMs(0);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("usuarios")
-        .select("ban_until,is_blocked")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.log("Error leyendo usuarios(ban_until/is_blocked):", error);
-        return;
-      }
-
-      const bu = data?.ban_until || null;
-      setBanUntil(bu);
-      setIsBlocked(!!data?.is_blocked);
-
-      const t = bu ? new Date(bu).getTime() : 0;
-      setRemainingMs(Math.max(0, t - Date.now()));
-    } catch (e) {
-      console.log("Error inesperado leyendo usuarios:", e);
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    loadModerationState();
-  }, [loadModerationState]);
 
   useEffect(() => {
     if (!banUntil) {
@@ -358,55 +323,7 @@ export default function Navbar({
     return () => clearInterval(id);
   }, [banUntil]);
 
-  useEffect(() => {
-    if (!ENABLE_NAVBAR_MODERATION_REALTIME) return;
-    if (!user?.id) return;
 
-    const channel = supabase
-      .channel(`usuarios-moderation-${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "usuarios",
-          filter: `id=eq.${user.id}`,
-        },
-        (payload) => {
-          const next = payload?.new || {};
-          const bu = next?.ban_until || null;
-          setBanUntil(bu);
-          setIsBlocked(!!next?.is_blocked);
-
-          const t = bu ? new Date(bu).getTime() : 0;
-          setRemainingMs(Math.max(0, t - Date.now()));
-        }
-      )
-      .subscribe(() => {});
-
-    return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch {}
-    };
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    const id = setInterval(() => {
-      loadModerationState();
-    }, MODERATION_REFRESH_MS);
-    return () => clearInterval(id);
-  }, [user?.id, loadModerationState]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") loadModerationState();
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [user?.id, loadModerationState]);
 
   const handleLogoClick = () => {
     if (typeof onGoHome === "function") return onGoHome();
@@ -433,11 +350,9 @@ export default function Navbar({
     : [];
 
   const selectedCatObj = categoriesNormalized.find((c) => String(c.key) === String(selectedCategory)) || null;
-  const subOptions = selectedCatObj?.subs || [];
-
   const subcategoriesNormalized = useMemo(() => {
-    return (subOptions || []).map((s) => (typeof s === "string" ? s : s?.key || s?.label || "")).filter(Boolean);
-  }, [subOptions]);
+    return (selectedCatObj?.subs || []).map((s) => (typeof s === "string" ? s : s?.key || s?.label || "")).filter(Boolean);
+  }, [selectedCatObj]);
 
   const msgBtnRef = useRef(null);
   const [openNotifs, setOpenNotifs] = useState(false);
@@ -528,6 +443,9 @@ export default function Navbar({
 
   return (
     <>
+      {user && !['CONNECTING', 'SUBSCRIBED'].includes(realtimeStatus) && <p role="status" className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-800">
+        {realtimeStatus === 'RECOVERING' ? 'Actualizando tus avisos…' : 'Reconectando tus notificaciones…'}
+      </p>}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap xl:flex-nowrap items-center justify-between gap-2 sm:gap-4">
           <button

@@ -104,6 +104,7 @@ sql_paths = [
   "./migrations/2026-10-16-staff-inbox-signals.sql",
   "./migrations/2026-10-16-private-rating-notifications.sql",
   "./migrations/2026-10-16-permanent-user-block.sql",
+  "./migrations/2026-10-16-market-realtime.sql",
   "./local-storage.sql",
 ]
 

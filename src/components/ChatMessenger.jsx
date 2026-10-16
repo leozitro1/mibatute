@@ -6,8 +6,7 @@ import { submitChatReport } from '../supabase/reports.js';
 import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
 import { resolveChatBuyerId } from "../supabase/articleContext";
 import ChatPickupAgreement from "./ChatPickupAgreement";
-
-const CHAT_INITIAL_MESSAGE_LIMIT = 50;
+import { CHAT_MESSAGE_FIELDS, listenMarketSignals, mergeChatMessages, readChatMessages, singleFlight } from "./marketSignals.js";
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -125,8 +124,8 @@ async function safeInsertChatMessage({ chat_id, sender_id, bodyText }) {
   ];
 
   for (const payload of candidates) {
-    const { error } = await supabase.from("chat_messages").insert(payload);
-    if (!error) return { error: null };
+    const { data, error } = await supabase.from("chat_messages").insert(payload).select(CHAT_MESSAGE_FIELDS).single();
+    if (!error) return { data, error: null };
 
     if (
       error?.code === "PGRST204" &&
@@ -309,6 +308,11 @@ export default function ChatMessenger({
 }) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  const [connectionStatus, setConnectionStatus] = useState("CONNECTING");
+  const messagesRef = useRef([]);
+  const seenCallbackRef = useRef(null);
+  const messageSessionRef = useRef(null);
 
   const [chatRow, setChatRow] = useState(chat || null);
   const [messages, setMessages] = useState([]);
@@ -438,6 +442,8 @@ export default function ChatMessenger({
     },
     [userId, chatRow?.id, onSeenChange]
   );
+
+  seenCallbackRef.current = markSeenUpToLatest;
 
   // ✅ al abrir: reset + chequear bloqueo
   useEffect(() => {
@@ -582,154 +588,91 @@ export default function ChatMessenger({
     if (!isOpen) return;
 
     if (chat?.id) {
-      setChatRow(chat);
+      setChatRow(previous => previous?.id === chat.id ? previous : chat);
       return;
     }
 
     ensureChatRow();
-  }, [isOpen, chat?.id, ensureChatRow]);
+  }, [isOpen, chat, ensureChatRow]);
 
-  // ✅ cargar mensajes
+  // Subscribe before reading so inserts cannot fall between the initial read and
+  // joining. The fallback shares its request with the join callback.
   useEffect(() => {
-    if (!isOpen) return;
-    const chatId = chatRow?.id;
-
-    if (!chatId) {
-      setMessages([]);
-      return;
-    }
-
-    // ✅ si está bloqueado, no leemos
-    if (meBlocked) {
-      setMessages([]);
-      return;
-    }
-
-    let alive = true;
-
-    (async () => {
-      setLoading(true);
-
-      // ✅ OPT: solo columnas necesarias para renderizar mensajes
-      const { data, error } = await supabase
-        .from("chat_messages")
-        .select("id,chat_id,sender_id,body,message,content,text,mensaje,created_at")
-        .eq("chat_id", chatId)
-        .order("created_at", { ascending: false })
-        .limit(CHAT_INITIAL_MESSAGE_LIMIT);
-
-      if (!alive) return;
-
-      if (!error && Array.isArray(data)) {
-        const ordered = [...data].reverse();
-        setMessages(ordered);
-        setTimeout(() => scrollToBottom(false), 0);
-        markSeenUpToLatest(ordered);
-      } else {
-        // si es RLS, muestra mensaje
-        const msg = String(error?.message || "");
-        if (/row level security/i.test(msg) || /permission/i.test(msg)) {
-          setUiError("No tienes permiso para ver este chat (RLS).");
-        }
-        setMessages([]);
+    if (!isOpen || !chatRow?.id || meBlocked) return;
+    const chatId = chatRow.id;
+    const session = { chatId };
+    messageSessionRef.current = session;
+    let active = true, loaded = false, latest = null;
+    const received = new Map();
+    const apply = rows => {
+      if (!active) return;
+      for (const row of rows) {
+        received.set(String(row.id), row);
+        if (!latest || Date.parse(row.created_at) > Date.parse(latest.created_at)
+          || (Date.parse(row.created_at) === Date.parse(latest.created_at) && row.id > latest.id)) latest = row;
       }
-
-      setLoading(false);
-    })();
-
-    return () => {
-      alive = false;
+      setMessages(previous => {
+        const next = mergeChatMessages(previous, rows);
+        messagesRef.current = next;
+        return next;
+      });
+      if (document.visibilityState === 'visible') seenCallbackRef.current?.([...received.values()].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)));
     };
-  }, [isOpen, chatRow?.id, scrollToBottom, markSeenUpToLatest, meBlocked]);
-
-  // ✅ realtime: INSERT mensajes
-  useEffect(() => {
-    if (!isOpen) return;
-    const chatId = chatRow?.id;
-    if (!chatId) return;
-    if (meBlocked) return;
-
-    const channel = supabase
-      .channel(`chat_messages_${chatId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "chat_messages", filter: `chat_id=eq.${chatId}` },
-        (payload) => {
-          const row = payload?.new;
-          if (!row) return;
-
-          setMessages((prev) => {
-            if (prev.some((m) => !m._optimistic && String(m.id) === String(row.id))) return prev;
-            // Reemplazar optimista del mismo sender sin parpadeo
-            const hasOptimistic = prev.some((m) => m._optimistic && String(m.sender_id) === String(row.sender_id));
-            const next = hasOptimistic
-              ? prev.map((m) => (m._optimistic && String(m.sender_id) === String(row.sender_id)) ? row : m)
-              : [...prev, row];
-            markSeenUpToLatest(next);
-            return next;
-          });
-
-          setTimeout(() => scrollToBottom(true), 0);
-        }
-      )
-      .subscribe();
-
+    const refresh = singleFlight(async () => {
+      if (!active) return;
+      setLoading(true);
+      try {
+        await readChatMessages(supabase, chatId, loaded ? latest : null, apply);
+        if (active) { loaded = true; setUiError(''); }
+      } catch {
+        if (active) setUiError('No pudimos sincronizar el chat. Vuelve a abrirlo para reintentar.');
+      } finally { if (active) setLoading(false); }
+    });
+    setConnectionStatus('CONNECTING');
+    const fallback = setTimeout(() => refresh(), 2000);
+    const channel = supabase.channel(`chat_messages_${chatId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` }, ({ new: row }) => {
+        if (!active || !row?.id) return;
+        apply([row]);
+        setTimeout(() => { if (active) scrollToBottom(true); }, 0);
+      }).subscribe(status => {
+        if (!active) return;
+        setConnectionStatus(status);
+        if (status === 'SUBSCRIBED') { clearTimeout(fallback); refresh(); }
+      });
+    const onVisible = () => {
+      if (!active || document.visibilityState !== 'visible') return;
+      if (channel.state !== 'joined') refresh();
+      else seenCallbackRef.current?.(messagesRef.current.filter(row => !row._optimistic));
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    const stop = listenMarketSignals(signal => {
+      if (!active || signal.uid !== userId) return;
+      if (signal.kind === 'chat' && signal.chat?.id === chatId) {
+        if (signal.action === 'DELETE') { setMessages([]); onCloseRef.current?.(); }
+        else setChatRow(previous => ({ ...previous, ...signal.chat }));
+      }
+    });
     return () => {
+      active = false;
+      messageSessionRef.current = null;
+      clearTimeout(fallback);
+      stop();
+      document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
     };
-  }, [isOpen, chatRow?.id, scrollToBottom, markSeenUpToLatest, meBlocked]);
+  }, [isOpen, chatRow?.id, meBlocked, userId, scrollToBottom]);
+
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
-    if (!isOpen) return;
-    const chatId = chatRow?.id;
-    if (!chatId) return;
-
-    const channel = supabase
-      .channel(`chat_deleted_${chatId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "chats", filter: `id=eq.${chatId}` },
-        ({ new: updatedChat }) => setChatRow(previous => ({ ...previous, ...updatedChat }))
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "chats", filter: `id=eq.${chatId}` },
-        () => {
-          setMessages([]);
-          setChatRow(null);
-          setUiError("Este chat fue eliminado.");
-          try {
-            onClose?.();
-          } catch {
-            // ignore
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isOpen, chatRow?.id, onClose]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!messages?.length) return;
-    setTimeout(() => scrollToBottom(true), 0);
-  }, [isOpen, messages?.length, scrollToBottom]);
-
+    if (isOpen && messages.length) setTimeout(() => scrollToBottom(true), 0);
+  }, [isOpen, messages.length, scrollToBottom]);
   const days = useMemo(() => buildBlocks(messages), [messages]);
 
   const sendMessage = async () => {
-    if (readOnly) return;
-
-    // ✅ check bloqueo justo antes de enviar
-    const blocked = await isBlockedUser(userId);
-    setMeBlocked(blocked);
-    if (blocked) {
-      setUiError("🚫 Tu cuenta está BLOQUEADA. No puedes enviar mensajes.");
-      return;
-    }
+    if (readOnly || sendingRef.current) return;
 
     const chatId = chatRow?.id;
     if (!chatId) return alert("No se encontró chat_id para enviar mensajes.");
@@ -754,22 +697,14 @@ export default function ChatMessenger({
       return;
     }
 
+    sendingRef.current = true;
+    const session = messageSessionRef.current;
+    let optimisticId;
     try {
       setSending(true);
 
-      const { data: currentChat, error: chatError } = await supabase.from("chats")
-        .select("id,status").eq("id", chatId).single();
-      if (chatError || !currentChat) throw chatError || new Error("El chat ya no esta disponible.");
-      if (currentChat.status === "closed" || currentChat.status === "pending") {
-        setChatRow(previous => ({ ...previous, ...currentChat }));
-        setUiError(currentChat.status === "pending"
-          ? "Para hablar con el vendedor, él debe aprobar la compra."
-          : "Esta transaccion termino. El chat esta disponible en solo lectura.");
-        return;
-      }
-
       // Optimista: aparece inmediatamente
-      const optimisticId = `optimistic-${Date.now()}`;
+      optimisticId = `optimistic-${crypto.randomUUID()}`;
       const optimisticMsg = {
         id: optimisticId,
         chat_id: chatId,
@@ -782,12 +717,13 @@ export default function ChatMessenger({
       setText("");
       setTimeout(() => scrollToBottom(true), 0);
 
-      const { error } = await safeInsertChatMessage({
+      const { data, error } = await safeInsertChatMessage({
         chat_id: chatId,
         sender_id: userId,
         bodyText,
       });
 
+      if (messageSessionRef.current !== session) return;
       if (error) {
         // Revertir si falló
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
@@ -801,11 +737,21 @@ export default function ChatMessenger({
         }
         return;
       }
-      // El realtime reemplazará el optimista directamente (sin parpadeo)
+      setMessages(previous => {
+        const next = mergeChatMessages(previous, [data], optimisticId);
+        messagesRef.current = next;
+        return next;
+      });
+      // INSERT returns the persisted row; confirmation does not depend on Realtime.
     } catch (e) {
-      console.log(e);
-      alert("No se pudo enviar el mensaje.");
+      if (messageSessionRef.current === session) {
+        setMessages(previous => previous.filter(row => row.id !== optimisticId));
+        setText(previous => previous || bodyText);
+        console.log(e);
+        alert("No se pudo enviar el mensaje.");
+      }
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
@@ -1046,6 +992,7 @@ export default function ChatMessenger({
           <div ref={endRef} />
         </div>
 
+        {isOpen && !['CONNECTING', 'SUBSCRIBED'].includes(connectionStatus) && <p role="status" className="shrink-0 bg-amber-50 px-4 py-2 text-xs text-amber-800">Reconectando el chat. Los mensajes guardados se recuperarán al volver la conexión.</p>}
         {/* Pickup stays above the composer, independent of message scrolling. */}
         <div className="shrink-0 border-t border-gray-100 bg-white">
           {chatRow?.id && !meBlocked && (
