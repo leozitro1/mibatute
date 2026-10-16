@@ -44,6 +44,13 @@
 .profile-rescue-limits-content p { margin-top:8px;overflow-wrap:anywhere; }
 @media(max-width:639px) { .profile-rescue-limits-content { grid-template-columns:minmax(0,1fr);gap:16px; } }
 
+.profile-unread-dot::after { content:'';position:absolute;inset:-3px;border:2px solid #dc2626;border-radius:inherit;pointer-events:none;opacity:0;animation:profile-unread-attention 1.4s ease-in-out 3; }
+@keyframes profile-unread-attention {
+  0%,100% { transform:scale(1);opacity:0; }
+  50% { transform:scale(1.45);opacity:.5; }
+}
+@media(prefers-reduced-motion:reduce) { .profile-unread-dot::after { animation:none; } }
+
 .profile-selection-status { display:flex;align-items:center;gap:10px;padding:10px 12px;border-left:3px solid #26734d;background:#f3f8f4;color:#26734d; }
 .profile-selection-status>svg { flex-shrink:0; }
 .profile-selection-status strong { display:block;font-size:13px;font-weight:600; }
@@ -54,18 +61,9 @@
 .profile-selected-date { font-size:11px;color:#6b7280; }
 .profile-selected-message { margin-top:8px;font-size:13px;line-height:1.6;color:#4b5563;white-space:pre-wrap;overflow-wrap:anywhere; }
 .profile-delivery-actions { grid-column:1 / -1;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #e5e7eb;padding-top:12px;margin-top:2px; }
-.profile-delivery-button { display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:8px 12px;border:1px solid transparent;border-radius:6px;font-size:12px;font-weight:600;line-height:1.3; }
-.profile-delivery-button svg { flex-shrink:0; }
-.profile-delivery-button:focus-visible { outline:2px solid #26734d;outline-offset:3px; }
-.profile-delivery-button:disabled { opacity:.5;cursor:wait; }
-.profile-delivery-confirm { background:#26734d;color:#fff;border-color:#26734d; }
-.profile-delivery-confirm:hover:not(:disabled) { background:#1d603e; }
-.profile-delivery-cancel { background:#fff;color:#b42318;border-color:#edc6c3; }
-.profile-delivery-cancel:hover:not(:disabled) { background:#fff1f0; }
 @media(max-width:639px) {
   .profile-selected-identity { align-items:flex-start;flex-direction:column; }
   .profile-delivery-actions { display:grid;grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .profile-delivery-button { min-width:0;padding-inline:8px;gap:6px; }
 }
 
 @media (max-width: 1023px) {

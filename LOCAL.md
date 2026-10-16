@@ -763,6 +763,18 @@ que elimina los avisos de estrellas recibidas sin borrar las calificaciones.
 
 ## Publicar despues de probar
 
+Pendiente local: los botones de gestion de ventas comparten estilos con las
+acciones de entrega de donaciones (`TransactionActions.css`). En escritorio
+forman una fila; en movil el chat ocupa la primera y entrega/cancelacion la
+segunda. Se mantienen las transiciones, la confirmacion de entrega y la
+prohibicion de cancelar una venta aprobada. Prueba sin capturas:
+`scripts/check-sale-actions-local.mjs` (320, 390, 768 y 1440 px).
+
+Los puntos rojos de chat en Mis Publicaciones y Mis Rescates pulsan mediante CSS
+durante 4,2 segundos (tres ciclos), luego quedan fijos hasta leer la conversacion.
+El halo no cambia el tamano del indicador ni hace consultas. Con reducir movimiento
+activado se omite la animacion. Prueba: `scripts/check-unread-pulse-local.mjs`.
+
 El commit incluye el codigo y las configuraciones de desarrollo, pero no
 variables privadas, cuentas, imagenes ni datos de Docker. `npm run build`
 usa el modo produccion, que no carga `.env.development.local` ni activa el

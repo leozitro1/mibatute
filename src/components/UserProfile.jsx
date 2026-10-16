@@ -4,6 +4,7 @@ import { getProfile, updateProfile } from "../supabase/profileService";
 import { notifyCreditBalance } from './creditBalance.js';
 import { accountCreditStatus } from '../supabase/donationApplications.js';
 import './UserProfile.css';
+import './TransactionActions.css';
 import WompiTopupDialog from './WompiTopupDialog.jsx';
 import {
   Camera,
@@ -3115,7 +3116,7 @@ export default function UserProfile({
                               aria-label="Ver mensajes"
                             >
                               {(hasUnread || (notif?.unreadChats > 0)) ? (
-                                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
+                                <span aria-hidden="true" className="profile-unread-dot absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
                               ) : null}
                               {isLoadingThis ? (
                                 <Loader2 className="animate-spin" size={16} />
@@ -3453,7 +3454,7 @@ export default function UserProfile({
                               title={isEntregadoRescate ? "Ver historial del chat" : canOpenMsgsRescate ? "Abrir chat" : "Chat disponible al confirmar la reserva"}
                             >
                               {hasUnread ? (
-                                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
+                                <span aria-hidden="true" className="profile-unread-dot absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
                               ) : null}
                               {cargandoChatRescate === articuloId ? (
                                 <Loader2 className="animate-spin" size={16} />

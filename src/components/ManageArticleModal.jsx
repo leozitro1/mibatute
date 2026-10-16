@@ -1,6 +1,7 @@
 // src/components/ManageArticleModal.jsx
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { X, Users } from 'lucide-react';
+import { X, Users, MessageCircle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import './TransactionActions.css';
 import ApplicantRow from './ApplicantRow.jsx';
 import { isSaleApproved } from './articleState.js';
 import { supabase } from "../supabase/supabaseClient";
@@ -564,10 +565,11 @@ export default function ManageArticleModal({
 
                   <button
                     onClick={handleOpenChatVenta}
-                    className="w-full rounded-md bg-forest-green py-2.5 text-sm font-semibold text-white"
+                    className="profile-delivery-button profile-delivery-chat"
                     type="button"
                   >
-                    Abrir chat (ver historial)
+                    <MessageCircle size={16} aria-hidden="true" />
+                    Ver historial del chat
                   </button>
                 </div>
               ) : !isReservado ? (
@@ -579,7 +581,7 @@ export default function ManageArticleModal({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="border-l-2 border-forest-green bg-green-50 p-3">
+                  <div className="border-l-2 border-forest-green bg-green-50 px-3 py-2">
                     <p className="text-sm font-semibold text-green-800">Reserva activa</p>
                     <p className="text-xs text-green-700 mt-1">
                       {article.transaction_chat?.status === "pending"
@@ -588,32 +590,38 @@ export default function ManageArticleModal({
                     </p>
                   </div>
 
+                  <div className="sale-management-actions" data-sale-actions>
                   <button
                     onClick={handleOpenChatVenta}
-                    className="w-full rounded-md bg-forest-green py-2.5 text-sm font-semibold text-white"
+                    disabled={savingWinner}
+                    className="profile-delivery-button profile-delivery-chat"
                     type="button"
                   >
+                    <MessageCircle size={16} aria-hidden="true" />
                     Abrir chat
                   </button>
 
                   <button
                     onClick={marcarEntregado}
                     disabled={savingWinner}
-                    className="w-full rounded-md border border-gray-200 py-2.5 text-sm font-semibold text-gray-800 disabled:opacity-50"
+                    className="profile-delivery-button profile-delivery-confirm"
                     type="button"
                   >
-                    {savingWinner ? "Guardando..." : "Entregado (cerrar venta)"}
+                    {savingWinner ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}
+                    {savingWinner ? "Guardando..." : "Marcar entregado"}
                   </button>
 
                   <button
                     onClick={handleCancelSale}
-                    className="w-full rounded-md py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="profile-delivery-button profile-delivery-cancel"
                     type="button"
                     disabled={savingWinner || isSaleApproved(article)}
                     title={isSaleApproved(article) ? "Venta aprobada: finalízala confirmando la entrega" : "Cancelar la solicitud de compra"}
                   >
-                    Cancelar venta (volver a disponible)
+                    <XCircle size={16} aria-hidden="true" />
+                    Cancelar venta
                   </button>
+                  </div>
                 </div>
               )}
             </div>
