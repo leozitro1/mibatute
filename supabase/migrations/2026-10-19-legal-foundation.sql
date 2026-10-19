@@ -11,6 +11,7 @@ begin
   raise exception 'Una versión publicada es inmutable. Publica otra versión para cambiar sus documentos.';
  end if;
  if new.enabled then
+  if new.documents->>'reviewStatus'='draft' then raise exception 'Una version de pruebas no se puede activar como aprobada. Publica una version definitiva nueva.';end if;
   if new.documents->>'version' is distinct from new.version
    or coalesce(new.documents#>>'{operator,name}','')=''
    or coalesce(new.documents#>>'{operator,entityType}','')=''
@@ -57,8 +58,8 @@ begin
 end;
 $$;
 revoke all on function public.capture_registration_consent() from public,anon,authenticated;
-drop trigger if exists capture_registration_consent on auth.users;
-create trigger capture_registration_consent after insert on auth.users for each row execute function public.capture_registration_consent();
+-- The strict registration trigger is installed only by the final legal release script.
+-- Creating support/rights infrastructure must not close functional testing signup.
 
 create or replace function public.legal_consent_status()
 returns jsonb language plpgsql security definer set search_path='' as $$
@@ -67,7 +68,7 @@ begin
  if auth.uid() is null then raise exception 'Inicia sesión.' using errcode='42501';end if;
  select * into release from public.legal_releases where enabled order by published_at desc nulls last,version desc limit 1;
  return jsonb_build_object('version',release.version,'required',release.version is not null and not exists(
-   select 1 from public.legal_consents where user_id=auth.uid() and version=release.version));
+   select 1 from public.legal_consents where user_id=auth.uid() and version=release.version and source in('registration','renewal')));
 end;
 $$;
 create or replace function public.accept_legal_release(p_version text,p_terms boolean,p_privacy boolean,p_adult boolean)
@@ -154,7 +155,7 @@ begin
  select * into release from public.legal_releases where enabled and documents<>'{}'::jsonb order by published_at desc nulls last,version desc limit 1;
  if not found then raise exception 'Las recargas requieren condiciones definitivas publicadas.';end if;
  if auth.uid() is null or new.usuario_id is distinct from auth.uid() then raise exception 'Cuenta no autorizada.' using errcode='42501';end if;
- select accepted_at into accepted from public.legal_consents where user_id=new.usuario_id and version=release.version;
+ select accepted_at into accepted from public.legal_consents where user_id=new.usuario_id and version=release.version and source in('registration','renewal');
  if accepted is null then raise exception 'Revisa y acepta la versión vigente de las condiciones antes de recargar.';end if;
  new.legal_version:=release.version;new.legal_accepted_at:=accepted;
  return new;

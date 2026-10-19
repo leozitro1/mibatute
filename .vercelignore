@@ -1,4 +1,3 @@
-drafts/
 .git/
 .vercel/
 node_modules/
@@ -6,3 +5,4 @@ dist/
 .env*
 *.local
 *.log
+*.local.html

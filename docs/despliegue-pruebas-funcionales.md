@@ -1,40 +1,28 @@
-# Despliegue parcial para pruebas funcionales
+# Flujo de desarrollo y despliegue de MiBatute
 
-Preparado el 19 de octubre de 2026 desde `862685d`. Objetivo autorizado: probar en la página real el registro, publicaciones, reservas, chat, notificaciones y buzón, manteniendo deshabilitadas las recargas.
+Decisión del responsable: trabajar en la rama main y en la carpeta habitual, publicar en el mismo proyecto de Vercel y en https://www.mibatute.com. Publicar el conjunto completo de los cambios autorizados tras probarlos. No crear ramas, checkouts alternativos o entregas parciales que oculten funcionalidades, salvo petición explícita.
 
-## Alcance
+## Entrega completa del 19 de octubre de 2026
 
-- Conserva el registro y los términos actualmente publicados, incluyendo aceptación explícita. No instala `legal-foundation`, renovación de consentimientos ni el bloqueo de nuevas altas del borrador.
-- Gmail temporal `edgarleonardo202@gmail.com` en pie, perfil, términos, patrocinadores sin enlace y nuevos avisos administrativos. Esta dirección todavía debe probarse como canal de atención; no se cambió el SMTP de Resend.
-- Buzón: mensajes y respuestas nuevos de hasta 500 caracteres; conserva el texto histórico, el inicio de una conversación cada 24 horas y respuestas en el hilo existente. Pestaña Conversaciones del sistema.
-- Recargas: interfaz Próximamente sin llamadas de checkout. La API de checkout responde deshabilitada tanto a GET como POST aunque existan variables de Wompi. Se conserva el código de confirmación de eventos existentes y su validación; no se añaden movimientos de dinero ni créditos automáticos de prueba.
-- Estadísticas opcionales de búsquedas, visitas y patrocinadores requieren permiso y descartan colas al retirarlo. La elección se encuentra en Términos, Métricas opcionales. Los anuncios y funciones principales siguen disponibles sin estadísticas.
-- No se presentan como aprobados los nuevos documentos legales. Las nuevas páginas, derechos de datos, seguimiento interno, cierre de soporte y simulación de conservación permanecen en el checkout de revisión local, fuera de esta entrega.
+- Se integraron en el código activo todos los módulos del trabajo legal y operativo: seis páginas del pie, datos del responsable, Gmail temporal, cookies/preferencias, registro de pruebas con elecciones separadas, solicitudes de datos, seguimiento interno y cierre/reapertura de soporte.
+- Registro de pruebas habilitado. La nueva elección se registra en el servidor con source=testing y una versión inmutable del borrador. No se inventan elecciones de cuentas anteriores ni se presenta la versión como aprobación jurídica final.
+- El trigger estricto capture_registration_consent no se instala automáticamente con la infraestructura. El script de publicación definitiva lo instalará solo tras resolver los pendientes. El trigger no bloqueante capture_testing_registration registra las elecciones válidas de clientes nuevos, sin cerrar el registro de clientes anteriores.
+- LEGAL_READY y LEGAL_APPROVED continúan false. El borrador se publica para que el equipo legal pueda revisarlo en el sitio real. Una versión registrada como draft no se puede habilitar como definitiva: se requiere una versión nueva.
+- Solicitudes de datos: formulario con radicado para usuarios autenticados, correo para quien no tiene cuenta, panel compartido con MFA, asignación, notas privadas, verificación, respuesta final y registro manual de correo. No envía correos ni borra datos automáticamente.
+- Soporte: 500 caracteres, hilos compartidos para admin/superadmin, ocultamiento por el usuario que conserva historial del personal, cierre y reapertura. La simulación de conservación solo consulta, sin borrar.
+- Wompi y recargas permanecen deshabilitados con Próximamente. Los saldos existentes y los flujos del mercado conservan sus reglas; no se regalaron créditos ni se ejecutaron pagos.
+- Las métricas opcionales respetan la elección del usuario, DNT y GPC; retirar descarta la cola. Todas las rutas legales tienen acceso directo en Vercel.
 
-## Migraciones exclusivas de esta entrega
+## Base de datos de producción
 
-Proyecto de producción: `sgxzjggxlswvpedrosck`. Antes de cambios, se comprobó por metadatos que `support_threads` existe, `legal_releases` no existe y el trigger `capture_registration_consent` no está instalado.
+Se preparó una sola transacción con legal-foundation, data-rights-workflow, support-closure-preview, testing-registration y la versión de borrador 2026-10-19.2. La comprobación confirmó data_rights_requests existente, trigger estricto ausente, captura de pruebas activa y cero versiones finales habilitadas. Se compara la huella de las 17 funciones contra las definiciones probadas.
 
-Aplicar únicamente:
-1. `2026-10-19-support-message-limit.sql`.
-2. `2026-10-19-temporary-contact-email.sql`.
+El entorno local conserva el trigger estricto de pruebas anteriores. Su desactivación fue autorizada por el responsable, pero la revisión automática no pudo completar esa acción por límite de uso. No se desactivó mediante otra vía ni como efecto de estas migraciones. Ese bloqueo local no existe en producción.
 
-La primera deja la restricción de longitud NOT VALID para conservar mensajes antiguos; sí controla nuevos escritos. La segunda cambia el correo en las definiciones de los futuros avisos, sin modificar mensajes previos ni accesos.
+## Conservación del trabajo anterior
 
-No aplicar las migraciones legales locales en producción con esta entrega. No ejecutar migraciones por coincidencia de fecha ni copiar el conjunto del directorio de revisión.
+El contenido preservado en drafts/legal-review se reintegró en el código activo con ajustes para registro funcional y estado de borrador. La copia inactiva se retira; su versión original sigue recuperable en el commit befb4a6 y en el respaldo git de seguridad. No aplicar automáticamente ese stash antiguo sobre los archivos actuales.
 
 ## Validación
 
-La batería general inicial pasó 213 pruebas; después se añadió la comprobación de 500 caracteres y las invariantes de registro abierto/checkout cerrado. Compilación y lint de los módulos modificados, más inspección del despliegue y comprobación de las funciones SQL antes de darlo por publicado.
-
-La disponibilidad del formulario no prueba la entrega del correo de activación: la prueba real con una cuenta nueva la debe completar su titular, usando un correo controlado. No crear cuentas ficticias con direcciones ajenas. Identificar artículos y cuentas de prueba y no tomar esta fase como certificación legal ni lanzamiento público completo.
-
-## Estado
-
-Publicado el 19 de octubre de 2026: `66cdc14`, despliegue Vercel `dpl_3ALVyywbeNzArUfaFEHXWUKJ9LWu`, READY, alias https://www.mibatute.com. Las dos migraciones compatibles se aplicaron en producción mediante `scripts/functional-release-production.sql`, con verificación previa de las definiciones y transacción. Las huellas de `support_start_thread` y `support_reply` coinciden con las migraciones probadas. La API pública de checkout devuelve `configured:false`.
-
-El responsable pidió unificar el flujo en `main` y la carpeta habitual. Se avanzó `main` al mismo commit por fast-forward, sin un merge divergente. Los 50 archivos de borradores locales se preservaron en `drafts/legal-review/` con manifiesto de integridad, excluidos del código activo y de Vercel. No se perdieron ni se dieron por aprobados; la versión funcional queda como base de desarrollo.
-
-La batería final de esta versión pasó **216 pruebas**. Las pruebas verifican checkout cerrado, registro sin dependencia del borrador, 500 caracteres, MFA, aislamiento, chat y operaciones del mercado. Falta completar con una cuenta nueva controlada la entrega de correo y el recorrido real de publicación; no se crearon identidades ajenas en producción.
-
-La base local mantiene las tablas legales de las pruebas anteriores. La revisión automática rechazó desactivar su trigger de registro sin autorización explícita adicional, por lo que no se ejecutó esa modificación. Esto no afecta producción: allí se comprobó que el trigger no existe. No afirmar que crear cuentas locales ya está habilitado hasta resolver ese punto.
+227 pruebas pasaron, incluida captura de elecciones de pruebas sin falsas aprobaciones, registro, rutas legales, MFA, aislamiento, solicitudes, cierre de soporte, mensajes de 500 caracteres y checkout deshabilitado. Compilación y lint de los módulos nuevos/modificados sin errores. No se crearon cuentas ajenas, pagos ni solicitudes ficticias en producción.

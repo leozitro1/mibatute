@@ -8,11 +8,11 @@ import {metricsAllowed,saveMetricsPreference} from '../legal/preferences.js';
 import './LegalPage.css';
 
 export default function LegalPage({path='/terminos'}){
- const page=policies[path]||{title:'Solicitudes de datos personales',intro:'Registra una solicitud, conserva el radicado y consulta aquí la respuesta del equipo.',sections:[]};
+ const page=policies[path]||{title:'Solicitudes de datos personales',intro:'Consulta cómo solicitar acceso, corrección o supresión de tus datos por el canal de atención.',sections:[]};
  const [metrics,setMetrics]=useState(()=>metricsAllowed(localStorage,navigator));
  return <div className="legal-page"><main className="legal-document">
   <Link className="legal-back" to="/">← Volver a MiBatute</Link>
-  {!LEGAL_READY&&<p className="legal-draft" role="status">Borrador para revisión. Hay verificaciones y decisiones pendientes de aprobación. Esta versión no está aprobada para activar nuevos registros o recargas públicas.</p>}
+  {!LEGAL_READY&&<p className="legal-draft" role="status">Borrador para revisión. Hay verificaciones y decisiones pendientes de aprobación. El sitio continúa en pruebas y las recargas permanecen deshabilitadas.</p>}
   <h1>{page.title}</h1><p className="legal-version">Versión {LEGAL_VERSION} · Revisión: {LEGAL_DATE}{LEGAL_READY?' · Vigente':' · Pendiente de aprobación'}</p><p>{page.intro}</p>
   <nav className="legal-nav" aria-label="Documentos legales">{LEGAL_LINKS.map(([url,label])=><Link key={url} to={url} aria-current={path===url?'page':undefined}>{label}</Link>)}</nav>
   <section className="legal-operator"><h2>Responsable de MiBatute</h2><dl>{[['name','Nombre o razón social'],['entityType','Tipo de responsable'],['taxId','Identificación tributaria, si aplica'],['address','Dirección de notificaciones'],['phone','Teléfono'],['email','Correo de atención']].map(([key,label])=><div key={key}><dt>{label}</dt><dd>{LEGAL_OPERATOR[key]||'Pendiente de completar'}</dd></div>)}</dl></section>

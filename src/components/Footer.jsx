@@ -1,5 +1,5 @@
-import {CONTACT_EMAIL} from '../config/availability.js';
 import { Link } from 'react-router-dom';
+import {LEGAL_OPERATOR} from '../legal/config.js';
 
 export default function Footer({ onHowItWorks }) {
   const today = new Date();
@@ -19,14 +19,18 @@ export default function Footer({ onHowItWorks }) {
               <span className="block text-xs text-gray-500">mi basura, tu tesoro</span>
             </span>
           </Link>
-          <nav aria-label="Enlaces del pie de página" className="w-full overflow-x-auto">
-            <div className="flex w-max min-w-full flex-nowrap items-center justify-center gap-6 whitespace-nowrap px-1">
+          <nav aria-label="Enlaces del pie de página" className="w-full">
+            <div className="flex w-full flex-wrap items-center justify-center gap-x-6 gap-y-1 px-1">
             <Link className={linkClass} to="/terminos">Términos y condiciones</Link>
-            <span className="inline-flex min-h-11 items-center text-sm text-gray-500" aria-disabled="true" title="Página pendiente">Normas de la comunidad</span>
+            <Link className={linkClass} to="/privacidad">Privacidad</Link>
+            <Link className={linkClass} to="/pagos">Pagos y devoluciones</Link>
+            <Link className={linkClass} to="/cookies">Cookies y preferencias</Link>
+            <Link className={linkClass} to="/datos-personales">Solicitudes de datos</Link>
+            <Link className={linkClass} to="/normas">Normas de la comunidad</Link>
             {onHowItWorks && <button type="button" className={`${linkClass} text-left`} onClick={onHowItWorks}>Cómo funciona</button>}
-            <a className={linkClass} href={`mailto:${CONTACT_EMAIL}`}>Contacto</a>
-            <span className="inline-flex min-h-11 items-center text-sm text-gray-500" aria-disabled="true" title="Página pendiente">Ayuda y PQR</span>
-            <span className="inline-flex min-h-11 items-center text-sm text-gray-500" aria-disabled="true" title="Página pendiente">Consejos de seguridad</span>
+            <a className={linkClass} href={`mailto:${LEGAL_OPERATOR.email}`}>Contacto</a>
+            <a className={linkClass} href={`mailto:${LEGAL_OPERATOR.email}?subject=Ayuda%20y%20PQR`}>Ayuda y PQR</a>
+            <Link className={linkClass} to="/normas">Consejos de seguridad</Link>
             </div>
           </nav>
         </div>

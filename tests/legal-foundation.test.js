@@ -10,7 +10,7 @@ const migration=await readFile(new URL('../supabase/migrations/2026-10-19-legal-
 const workflowSql=await readFile(new URL('../supabase/migrations/2026-10-19-data-rights-workflow.sql',import.meta.url),'utf8');
 const staffSource=await readFile(new URL('../supabase/migrations/2026-10-14-staff-console.sql',import.meta.url),'utf8');
 const definition=name=>{const start=staffSource.indexOf(`create or replace function public.${name}(`);return staffSource.slice(start,staffSource.indexOf('$$;',start)+3);};
-async function fixture(){
+async function fixture({strict=true}={}){
  const db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;
  create function auth.uid() returns uuid language sql stable as 'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
  create function auth.jwt() returns jsonb language sql stable as 'select coalesce(nullif(current_setting(''request.jwt.claims'',true),''''),''{}'')::jsonb';
@@ -26,6 +26,7 @@ async function fixture(){
  for(const n of [1,2,3,4]){await db.query('insert into auth.users(id) values($1)',[id(n)]);await db.query('insert into usuarios(id,nombre) values($1,$2)',[id(n),`Persona ${n}`]);}
  for(const [n,role]of [[3,'admin'],[4,'master']]){await db.query('insert into staff_accounts(user_id,role) values($1,$2)',[id(n),role]);await db.query("insert into auth.mfa_factors values($1,'verified','totp')",[id(n)]);await db.query('insert into auth.sessions values($1,$2)',[id(n+100),id(n)]);await db.query("insert into staff_sessions values($1,$2,null,now()+interval '1 hour',now())",[id(n+100),id(n)]);}
  await db.exec(definition('staff_permission'));await db.exec(definition('staff_require'));await db.exec(migration);await db.exec(migration);
+ if(strict)await db.exec('create trigger capture_registration_consent after insert on auth.users for each row execute function public.capture_registration_consent()');
  const as=async(n,aal='aal1')=>{await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",[n?id(n):'',JSON.stringify({aal,session_id:id((n||0)+100)})]);await db.exec(n?'set role authenticated':'set role anon');};
  const rpc=async(name,args=[])=> (await db.query(`select public.${name}(${args.map((_,i)=>`$${i+1}`).join(',')}) result`,args)).rows[0].result;
  return{db,as,rpc};
@@ -130,5 +131,25 @@ test('case assignment, internal verification and email intake preserve privacy a
   await db.exec('reset role');const audits=(await db.query("select * from staff_audit where action like 'privacy.%'")).rows;
   assert.ok(audits.some(item=>item.action==='privacy.assign'));assert.ok(audits.some(item=>item.action==='privacy.register_email'));
   assert.ok(!JSON.stringify(audits).includes('persona@example.com'));assert.ok(!JSON.stringify(audits).includes('Identidad verificada y acciones'));
+ }finally{await db.close();}
+});
+
+
+test('test signup remains open and captures only explicit draft choices without implying final approval',async()=>{
+ const {db,as,rpc}=await fixture({strict:false});try{
+  const testingSql=await readFile(new URL('../supabase/migrations/2026-10-19-testing-registration.sql',import.meta.url),'utf8');
+  await db.exec(testingSql);await db.exec(testingSql);
+  const version='draft-fixture',snapshot={version,reviewStatus:'draft',operator:{name:'Test operator'},policies:{}};
+  await db.query('insert into legal_releases(version,documents,published_at) values($1,$2,clock_timestamp())',[version,snapshot]);
+  const choices={terms_version:version,privacy_version:version,adult_confirmed:true,review_status:'draft'};
+  await db.query('insert into auth.users(id,raw_user_meta_data) values($1,$2)',[id(10),{legal_acceptance:choices}]);
+  const proof=(await db.query('select * from legal_consents where user_id=$1',[id(10)])).rows[0];assert.equal(proof.source,'testing');assert.ok(proof.accepted_at);
+  await db.query('insert into auth.users(id) values($1)',[id(11)]);
+  await db.query('insert into auth.users(id,raw_user_meta_data) values($1,$2)',[id(12),{legal_acceptance:{...choices,adult_confirmed:false}}]);
+  assert.equal((await db.query('select count(*)::int n from legal_consents')).rows[0].n,1,'No backfill or invented choices for legacy clients');
+  await db.query("update auth.users set raw_user_meta_data='{}' where id=$1",[id(10)]);assert.equal((await db.query('select * from legal_consents where user_id=$1',[id(10)])).rows[0].accepted_at.getTime(),proof.accepted_at.getTime());
+  await assert.rejects(db.query('update legal_releases set enabled=true where version=$1',[version]),/pruebas/);
+  await assert.rejects(db.query("update legal_releases set documents='{}' where version=$1",[version]),/inmutable/);
+  await as(10);const status=await rpc('legal_consent_status');assert.equal(status.version,null);await assert.rejects(db.query('select * from legal_consents'),/permission denied/);
  }finally{await db.close();}
 });

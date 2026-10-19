@@ -140,3 +140,4 @@
 @media(max-width:400px) { .profile-inbox-tabs [role="tab"] { gap:5px;padding:8px 6px;font-size:11px; }.profile-inbox-tabs svg { width:14px;height:14px; } }
 .profile-inbox-tabs [role="tab"] > span:first-of-type { white-space:nowrap; }
 @media(max-width:400px) { .profile-inbox-tabs [role="tab"] { gap:4px;padding-inline:4px; }.profile-inbox-tabs svg { display:none; } }
+.profile-inbox-tabs [data-inbox-tab="conversations"] > span:first-of-type { white-space:normal;line-height:1.3; }

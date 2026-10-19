@@ -13,6 +13,7 @@ export async function staffRpc(name,args) {
 export const STAFF_SECTIONS = [
   { id:'pending',label:'Pendientes',permission:'access',icon:'inbox' },
   { id:'inbox',label:'Buzón',permission:'access',icon:'inbox' },
+  { id:'privacy',label:'Solicitudes de datos',permission:'access',icon:'shield' },
   { id:'articles',label:'Publicaciones',permission:'moderation',icon:'package' },
   { id:'reports',label:'Reportes',permission:'reports',icon:'flag' },
   { id:'users',label:'Usuarios',permission:'users',icon:'users' },

@@ -101,3 +101,22 @@ test('support removal uses the existing private channel and ignores malformed id
  assert.deepEqual(removed,[id(8)]);assert.equal(channels[1].callbacks.support_removed,undefined);
  stop();channels[0].callbacks.support_removed({payload:{thread_id:id(9)}});assert.equal(removed.length,1);
 });
+
+
+test('closing support refreshes its active view on the existing topic without a bell notice or query',async()=>{
+ const channels=[],events=[],notices=[];
+ const previousWindow=globalThis.window,previousEvent=globalThis.CustomEvent;
+ globalThis.window={dispatchEvent:event=>events.push(event)};
+ globalThis.CustomEvent=class {constructor(type,options){this.type=type;this.detail=options.detail;}};
+ const client={realtime:{setAuth:async()=>{}},channel(topic){const callbacks={};const channel={topic,callbacks,on(type,filter,fn){callbacks[filter.event]=fn;return this;},subscribe(){return this;}};channels.push(channel);return channel;},removeChannel(){},rpc(){throw new Error('Unexpected query');}};
+ let stop;
+ try{
+  stop=subscribeStaffInbox(client,{id:id(10),created_at:at},notice=>notices.push(notice));
+  await Promise.resolve();await Promise.resolve();assert.equal(channels.length,2);
+  assert.equal(channels[1].callbacks.support_thread_state,undefined);
+  channels[0].callbacks.support_thread_state({payload:{thread_id:'invalid'}});assert.equal(events.length,0);
+  channels[0].callbacks.support_thread_state({payload:{thread_id:id(8)}});
+  assert.equal(events.length,1);assert.deepEqual(events[0].detail,{threadId:id(8),removed:false});assert.equal(notices.length,0);
+  stop();channels[0].callbacks.support_thread_state({payload:{thread_id:id(9)}});assert.equal(events.length,1);
+ }finally{stop?.();if(previousWindow===undefined)delete globalThis.window;else globalThis.window=previousWindow;if(previousEvent===undefined)delete globalThis.CustomEvent;else globalThis.CustomEvent=previousEvent;}
+});

@@ -6,6 +6,7 @@ const id=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 const sql=await readFile(new URL('../supabase/migrations/2026-10-19-support-inbox.sql',import.meta.url),'utf8');
 const hideSql=await readFile(new URL('../supabase/migrations/2026-10-19-support-inbox-hide.sql',import.meta.url),'utf8');
 const limitSql=await readFile(new URL('../supabase/migrations/2026-10-19-support-message-limit.sql',import.meta.url),'utf8');
+const closureSql=await readFile(new URL('../supabase/migrations/2026-10-19-support-closure-preview.sql',import.meta.url),'utf8');
 const staffSql=await readFile(new URL('../supabase/migrations/2026-10-14-staff-console.sql',import.meta.url),'utf8');
 function definition(source,name){const start=source.indexOf(`create or replace function public.${name}(`);return source.slice(start,source.indexOf('$$;',start)+3);}
 async function fixture(){
@@ -178,5 +179,50 @@ test('support messages and replies are capped at 500 characters for users and bo
   await as(3,'aal2');const history=await rpc('support_thread',[thread,true,null]);
   assert.equal(history.messages.at(-1).body,'Histórico '.repeat(100));
   await db.exec('reset role');await assert.rejects(db.query("insert into support_messages(request_id,thread_id,sender_id,author_role,body) values($1,$2,$3,'user',$4)",[id(721),thread,id(1),'d'.repeat(501)]),/support_messages_body_check/);
+ }finally{await db.close();}
+});
+
+test('staff close support with a server timestamp, replies reopen it and retention preview never deletes',async()=>{
+ const {db,as,rpc}=await fixture();try{
+  await db.exec(`create table public.articulos(id uuid primary key,status text,delivered_at timestamptz);
+    create table public.chats(id uuid primary key,articulo_id uuid);
+    create table public.data_rights_requests(id uuid primary key,status text,responded_at timestamptz);`);
+  await db.exec(closureSql);await db.exec(closureSql);
+  await as(1);const thread=await rpc('support_start_thread',[id(900),'Caso para cerrar','Mensaje de prueba para el cierre del soporte.']);
+  const seq=(await rpc('support_thread',[thread,false,null])).last_message_seq;
+  await assert.rejects(rpc('support_set_closed',[thread,true,seq]),/autorizado/);
+  await assert.rejects(rpc('preview_retention',[20]),/autorizado/);
+  await as(3);await assert.rejects(rpc('support_set_closed',[thread,true,seq]),/autorizado/);
+  await as(3,'aal2');const first=await rpc('support_set_closed',[thread,true,seq]);assert.ok(first.closed_at);
+  assert.deepEqual(await rpc('support_set_closed',[thread,true,seq]),first,'Retries preserve the first closure date');
+  assert.equal((await rpc('support_inbox',[true,'',1])).rows[0].closed_at,first.closed_at);
+  await as(1);assert.equal((await rpc('support_thread',[thread,false,null])).closed_at,first.closed_at);
+  await db.exec('reset role');await db.query("update support_threads set last_user_at=now()-interval '1 minute' where id=$1",[thread]);
+  await as(1);await rpc('support_reply',[thread,id(901),'Esta respuesta reabre el caso de soporte.',false]);
+  assert.equal((await rpc('support_thread',[thread,false,null])).closed_at,null);
+  await as(4,'aal2');await assert.rejects(rpc('support_set_closed',[thread,true,seq]),/mensajes nuevos/);
+  const current=(await rpc('support_thread',[thread,true,null])).last_message_seq;
+  await rpc('support_set_closed',[thread,true,current]);
+  await rpc('support_reply',[thread,id(902),'Respuesta del superadmin que también reabre el caso.',true]);
+  assert.equal((await rpc('support_thread',[thread,true,null])).closed_at,null);
+  const finalSeq=(await rpc('support_thread',[thread,true,null])).last_message_seq;
+  await rpc('support_set_closed',[thread,true,finalSeq]);
+  await db.exec('reset role');
+  await db.query("update support_threads set closed_at=clock_timestamp()-interval '181 days' where id=$1",[thread]);
+  await db.query("insert into support_threads(id,user_id,subject) values($1,$2,'Abierto sin cierre')",[id(903),id(1)]);
+  await db.query("insert into articulos values($1,'entregado',clock_timestamp()-interval '91 days'),($2,'entregado',null),($3,'reservado',clock_timestamp()-interval '91 days')",[id(910),id(911),id(912)]);
+  await db.query('insert into chats values($1,$2),($3,$4),($5,$6)',[id(920),id(910),id(921),id(911),id(922),id(912)]);
+  await db.query("insert into data_rights_requests values($1,'answered',clock_timestamp()-interval '25 months'),($2,'reviewing',clock_timestamp()-interval '25 months'),($3,'answered',null)",[id(930),id(931),id(932)]);
+  await as(3,'aal2');const preview=await rpc('preview_retention',[10000]);
+  assert.equal(preview.deletion_enabled,false);assert.equal(preview.requires_review,true);
+  assert.deepEqual(preview.counts,{support:1,data_requests:1,chats:1});
+  assert.deepEqual(preview.without_event,{support:1,data_requests:2,chats:2});
+  assert.equal(preview.sample.length,3);assert.ok(preview.sample.every(row=>!Object.hasOwn(row,'body')));
+  assert.equal((await rpc('preview_retention',[1])).sample.length,1);
+  await db.exec('reset role');assert.equal((await db.query('select count(*)::int n from support_messages')).rows[0].n,3);
+  assert.equal((await db.query('select count(*)::int n from chats')).rows[0].n,3);
+  assert.equal((await db.query('select count(*)::int n from data_rights_requests')).rows[0].n,3);
+  const signals=(await db.query("select * from test_signals where event='support_thread_state'")).rows;assert.ok(signals.length>0);assert.ok(signals.every(row=>Object.keys(row.payload).join()==='thread_id'));
+  await as(null);await assert.rejects(rpc('preview_retention',[20]),/permission denied/);
  }finally{await db.close();}
 });

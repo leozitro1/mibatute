@@ -1,4 +1,3 @@
-import {CONTACT_EMAIL} from '../config/availability.js';
 // src/components/UserProfile.jsx
 import { createReadCache, listenMarketSignals } from "./marketSignals.js";
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
@@ -9,6 +8,7 @@ import './UserProfile.css';
 import './TransactionActions.css';
 import WompiTopupDialog from './WompiTopupDialog.jsx';
 import SupportInbox from './SupportInbox.jsx';
+import {LEGAL_OPERATOR} from '../legal/config.js';
 import {
   Camera,
   ArrowLeft,
@@ -927,6 +927,7 @@ export default function UserProfile({
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteEmailInput, setDeleteEmailInput] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const deletionRequestRef=useRef(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const originalProfileRef = useRef(null);
@@ -2369,7 +2370,7 @@ export default function UserProfile({
           <p className="mt-1 text-xs font-bold text-red-700">
             Tus acciones están desactivadas (chats, edición, gestión, eliminación).
           </p>
-          <p className="mt-2 text-xs text-red-700">Tus créditos están bloqueados y no puedes realizar recargas. Para solicitar la devolución de créditos comprados, comunícate con administración en <a className="underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.</p>
+          <p className="mt-2 text-xs text-red-700">Tus créditos están bloqueados y no puedes realizar recargas. Para solicitar la devolución de créditos comprados, comunícate con administración en <a className="underline" href={`mailto:${LEGAL_OPERATOR.email}`}>{LEGAL_OPERATOR.email}</a>.</p>
         </div>
       ) : null}
 
@@ -2608,7 +2609,7 @@ export default function UserProfile({
                         disabled={saving || isUserBlocked}
                         className="text-xs font-black text-red-600 hover:underline disabled:opacity-50"
                       >
-                        Eliminar perfil
+                        Solicitar cierre y supresión
                       </button>
                     </div>
                   </>
@@ -2647,10 +2648,10 @@ export default function UserProfile({
                 type="button"
                 onClick={() => {if(!isUserBlocked)setRecargaOpen(true);}}
                 disabled={isUserBlocked}
-                title={isUserBlocked ? 'Recargas desactivadas por bloqueo de cuenta' : 'Recargas disponibles proximamente'}
+                title={isUserBlocked ? 'Recargas desactivadas por bloqueo de cuenta' : 'Recargar con Wompi'}
                 className="profile-topup shrink-0 min-h-11 px-4 py-2 rounded-lg bg-forest-green text-white font-bold text-sm hover:bg-green-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Recargas · Próximamente
+                Recargas - Proximamente
               </button>
             </div>
           </section>
@@ -3606,11 +3607,11 @@ export default function UserProfile({
           <div className="marketplace-surface marketplace-modal relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b">
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                Eliminar cuenta
+                Solicitar cierre y supresión
               </p>
               <h3 className="text-lg font-black text-gray-900">Confirmación requerida</h3>
               <p className="mt-2 text-sm text-gray-600 font-medium">
-                Para confirmar, escribe tu correo exactamente:
+                Registraremos tu solicitud para revisar el cierre y la supresión de datos. No ejecuta un borrado ni un bloqueo inmediato. Podrá conservarse información únicamente con un fundamento y plazo aplicables. Para confirmar, escribe tu correo:
               </p>
               <p className="mt-1 text-sm font-black text-gray-900 break-all">
                 {emailReadonly || "—"}
@@ -3667,26 +3668,27 @@ export default function UserProfile({
                         return;
                       }
 
-                      // ✅ Método simple: RPC en DB (sin Edge Function)
-                      const { data, error } = await supabase.rpc("self_delete_and_block", {
-                        email_confirm: emailTyped,
+                      // Registro trazable de la solicitud; no promete un borrado automático.
+                      if(!deletionRequestRef.current)deletionRequestRef.current=crypto.randomUUID();
+                      const { data, error } = await supabase.rpc("submit_data_request", {
+                        p_request:deletionRequestRef.current,p_kind:'deletion',p_body:'Solicito el cierre de mi cuenta y la supresión de mis datos personales. Informen qué información se elimina o anonimiza y el fundamento y plazo de lo que deba conservarse.',
                       });
 
-                      console.log("self_delete_and_block:", { data, error });
+
 
                       if (error) {
-                        alert(error.message || "No se pudo eliminar/bloquear. Revisa consola.");
+                        alert(error.message || "No se pudo registrar la solicitud. Inténtalo de nuevo o escribe al correo de atención.");
                         return;
                       }
 
-                      if (!data?.ok) {
-                        alert("No se pudo eliminar: " + (data?.error || "Error desconocido"));
+                      if (!data) {
+                        alert("No se pudo registrar: " + (data?.error || "Error desconocido"));
                         return;
                       }
 
-                      alert("Cuenta eliminada y BLOQUEADA.");
-                      await supabase.auth.signOut();
-                      window.location.href = "/";
+                      alert(`Solicitud registrada. Radicado: ${data}. Puedes consultar su estado en Solicitudes de datos. La cuenta y sus datos todavía no se han eliminado.`);
+                      setDeleteModalOpen(false);
+                      window.location.href = '/datos-personales';
                     } catch (e) {
                       console.error(e);
                       alert("Error inesperado.");
@@ -3701,7 +3703,7 @@ export default function UserProfile({
                   }
                   className="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-black uppercase hover:brightness-110 transition disabled:opacity-50"
                 >
-                  Confirmar eliminación
+                  Registrar solicitud
                 </button>
               </div>
             </div>

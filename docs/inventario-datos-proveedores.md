@@ -1,3 +1,5 @@
+> Actualización de entrega completa: este documento conserva el historial de decisiones. Los módulos están ahora integrados en main y se publican como borrador para revisión. Consultar docs/despliegue-pruebas-funcionales.md para el estado actual. Registro de pruebas abierto en producción; recargas y borrados automáticos deshabilitados. No implica aprobación legal definitiva.
+
 # Inventario de datos y proveedores de MiBatute
 
 Revisión técnica del 19 de octubre de 2026. Alcance: código actual, migraciones y metadatos de la base **local**. Se leyeron nombres de tablas/campos y configuraciones de acceso, no contenidos de mensajes ni credenciales. No se copiaron datos de producción. No constituye una revisión jurídica completa ni confirma la configuración de las cuentas contratadas.

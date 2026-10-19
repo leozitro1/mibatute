@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Mail, Plus, RefreshCw, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Mail, Plus, RefreshCw, Send, Trash2, CheckCircle2, RotateCcw } from 'lucide-react';
 import { supabase } from '../supabase/supabaseClient';
 import { SUPPORT_NOTICE_EVENT } from './supportSignals.js';
 import './SupportInbox.css';
@@ -77,7 +77,8 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
   const select=row=>{if(sending)return;setDeleteTarget(null);setActiveId(row.id);setThread(null);setReply(drafts.current.get(row.id)||'');setComposing(false);setError('');};
   const send=async event=>{
     event.preventDefault();if(inFlight.current)return;
-    const text=(composing?body:reply).trim();if(!text||text.length>500||(!composing&&!activeId))return;
+    const text=(composing?body:reply).trim();if(!text||(!composing&&!activeId))return;
+    if(text.length>500){setError('Escribe un mensaje de hasta 500 caracteres.');return;}
     const signature=JSON.stringify([composing?subject.trim():activeId,text]);
     if(request.current?.signature!==signature)request.current={signature,id:crypto.randomUUID()};
     inFlight.current=true;setSending(true);setError('');
@@ -103,6 +104,12 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
       setDeleteTarget(null);callbacks.current.onRemoved?.(id);
     }catch(err){report(err);}finally{inFlight.current=false;if(alive.current){setSending(false);invalidate();}}
   };
+  const setClosed=async()=>{
+    if(!isStaff||!thread||threadLoading||inFlight.current||reply.trim())return;
+    inFlight.current=true;setSending(true);setError('');
+    try{await rpc('support_set_closed',{p_thread:thread.id,p_closed:!thread.closed_at,p_expected_seq:thread.last_message_seq});}
+    catch(err){report(err);}finally{inFlight.current=false;if(alive.current){setSending(false);invalidate();}}
+  };
   const older=async()=>{
     if(!thread?.messages?.length||threadLoading)return;
     const id=thread.id,version=threadVersion.current;setThreadLoading(true);
@@ -124,15 +131,17 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
     {error&&<p role="alert" className="support-error">{error}</p>}
     {composing?<form className="support-compose" onSubmit={send}>
       <label htmlFor={`support-subject-${userId}`}>Asunto</label><input id={`support-subject-${userId}`} required minLength={3} maxLength={120} value={subject} onChange={event=>setSubject(event.target.value)} disabled={sending} />
-      <label htmlFor={`support-body-${userId}`}>¿En qué podemos ayudarte?</label><textarea id={`support-body-${userId}`} rows={5} required minLength={10} maxLength={500} value={body} onChange={event=>setBody(event.target.value)} disabled={sending} />
-      <p className="support-hint">Tu mensaje será privado y lo podrá atender el equipo de administración.</p>
-      <div className="support-actions"><button type="button" className="support-button" disabled={sending} onClick={()=>setComposing(false)}>Cancelar</button><button type="submit" className="support-button support-button--primary" disabled={sending||subject.trim().length<3||body.trim().length<10||!canStart}><Send size={16} />{sending?'Enviando…':'Enviar mensaje'}</button></div>
+      <label htmlFor={`support-body-${userId}`}>¿En qué podemos ayudarte?</label><textarea id={`support-body-${userId}`} rows={4} required minLength={10} maxLength={500} value={body} onChange={event=>setBody(event.target.value)} disabled={sending} />
+      <p className="support-hint">{body.length}/500 caracteres · Tu mensaje será privado y lo podrá atender el equipo de administración.</p>
+      <div className="support-actions"><button type="button" className="support-button" disabled={sending} onClick={()=>setComposing(false)}>Cancelar</button><button type="submit" className="support-button support-button--primary" disabled={sending||subject.trim().length<3||body.trim().length<10||body.length>500||!canStart}><Send size={16} />{sending?'Enviando…':'Enviar mensaje'}</button></div>
     </form>:activeId?<div className="support-thread">
       <div className="support-thread-toolbar"><button type="button" className="support-back" disabled={sending} onClick={()=>{setActiveId(null);setError('');}}><ArrowLeft size={16} />Todas las conversaciones</button>
+        {isStaff&&thread&&<button type="button" className="support-button" disabled={sending||threadLoading||!!reply.trim()} onClick={setClosed} title={reply.trim()?'Envía o borra tu borrador antes de cambiar el estado':undefined}>{thread.closed_at?<RotateCcw size={16}/>:<CheckCircle2 size={16}/>} {thread.closed_at?'Reabrir caso':'Cerrar caso'}</button>}
         {!isStaff&&thread&&<button type="button" className="support-button support-delete" disabled={sending||threadLoading} onClick={()=>setDeleteTarget(activeId)}><Trash2 size={16} />Eliminar conversación</button>}
       </div>
       {deleteTarget===activeId&&deletePrompt}
       <h3>{thread?.subject||'Cargando conversación…'}</h3>{isStaff&&thread?.user_name&&<p className="support-hint">{thread.user_name}</p>}
+      {thread?.closed_at&&<p className="support-hint">Caso cerrado el {date(thread.closed_at)}.{!thread.user_hidden_at&&' Puedes responder para reabrirlo.'}</p>}
       {threadLoading&&!thread&&<p role="status">Cargando mensajes…</p>}
       {thread?.more&&<button type="button" className="support-button" onClick={older} disabled={threadLoading}>Ver mensajes anteriores</button>}
       <div className="support-messages" role="log" aria-label="Mensajes de la conversación">
@@ -143,12 +152,12 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
       {thread?.user_hidden_at&&isStaff&&<p className="support-hint">Eliminada por el usuario. El historial completo se conserva para administración.</p>}
       {thread&&!thread.user_hidden_at&&<form className="support-compose" onSubmit={send}>
         <label htmlFor={`support-reply-${userId}`}>Responder</label><textarea id={`support-reply-${userId}`} rows={3} maxLength={500} required value={reply} onChange={event=>{setReply(event.target.value);drafts.current.set(activeId,event.target.value);}} disabled={sending} />
-        <div className="support-actions"><span className="support-hint">{reply.length}/500</span><button type="submit" className="support-button support-button--primary" disabled={sending||!reply.trim()}><Send size={16} />{sending?'Enviando…':'Responder'}</button></div>
+        <div className="support-actions"><span className="support-hint">{reply.length}/500</span><button type="submit" className="support-button support-button--primary" disabled={sending||!reply.trim()||reply.length>500}><Send size={16} />{sending?'Enviando…':'Responder'}</button></div>
       </form>}
     </div>:<>
       {loading&&!list.rows.length?<p role="status">Cargando conversaciones…</p>:!list.rows.length?<p className="support-empty"><Mail size={22} />{isStaff?'No hay conversaciones con ese filtro.':'Aquí aparecerán tus conversaciones con MiBatute.'}</p>:<div className="support-list">
         {list.rows.map(row=><div key={row.id} className="support-list-row"><button type="button" className="support-list-item" onClick={()=>select(row)}>
-          <div><strong>{row.subject}</strong>{row.unread&&<span className="support-unread">Sin leer</span>}</div>
+          <div><strong>{row.subject}{row.closed_at&&<span className="support-closed-badge">Cerrado</span>}</strong>{row.unread&&<span className="support-unread">Sin leer</span>}</div>
           <p>{isStaff?`${row.user_name}${row.user_hidden_at?' · Eliminada por el usuario':''}`:row.last_author==='staff'?'Respuesta de MiBatute':'Mensaje enviado a MiBatute'}</p><time dateTime={row.updated_at}>{date(row.updated_at)}</time>
         </button>{!isStaff&&<button type="button" className="support-icon-button support-delete" disabled={sending} aria-label={`Eliminar conversación: ${row.subject}`} title="Eliminar conversación" onClick={()=>setDeleteTarget(row.id)}><Trash2 size={16} /></button>}{deleteTarget===row.id&&deletePrompt}</div>)}
       </div>}

@@ -1,3 +1,5 @@
+> Actualización de entrega completa: este documento conserva el historial de decisiones. Los módulos están ahora integrados en main y se publican como borrador para revisión. Consultar docs/despliegue-pruebas-funcionales.md para el estado actual. Registro de pruebas abierto en producción; recargas y borrados automáticos deshabilitados. No implica aprobación legal definitiva.
+
 # Preparación legal de MiBatute — borrador local del 19 de octubre de 2026
 
 Esta es una implementación técnica y un borrador de textos, no una certificación de cumplimiento ni una opinión jurídica definitiva. No se ha desplegado. La versión pública anterior sigue activa. El responsable debe aprobar las decisiones operativas y obtener la revisión jurídica que corresponda antes de habilitar las nuevas políticas.

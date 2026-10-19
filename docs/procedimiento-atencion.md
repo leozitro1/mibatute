@@ -1,3 +1,5 @@
+> Actualización de entrega completa: este documento conserva el historial de decisiones. Los módulos están ahora integrados en main y se publican como borrador para revisión. Consultar docs/despliegue-pruebas-funcionales.md para el estado actual. Registro de pruebas abierto en producción; recargas y borrados automáticos deshabilitados. No implica aprobación legal definitiva.
+
 # Atención diaria de solicitudes — MiBatute
 
 Decisión operativa aceptada por el responsable el 19 de octubre de 2026. Implementación y pruebas locales; no desplegada. No acredita que las revisiones humanas ya estén ocurriendo ni reemplaza la revisión jurídica pendiente.

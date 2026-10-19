@@ -20,6 +20,7 @@ export function subscribeStaffInbox(client,user,onNotice,onAccountChange,{onMark
       const channel=client.channel(topic,{config:{private:true}}).on('broadcast',{event:'inbox_notice'},({payload})=>{
         if(!active)return;const notice=staffInboxNotice(payload,user.created_at,general);if(notice){onNotice(notice);if(notice.receipt_kind==='support')dispatchSupportNotice(notice.receipt_id);}
       });
+      if(!general)channel.on('broadcast',{event:'support_thread_state'},({payload})=>{if(active&&uuid.test(payload?.thread_id||''))dispatchSupportNotice(payload.thread_id);});
       if(!general)channel.on('broadcast',{event:'support_removed'},({payload})=>{
         if(!active||!uuid.test(payload?.thread_id||''))return;
         onSupportRemoved?.(payload.thread_id);dispatchSupportNotice(payload.thread_id,true);

@@ -1,8 +1,40 @@
 {
   "rewrites": [
-    { "source": "/gestion/:path*", "destination": "/index.html" },
-    { "source": "/auth/callback", "destination": "/index.html" },
-    { "source": "/reset-password", "destination": "/index.html" },
-    { "source": "/terminos", "destination": "/index.html" }
+    {
+      "source": "/gestion/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/auth/callback",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/terminos",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/privacidad",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/pagos",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/cookies",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/datos-personales",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/normas",
+      "destination": "/index.html"
+    }
   ]
 }

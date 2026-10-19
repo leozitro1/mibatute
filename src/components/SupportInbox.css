@@ -49,3 +49,11 @@
 .support-delete-prompt { flex-basis:100%;padding:14px;margin-block:6px;border:1px solid #e8dfdb;border-radius:10px;background:#fbf8f5; }
 .support-delete-prompt > p { font-size:13px;line-height:1.6;color:#756158; }
 .support-delete-prompt .support-actions { justify-content:flex-end;flex-wrap:wrap;margin-top:12px; }
+.legal-case-work { margin-top:16px;padding:14px;border:1px dashed #ccd8c4;border-radius:10px;background:#fff; }
+.legal-case-work > .support-button { margin-top:10px; }
+.legal-external { margin-top:20px;padding:14px;border:1px solid #dfe5d9;border-radius:10px; }
+.legal-external summary { cursor:pointer;min-height:44px;display:list-item;list-style:disclosure-closed inside;font-size:14px;font-weight:500; }
+.legal-external[open] summary { list-style-type:disclosure-open; }
+.support-compose select { width:100%;min-width:0;min-height:44px;padding:10px;border:1px solid #dfe5d9;border-radius:8px;background:white;font-size:13px; }
+.support-compose .legal-delivery input[type="checkbox"] { width:18px;height:18px;min-height:18px;vertical-align:middle;margin-right:8px;accent-color:#315a2c; }
+.support-closed-badge { display:inline-block;margin-left:8px;padding:2px 6px;border-radius:5px;background:#edf1e8;color:#65715f;font-size:10px;font-weight:500;vertical-align:middle; }

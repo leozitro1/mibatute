@@ -1,5 +1,6 @@
 // src/components/AuthModal.jsx
 import { useEffect, useRef, useState } from "react";
+import {LEGAL_READY,registrationAcceptance} from '../legal/config.js';
 import { X, Mail, Lock, User, Phone } from "lucide-react";
 
 // ✅ Registro/Login (tu servicio)
@@ -83,6 +84,8 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
   const [ciudad, setCiudad] = useState(""); // obligar selección
   const [localidad, setLocalidad] = useState(""); // obligar selección
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptPrivacy,setAcceptPrivacy]=useState(false);
+  const [confirmAdult,setConfirmAdult]=useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -91,7 +94,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
     setMovil("");
     setCiudad("");
     setLocalidad("");
-    setAcceptTerms(false);
+    setAcceptTerms(false);setAcceptPrivacy(false);setConfirmAdult(false);
     setEmail("");
     setPassword("");
     setIsSubmitting(false);
@@ -111,7 +114,6 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
       resetForm();
       setIsRegister(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // ✅ Manejo del contador de cooldown
@@ -157,7 +159,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
     setMovil("");
     setCiudad("");
     setLocalidad("");
-    setAcceptTerms(false);
+    setAcceptTerms(false);setAcceptPrivacy(false);setConfirmAdult(false);
     setPassword("");
     setIsSubmitting(false);
     setResendCooldown(0);
@@ -175,8 +177,8 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
     e.preventDefault();
     if (isSubmitting) return;
 
-    if (!acceptTerms) {
-      alert("Debes aceptar los Términos y Condiciones para registrarte.");
+    if (!registrationAcceptance(acceptTerms,acceptPrivacy,confirmAdult)) {
+      alert("Revisa las condiciones y confirma las tres opciones para crear tu cuenta.");
       return;
     }
 
@@ -188,6 +190,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
       const emailClean = email.trim();
 
       const extraData = {
+        legal_acceptance:registrationAcceptance(acceptTerms,acceptPrivacy,confirmAdult),
         nombre: nombreClean,
         movil: movilClean,
         ciudad,
@@ -484,7 +487,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
                         onChange={(e) => {
                           setCiudad(e.target.value);
                           setLocalidad("");
-    setAcceptTerms(false);
+    setAcceptTerms(false);setAcceptPrivacy(false);setConfirmAdult(false);
                         }}
                         className="border rounded-xl p-3 outline-none focus:ring-2 focus:ring-forest-green bg-white"
                         required
@@ -552,9 +555,8 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
                 </div>
 
 
-                {isRegister && <p role="status" className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Versión de pruebas. Usa cuentas y artículos identificados como PRUEBA. Las recargas aún no están disponibles.</p>}
                 {isRegister && (
-                  <label className="flex items-start gap-3 text-sm text-gray-600">
+                  <><label className="flex items-start gap-3 text-sm text-gray-600">
                     <input
                       type="checkbox"
                       checked={acceptTerms}
@@ -575,16 +577,20 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
                       .
                     </span>
                   </label>
+                  <label className="flex items-start gap-3 text-sm text-gray-600"><input type="checkbox" checked={acceptPrivacy} onChange={event=>setAcceptPrivacy(event.target.checked)} disabled={isSubmitting} className="mt-1 h-4 w-4 accent-forest-green"/><span>Autorizo el tratamiento de mis datos para gestionar la cuenta y las funciones solicitadas, conforme a la <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="font-semibold text-forest-green underline">Política de privacidad</a>. Esta autorización no incluye publicidad comercial.</span></label>
+                  <label className="flex items-start gap-3 text-sm text-gray-600"><input type="checkbox" checked={confirmAdult} onChange={event=>setConfirmAdult(event.target.checked)} disabled={isSubmitting} className="mt-1 h-4 w-4 accent-forest-green"/><span>Confirmo que tengo 18 años o más.</span></label>
+                  {!LEGAL_READY&&<p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">El sitio está en pruebas. Puedes registrarte tras revisar y aceptar estos documentos, que siguen en revisión. Consulta el <a href="/privacidad" className="underline" target="_blank" rel="noopener noreferrer">borrador de privacidad</a>.</p>}
+                  </>
                 )}
 
                 <button
                   className={`w-full py-3 rounded-xl font-bold transition ${
-                    isSubmitting || (isRegister && !acceptTerms)
+                    isSubmitting || (isRegister && !registrationAcceptance(acceptTerms,acceptPrivacy,confirmAdult))
                       ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                       : "bg-forest-green text-white hover:bg-opacity-90"
                   }`}
-                  title={isRegister && !acceptTerms ? "Debes aceptar TyC para registrarte" : undefined}
-                  disabled={isSubmitting || (isRegister && !acceptTerms)}
+                  title={isRegister && !registrationAcceptance(acceptTerms,acceptPrivacy,confirmAdult) ? "Revisa las políticas y las autorizaciones requeridas" : undefined}
+                  disabled={isSubmitting || (isRegister && !registrationAcceptance(acceptTerms,acceptPrivacy,confirmAdult))}
                   type="submit"
                 >
                   {isSubmitting ? "Procesando..." : isRegister ? "Registrarme" : "Entrar"}

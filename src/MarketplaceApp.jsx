@@ -4,6 +4,7 @@ import { Routes, Route } from "react-router-dom";
 import { Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown, LayoutGrid, MapPin, SlidersHorizontal, Gift, Tag, Star, BadgeCheck } from "lucide-react";
 import Navbar from "./components/Navbar";
 import Footer from './components/Footer.jsx';
+import LegalConsentDialog from './components/LegalConsentDialog.jsx';
 import { notifyCreditBalance } from './components/creditBalance.js';
 import FilterSection from "./components/FilterSection";
 import ProductCard from "./components/ProductCard";
@@ -2294,8 +2295,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         }
       />
 
-      <Route path="/terminos" element={<Terms />} />
+      {['/terminos','/privacidad','/pagos','/cookies','/datos-personales','/normas'].map(path=><Route key={path} path={path} element={<Terms key={path} path={path}/>} />)}
       </Routes>
+      <LegalConsentDialog key={currentUser?.id||'anonymous'} userId={currentUser?.id} onLogout={handleLogout}/>
     </Suspense>
   );
 }

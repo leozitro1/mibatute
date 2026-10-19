@@ -24,3 +24,6 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Temporary local deployment transfer documents
+*.local.html

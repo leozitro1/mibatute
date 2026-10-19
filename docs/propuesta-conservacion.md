@@ -1,3 +1,5 @@
+> Actualización de entrega completa: este documento conserva el historial de decisiones. Los módulos están ahora integrados en main y se publican como borrador para revisión. Consultar docs/despliegue-pruebas-funcionales.md para el estado actual. Registro de pruebas abierto en producción; recargas y borrados automáticos deshabilitados. No implica aprobación legal definitiva.
+
 # Conservación — propuesta operativa aprobada parcialmente
 
 Preparada el 19 de octubre de 2026. El responsable aprobó como propuesta operativa: chats hasta 90 días tras finalizar la operación, soporte 180 días tras el cierre y solicitudes de datos 24 meses tras la respuesta final. Las demás categorías no se dieron por aprobadas. Falta la revisión jurídica/contable y la implementación técnica que corresponda. **No está activa y no ordena ni programa borrados.** Los tres plazos aceptados son decisiones operativas sujetas a validación, no plazos legales generales ni garantías de disponibilidad de datos.

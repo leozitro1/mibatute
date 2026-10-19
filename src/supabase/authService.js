@@ -1,4 +1,5 @@
 // src/supabase/authService.js
+import {LEGAL_VERSION,registrationAcceptance} from '../legal/config.js';
 import { supabase } from "./supabaseClient";
 
 /**
@@ -57,6 +58,8 @@ export const ensureUsuarioRow = async (user, extraData = {}) => {
 };
 
 export const registerUser = async (email, password, extraData = {}) => {
+  const acceptance=extraData.legal_acceptance;
+  if(!registrationAcceptance(true,true,true)||acceptance?.terms_version!==LEGAL_VERSION||acceptance?.privacy_version!==LEGAL_VERSION||acceptance?.adult_confirmed!==true||acceptance?.review_status!==registrationAcceptance(true,true,true)?.review_status)return {success:false,error:'Revisa y acepta las condiciones, la autorización de datos y la mayoría de edad.'};
   const cleanEmail = String(email || "").trim();
   const cleanPassword = String(password || "");
 
@@ -75,7 +78,7 @@ export const registerUser = async (email, password, extraData = {}) => {
     options: {
       emailRedirectTo,
       // ✅ guardamos en user_metadata (incluye compat con localidad_es)
-      data: { nombre, movil, ciudad, localidad, localidad_es: localidad },
+      data: { nombre, movil, ciudad, localidad, localidad_es: localidad,legal_acceptance:acceptance },
     },
   });
 

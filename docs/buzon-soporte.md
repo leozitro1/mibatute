@@ -9,7 +9,7 @@ Admin y superadmin tienen una sección Buzón compartida. Ambos pueden leer y re
 ## Consumo
 
 - Sin consultas periódicas. Se consulta la lista al abrir el buzón, buscar, paginar, actualizar o recibir un cambio relevante.
-- Lista de 20 conversaciones y lectura de los últimos 40 mensajes; mensajes anteriores bajo demanda. Máximo 2000 caracteres por mensaje y 500 mensajes por hilo.
+- Lista de 20 conversaciones y lectura de los últimos 40 mensajes; mensajes anteriores bajo demanda. Máximo 500 caracteres por mensaje y 500 mensajes por hilo.
 - El usuario reutiliza su canal privado de notificaciones existente. El personal abre un canal privado de metadatos solo mientras tiene su buzón abierto.
 - Las señales contienen identificadores y secuencias, nunca cuerpos de mensajes. Las respuestas del personal reutilizan el feed de notificaciones existente.
 - Un cambio en otro hilo actualiza la lista sin volver a consultar la conversación abierta. Durante un envío se agrupan los avisos con la actualización final.
@@ -21,7 +21,7 @@ Pruebas de PostgreSQL mediante PGlite: aislamiento entre usuarios, límite de 24
 
 Prueba manual local: creación de hilo con Cliente 1, bloqueo de segunda conversación, respuesta del usuario dentro de las 24 horas, actualización en tiempo real y apertura desde la campana. Respuestas ficticias de ambos roles añadidas en la base local para comprobar presentación; la autenticación MFA del personal se verificó en pruebas SQL, no mediante un inicio de sesión manual. Anchuras móviles de 320 y 375 px sin desbordamiento horizontal.
 
-El buzón del perfil separa Conversaciones y Avisos del sistema mediante subpestañas accesibles con contadores derivados de las notificaciones existentes. La sección oculta no realiza lecturas ni escucha cambios de soporte; el hilo y los borradores se conservan al cambiar de subpestaña. Los avisos se cargan al abrir su sección. Un clic en la campana selecciona automáticamente la subpestaña correspondiente.
+El buzón del perfil separa Conversaciones del sistema y Avisos del sistema mediante subpestañas accesibles con contadores derivados de las notificaciones existentes. La sección oculta no realiza lecturas ni escucha cambios de soporte; el hilo y los borradores se conservan al cambiar de subpestaña. Los avisos se cargan al abrir su sección. Un clic en la campana selecciona automáticamente la subpestaña correspondiente.
 
 
 ## Eliminar conversación del usuario
@@ -31,3 +31,13 @@ La acción está disponible en cada fila y dentro del hilo, con confirmación y 
 La eliminación no modifica la fecha original ni permite saltarse las 24 horas. Usa una señal en el canal privado existente para sincronizar otras pestañas. Al reconectar, el feed elimina de la caché los avisos de hilos ocultos, sin borrar respuestas concurrentes posteriores a la consulta. No se agregan consultas periódicas ni canales.
 
 Validación adicional: pruebas SQL de propiedad, idempotencia, conservación de mensajes para ambos roles, exclusión del feed y mantenimiento del plazo; pruebas de sincronización del aviso y caché. En el navegador local se comprobó cancelar y confirmar la eliminación de un hilo ficticio.
+
+
+La migración `2026-10-19-support-message-limit.sql` reduce a 500 caracteres los nuevos mensajes y respuestas, tanto del usuario como del personal. Está pendiente de publicar; los mensajes históricos de mayor longitud se conservan completos. El formulario muestra el contador y aplica el mismo máximo.
+
+
+## Cierre de soporte — preparado en local
+
+Admin y superadmin pueden cerrar o reabrir un caso. La fecha se registra en el servidor y cualquier nueva respuesta reabre el hilo; los 180 días propuestos cuentan desde el siguiente cierre. El cierre comprueba la última secuencia de mensajes para evitar cerrar sin revisar una respuesta concurrente. No cambia las lecturas, el límite de 24 horas ni el ocultamiento del usuario. Los hilos ocultos conservan su historial sin admitir respuestas.
+
+El estado se sincroniza por los canales existentes, con identificadores y sin crear una notificación de respuesta ficticia. La simulación de conservación en Solicitudes de datos se consulta manualmente y no borra nada. Migración `2026-10-19-support-closure-preview.sql` aplicada únicamente en local. Pruebas SQL verifican permisos MFA, reintentos, secuencias obsoletas, reapertura y conservación íntegra tras simular.
