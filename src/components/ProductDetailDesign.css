@@ -1,0 +1,58 @@
+.mb-design-preview .product-detail-backdrop { background: rgb(22 37 26 / .55); backdrop-filter: blur(4px); }
+.mb-design-preview .product-detail { max-width: 1024px; max-height: 90dvh; border: 1px solid #e1e7dc; border-radius: 20px; box-shadow: 0 20px 80px #152b2430; }
+.mb-design-preview .product-detail-gallery { background: #f3f6ef; }
+.mb-design-preview .product-detail-photo > div[aria-hidden="true"] { background: #f3f6ef; }
+.mb-design-preview .product-detail-photo-frame { background: #fff; border: 1px solid #e4eadd; border-radius: 14px; box-shadow: none; }
+.mb-design-preview .product-detail-photo-frame img { object-fit: contain; }
+.mb-design-preview .product-detail-thumbnails { background: #f8faf5; border-color: #e1e7dc; padding: 12px 16px; }
+.mb-design-preview .product-detail-thumbnails button { border-radius: 9px; }
+.mb-design-preview .product-detail-information { padding: 28px; color: #354a3a; scrollbar-width: thin; scrollbar-color: #a6b69d #f5f7f2; }
+.mb-design-preview .product-detail-information .font-black { font-weight: 600; }
+.mb-design-preview .product-detail-information .font-bold { font-weight: 500; }
+.mb-design-preview .product-detail-information .uppercase { text-transform: none; letter-spacing: 0; }
+.mb-design-preview .product-detail-information .text-gray-400 { color: #69756a; }
+.mb-design-preview .product-detail-information .rounded-2xl { border-radius: 12px; }
+.mb-design-preview .product-detail-information h1 { font-size: 28px; font-weight: 600; line-height: 1.2; letter-spacing: -.6px; color: #253d2e; overflow-wrap: anywhere; margin-bottom: 14px; }
+.mb-design-preview .product-detail-header { align-items: center; margin-bottom: 16px; gap: 12px; }
+.mb-design-preview .product-detail .product-detail-mode { background: #edf3e7; color: #345737; border: 1px solid #e0e8d8; font-size: 12px; font-weight: 500; padding: 6px 12px; text-transform: capitalize; }
+.mb-design-preview .product-detail-featured { background: #ffdbb5; color: #7c3916; border-radius: 7px; padding: 6px 10px; font-size: 11px; font-weight: 600; }
+.mb-design-preview .product-detail-categories { background: transparent; border: 0; border-radius: 0; padding: 0; gap: 6px; flex-wrap: wrap; }
+.mb-design-preview .product-detail-categories button { min-height: 44px; font-size: 12px; font-weight: 500; text-align: left; }
+.mb-design-preview .product-detail-condition { border-color: #dfe8d9; background: #f5f8f1; color: #456341; flex-wrap: wrap; border-radius: 8px; }
+.mb-design-preview .product-detail-condition span:last-child { font-size: 11px; font-weight: 500; }
+.mb-design-preview .product-detail-location { align-items: flex-start; margin-bottom: 10px; gap: 7px; color: #69756a; }
+.mb-design-preview .product-detail-location svg { flex-shrink: 0; margin-top: 2px; stroke-width: 1.65; }
+.mb-design-preview .product-detail-location span { overflow-wrap: anywhere; font-weight: 400; }
+.mb-design-preview .product-detail-price { margin-bottom: 20px; }
+.mb-design-preview .product-detail-price > div { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-radius: 12px; background: #f0f5eb; border-color: #e0e8d8; padding: 14px 16px; }
+.mb-design-preview .product-detail-price > div > span:first-child { font-size: 12px; font-weight: 500; }
+.mb-design-preview .product-detail-price > div > span:last-child { font-size: 26px; line-height: 1.2; color: #2d5a27; letter-spacing: -.5px; overflow-wrap: anywhere; }
+.mb-design-preview .product-detail-price > p { font-size: 11px; font-weight: 400; line-height: 1.5; }
+.mb-design-preview .product-detail-information .product-detail-description { padding: 18px 0; border-block: 1px solid #e5eadf; border-radius: 0; background: transparent; margin-bottom: 18px; }
+.mb-design-preview .product-detail-information > .border-t { border-color: #e5eadf; }
+.mb-design-preview .product-detail-description h3 { font-size: 12px; font-weight: 500; color: #63705f; margin-bottom: 8px; }
+.mb-design-preview .product-detail-description p { font-size: 14px; line-height: 1.7; font-style: normal; color: #4f6052; overflow-wrap: anywhere; }
+.mb-design-preview .product-detail-owner { padding: 14px; gap: 12px; border-color: #e1e7dc; border-radius: 12px; flex-wrap: wrap; }
+.mb-design-preview .product-detail-owner-avatar { background: #edf3e7; color: #456341; font-weight: 500; }
+.mb-design-preview .product-detail-owner > button { min-height: 44px; padding: 8px 10px; font-size: 11px; font-weight: 500; border-radius: 8px; border-color: #e1e7dc; }
+.mb-design-preview .product-detail-information :is(button,select,textarea):focus-visible { outline: 2px solid #5b8050; outline-offset: 3px; }
+.mb-design-preview .product-detail-information button.bg-forest-green { min-height: 48px; border-radius: 10px; font-size: 14px; font-weight: 600; box-shadow: none; transform: none; padding-block: 13px; }
+.mb-design-preview .product-detail-information button.bg-forest-green:hover { background: #234d36; }
+.mb-design-preview .product-detail-information textarea { border-width: 1px; border-color: #dfe6da; background: #fafbf8; border-radius: 10px; line-height: 1.6; }
+.mb-design-preview .product-detail-information textarea.border-red-400 { border-color: #f87171; }
+.mb-design-preview .product-detail-information [aria-label="Cerrar publicación"] { width: 44px; height: 44px; flex-shrink: 0; padding: 10px; border: 1px solid #e4eadd; border-radius: 50%; }
+.mb-design-preview .product-detail-gallery > .product-detail-photo > button { min-width: 44px; min-height: 44px; box-shadow: 0 2px 10px #152b2415; }
+@media (min-width: 768px) {
+  .mb-design-preview .product-detail-gallery { width: 46%; }
+  .mb-design-preview .product-detail-information { width: 54%; border-left: 1px solid #e1e7dc; }
+}
+@media (max-width: 767px) {
+  .mb-design-preview .product-detail-backdrop { padding: 12px; }
+  .mb-design-preview .product-detail { border-radius: 16px; }
+  .mb-design-preview .product-detail-information { padding: 20px 18px; }
+  .mb-design-preview .product-detail-information h1 { font-size: 23px; letter-spacing: -.4px; }
+  .mb-design-preview .product-detail-photo-frame { border-radius: 10px; }
+  .mb-design-preview .product-detail-description { padding-block: 16px; }
+  .mb-design-preview .product-detail-owner { gap: 10px; padding: 12px; }
+  .mb-design-preview .product-detail-owner > button { margin-left: auto; }
+}

@@ -55,7 +55,7 @@ function sanitize(value) {
       else return null;
     }
     if (hasOwn(value, 'receipt_kind')) {
-      if (!['system', 'staff'].includes(value.receipt_kind)) return null;
+      if (!['system', 'staff', 'support'].includes(value.receipt_kind)) return null;
       item.receipt_kind = value.receipt_kind;
     }
     for (const [key, limit] of [['title', 512], ['subtitle', 1_024], ['thumb', 2_048]]) {
@@ -94,7 +94,7 @@ export function mergeNotificationHistory(previous, incoming, limit = NOTIFICATIO
     for (const value of source) {
       const item = sanitize(value);
       if (!item) continue;
-      const receipt = item.type === 'system_notice' && item.receipt_id != null;
+      const receipt = item.type === 'system_notice' && item.receipt_id != null && item.receipt_kind !== 'support';
       const key = notificationGroupKey(item);
       const existing = groups.get(key);
       if (existing && Date.parse(existing.created_at) > Date.parse(item.created_at)) continue;

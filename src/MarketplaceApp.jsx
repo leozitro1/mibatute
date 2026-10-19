@@ -12,7 +12,7 @@ import useDetailScroll from './components/useDetailScroll.js';
 import { createListingCache } from './components/listingCache.js';
 import { readNotificationHistory, writeNotificationHistory, mergeNotificationHistory,
   markNotificationHistoryRead, markNotificationBellRead, NOTIFICATION_STATE_LIMIT } from './components/notificationHistory.js';
-import { profileNotificationBadges,mergeInboxNotifications,updateInboxNotification } from './components/profileNotificationBadges.js';
+import { profileNotificationBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot } from './components/profileNotificationBadges.js';
 import { subscribeStaffInbox } from './components/staffInboxSignals.js';
 import { catalogTopic, dispatchMarketSignal, noticeFromSignal, notificationCounts } from './components/marketSignals.js';
 import { isPublicationExpired } from './components/articleLifetime.js';
@@ -24,6 +24,7 @@ import SocialBar from './components/SocialBar';
 import './components/HomeCatalog.css';
 import './components/DesignProposal.css';
 import './components/ProfileDesignProposal.css';
+import './components/MarketplaceSurfaces.css';
 import CategoryIcon from './components/CategoryIcon';
 import { deleteArticleImages, getArticleWithImages } from "./supabase/articleService";
 import { transitionSale } from "./supabase/saleTransaction";
@@ -334,9 +335,14 @@ export default function MarketplaceApp() {
     if (uid !== notificationUidRef.current) return;
     saveNotificationHistory(mergeInboxNotifications(historyUidRef.current === uid ? notificationsRef.current : [], messages), uid);
   }, [saveNotificationHistory]);
-  const syncInboxReceipt = useCallback((uid, receiptId, action, kind) => {
+  const removedSupportRef=useRef({uid:null,ids:new Set()});
+  const syncInboxReceipt = useCallback((uid, receiptId, action, kind, throughAt=null) => {
     if (uid !== notificationUidRef.current || historyUidRef.current !== uid) return;
-    saveNotificationHistory(updateInboxNotification(notificationsRef.current, receiptId, action, kind), uid);
+    if(kind==='support'&&action==='delete'){
+      if(removedSupportRef.current.uid!==uid)removedSupportRef.current={uid,ids:new Set()};
+      removedSupportRef.current.ids.add(String(receiptId));
+    }
+    saveNotificationHistory(updateInboxNotification(notificationsRef.current, receiptId, action, kind, throughAt), uid);
   }, [saveNotificationHistory]);
 
   const markRecentNotificationsRead = useCallback(criteria => {
@@ -557,14 +563,16 @@ export default function MarketplaceApp() {
     if (!force && cache.uid === uid && Date.now() - cache.at < NOTIFICATION_REFRESH_MS) return cache.items;
     const pending = (async () => {
       try {
-        const incoming = await fetchActivityNotifications(supabase, uid);
+        const snapshotStartedAt=Date.now();
+        const snapshot = await fetchActivityNotifications(supabase, uid);
+        const incoming=snapshot.filter(item=>item.receipt_kind!=='support'||removedSupportRef.current.uid!==uid||!removedSupportRef.current.ids.has(String(item.receipt_id)));
         if (notificationUidRef.current !== uid) return [];
         const latestReads = readSeenMap(lsKeyChats(uid));
         const items = incoming.map(item => CONVERSATION_NOTIFICATION_TYPES.has(item.type)
           && Date.parse(latestReads[String(item.chat_id)] || '') >= Date.parse(item.created_at)
           ? { ...item, read: true, unreadCount: 0 } : item);
         if(items.some(item=>item.receipt_kind==='staff'&&!notificationsRef.current.some(previous=>previous.receipt_kind==='staff'&&previous.receipt_id===item.receipt_id)))setInboxRevision(value=>value+1);
-        saveNotificationHistory(mergeNotificationHistory(notificationsRef.current, items, NOTIFICATION_STATE_LIMIT), uid);
+        saveNotificationHistory(mergeActivitySnapshot(notificationsRef.current,items,snapshotStartedAt), uid);
         return items;
       } catch (error) {
         console.error('No se pudo actualizar la actividad de notificaciones:', error);
@@ -1286,13 +1294,14 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     const stop = subscribeStaffInbox(supabase, { id: currentUser?.id, created_at: currentUser?.created_at }, notice => {
       const uid = notificationUidRef.current;
       if (!uid) return;
-      if (!notificationsRef.current.some(item => item.receipt_kind === 'staff' && item.receipt_id === notice.receipt_id)) setInboxRevision(value => value + 1);
+      if (notice.receipt_kind!=='support'&&!notificationsRef.current.some(item => item.receipt_kind === 'staff' && item.receipt_id === notice.receipt_id)) setInboxRevision(value => value + 1);
       saveNotificationHistory(mergeNotificationHistory(notificationsRef.current, [notice], NOTIFICATION_STATE_LIMIT), uid);
     }, profile => {
       const uid = notificationUidRef.current;
       setCurrentUser(previous => previous?.id === uid ? { ...previous, ...profile } : previous);
       if (profile.is_blocked || profile.bloqueado) { setIsPublishOpen(false); setChatOpen(null); setSelectedProduct(null); }
     }, {
+      onSupportRemoved: threadId=>syncInboxReceipt(notificationUidRef.current,threadId,'delete','support'),
       onMarketSignal: signal => liveHandlersRef.current.market(signal),
       onReconnect: () => liveHandlersRef.current.reconnect(),
       onStatus: status => {
@@ -1305,7 +1314,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       },
     });
     return () => { clearTimeout(reconnectTimerRef.current); stop(); };
-  }, [currentUser?.id, currentUser?.created_at, saveNotificationHistory]);
+  }, [currentUser?.id, currentUser?.created_at, saveNotificationHistory,syncInboxReceipt]);
 
   useEffect(() => {
     if (currentView !== 'home') return;
@@ -1639,8 +1648,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
             <Navbar
               onSearch={setSearchTerm}
               searchTerm={searchTerm}
-              searchMode={searchMode}
-              onSearchModeChange={setSearchMode}
               currentCity={selectedCity}
               onCityChange={(city) => {
                 setSelectedCity(city);
@@ -1672,7 +1679,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     await openChatByArticleAndBuyer({ article: { id: item.articulo_id }, buyerId: item.buyer_id || uid, expectedChatId: item.chat_id });
                   } else {
                     const owned = products.some(p => String(p.id) === String(item.articulo_id) && String(p.owner_id) === String(uid));
-                    setProfileNotificationTarget({ id: item.id, articleId: item.articulo_id, receiptId: item.receipt_id,
+                    setProfileNotificationTarget({ id: item.id, articleId: item.articulo_id, receiptId: item.receipt_id, receiptKind:item.receipt_kind,
                       tab: owned ? 'publicaciones' : destination });
                     setCurrentView('profile');
                   }
@@ -1982,6 +1989,16 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                         </div>
                       </div>
 
+                      {searchTerm.trim() && <div role="group" aria-label="Modo de búsqueda" className="mb-4 inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-gray-200 bg-white p-1">
+                        {[['related', 'Relacionados'], ['specific', 'Específica']].map(([value, label]) => (
+                          <button key={value} type="button" aria-pressed={searchMode === value}
+                            onClick={() => setSearchMode(value)}
+                            className={`min-h-11 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${searchMode === value ? 'bg-forest-green text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>}
+
                       {catalogChanged && <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-forest-green">
                         <span>Hay novedades en las publicaciones.</span>
                         <button type="button" disabled={homeBusy} onClick={() => load()} className="shrink-0 font-bold underline disabled:opacity-50">Actualizar</button>
@@ -2082,6 +2099,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   myProducts={myProducts}
                   notifByArticulo={notifByArticulo}
                   notificationBadges={profileBadges}
+                  supportUnreadCount={profileNotificationBadges(historyUidRef.current===currentUser?.id?notifications.filter(item=>item.receipt_kind==='support'):[],currentUser?.id).buzon}
                   onInboxNotifications={syncInboxNotifications}
                   onInboxReceiptChange={syncInboxReceipt}
                   inboxRevision={inboxRevision}

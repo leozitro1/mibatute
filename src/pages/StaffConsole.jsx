@@ -17,6 +17,7 @@ import './StaffConsole.css';
 
 const StaffSponsors=lazy(()=>import('../staff/StaffSponsors.jsx'));
 const StaffStatistics=lazy(()=>import('../staff/StaffStatistics.jsx'));
+const SupportInbox=lazy(()=>import('../components/SupportInbox.jsx'));
 
 const icons={inbox:Inbox,package:Package,flag:Flag,users:Users,megaphone:Megaphone,history:History,shield:ShieldCheck,chart:ChartNoAxesCombined};
 const permissions={moderation:'Moderación',reports:'Reportes',users:'Usuarios',chat_audit:'Auditar chats'};
@@ -139,7 +140,7 @@ export default function StaffConsole({ requireMaster=false }) {
 
   const load=useCallback(async()=>{
     if(activeStage.current!=='app')return;
-    if(['sponsors','statistics'].includes(section)){requestId.current++;setBusy(false);return;}
+    if(['sponsors','statistics','inbox'].includes(section)){requestId.current++;setBusy(false);return;}
     const id=++requestId.current;
     setBusy(true);setError('');
     try {
@@ -313,7 +314,7 @@ export default function StaffConsole({ requireMaster=false }) {
         <div className="staff-heading"><div><h1>{current?.label}</h1>{section==='articles'&&<p className="staff-results-count" role="status">{articleActionsBusy||!data?'Calculando publicaciones…':`${new Intl.NumberFormat('es-CO').format(data.total)} ${data.total===1?'publicación':'publicaciones'}`}</p>}</div><div className="staff-tools">
           {!['pending','statistics'].includes(section)&&<label className="staff-search"><Search size={16} /><input aria-label="Buscar en el panel" placeholder={section==='users'?'Nombre, correo, teléfono o ID':'Buscar'} value={search} onChange={event=>{setSearch(event.target.value);setSelectedUsers([]);}} /></label>}
           {section==='team'&&<button type="button" className="staff-button staff-button-primary" onClick={()=>{setModal({action:'add',label:'Incorporar cuenta verificada'});setTeamEmail('');setTeamRole('admin');setReason('');setError('');}}><UserPlus size={16} />Incorporar</button>}
-          {section!=='statistics'&&<IconButton label="Actualizar" icon={RefreshCw} onClick={()=>section==='sponsors'?setSponsorRevision(previous=>previous+1):load()} disabled={busy} />}
+          {section!=='statistics'&&<IconButton label="Actualizar" icon={RefreshCw} onClick={()=>['sponsors','inbox'].includes(section)?setSponsorRevision(previous=>previous+1):load()} disabled={busy} />}
         </div></div>
         {section==='articles'&&<div className="staff-filters" aria-label="Filtros de publicaciones">
           <div><label htmlFor="staff-filter-mode">Tipo de publicación</label><select id="staff-filter-mode" value={articleFilters.mode} onChange={event=>filterArticles('mode',event.target.value)}><option value="">Todos los tipos</option><option value="venta">Venta</option><option value="donacion">Donación</option></select></div>
@@ -354,7 +355,7 @@ export default function StaffConsole({ requireMaster=false }) {
           <div className="staff-status-band"><ShieldCheck size={20} className="text-forest-green" /><span>Verificación en dos pasos activa</span></div>
           <div className="staff-status-band"><History size={20} className="text-teal-700" /><span>Historial de acciones</span><button type="button" className="ml-auto staff-button" onClick={()=>navigate('audit')}>Consultar</button></div>
           {account.role==='master'&&<div className="staff-status-band"><CreditCard size={20} className="text-amber-700" /><span>Pagos y ajustes de créditos</span><span className="ml-auto staff-badge staff-badge-muted">Desactivados</span></div>}
-        </>:section==='sponsors'?<Suspense fallback={<p role="status">Cargando campañas...</p>}><StaffSponsors query={query} revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:section==='statistics'?<Suspense fallback={<p role="status">Cargando estadísticas...</p>}><StaffStatistics revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:<>
+        </>:section==='inbox'?<Suspense fallback={<p role="status">Cargando buzón…</p>}><SupportInbox key={account.userId} client={staffClient} isStaff userId={account.userId} query={query} revision={sponsorRevision} onActivity={markStaffActivity} onAccessExpired={()=>leave('La sesión venció. Vuelve a verificar tu acceso.')} /></Suspense>:section==='sponsors'?<Suspense fallback={<p role="status">Cargando campañas...</p>}><StaffSponsors query={query} revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:section==='statistics'?<Suspense fallback={<p role="status">Cargando estadísticas...</p>}><StaffStatistics revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:<>
           <table className={`staff-table ${section==='articles'?'staff-publications-table':section==='users'?'staff-users-table':''}`}><thead><tr>{section==='users'&&<th className="staff-user-selection"><input type="checkbox" aria-label="Seleccionar usuarios de esta página" checked={pageSelected} ref={node=>{if(node)node.indeterminate=!pageSelected&&pageUsers.some(row=>selectedUsers.some(user=>user.id===row.id));}} disabled={articleActionsBusy||!pageUsers.length} onChange={togglePageUsers} /></th>}<th>{section==='audit'?'Acción':section==='reports'?'Caso':'Registro'}</th>{section==='users'&&<><th>Publicaciones</th><th>Calificación</th><th>Créditos</th></>}<th>{section==='audit'?'Tipo':'Estado'}</th><th>Fecha</th><th>{section==='audit'?'Responsable':'Acciones'}</th></tr></thead>
             <tbody>{(data?.rows||[]).map(row=><tr key={row.id}>{section==='users'&&<td className="staff-user-selection"><input type="checkbox" aria-label={`Seleccionar usuario: ${row.nombre||'Usuario'}`} checked={selectedUsers.some(user=>user.id===row.id)} disabled={articleActionsBusy} onChange={()=>toggleUser(row)} /></td>}
               <td>{section==='articles'?<><button type="button" className="staff-item staff-article-link" onClick={()=>openArticle(row)} aria-label={`Abrir publicación: ${row.title}`}>

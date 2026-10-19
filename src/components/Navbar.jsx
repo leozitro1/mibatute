@@ -115,7 +115,7 @@ function NotificationsDropdown({
   return (
     <div
       ref={panelRef}
-      className="fixed right-3 top-16 sm:absolute sm:right-0 sm:top-[44px] w-[360px] max-w-[calc(100vw-24px)] bg-white border border-gray-200 shadow-xl rounded-lg overflow-hidden z-[80]"
+      className="marketplace-surface marketplace-notifications fixed right-3 top-16 sm:absolute sm:right-0 sm:top-[44px] w-[360px] max-w-[calc(100vw-24px)] bg-white border border-gray-200 shadow-xl rounded-lg overflow-hidden z-[80]"
       role="menu"
       aria-label="Notificaciones"
     >
@@ -155,7 +155,6 @@ function NotificationsDropdown({
               const time = formatAgo(n?.created_at || n?.createdAt || n?.time);
 
               const thumb = safeText(n?.thumb || n?.image || n?.foto_url, "");
-              const fallbackLetter = safeText(n?.letter, "•").slice(0, 1).toUpperCase();
 
               return (
                 <button
@@ -167,20 +166,17 @@ function NotificationsDropdown({
                   onClick={() => onItemClick?.(n)}
                   className={`w-full text-left px-4 py-3 hover:bg-gray-100 transition flex items-start gap-3 ${n.read ? 'bg-white' : 'bg-green-50/60'}`}
                 >
-                  <div className="shrink-0">
-                    {thumb ? (
+                  <div className="notification-thumbnail relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-100 bg-[#f1f5ec]">
+                    <img src={logoMiBatute} alt="" aria-hidden="true" className="notification-brand-icon h-7 w-7 object-contain opacity-50 saturate-50" />
+                    {thumb && (
                       <img
                         src={thumb}
                         alt=""
-                        className="w-10 h-10 rounded-2xl object-cover border border-gray-100"
+                        className="absolute inset-0 h-full w-full object-cover"
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
                         }}
                       />
-                    ) : (
-                      <div className="w-10 h-10 rounded-2xl bg-gray-100 border border-gray-100 flex items-center justify-center font-black text-gray-500">
-                        {fallbackLetter}
-                      </div>
                     )}
                   </div>
 
@@ -211,8 +207,6 @@ function NotificationsDropdown({
 export default function Navbar({
   onSearch,
   searchTerm,
-  searchMode = "related",
-  onSearchModeChange,
   currentCity,
   onCityChange,
 
@@ -484,55 +478,47 @@ export default function Navbar({
           </button>
 
           <div className={`order-3 basis-full xl:order-none xl:basis-auto flex-1 min-w-0 relative${isProfile ? " opacity-40 pointer-events-none select-none" : ""}`}>
-            <div className="relative w-full">
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchValue}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setSearchValue(v);
-                  onSearch?.(v);
-                }}
-                placeholder="Busca artículos, materiales, repuestos..."
-                className="w-full bg-gray-100 border border-gray-200 rounded-lg py-2.5 pl-10 pr-12 focus:ring-2 focus:ring-forest-green outline-none text-sm"
-                aria-label="Buscar"
-              />
-
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={18}
-              />
-
-              {searchValue?.trim()?.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchValue("");
-                    onSearch?.("");
-                    requestAnimationFrame(() => searchInputRef.current?.focus());
+            <div className="navbar-search-field flex min-w-0 items-center rounded-xl border border-gray-200 bg-gray-100 focus-within:ring-2 focus-within:ring-forest-green">
+              <div className="relative min-w-0 flex-1">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchValue}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSearchValue(v);
+                    onSearch?.(v);
                   }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-8 w-8 rounded-full bg-white/90 border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-forest-green transition z-10"
-                  aria-label="Borrar búsqueda"
-                  title="Borrar"
-                >
-                  <X size={16} />
-                </button>
-              ) : null}
-
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <div className="inline-flex shrink-0 rounded-lg border border-gray-200 p-0.5" role="group" aria-label="Modo de búsqueda">
-                {[['related', 'Relacionados'], ['specific', 'Específica']].map(([value, label]) => (
-                  <button key={value} type="button" aria-pressed={searchMode === value}
-                    onClick={() => onSearchModeChange?.(value)}
-                    className={`px-2 py-1 text-[11px] font-semibold rounded-md ${searchMode === value ? 'bg-forest-green text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-                    {label}
+                  placeholder="Busca artículos, materiales, repuestos..."
+                  className="navbar-search-input w-full min-w-0 bg-transparent py-3 pl-10 pr-11 outline-none text-sm"
+                  aria-label="Buscar"
+                />
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} aria-hidden="true" />
+                {searchValue?.trim()?.length > 0 ? (
+                  <button type="button"
+                    onClick={() => {
+                      setSearchValue("");
+                      onSearch?.("");
+                      requestAnimationFrame(() => searchInputRef.current?.focus());
+                    }}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-11 w-11 rounded-lg text-gray-500 hover:text-forest-green transition"
+                    aria-label="Borrar búsqueda" title="Borrar búsqueda">
+                    <X size={16} />
                   </button>
-                ))}
+                ) : null}
               </div>
-              {categoriesNormalized.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="navbar-search-city relative flex min-h-11 shrink-0 items-center gap-1.5 border-l border-gray-200 pl-2 pr-2 sm:pl-3">
+                <MapPin size={15} className="shrink-0 text-forest-green" aria-hidden="true" />
+                <select value={currentCity} onChange={(e) => onCityChange?.(e.target.value)}
+                  className="min-h-11 min-w-0 max-w-28 bg-transparent pr-4 text-xs font-medium text-gray-700 outline-none appearance-none cursor-pointer focus-visible:outline-2 focus-visible:outline-forest-green"
+                  aria-label="Seleccionar ciudad">
+                  {ACTIVE_COLOMBIA_DATA.map((c) => <option key={c.city} value={c.city}>{c.city}</option>)}
+                </select>
+                <ChevronDown size={12} className="pointer-events-none absolute right-2 text-gray-500" aria-hidden="true" />
+              </div>
+            </div>
+            {categoriesNormalized.length > 0 ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <div className="relative flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm hover:border-forest-green transition-colors cursor-pointer group">
                     <span className="text-[10px] font-black uppercase text-gray-400">Cat</span>
                     <select
@@ -581,30 +567,6 @@ export default function Navbar({
                   ) : null}
                 </div>
               ) : null}
-
-              <div
-                className="relative flex items-center gap-1 bg-white border border-gray-200 rounded-full px-3 py-1 hover:border-forest-green transition-colors cursor-pointer group"
-              >
-                <MapPin size={14} className="hidden sm:block text-forest-green" />
-                <select
-                  value={currentCity}
-                  onChange={(e) => onCityChange?.(e.target.value)}
-                  className="bg-transparent text-[11px] font-bold text-gray-600 outline-none appearance-none cursor-pointer pr-6"
-                  aria-label="Seleccionar ciudad"
-                >
-                  {ACTIVE_COLOMBIA_DATA.map((c) => (
-                    <option key={c.city} value={c.city}>
-                      {c.city}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={12}
-                  className="absolute right-2 text-gray-400 group-hover:text-forest-green pointer-events-none"
-                />
-              </div>
-            </div>
-
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-3">
@@ -732,8 +694,8 @@ export default function Navbar({
       </nav>
 
       {showLogoutConfirm && (
-        <div className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden animate-in zoom-in duration-150">
+        <div className="marketplace-overlay fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div role="dialog" aria-modal="true" aria-label="Confirmar salida" className="marketplace-surface marketplace-modal w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden animate-in zoom-in duration-150">
             <div className="p-5 border-b">
               <div className="font-black text-gray-800 uppercase tracking-widest text-sm">Confirmar salida</div>
               <div className="text-sm text-gray-600 mt-1">¿Seguro que quieres salir?</div>

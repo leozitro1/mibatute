@@ -127,3 +127,16 @@
     border-radius: 8px;
   }
 }
+
+.profile-inbox-tabs { display:flex;gap:5px;padding:5px;background:#edf1e9;border:1px solid #e1e7dc;border-radius:12px; }
+.profile-inbox-tabs [role="tab"] { display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-width:0;min-height:44px;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:500;color:#647060;cursor:pointer; }
+.profile-inbox-tabs [role="tab"][aria-selected="true"] { background:#fff;color:#2d5a27;box-shadow:0 1px 4px #253d2e0d; }
+.profile-inbox-tabs [role="tab"]:hover { color:#2d5a27; }
+.profile-inbox-tabs [role="tab"]:focus-visible { outline:2px solid #5b8050;outline-offset:2px; }
+.profile-inbox-tabs svg { flex-shrink:0; }
+.profile-inbox-count { display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;border-radius:6px;background:#e6edde;color:#345737;font-size:10px;font-weight:600; }
+.profile-inbox-panel .support-inbox { padding:0;border-bottom:0;margin-bottom:0; }
+.profile-inbox-panel[hidden] { display:none; }
+@media(max-width:400px) { .profile-inbox-tabs [role="tab"] { gap:5px;padding:8px 6px;font-size:11px; }.profile-inbox-tabs svg { width:14px;height:14px; } }
+.profile-inbox-tabs [role="tab"] > span:first-of-type { white-space:nowrap; }
+@media(max-width:400px) { .profile-inbox-tabs [role="tab"] { gap:4px;padding-inline:4px; }.profile-inbox-tabs svg { display:none; } }

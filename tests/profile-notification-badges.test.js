@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { profileNotificationBadges,mergeInboxNotifications,updateInboxNotification } from '../src/components/profileNotificationBadges.js';
+import { profileNotificationBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot } from '../src/components/profileNotificationBadges.js';
 import { mergeNotificationHistory,markNotificationHistoryRead,markNotificationBellRead,NOTIFICATION_STATE_LIMIT,writeNotificationHistory,readNotificationHistory } from '../src/components/notificationHistory.js';
 
 const now='2026-10-16T12:00:00.000Z';
@@ -90,4 +90,29 @@ test('bell-only acknowledgements persist locally without changing underlying unr
   writeNotificationHistory(storage,'me',markNotificationBellRead([notification],[notification]));
   const loaded=readNotificationHistory(storage,'me');assert.equal(loaded[0].bellRead,true);assert.equal(loaded[0].unreadCount,4);
   assert.equal(profileNotificationBadges(loaded,'me').rescates,4);
+});
+
+test('a support read snapshot cannot clear a reply that arrived afterwards',()=>{
+  const notice=item('support','system_notice',{receipt_id:'t',receipt_kind:'support'});
+  const newer={...notice,created_at:'2026-10-16T12:01:00.000Z'};
+  assert.equal(updateInboxNotification([newer],'t','read','support',now)[0].read,false);
+  assert.equal(updateInboxNotification([notice],'t','read','support',now)[0].read,true);
+});
+
+test('a later support answer restores the unread badge on the same conversation',()=>{
+  const read=item('support','system_notice',{receipt_id:'thread',receipt_kind:'support',read:true,bellRead:true});
+  const reply={...read,read:false,bellRead:false,created_at:'2026-10-16T12:01:00.000Z'};
+  const result=mergeNotificationHistory([read],[reply],NOTIFICATION_STATE_LIMIT);
+  assert.equal(result[0].read,false);assert.equal(result[0].bellRead,false);
+  assert.equal(profileNotificationBadges(result,'me').buzon,1);
+});
+
+test('removing support threads clears only their notices, including old offline cache on refresh',()=>{
+ const support=item('support','system_notice',{receipt_id:'thread',receipt_kind:'support'});
+ const system=item('system','system_notice',{receipt_id:'thread'});
+ assert.deepEqual(updateInboxNotification([support,system],'thread','delete','support'),[system]);
+ assert.deepEqual(mergeActivitySnapshot([support,system],[],Date.parse(now)),[system]);
+ const newer={...support,created_at:'2026-10-16T12:01:00.000Z'};
+ assert.equal(mergeActivitySnapshot([newer],[],Date.parse(now)).length,1,'A concurrent new response survives an older HTTP snapshot');
+ assert.equal(mergeActivitySnapshot([support],[support],Date.parse(now)).length,1);
 });

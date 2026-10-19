@@ -485,7 +485,7 @@ export default function ManageArticleModal({
   const winnerFoto = winnerVisible?.foto_url || "";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="marketplace-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         onKeyDown={e => {
           if (e.key === 'Escape' && !savingWinner) onClose?.();
@@ -496,7 +496,7 @@ export default function ManageArticleModal({
           if (e.shiftKey && (document.activeElement === first || document.activeElement === e.currentTarget)) { e.preventDefault(); last?.focus(); }
           else if (!e.shiftKey && (document.activeElement === last || document.activeElement === e.currentTarget)) { e.preventDefault(); first?.focus(); }
         }}
-        className="flex max-h-[min(760px,calc(100dvh-32px))] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl outline-none">
+        className="marketplace-surface marketplace-modal flex max-h-[min(760px,calc(100dvh-32px))] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl outline-none">
         {/* HEADER */}
         <div className="shrink-0 p-4 sm:p-6">
           <div className="flex items-start justify-between gap-4">

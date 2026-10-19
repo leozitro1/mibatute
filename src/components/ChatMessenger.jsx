@@ -1,6 +1,6 @@
 // src/components/ChatMessenger.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Flag } from 'lucide-react';
+import { Flag, X } from 'lucide-react';
 import { supabase } from "../supabase/supabaseClient";
 import { submitChatReport } from '../supabase/reports.js';
 import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
@@ -796,9 +796,9 @@ export default function ChatMessenger({
     <div className="fixed inset-0 z-[9999] flex">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-black/40" aria-label="Cerrar chat" />
 
-      <div className="relative ml-auto h-full w-full max-w-xl bg-white shadow-2xl border-l border-gray-200 flex flex-col">
+      <div role="dialog" aria-modal="true" aria-label="Conversación" className="marketplace-surface marketplace-chat relative ml-auto h-full w-full max-w-xl bg-white shadow-2xl border-l border-gray-200 flex flex-col">
         {/* HEADER */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 flex flex-wrap items-center gap-3">
+        <div className="marketplace-chat-header sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={onClose}
@@ -839,7 +839,7 @@ export default function ChatMessenger({
 
         {/* CARD ARTÍCULO */}
         <div className="px-4 pt-4">
-          <div className="rounded-3xl border border-gray-100 bg-gray-50 p-4 flex gap-3">
+          <div className="marketplace-chat-article rounded-3xl border border-gray-100 bg-gray-50 p-4 flex gap-3">
             <img
               src={getThumb(article)}
               alt="art"
@@ -967,7 +967,7 @@ export default function ChatMessenger({
                             return (
                               <div
                                 key={m.id || `${m.created_at}-${i}`}
-                                className={`px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
+                                data-own={isMe} className={`marketplace-chat-bubble px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
                                   isMe
                                     ? "bg-forest-green text-white rounded-br-md"
                                     : "bg-white text-gray-800 border border-gray-100 rounded-bl-md"
@@ -1040,8 +1040,8 @@ export default function ChatMessenger({
 
       {/* MODAL DENUNCIA CHAT */}
       {showReport && (
-        <div className="fixed inset-0 z-[500] bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
+        <div className="marketplace-overlay fixed inset-0 z-[500] bg-black/40 flex items-center justify-center p-4">
+          <div role="dialog" aria-modal="true" aria-label="Denunciar conversación" className="marketplace-surface marketplace-modal w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
             <div className="p-4 border-b flex items-center justify-between">
               <div>
                 <div className="text-xs font-black uppercase text-gray-500">Denunciar usuario</div>
@@ -1052,8 +1052,9 @@ export default function ChatMessenger({
                 className="p-2 rounded-xl hover:bg-gray-100"
                 onClick={() => setShowReport(false)}
                 title="Cerrar"
+                aria-label="Cerrar denuncia"
               >
-                ✕
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
 

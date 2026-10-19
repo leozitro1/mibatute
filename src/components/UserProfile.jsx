@@ -7,6 +7,7 @@ import { accountCreditStatus } from '../supabase/donationApplications.js';
 import './UserProfile.css';
 import './TransactionActions.css';
 import WompiTopupDialog from './WompiTopupDialog.jsx';
+import SupportInbox from './SupportInbox.jsx';
 import {
   Camera,
   ArrowLeft,
@@ -684,7 +685,7 @@ function ModalSolicitudes({
           if (e.shiftKey && (document.activeElement === first || document.activeElement === e.currentTarget)) { e.preventDefault(); last?.focus(); }
           else if (!e.shiftKey && (document.activeElement === last || document.activeElement === e.currentTarget)) { e.preventDefault(); first?.focus(); }
         }}
-        className="relative flex max-h-[min(760px,calc(100dvh-32px))] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-gray-100 bg-white shadow-xl outline-none">
+        className="marketplace-surface marketplace-modal relative flex max-h-[min(760px,calc(100dvh-32px))] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-gray-100 bg-white shadow-xl outline-none">
         <div className="shrink-0 border-b border-gray-200 p-4 sm:p-6">
           <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -881,6 +882,7 @@ export default function UserProfile({
   myProducts = [],
   notifByArticulo = {},
   notificationBadges = {},
+  supportUnreadCount = 0,
   onInboxNotifications,
   onInboxReceiptChange,
   inboxRevision=0,
@@ -895,10 +897,20 @@ export default function UserProfile({
 }) {
   const publicationNow = usePublicationClock();
   const [activeTab, setActiveTab] = useState("publicaciones"); // ✅ ahora inicia en Buzón
+  const [inboxTab,setInboxTab]=useState('system');
+  const inboxTabId=useId();
+  const changeInboxTab=tab=>{setInboxTab(tab);setSysMsgModal(null);};
+  const inboxTabKey=event=>{
+    if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+    event.preventDefault();
+    const next=event.key==='Home'?'system':event.key==='End'?'conversations':inboxTab==='conversations'?'system':'conversations';
+    changeInboxTab(next);event.currentTarget.parentElement.querySelector(`[data-inbox-tab="${next}"]`)?.focus();
+  };
   const [personalDetailsOpen, setPersonalDetailsOpen] = useState(false);
   useEffect(() => {
     if (!notificationTarget) return;
     if (['publicaciones', 'rescates', 'buzon'].includes(notificationTarget.tab)) setActiveTab(notificationTarget.tab);
+    if(notificationTarget.tab==='buzon'){setInboxTab(notificationTarget.receiptKind==='support'?'conversations':'system');setSysMsgModal(null);}
     setPublicationFilters({ ...DEFAULT_PROFILE_FILTERS });
     setRescateFilters({ ...DEFAULT_PROFILE_FILTERS });
   }, [notificationTarget]);
@@ -1852,29 +1864,28 @@ export default function UserProfile({
   // ✅ sysMsgs: solo se carga cuando el usuario abre "buzon" (lazy)
   const openedSystemNotificationRef = useRef(null);
   useEffect(() => {
-    if (activeTab !== 'buzon' || !notificationTarget?.receiptId
+    if (activeTab !== 'buzon' || inboxTab!=='system' || notificationTarget?.receiptKind==='support' || !notificationTarget?.receiptId
       || openedSystemNotificationRef.current === notificationTarget) return;
     const message = sysMsgs.find(item => String(item.receipt_id) === String(notificationTarget.receiptId));
     if (!message) return;
     openedSystemNotificationRef.current = notificationTarget;
     setSysMsgModal({ ...message, read_at: message.read_at || new Date().toISOString() });
     if (!message.read_at) markReceipt(message.receipt_id, 'read', message.receipt_kind);
-  }, [notificationTarget, activeTab, sysMsgs, markReceipt]);
+  }, [notificationTarget, activeTab, inboxTab, sysMsgs, markReceipt]);
 
   useEffect(() => {
     if (!user?.id) return;
-    if (activeTab !== "buzon") return;
-    if (sysMsgsCargadosRef.current) return;
-    sysMsgsCargadosRef.current = true;
+    if (activeTab !== "buzon" || inboxTab!=="system") return;
+    if (sysMsgsCargadosRef.current && loadedInboxRevisionRef.current===inboxRevisionRef.current) return;
     loadSysMsgs();
-  }, [user?.id, activeTab, loadSysMsgs]);
+  }, [user?.id, activeTab, inboxTab, loadSysMsgs]);
 
   useEffect(()=>{
-    if(activeTab==='buzon'&&notificationTarget?.receiptId&&openedSystemNotificationRef.current!==notificationTarget&&sysMsgsCargadosRef.current
+    if(activeTab==='buzon'&&inboxTab==='system'&&notificationTarget?.receiptKind!=='support'&&notificationTarget?.receiptId&&openedSystemNotificationRef.current!==notificationTarget&&sysMsgsCargadosRef.current
       &&!sysMsgs.some(message=>String(message.receipt_id)===String(notificationTarget.receiptId)))loadSysMsgs();
     // A notification click may request a new body even when this tab was already loaded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[notificationTarget,activeTab,loadSysMsgs]);
+  },[notificationTarget,activeTab,inboxTab,loadSysMsgs]);
 
   // ✅ Sin polling — refs para leer estado sin dependencias reactivas
   const publicationsRef = useRef([]);
@@ -1896,12 +1907,12 @@ export default function UserProfile({
         const rescIds = rescatesRef.current.map((r) => String(r?.articulo_id || getArticuloId(r?.articulo) || "")).filter(Boolean);
         const allIds = [...new Set([...pubIds, ...rescIds])];
         if (allIds.length) await loadUnreadRef.current?.(allIds);
-        if (activeTab === "buzon" && sysMsgsCargadosRef.current) await loadSysMsgs();
+        if (activeTab === "buzon" && inboxTab === "system" && sysMsgsCargadosRef.current) await loadSysMsgs();
       } catch {}
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [user?.id, activeTab, loadSysMsgs]);
+  }, [user?.id, activeTab, inboxTab, loadSysMsgs]);
 
 
 
@@ -2693,7 +2704,7 @@ export default function UserProfile({
               <button
                 onClick={() => {
                   setActiveTab("buzon");
-                  if(sysMsgsCargadosRef.current&&loadedInboxRevisionRef.current!==inboxRevisionRef.current)loadSysMsgs();
+                  if(inboxTab==='system'&&sysMsgsCargadosRef.current&&loadedInboxRevisionRef.current!==inboxRevisionRef.current)loadSysMsgs();
                 }}
                 className={`flex-1 py-4 text-sm font-bold transition flex items-center justify-center gap-2 ${
                   activeTab === "buzon"
@@ -2716,6 +2727,20 @@ export default function UserProfile({
             <div className="profile-activity-body py-4 space-y-4">
               {activeTab === "buzon" && (
                 <>
+                  <div className="profile-inbox-tabs" role="tablist" aria-label="Secciones del buzón">
+                    {[['system','Avisos del sistema',Bell,Math.max(0,inboxUnreadCount-supportUnreadCount)],['conversations','Conversaciones',MessageCircle,supportUnreadCount]].map(([tab,label,Icon,count])=>(
+                      <button key={tab} type="button" role="tab" id={`${inboxTabId}-${tab}-tab`} aria-controls={`${inboxTabId}-${tab}-panel`} aria-selected={inboxTab===tab} tabIndex={inboxTab===tab?0:-1} data-inbox-tab={tab} onKeyDown={inboxTabKey} onClick={()=>changeInboxTab(tab)}>
+                        <Icon size={16} aria-hidden="true" /><span>{label}</span>{count>0&&<span className="profile-inbox-count" aria-label={`${count} sin leer`}>{count}</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <div role="tabpanel" id={`${inboxTabId}-conversations-panel`} aria-labelledby={`${inboxTabId}-conversations-tab`} hidden={inboxTab!=='conversations'} className="profile-inbox-panel">
+                  <SupportInbox key={user.id} userId={user.id} isActive={inboxTab==='conversations'}
+                    targetThreadId={notificationTarget?.receiptKind==='support'?notificationTarget.receiptId:null} targetVersion={notificationTarget}
+                    onRemoved={threadId=>onInboxReceiptChange?.(user.id,threadId,'delete','support')}
+                    onSeen={(threadId,throughAt)=>onInboxReceiptChange?.(user.id,threadId,'read','support',throughAt)} />
+                  </div>
+                  <div role="tabpanel" id={`${inboxTabId}-system-panel`} aria-labelledby={`${inboxTabId}-system-tab`} hidden={inboxTab!=='system'} className="profile-inbox-panel">
                   {/* ── Mensajes del sistema ──────────────────────────── */}
                   <div className="flex items-center justify-between gap-3"><h3 className="text-xs font-bold text-gray-500">Mensajes de MiBatute</h3><button type="button" aria-label="Actualizar buzón" title="Actualizar buzón" disabled={sysMsgsLoading} onClick={loadSysMsgs} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40"><RefreshCw size={16} className={sysMsgsLoading?'animate-spin':''} /></button></div>
                   {sysMsgsLoading ? (
@@ -2793,13 +2818,13 @@ export default function UserProfile({
                   {/* ── Modal mensaje completo ─────────────────────────────── */}
                   {sysMsgModal && (
                     <div
-                      className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4"
+                      className="marketplace-overlay fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4"
                       onClick={() => setSysMsgModal(null)}
                     >
                       <div
                         role="dialog" aria-modal="true" aria-labelledby="system-message-title"
                         data-system-message-receipt={sysMsgModal.receipt_id}
-                        className="w-full max-w-md max-h-[85dvh] overflow-y-auto bg-white rounded-3xl shadow-2xl p-6 [overflow-wrap:anywhere]"
+                        className="marketplace-surface marketplace-modal w-full max-w-md max-h-[85dvh] overflow-y-auto bg-white rounded-3xl shadow-2xl p-6 [overflow-wrap:anywhere]"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {/* cabecera */}
@@ -2870,10 +2895,11 @@ export default function UserProfile({
                   {sysMsgs.length === 0 && !sysMsgsLoading && (
                     <div className="text-center py-12">
                       <p className="text-gray-400 font-bold">
-                        Tu buzón está vacío. Aquí verás notificaciones del sistema.
+                        No tienes avisos del sistema.
                       </p>
                     </div>
                   )}
+                  </div>
                 </>
               )}
 
@@ -3471,8 +3497,8 @@ export default function UserProfile({
 
           {/* \u2b50 Modal calificación */}
       {calificarModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl">
+        <div className="marketplace-overlay fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4">
+          <div role="dialog" aria-modal="true" aria-label="Calificar experiencia" className="marketplace-surface marketplace-modal marketplace-rating bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl">
             {/* Título */}
             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Reputación</p>
             <h3 className="text-lg font-black text-gray-900 mb-1">Califica tu experiencia</h3>
@@ -3486,7 +3512,7 @@ export default function UserProfile({
               {[1,2,3,4,5].map(s => {
                 const activa = s <= (calificarHover || calificarEstrellas);
                 return (
-                  <button key={s} type="button"
+                  <button key={s} type="button" aria-label={`Calificar con ${s} ${s === 1 ? "estrella" : "estrellas"}`} aria-pressed={calificarEstrellas === s}
                     onMouseEnter={() => setCalificarHover(s)}
                     onMouseLeave={() => setCalificarHover(0)}
                     onClick={() => setCalificarEstrellas(s)}
@@ -3505,11 +3531,11 @@ export default function UserProfile({
             {/* Label selección */}
             <p className="text-center text-xs font-black text-gray-400 uppercase tracking-wide mb-5">
               {calificarEstrellas === 0 && "Selecciona una calificación"}
-              {calificarEstrellas === 1 && "😕 Mala experiencia"}
-              {calificarEstrellas === 2 && "😐 Regular"}
-              {calificarEstrellas === 3 && "🙂 Buena"}
-              {calificarEstrellas === 4 && "😊 Muy buena"}
-              {calificarEstrellas === 5 && "🤩 Excelente"}
+              {calificarEstrellas === 1 && "Mala experiencia"}
+              {calificarEstrellas === 2 && "Regular"}
+              {calificarEstrellas === 3 && "Buena"}
+              {calificarEstrellas === 4 && "Muy buena"}
+              {calificarEstrellas === 5 && "Excelente"}
             </p>
             <div className="flex gap-3">
               <button type="button"
@@ -3576,7 +3602,7 @@ export default function UserProfile({
             aria-label="Cerrar"
           />
 
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+          <div className="marketplace-surface marketplace-modal relative w-full max-w-md bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b">
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                 Eliminar cuenta
@@ -3685,14 +3711,14 @@ export default function UserProfile({
       {/* Modal previsualización */}
       {previewOpen && previewArt ? (
         <div
-          className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          className="marketplace-overlay fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => {
             setPreviewOpen(false);
             setPreviewArt(null);
           }}
         >
           <div
-            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            className="marketplace-surface marketplace-modal w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b">

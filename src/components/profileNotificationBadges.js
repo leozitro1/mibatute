@@ -39,9 +39,20 @@ export function mergeInboxNotifications(previous,messages) {
   return mergeNotificationHistory([],[(previous||[]).filter(item=>item.type!=='system_notice'||!keys.has(receiptKey(item))),receipts].flat(),NOTIFICATION_STATE_LIMIT);
 }
 
-export function updateInboxNotification(items,receiptId,action,kind='system') {
+export function updateInboxNotification(items,receiptId,action,kind='system',throughAt=null) {
   if(!['read','unread','delete'].includes(action))return items;
-  return mergeNotificationHistory([],items,NOTIFICATION_STATE_LIMIT).map(item=>
+  const current=mergeNotificationHistory([],items,NOTIFICATION_STATE_LIMIT);
+  if(action==='delete'&&kind==='support')return current.filter(item=>!(item.receipt_kind==='support'&&String(item.receipt_id)===String(receiptId)));
+  return current.map(item=>
     item.type==='system_notice'&&String(item.receipt_id)===String(receiptId)&&(item.receipt_kind||'system')===kind
+      &&(!throughAt||Date.parse(item.created_at)<=Date.parse(throughAt))
       ?{...item,read:action!=='unread',unreadCount:action==='unread'?1:0}:item);
+}
+
+// Support replies disappear from a refreshed feed after the owner hides a thread.
+// Preserve arrivals newer than the HTTP request, including concurrent realtime replies.
+export function mergeActivitySnapshot(previous,incoming,startedAt) {
+  const visible=new Set(incoming.filter(item=>item.receipt_kind==='support').map(item=>String(item.receipt_id)));
+  return mergeNotificationHistory(previous.filter(item=>item.receipt_kind!=='support'||visible.has(String(item.receipt_id))
+    ||Date.parse(item.created_at)>startedAt),incoming,NOTIFICATION_STATE_LIMIT);
 }

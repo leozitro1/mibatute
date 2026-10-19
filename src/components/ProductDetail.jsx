@@ -1,7 +1,8 @@
 // src/components/ProductDetail.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { X, MapPin, ShieldCheck, Lock, Flag, BadgeCheck, Expand } from "lucide-react";
 import './ProductDetail.css';
+import './ProductDetailDesign.css';
 import ArticlePhotoViewer from './ArticlePhotoViewer.jsx';
 import { donationStatus } from '../supabase/donationApplications.js';
 import { supabase } from "../supabase/supabaseClient";
@@ -152,6 +153,7 @@ export default function ProductDetail({
   onCategoryClick,
   onSubcategoryClick,
 }) {
+  const detailTitleId = useId();
   const publicationNow = usePublicationClock();
   const publicName = formatPublicName(item?.owner_name || item?.owner?.name || item?.anunciante || item?.usuario_nombre);
 
@@ -679,12 +681,13 @@ export default function ProductDetail({
   return (
     <>
     <div
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[120] flex items-center justify-center p-4"
+      className="product-detail-backdrop fixed inset-0 bg-black/70 backdrop-blur-sm z-[120] flex items-center justify-center p-4"
       onClick={safeClose}
     >
       <div
         className="product-detail bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col md:flex-row animate-in zoom-in duration-200"
         data-compact-gallery={compactGallery}
+        role="dialog" aria-modal="true" aria-labelledby={detailTitleId}
         onClick={(e) => e.stopPropagation()}
       >
         {/* IZQUIERDA */}
@@ -809,10 +812,13 @@ export default function ProductDetail({
 
         {/* DERECHA */}
         <div ref={informationRef} onScroll={handleInformationScroll} className="product-detail-information md:w-1/2 p-8 flex flex-col overflow-y-auto">
-          <div className="flex justify-between items-start mb-4">
-            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${tipoBadgeStyles}`}>
-              {tipoNorm === "donacion" ? "donacion" : "venta"}
+          <div className="product-detail-header flex justify-between items-start mb-4">
+            <div className="flex flex-wrap items-center gap-2">
+            <span className={`product-detail-mode px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${tipoBadgeStyles}`}>
+              {tipoNorm === "donacion" ? "Donación" : "Venta"}
             </span>
+            {(item.isFeatured || item.is_featured) && <span className="product-detail-featured">Destacado</span>}
+            </div>
 
             <button onClick={safeClose} aria-label="Cerrar publicación" title="Cerrar publicación" className="hidden md:block p-1 hover:bg-gray-100 rounded-full" type="button">
               <X size={24} className="text-gray-400" />
@@ -835,7 +841,7 @@ export default function ProductDetail({
           {/* CATEGORÍA / SUBCATEGORÍA CLICKEABLE */}
           {hasCatTrail && (
             <div className="mb-2">
-              <div className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-gray-50 border border-gray-100">
+              <div className="product-detail-categories inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-gray-50 border border-gray-100">
                 <button
                   type="button"
                   onClick={() => {
@@ -867,11 +873,11 @@ export default function ProductDetail({
             </div>
           )}
 
-          <h1 className="text-2xl font-black text-gray-800 mb-2 leading-tight">{titulo}</h1>
+          <h1 id={detailTitleId} className="text-2xl font-black text-gray-800 mb-2 leading-tight">{titulo}</h1>
 
           {condition ? (
             <div className="mb-3">
-              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${condition.cls}`}>
+              <div className={`product-detail-condition inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${condition.cls}`}>
                 <BadgeCheck size={16} aria-hidden="true" />
                 <span className="text-xs font-black">{conditionScore}/10</span>
                 <span className="text-[10px] font-black uppercase tracking-widest">{condition.label}</span>
@@ -879,7 +885,7 @@ export default function ProductDetail({
             </div>
           ) : null}
 
-          <div className="flex items-center gap-2 text-gray-500 text-sm mb-6">
+          <div className="product-detail-location flex items-center gap-2 text-gray-500 text-sm mb-6">
             <MapPin size={16} className="text-forest-green" />
             <span className="font-bold">{locationText}</span>
           </div>
@@ -888,7 +894,7 @@ export default function ProductDetail({
           </div>
 
           {showPrice && (
-            <div className="mb-6">
+            <div className="product-detail-price mb-6">
               <div className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-forest-green/10 border border-forest-green/20">
                 <span className="text-[10px] font-black uppercase tracking-widest text-forest-green">Precio</span>
                 <span className="text-lg font-black text-gray-900">{priceCOP}</span>
@@ -899,7 +905,7 @@ export default function ProductDetail({
             </div>
           )}
 
-          <div className="bg-smoke-white p-4 rounded-2xl mb-6">
+          <div className="product-detail-description bg-smoke-white p-4 rounded-2xl mb-6">
             <h3 className="text-xs font-black text-gray-400 uppercase mb-2">Descripción del tesoro</h3>
             <p className="text-gray-600 text-sm leading-relaxed italic">
               {String(descripcion || "").trim()
@@ -909,8 +915,8 @@ export default function ProductDetail({
           </div>
 
           {/* VENDEDOR */}
-          <div className="flex items-center gap-4 mb-2 p-4 border border-gray-100 rounded-2xl">
-            <div className="w-12 h-12 rounded-full overflow-hidden bg-treasure-gold/20 flex items-center justify-center font-black text-treasure-gold shrink-0">
+          <div className="product-detail-owner flex items-center gap-4 mb-2 p-4 border border-gray-100 rounded-2xl">
+            <div className="product-detail-owner-avatar w-12 h-12 rounded-full overflow-hidden bg-treasure-gold/20 flex items-center justify-center font-black text-treasure-gold shrink-0">
               {ownerPhoto ? (
                 <img
                   src={ownerPhoto}
@@ -1168,7 +1174,7 @@ export default function ProductDetail({
         {/* MODAL CALIFICAR */}
         {calificarModal && (
           <div className="absolute inset-0 z-[150] flex items-center justify-center bg-black/50 px-4">
-            <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl">
+            <div role="dialog" aria-modal="true" aria-label="Calificar experiencia" className="marketplace-surface marketplace-modal marketplace-rating bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl">
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Reputación</p>
               <h3 className="text-lg font-black text-gray-900 mb-1">Califica tu experiencia</h3>
               <p className="text-sm text-gray-500 mb-6">
@@ -1178,7 +1184,7 @@ export default function ProductDetail({
                 {[1,2,3,4,5].map(s => {
                   const activa = s <= (calificarHover || calificarEstrellas);
                   return (
-                    <button key={s} type="button"
+                    <button key={s} type="button" aria-label={`Calificar con ${s} ${s === 1 ? "estrella" : "estrellas"}`} aria-pressed={calificarEstrellas === s}
                       onMouseEnter={() => setCalificarHover(s)}
                       onMouseLeave={() => setCalificarHover(0)}
                       onClick={() => setCalificarEstrellas(s)}
@@ -1196,11 +1202,11 @@ export default function ProductDetail({
               </div>
               <p className="text-center text-xs font-black text-gray-400 uppercase tracking-wide mb-5">
                 {calificarEstrellas === 0 && "Selecciona una calificación"}
-                {calificarEstrellas === 1 && "😕 Mala experiencia"}
-                {calificarEstrellas === 2 && "😐 Regular"}
-                {calificarEstrellas === 3 && "🙂 Buena"}
-                {calificarEstrellas === 4 && "😊 Muy buena"}
-                {calificarEstrellas === 5 && "🤩 Excelente"}
+                {calificarEstrellas === 1 && "Mala experiencia"}
+                {calificarEstrellas === 2 && "Regular"}
+                {calificarEstrellas === 3 && "Buena"}
+                {calificarEstrellas === 4 && "Muy buena"}
+                {calificarEstrellas === 5 && "Excelente"}
               </p>
               <div className="flex gap-3">
                 <button type="button" onClick={() => { setCalificarModal(null); setCalificarEstrellas(0); }}
@@ -1226,7 +1232,7 @@ export default function ProductDetail({
             }}
           >
             <div
-              className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 animate-in zoom-in duration-200"
+              className="marketplace-surface marketplace-modal w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 animate-in zoom-in duration-200"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-3">
@@ -1331,9 +1337,9 @@ export default function ProductDetail({
           className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           onClick={() => { if (!isSubmitting) setReserveConfirmOpen(false); }}
         />
-        <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden">
+        <div role="dialog" aria-modal="true" aria-label="Confirmar reserva" className="marketplace-surface marketplace-modal reserve-confirmation relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden">
 
-          <div className="bg-forest-green px-6 pt-6 pb-5 text-white">
+          <div className="marketplace-modal-header bg-forest-green px-6 pt-6 pb-5 text-white">
             <p className="text-[10px] font-black uppercase tracking-widest opacity-75">Confirmación</p>
             <h3 className="text-lg font-black mt-1 leading-snug">¿Confirmas la reserva?</h3>
           </div>

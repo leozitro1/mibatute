@@ -84,3 +84,20 @@ test('private signals, publication authorization and metadata catch-up stay boun
     assert.equal((await db.query('select count(*)::int n from realtime.messages')).rows[0].n,2,'Rolled-back admin sends do not emit notices');
   }finally{await db.close();}
 });
+
+test('support replies reuse the private user inbox topic without exposing message content',()=>{
+  const notice=staffInboxNotice({id:id(7),kind:'support',created_at:at,body:'Private reply'},at);
+  assert.equal(notice.receipt_kind,'support');assert.equal(notice.id,`inbox-support-${id(7)}`);
+  assert.equal(notice.title,'Respuesta de MiBatute');assert.ok(!JSON.stringify(notice).includes('Private reply'));
+});
+
+test('support removal uses the existing private channel and ignores malformed identifiers',async()=>{
+ const channels=[],removed=[];
+ const client={realtime:{setAuth:async()=>{}},channel(topic){const callbacks={};const channel={topic,callbacks,on(type,filter,fn){callbacks[filter.event]=fn;return this;},subscribe(){return this;}};channels.push(channel);return channel;},removeChannel(){}};
+ const stop=subscribeStaffInbox(client,{id:id(10),created_at:at},()=>{},null,{onSupportRemoved:value=>removed.push(value)});
+ await Promise.resolve();await Promise.resolve();assert.equal(channels.length,2);
+ channels[0].callbacks.support_removed({payload:{thread_id:'invalid'}});
+ channels[0].callbacks.support_removed({payload:{thread_id:id(8)}});
+ assert.deepEqual(removed,[id(8)]);assert.equal(channels[1].callbacks.support_removed,undefined);
+ stop();channels[0].callbacks.support_removed({payload:{thread_id:id(9)}});assert.equal(removed.length,1);
+});

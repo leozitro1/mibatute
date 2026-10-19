@@ -47,8 +47,8 @@ export default function WompiTopupDialog({ onClose, onConfirmed }) {
   };
   const order = data?.order;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!loading) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="wompi-topup-title" className="relative max-h-[90dvh] w-full max-w-sm overflow-y-auto rounded-lg bg-white p-5 shadow-xl" onClick={event => event.stopPropagation()}>
+    <div className="marketplace-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!loading) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="wompi-topup-title" className="marketplace-surface marketplace-modal relative max-h-[90dvh] w-full max-w-sm overflow-y-auto rounded-lg bg-white p-5 shadow-xl" onClick={event => event.stopPropagation()}>
         <button type="button" aria-label="Cerrar recarga" title="Cerrar recarga" disabled={loading} onClick={onClose} className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center text-gray-500 disabled:opacity-40"><X size={20} /></button>
         <CreditCard size={24} className="mb-3 text-forest-green" aria-hidden="true" />
         <h2 id="wompi-topup-title" className="pr-9 text-lg font-black text-gray-800">Recargar con Wompi</h2>

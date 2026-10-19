@@ -22,6 +22,8 @@
 .mb-design-preview { background: #f7f8f5; color: #26392e; }
 .mb-design-preview > nav { border-color: #e4e9e2; }
 .mb-design-preview > nav input { background: #f7f8f5; border-color: #e3e8e1; border-radius: 12px; }
+.mb-design-preview > nav .navbar-search-field { background: #f7f8f5; border-color: #e3e8e1; }
+.mb-design-preview > nav .navbar-search-input { background: transparent; border: 0; border-radius: 0; }
 .mb-design-preview > nav .font-extrabold { font-weight: 650; letter-spacing: -.7px; }
 .mb-design-preview > nav button { border-radius: 10px; }
 .mb-design-preview > main { padding-top: 24px; padding-bottom: 90px; }

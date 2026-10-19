@@ -20,7 +20,7 @@ export default function HowItWorks({ onBack }) {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto py-12 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="marketplace-help max-w-5xl mx-auto py-12 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <button onClick={onBack} className="mb-8 text-forest-green font-bold flex items-center gap-2 hover:underline">
         ← Regresar a la búsqueda
       </button>

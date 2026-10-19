@@ -452,13 +452,13 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-          <div className="p-4 border-b flex justify-between items-center bg-smoke-white">
+      <div className="marketplace-overlay fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+        <div role="dialog" aria-modal="true" aria-label="Publicar artículo" className="marketplace-surface marketplace-modal publish-article-dialog bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+          <div className="marketplace-modal-header p-4 border-b flex justify-between items-center bg-smoke-white">
             <h2 className="font-black text-gray-800 uppercase text-sm tracking-widest">Subir nuevo artículo</h2>
             <button
               onClick={handleClose}
-              className="p-1 hover:bg-gray-200 rounded-full transition"
+              aria-label="Cerrar publicación nueva" className="p-1 hover:bg-gray-200 rounded-full transition"
               disabled={isSubmitting || isCropping}
               type="button"
             >
@@ -470,7 +470,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
             {/* FOTOS */}
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-gray-400">
-                Fotos (Máx {MAX_FILES}) — se recortan a cuadrado {OUT_SIZE}x{OUT_SIZE} ({OUT_FORMAT})
+                Fotos (máximo {MAX_FILES})
               </label>
 
               <div className="grid grid-cols-4 gap-2">
@@ -524,8 +524,8 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
 
       {/* ===== Crop Modal ===== */}
       {cropOpen && (
-        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-xl rounded-3xl overflow-hidden shadow-2xl">
+        <div className="marketplace-overlay fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div role="dialog" aria-modal="true" aria-label="Recortar foto" className="marketplace-surface marketplace-modal photo-crop-dialog bg-white w-full max-w-xl rounded-3xl overflow-hidden shadow-2xl">
             <div className="p-4 border-b flex items-center justify-between">
               <div>
                 <div className="font-black text-gray-800 uppercase text-sm tracking-widest">Recorta tu foto</div>

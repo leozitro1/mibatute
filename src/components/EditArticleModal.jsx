@@ -184,10 +184,10 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+    <div className="marketplace-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div role="dialog" aria-modal="true" aria-label="Editar publicación" className="marketplace-surface marketplace-modal edit-article-dialog bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Header */}
-        <div className="bg-forest-green p-6 flex justify-between items-center text-white">
+        <div className="marketplace-modal-header bg-forest-green p-6 flex justify-between items-center text-white">
           <h2 className="font-black uppercase tracking-widest text-lg">Editar Publicación</h2>
 
           <div className="flex items-center gap-2">
@@ -202,7 +202,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
               {refreshBusy ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
             </button>
 
-            <button onClick={onClose} className="hover:rotate-90 transition-transform" type="button">
+            <button onClick={onClose} aria-label="Cerrar edición" className="hover:rotate-90 transition-transform" type="button">
               <X size={24} />
             </button>
           </div>
