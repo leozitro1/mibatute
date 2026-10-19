@@ -1,0 +1,7 @@
+.support-inbox .legal-notice { margin-block:16px;padding:14px 16px;border:1px solid #d7e2cf;border-radius:10px;background:#f5f8f0;color:#42553c;font-size:13px;line-height:1.7;overflow-wrap:anywhere; }
+.support-inbox .legal-filter { display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:24px;font-size:13px; }
+.support-inbox .legal-filter select { min-height:44px;max-width:100%;padding:8px 12px;border:1px solid #dfe5d9;border-radius:8px;background:#fff;font-size:13px; }
+
+.support-inbox .legal-save-success { margin-block:8px;color:#315b29;font-size:14px;line-height:1.6; }
+.support-inbox .legal-save-requirements { padding:12px 14px;background:#fff7eb;border:1px solid #eed7b9;border-radius:8px;color:#77512b;font-size:13px;line-height:1.6; }
+.support-inbox .legal-save-requirements ul { margin:6px 0 0;padding-left:20px;list-style:disc; }

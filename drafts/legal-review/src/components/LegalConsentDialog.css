@@ -1,0 +1,8 @@
+.legal-consent-dialog { margin:auto;width:calc(100% - 32px);max-width:520px;max-height:90dvh;overflow:auto;border:1px solid #dfe5d9;border-radius:16px;padding:24px;background:#fff;color:#34443a;box-shadow:0 15px 60px #14230e20; }
+.legal-consent-dialog::backdrop { background:#18251580; }
+.legal-consent-dialog .support-compose { margin-top:0;gap:16px; }
+.legal-consent-dialog h2 { font-size:20px;font-weight:600;line-height:1.4; }
+.legal-consent-dialog p,.legal-consent-dialog label { font-size:14px;line-height:1.7; }
+.legal-consent-dialog label { display:block; }
+.legal-consent-dialog label input[type="checkbox"] { display:inline-block;width:18px;height:18px;min-height:18px;margin-right:8px;vertical-align:middle;accent-color:#315a2c; }
+.legal-consent-dialog a { color:#315a2c;text-decoration:underline;text-underline-offset:3px; }

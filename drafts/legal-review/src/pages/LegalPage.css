@@ -1,0 +1,23 @@
+.legal-page { background:#f7f8f4;min-height:100dvh;color:#34443a; }
+.legal-document { max-width:900px;margin:auto;padding:32px 24px 48px;line-height:1.85;overflow-wrap:anywhere; }
+.legal-document h1 { font-size:clamp(26px,4vw,36px);font-weight:650;line-height:1.25;margin:24px 0 12px;color:#263d2e; }
+.legal-document h2 { font-size:19px;font-weight:600;line-height:1.5;margin-bottom:10px;color:#2d4935; }
+.legal-document > section,.legal-document > aside { margin-top:28px; }
+.legal-document p { font-size:15px; }
+.legal-document a { color:#315a2c;text-decoration:underline;text-underline-offset:3px; }
+.legal-document :is(a,button,input,select,textarea):focus-visible { outline:2px solid #527549;outline-offset:3px; }
+.legal-back { display:inline-flex;align-items:center;min-height:44px;font-size:14px; }
+.legal-document .legal-version { font-size:12px;color:#677464;margin-bottom:16px; }
+.legal-draft,.legal-notice { padding:14px 16px;border:1px solid #e6d3b6;border-radius:10px;background:#fff7e9;color:#715733;font-size:13px!important;margin-block:16px; }
+.legal-nav { display:flex;flex-wrap:wrap;gap:6px 18px;margin:24px 0; }
+.legal-nav a { min-height:44px;display:inline-flex;align-items:center;font-size:13px; }
+.legal-nav a[aria-current="page"] { font-weight:650; }
+.legal-operator { padding:20px;background:white;border:1px solid #dfe5d9;border-radius:12px; }
+.legal-operator dl { display:grid;gap:8px; }.legal-operator dl > div { display:grid;grid-template-columns:1fr 1.5fr;gap:16px;font-size:13px; }.legal-operator dt { color:#65715f; }
+.legal-preferences > div { display:flex;gap:10px;flex-wrap:wrap;margin-top:16px; }
+.legal-preferences button,.legal-filter select,.support-compose select { min-height:44px;border:1px solid #dfe5d9;border-radius:8px;background:#fff;padding:8px 12px;font-size:13px; }
+.legal-preferences button { cursor:pointer;color:#345730; }
+.legal-filter { display:flex;align-items:center;gap:12px;margin-top:24px;font-size:13px; }
+.legal-sources { border-top:1px solid #dfe5d9;padding-top:20px; }.legal-sources p { font-size:12px; }
+@media(max-width:500px) { .legal-document { padding:20px 16px 32px; }.legal-document p { font-size:14px; }.legal-operator dl > div { grid-template-columns:1fr;gap:0; }.legal-operator { padding:16px; } }
+.legal-document .support-message h3,.legal-document .support-message h4 { font-size:14px;font-weight:600;margin-top:10px; }

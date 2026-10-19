@@ -1,0 +1,11 @@
+import {writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {LEGAL_READY,LEGAL_VERSION,LEGAL_OPERATOR} from '../src/legal/config.js';
+import {policies} from '../src/legal/policies.js';
+if(!LEGAL_READY)throw new Error('No se genera una publicación: faltan datos del responsable o la aprobación final de las políticas.');
+const documents=JSON.stringify({version:LEGAL_VERSION,operator:LEGAL_OPERATOR,policies});
+const hash=createHash('sha256').update(documents).digest('hex');
+const sql=`begin;\nupdate public.legal_releases set enabled=false where enabled;\ninsert into public.legal_releases(version,documents,enabled,published_at) values('${LEGAL_VERSION.replaceAll("'","''")}', '${documents.replaceAll("'","''")}'::jsonb,true,clock_timestamp());\ncommit;\n-- SHA-256 del contenido JSON: ${hash}\n`;
+const destination=process.argv[2]||'/tmp/mibatute-legal-release.sql';
+await writeFile(destination,sql,{flag:'wx',mode:0o600});
+console.log(`Archivo de revisión preparado: ${destination}. No se ejecutó en ninguna base de datos.`);

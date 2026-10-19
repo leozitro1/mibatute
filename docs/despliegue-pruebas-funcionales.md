@@ -31,4 +31,10 @@ La disponibilidad del formulario no prueba la entrega del correo de activación:
 
 ## Estado
 
-Preparado; aplicar migraciones y desplegar solo después de pasar las comprobaciones finales. La URL y el commit se anotarán tras confirmar el resultado.
+Publicado el 19 de octubre de 2026: `66cdc14`, despliegue Vercel `dpl_3ALVyywbeNzArUfaFEHXWUKJ9LWu`, READY, alias https://www.mibatute.com. Las dos migraciones compatibles se aplicaron en producción mediante `scripts/functional-release-production.sql`, con verificación previa de las definiciones y transacción. Las huellas de `support_start_thread` y `support_reply` coinciden con las migraciones probadas. La API pública de checkout devuelve `configured:false`.
+
+El responsable pidió unificar el flujo en `main` y la carpeta habitual. Se avanzó `main` al mismo commit por fast-forward, sin un merge divergente. Los 50 archivos de borradores locales se preservaron en `drafts/legal-review/` con manifiesto de integridad, excluidos del código activo y de Vercel. No se perdieron ni se dieron por aprobados; la versión funcional queda como base de desarrollo.
+
+La batería final de esta versión pasó **216 pruebas**. Las pruebas verifican checkout cerrado, registro sin dependencia del borrador, 500 caracteres, MFA, aislamiento, chat y operaciones del mercado. Falta completar con una cuenta nueva controlada la entrega de correo y el recorrido real de publicación; no se crearon identidades ajenas en producción.
+
+La base local mantiene las tablas legales de las pruebas anteriores. La revisión automática rechazó desactivar su trigger de registro sin autorización explícita adicional, por lo que no se ejecutó esa modificación. Esto no afecta producción: allí se comprobó que el trigger no existe. No afirmar que crear cuentas locales ya está habilitado hasta resolver ese punto.
