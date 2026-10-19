@@ -52,6 +52,7 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
     await db.exec(await readFile(new URL('../supabase/migrations/2026-10-15-staff-audit-filters.sql',import.meta.url),'utf8'));
     const permanentBlock=await readFile(new URL('../supabase/migrations/2026-10-16-permanent-user-block.sql',import.meta.url),'utf8');
     await db.exec(permanentBlock);await db.exec(permanentBlock);
+    const contact=await readFile(new URL('../supabase/migrations/2026-10-19-temporary-contact-email.sql',import.meta.url),'utf8');await db.exec(contact);await db.exec(contact);
     const session=uid=>id(Number(uid.slice(-12))+100);
     const asUser=async(uid,aal='aal2',age=0)=>{
       await db.exec('reset role;set role authenticated');
@@ -128,7 +129,7 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
       const state=(await db.query('select is_blocked,bloqueado,ban_until from usuarios where id=$1',[user])).rows[0];
       assert.deepEqual(state,{is_blocked:true,bloqueado:true,ban_until:null});
       const notice=(await db.query("select body from system_messages where title='Bloqueo permanente de tu cuenta'")).rows;
-      assert.equal(notice.length,1);assert.match(notice[0].body,/Mal uso de prueba/);assert.match(notice[0].body,/hola@mibatute.com/);
+      assert.equal(notice.length,1);assert.match(notice[0].body,/Mal uso de prueba/);assert.match(notice[0].body,/edgarleonardo202@gmail.com/);
       assert.match(notice[0].body,/devolucion de creditos comprados/);
       assert.equal((await db.query("select count(*)::int n from staff_audit where action='user.block' and actor_id=$1 and target_id=$2",[master,user])).rows[0].n,1);
       assert.equal((await db.query('select status from chats where id=$1',[id(89)])).rows[0].status,'closed');
@@ -155,7 +156,7 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
       await db.exec('reset role');
       const sanction=(await db.query("select m.body,r.user_id from system_messages m join system_message_receipts r on r.message_id=m.id where m.title='Suspension temporal de tu cuenta' and r.user_id=$1",[user])).rows;
       assert.equal(sanction.length,1);assert.match(sanction[0].body,/Motivo de prueba/);assert.match(sanction[0].body,/Duracion: 1 dia\./);
-      assert.match(sanction[0].body,/hora de Colombia/);assert.match(sanction[0].body,/hola@mibatute.com/);assert.match(sanction[0].body,/no es justa/);
+      assert.match(sanction[0].body,/hora de Colombia/);assert.match(sanction[0].body,/edgarleonardo202@gmail.com/);assert.match(sanction[0].body,/no es justa/);
       const audit=(await db.query("select changes from staff_audit where action='user.suspend' and target_id=$1",[user])).rows;
       assert.equal(audit.length,1);assert.ok(audit[0].changes.ban_until);assert.ok(audit[0].changes.message_id);
       const end=(await db.query("select to_char(ban_until at time zone 'America/Bogota','DD/MM/YYYY HH24:MI') as deadline from usuarios where id=$1",[user])).rows[0].deadline;

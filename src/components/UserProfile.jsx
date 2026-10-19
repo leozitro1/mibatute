@@ -1,3 +1,4 @@
+import {CONTACT_EMAIL} from '../config/availability.js';
 // src/components/UserProfile.jsx
 import { createReadCache, listenMarketSignals } from "./marketSignals.js";
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
@@ -2368,7 +2369,7 @@ export default function UserProfile({
           <p className="mt-1 text-xs font-bold text-red-700">
             Tus acciones están desactivadas (chats, edición, gestión, eliminación).
           </p>
-          <p className="mt-2 text-xs text-red-700">Tus créditos están bloqueados y no puedes realizar recargas. Para solicitar la devolución de créditos comprados, comunícate con administración en <a className="underline" href="mailto:hola@mibatute.com">hola@mibatute.com</a>.</p>
+          <p className="mt-2 text-xs text-red-700">Tus créditos están bloqueados y no puedes realizar recargas. Para solicitar la devolución de créditos comprados, comunícate con administración en <a className="underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.</p>
         </div>
       ) : null}
 
@@ -2646,10 +2647,10 @@ export default function UserProfile({
                 type="button"
                 onClick={() => {if(!isUserBlocked)setRecargaOpen(true);}}
                 disabled={isUserBlocked}
-                title={isUserBlocked ? 'Recargas desactivadas por bloqueo de cuenta' : 'Recargar con Wompi'}
+                title={isUserBlocked ? 'Recargas desactivadas por bloqueo de cuenta' : 'Recargas disponibles proximamente'}
                 className="profile-topup shrink-0 min-h-11 px-4 py-2 rounded-lg bg-forest-green text-white font-bold text-sm hover:bg-green-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Recargar con Wompi
+                Recargas · Próximamente
               </button>
             </div>
           </section>
@@ -2728,7 +2729,7 @@ export default function UserProfile({
               {activeTab === "buzon" && (
                 <>
                   <div className="profile-inbox-tabs" role="tablist" aria-label="Secciones del buzón">
-                    {[['system','Avisos del sistema',Bell,Math.max(0,inboxUnreadCount-supportUnreadCount)],['conversations','Conversaciones',MessageCircle,supportUnreadCount]].map(([tab,label,Icon,count])=>(
+                    {[['system','Avisos del sistema',Bell,Math.max(0,inboxUnreadCount-supportUnreadCount)],['conversations','Conversaciones del sistema',MessageCircle,supportUnreadCount]].map(([tab,label,Icon,count])=>(
                       <button key={tab} type="button" role="tab" id={`${inboxTabId}-${tab}-tab`} aria-controls={`${inboxTabId}-${tab}-panel`} aria-selected={inboxTab===tab} tabIndex={inboxTab===tab?0:-1} data-inbox-tab={tab} onKeyDown={inboxTabKey} onClick={()=>changeInboxTab(tab)}>
                         <Icon size={16} aria-hidden="true" /><span>{label}</span>{count>0&&<span className="profile-inbox-count" aria-label={`${count} sin leer`}>{count}</span>}
                       </button>

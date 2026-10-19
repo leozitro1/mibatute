@@ -1,3 +1,4 @@
+import {CONTACT_EMAIL} from '../config/availability.js';
 import { Link } from 'react-router-dom';
 
 export default function Footer({ onHowItWorks }) {
@@ -23,7 +24,7 @@ export default function Footer({ onHowItWorks }) {
             <Link className={linkClass} to="/terminos">Términos y condiciones</Link>
             <span className="inline-flex min-h-11 items-center text-sm text-gray-500" aria-disabled="true" title="Página pendiente">Normas de la comunidad</span>
             {onHowItWorks && <button type="button" className={`${linkClass} text-left`} onClick={onHowItWorks}>Cómo funciona</button>}
-            <a className={linkClass} href="mailto:hola@mibatute.com">Contacto</a>
+            <a className={linkClass} href={`mailto:${CONTACT_EMAIL}`}>Contacto</a>
             <span className="inline-flex min-h-11 items-center text-sm text-gray-500" aria-disabled="true" title="Página pendiente">Ayuda y PQR</span>
             <span className="inline-flex min-h-11 items-center text-sm text-gray-500" aria-disabled="true" title="Página pendiente">Consejos de seguridad</span>
             </div>

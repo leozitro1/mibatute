@@ -77,7 +77,7 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
   const select=row=>{if(sending)return;setDeleteTarget(null);setActiveId(row.id);setThread(null);setReply(drafts.current.get(row.id)||'');setComposing(false);setError('');};
   const send=async event=>{
     event.preventDefault();if(inFlight.current)return;
-    const text=(composing?body:reply).trim();if(!text||(!composing&&!activeId))return;
+    const text=(composing?body:reply).trim();if(!text||text.length>500||(!composing&&!activeId))return;
     const signature=JSON.stringify([composing?subject.trim():activeId,text]);
     if(request.current?.signature!==signature)request.current={signature,id:crypto.randomUUID()};
     inFlight.current=true;setSending(true);setError('');
@@ -124,7 +124,7 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
     {error&&<p role="alert" className="support-error">{error}</p>}
     {composing?<form className="support-compose" onSubmit={send}>
       <label htmlFor={`support-subject-${userId}`}>Asunto</label><input id={`support-subject-${userId}`} required minLength={3} maxLength={120} value={subject} onChange={event=>setSubject(event.target.value)} disabled={sending} />
-      <label htmlFor={`support-body-${userId}`}>¿En qué podemos ayudarte?</label><textarea id={`support-body-${userId}`} rows={5} required minLength={10} maxLength={2000} value={body} onChange={event=>setBody(event.target.value)} disabled={sending} />
+      <label htmlFor={`support-body-${userId}`}>¿En qué podemos ayudarte?</label><textarea id={`support-body-${userId}`} rows={5} required minLength={10} maxLength={500} value={body} onChange={event=>setBody(event.target.value)} disabled={sending} />
       <p className="support-hint">Tu mensaje será privado y lo podrá atender el equipo de administración.</p>
       <div className="support-actions"><button type="button" className="support-button" disabled={sending} onClick={()=>setComposing(false)}>Cancelar</button><button type="submit" className="support-button support-button--primary" disabled={sending||subject.trim().length<3||body.trim().length<10||!canStart}><Send size={16} />{sending?'Enviando…':'Enviar mensaje'}</button></div>
     </form>:activeId?<div className="support-thread">
@@ -142,8 +142,8 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
       </div>
       {thread?.user_hidden_at&&isStaff&&<p className="support-hint">Eliminada por el usuario. El historial completo se conserva para administración.</p>}
       {thread&&!thread.user_hidden_at&&<form className="support-compose" onSubmit={send}>
-        <label htmlFor={`support-reply-${userId}`}>Responder</label><textarea id={`support-reply-${userId}`} rows={3} maxLength={2000} required value={reply} onChange={event=>{setReply(event.target.value);drafts.current.set(activeId,event.target.value);}} disabled={sending} />
-        <div className="support-actions"><span className="support-hint">{reply.length}/2000</span><button type="submit" className="support-button support-button--primary" disabled={sending||!reply.trim()}><Send size={16} />{sending?'Enviando…':'Responder'}</button></div>
+        <label htmlFor={`support-reply-${userId}`}>Responder</label><textarea id={`support-reply-${userId}`} rows={3} maxLength={500} required value={reply} onChange={event=>{setReply(event.target.value);drafts.current.set(activeId,event.target.value);}} disabled={sending} />
+        <div className="support-actions"><span className="support-hint">{reply.length}/500</span><button type="submit" className="support-button support-button--primary" disabled={sending||!reply.trim()}><Send size={16} />{sending?'Enviando…':'Responder'}</button></div>
       </form>}
     </div>:<>
       {loading&&!list.rows.length?<p role="status">Cargando conversaciones…</p>:!list.rows.length?<p className="support-empty"><Mail size={22} />{isStaff?'No hay conversaciones con ese filtro.':'Aquí aparecerán tus conversaciones con MiBatute.'}</p>:<div className="support-list">

@@ -69,7 +69,7 @@ test('disabled payment routes do no network work; signed webhooks use canonical 
   process.env.WOMPI_ENABLED='true';
   assert.equal((await call(events,'POST',{...makeEvent(),environment:'prod'})).status,401);
   assert.equal((await call(events,'POST',{...makeEvent(),signature:{checksum:'bad'}})).status,401);
-  assert.equal((await call(checkout,'POST',{credits:999})).status,401);
+  assert.equal((await call(checkout,'POST',{credits:999})).status,503);
   assert.equal(calls.length,0);
   assert.equal((await call(events,'POST',makeEvent())).status,200);
   assert.equal(calls.length,2);

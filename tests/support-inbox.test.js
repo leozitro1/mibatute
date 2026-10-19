@@ -5,6 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 const id=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 const sql=await readFile(new URL('../supabase/migrations/2026-10-19-support-inbox.sql',import.meta.url),'utf8');
 const hideSql=await readFile(new URL('../supabase/migrations/2026-10-19-support-inbox-hide.sql',import.meta.url),'utf8');
+const limitSql=await readFile(new URL('../supabase/migrations/2026-10-19-support-message-limit.sql',import.meta.url),'utf8');
 const staffSql=await readFile(new URL('../supabase/migrations/2026-10-14-staff-console.sql',import.meta.url),'utf8');
 function definition(source,name){const start=source.indexOf(`create or replace function public.${name}(`);return source.slice(start,source.indexOf('$$;',start)+3);}
 async function fixture(){
@@ -41,7 +42,7 @@ async function fixture(){
   await db.query('insert into auth.sessions values($1,$2)',[id(n+100),id(n)]);
   await db.query("insert into staff_sessions values($1,$2,null,now()+interval '1 hour',now())",[id(n+100),id(n)]);
  }
- await db.exec(sql);await db.exec(sql);await db.exec(hideSql);await db.exec(hideSql);
+ await db.exec(sql);await db.exec(sql);await db.exec(hideSql);await db.exec(hideSql);await db.exec(limitSql);await db.exec(limitSql);
  const as=async(n,aal='aal1')=>{
   await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[n?id(n):'']);
   await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({aal,session_id:id((n||0)+100)})]);
@@ -154,5 +155,28 @@ test('user deletion hides the thread and its notices but preserves complete staf
   assert.equal(signals.length,1,'Retries do not duplicate removal broadcasts');
   assert.equal(signals[0].topic,`mb:inbox:user:${id(1)}`);
   assert.deepEqual(signals[0].payload,{thread_id:thread});
+ }finally{await db.close();}
+});
+
+test('support messages and replies are capped at 500 characters for users and both staff roles without truncating history',async()=>{
+ const {db,as,rpc}=await fixture();try{
+  await as(1);
+  await assert.rejects(rpc('support_start_thread',[id(700),'Consulta extensa','a'.repeat(501)]),/500 caracteres/);
+  const thread=await rpc('support_start_thread',[id(700),'Consulta breve','a'.repeat(500)]);
+  assert.equal((await rpc('support_thread',[thread,false,null])).messages[0].body.length,500);
+  await assert.rejects(rpc('support_reply',[thread,id(701),'b'.repeat(501),false]),/500 caracteres/);
+  await db.exec('reset role');await db.query("update support_threads set last_user_at=now()-interval '1 minute' where id=$1",[thread]);
+  await as(1);await rpc('support_reply',[thread,id(701),'b'.repeat(500),false]);
+  for(const n of [3,4]){
+    await as(n,'aal2');await assert.rejects(rpc('support_reply',[thread,id(710+n),'c'.repeat(501),true]),/500 caracteres/);
+    await rpc('support_reply',[thread,id(710+n),'c'.repeat(500),true]);
+  }
+  // Simulate a pre-migration message to check safe upgrades of live data.
+  await db.exec('reset role;alter table support_messages drop constraint support_messages_body_check;');
+  await db.query("insert into support_messages(request_id,thread_id,sender_id,author_role,body) values($1,$2,$3,'user',$4)",[id(720),thread,id(1),'Histórico '.repeat(100)]);
+  await db.exec(limitSql);
+  await as(3,'aal2');const history=await rpc('support_thread',[thread,true,null]);
+  assert.equal(history.messages.at(-1).body,'Histórico '.repeat(100));
+  await db.exec('reset role');await assert.rejects(db.query("insert into support_messages(request_id,thread_id,sender_id,author_role,body) values($1,$2,$3,'user',$4)",[id(721),thread,id(1),'d'.repeat(501)]),/support_messages_body_check/);
  }finally{await db.close();}
 });

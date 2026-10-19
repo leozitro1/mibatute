@@ -1,10 +1,13 @@
 import { useEffect,useState } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { createSponsorMetrics } from './metricsQueue.js';
+import { metricsAllowed,METRICS_EVENT,METRICS_KEY } from '../legal/preferences.js';
 import { safeSponsorUrl,sponsorContext } from './model.js';
 
 const cache=new Map();
 let tracker,seed;
+window.addEventListener(METRICS_EVENT,event=>{if(!event.detail?.accepted)tracker?.clear();});
+window.addEventListener('storage',event=>{if((event.key===METRICS_KEY||event.key===null)&&event.newValue!=='accepted')tracker?.clear();});
 function slots(context) {
   const key=JSON.stringify(context),previous=cache.get(key);
   if(previous?.expires>Date.now())return Promise.resolve(previous.items);
@@ -32,8 +35,10 @@ export function useSponsorSlots(placement,filters) {
   return result.key===key?result.items:[];
 }
 function metrics() {
+  if(!metricsAllowed(localStorage,navigator)){tracker?.clear();return null;}
   if(!tracker) {
     tracker=createSponsorMetrics({visit:crypto.randomUUID(),send:async(payload,keepalive)=>{
+      if(!metricsAllowed(localStorage,navigator))return;
       const response=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/record_sponsor_metrics`,{
         method:'POST',keepalive,headers:{'Content-Type':'application/json',apikey:import.meta.env.VITE_SUPABASE_ANON_KEY,Authorization:`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`},body:JSON.stringify(payload),
       });
@@ -44,14 +49,14 @@ function metrics() {
   }
   return tracker;
 }
-export const recordSponsorClick=(id,placement)=>metrics().click(id,placement);
+export const recordSponsorClick=(id,placement)=>metrics()?.click(id,placement);
 export function useSponsorImpression(ref,id,placement) {
   useEffect(()=>{
     if(!id||!ref.current||typeof IntersectionObserver==='undefined')return;
     let timer=null,visible=false;
     const reset=()=>{if(timer!==null)clearTimeout(timer);timer=null;};
     const update=()=>{
-      reset();if(visible&&document.visibilityState==='visible')timer=setTimeout(()=>metrics().impression(id,placement),1000);
+      reset();if(visible&&document.visibilityState==='visible')timer=setTimeout(()=>metrics()?.impression(id,placement),1000);
     };
     const observer=new IntersectionObserver(([entry])=>{visible=entry.isIntersecting&&entry.intersectionRatio>=.5;update();},{threshold:[0,.5,1]});
     observer.observe(ref.current);document.addEventListener('visibilitychange',update);

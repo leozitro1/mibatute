@@ -8,19 +8,20 @@ export function searchMetric(filters,total) {
 }
 
 export function createMarketMetrics({send,visit,schedule=setTimeout,cancel=clearTimeout}) {
-  const pending=new Map(),seen=new Set();let timer=null,inFlight=null,failures=0;
+  const pending=new Map(),seen=new Set();let timer=null,inFlight=null,failures=0,generation=0;
   const defer=()=>{if(timer===null&&pending.size&&failures<3)timer=schedule(()=>{timer=null;flush();},30_000);};
   const flush=(keepalive=false)=>{
     if(timer!==null){cancel(timer);timer=null;}
     if(inFlight||!pending.size||failures>=3)return inFlight||Promise.resolve();
+    const batchGeneration=generation;
     const batch=[...pending.entries()].slice(0,20);batch.forEach(([key])=>pending.delete(key));
     inFlight=Promise.resolve().then(()=>send({p_visit:visit,p_events:batch.map(([,event])=>event)},keepalive))
-      .then(()=>{failures=0;}).catch(()=>{failures++;for(const [key,event]of batch)pending.set(key,event);})
+      .then(()=>{failures=0;}).catch(()=>{if(batchGeneration!==generation)return;failures++;for(const [key,event]of batch)pending.set(key,event);})
       .finally(()=>{inFlight=null;defer();});return inFlight;
   };
   return {record(event){
     if(!event||seen.size>=200)return;
     const key=JSON.stringify(event.kind==='view'?['view',event.id]:['search',event.term,event.city,event.locality,event.category]);
     if(seen.has(key))return;seen.add(key);pending.set(key,event);defer();
-  },flush};
+  },flush,clear(){generation++;if(timer!==null){cancel(timer);timer=null;}pending.clear();seen.clear();failures=0;}};
 }

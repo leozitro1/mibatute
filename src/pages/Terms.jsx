@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
+import {useState} from "react";
+import {CONTACT_EMAIL} from "../config/availability.js";
+import {metricsAllowed,saveMetricsPreference} from "../legal/preferences.js";
 import Footer from '../components/Footer.jsx';
 
 export default function Terms() {
-  const lastUpdate = new Date().toLocaleDateString("es-CO", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const lastUpdate = "19 de octubre de 2026";
+  const [metrics,setMetrics]=useState(()=>metricsAllowed(localStorage,navigator));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
@@ -141,10 +141,18 @@ export default function Terms() {
             <h2 className="text-3xl border-b border-emerald-200 pb-3 mb-6">12. Contacto</h2>
             <p>
               Dudas o reportes: formulario en la plataforma o{" "}
-              <a href="mailto:hola@mibatute.com" className="text-emerald-700 hover:underline font-medium">
-                hola@mibatute.com
+              <a href={`mailto:${CONTACT_EMAIL}`} className="text-emerald-700 hover:underline font-medium">
+                {CONTACT_EMAIL}
               </a>
             </p>
+          </section>
+          <section aria-label="Preferencias de métricas">
+            <h2 className="text-2xl font-bold text-emerald-800">Métricas opcionales</h2>
+            <p className="mt-3 text-gray-600">Las estadísticas de visitas, búsquedas y patrocinadores están {metrics?'permitidas':'desactivadas'}. Rechazarlas permite seguir usando la cuenta, las publicaciones y el chat.</p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button type="button" className="min-h-11 rounded-lg border border-gray-300 px-4 py-2" onClick={()=>{saveMetricsPreference(false);setMetrics(false);}}>Rechazar métricas opcionales</button>
+              <button type="button" className="min-h-11 rounded-lg bg-emerald-800 px-4 py-2 text-white" onClick={()=>{saveMetricsPreference(true);setMetrics(metricsAllowed(localStorage,navigator));}}>Permitir métricas opcionales</button>
+            </div>
           </section>
         </div>
 

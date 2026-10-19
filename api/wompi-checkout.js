@@ -1,3 +1,4 @@
+import {PAID_TOPUPS_ENABLED} from '../src/config/availability.js';
 import { wompiConfig, checkoutUrl, sendJson, authenticatedClient } from '../server/wompi.js';
 
 export default async function handler(req,res) {
@@ -5,6 +6,7 @@ export default async function handler(req,res) {
     res.setHeader('Allow','GET, POST');
     return sendJson(res,405,{ error: 'Metodo no permitido.' });
   }
+  if(!PAID_TOPUPS_ENABLED)return sendJson(res,req.method==='GET'?200:503,{configured:false,error:'Las recargas estaran disponibles proximamente.'});
   const config = wompiConfig();
   if (!config.configured) return sendJson(res,req.method==='GET'?200:503,
     { configured: false, environment: config.environment, error: 'Wompi esta pendiente de configuracion.' });

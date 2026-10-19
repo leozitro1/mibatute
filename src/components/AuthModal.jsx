@@ -552,6 +552,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
                 </div>
 
 
+                {isRegister && <p role="status" className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Versión de pruebas. Usa cuentas y artículos identificados como PRUEBA. Las recargas aún no están disponibles.</p>}
                 {isRegister && (
                   <label className="flex items-start gap-3 text-sm text-gray-600">
                     <input

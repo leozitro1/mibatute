@@ -129,7 +129,7 @@ try {
   const sanctionReason='Incumplimiento reiterado de las normas de convivencia';
   checked(await sanctionAdmin.client.rpc('staff_action',{p_kind:'user',p_id:member.user.id,p_action:'suspend',p_reason:sanctionReason,p_options:{days:3}}));
   const notice=checked(await member.client.rpc('notification_inbox')).find(item=>item.title==='Suspension temporal de tu cuenta');
-  assert.ok(notice);assert.ok(notice.message.includes(sanctionReason));assert.match(notice.message,/Duracion: 3 dias\./);assert.match(notice.message,/hora de Colombia/);assert.match(notice.message,/hola@mibatute.com/);
+  assert.ok(notice);assert.ok(notice.message.includes(sanctionReason));assert.match(notice.message,/Duracion: 3 dias\./);assert.match(notice.message,/hora de Colombia/);assert.match(notice.message,/edgarleonardo202@gmail.com/);
   assert.ok(!checked(await peer.client.rpc('notification_inbox')).some(item=>item.id===notice.id));
   assert.ok((await member.client.from('articulos').insert({owner_id:member.user.id,title:'Intento estando suspendido',mode:'venta',price:1000})).error);
   const inboxContext=await browser.newContext({viewport:{width:390,height:844}});

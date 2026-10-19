@@ -37,3 +37,11 @@ test('sponsor filters normalize all-options and galleries rotate without duplica
   assert.equal(sponsorCoverage({}),'Cobertura general · Todas las categorías');
   assert.equal(sponsorCoverage({target_locations:[{city:'Bogotá',locality:'Suba'}],target_categories:['Mascotas']}),'Bogotá / Suba · Mascotas');
 });
+
+
+test('withdrawing sponsor metrics cancels queued events and prevents failed in-flight retries',async()=>{
+ const calls=[],cancelled=[];let reject;
+ const queue=createSponsorMetrics({visit:'test-only',send:payload=>{calls.push(payload);return new Promise((resolve,fail)=>{reject=fail;});},schedule:()=>7,cancel:id=>cancelled.push(id)});
+ queue.impression('one','hero');queue.clear();await queue.flush();assert.equal(calls.length,0);assert.deepEqual(cancelled,[7]);
+ queue.click('two','footer');await Promise.resolve();assert.equal(calls.length,1);queue.clear();reject(new Error('offline'));await queue.flush();await queue.flush();assert.equal(calls.length,1);
+});
