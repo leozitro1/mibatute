@@ -428,12 +428,12 @@ export default function Navbar({
 
   const publishDisabled = !!user && (isBlocked || isBanned);
   const publishTitle = !user
-    ? "Publicar"
+    ? "Publica gratis"
     : isBlocked
     ? "Cuenta bloqueada"
     : isBanned
     ? `Sancionado. Puedes publicar en ${formatRemaining(remainingMs)}`
-    : "Publicar";
+    : "Publica gratis";
 
   return (
     <>
@@ -576,18 +576,18 @@ export default function Navbar({
               disabled={publishDisabled}
               title={publishTitle}
               aria-label={publishTitle}
-              className={`inline-flex items-center justify-center h-9 w-9 sm:h-auto sm:w-auto sm:px-5 sm:py-2 rounded-lg text-sm font-black transition shadow-md ${
+              className={`inline-flex items-center justify-center gap-1 h-9 px-2 sm:h-auto sm:px-5 sm:py-2 rounded-lg text-xs sm:text-sm font-black transition shadow-md ${
                 publishDisabled
                   ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                   : "bg-forest-green text-white hover:bg-opacity-90"
               }`}
             >
               <Plus size={19} className="sm:hidden" aria-hidden="true" />
-              <span className="hidden sm:inline">{user && isBlocked
+              <span>{user && isBlocked
                 ? "Publicar (bloqueado)"
                 : user && isBanned
                 ? `Publicar (${formatRemaining(remainingMs)})`
-                : "Publicar"}</span>
+                : "Publica gratis"}</span>
             </button>
 
             {user ? (

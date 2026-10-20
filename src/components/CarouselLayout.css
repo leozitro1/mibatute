@@ -2,8 +2,8 @@
 .hero-banner { height: 360px; }
 .hero-banner .hero-banner-content { height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding-block: 24px; }
 .hero-banner .hero-banner-copy { min-height: 0; }
-.hero-banner .hero-banner-copy h1 { font-size: 40px; line-height: 1.15; }
-.hero-banner .hero-banner-copy h1,
+.hero-banner .hero-banner-copy h2 { font-size: 40px; line-height: 1.15; }
+.hero-banner .hero-banner-copy h2,
 .hero-banner .hero-banner-copy > p,
 .sponsor-carousel-copy h4,
 .sponsor-carousel-copy > p:last-child {
@@ -25,6 +25,6 @@
 @media (max-width: 639px) {
   .hero-banner { height: 384px; }
   .hero-banner .hero-banner-content { padding-block: 20px; }
-  .hero-banner .hero-banner-copy h1 { font-size: 28px; -webkit-line-clamp: 3; }
+  .hero-banner .hero-banner-copy h2 { font-size: 28px; -webkit-line-clamp: 3; }
   .hero-banner .hero-banner-copy > p { -webkit-line-clamp: 3; }
 }

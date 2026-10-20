@@ -27,7 +27,7 @@ export default function HeroBanner({onLearnMore,onBlog,sponsorFilters}) {
     {external&&<a href={active.enlace} target="_blank" rel="sponsored noopener noreferrer" onClick={click} aria-label={`Abrir anuncio: ${active.texto}`} className="absolute inset-0" />}
     <div className="hero-banner-content pointer-events-none relative px-4 py-4 sm:px-10 sm:py-7 md:px-14 md:py-8">
       <div className="hero-banner-copy flex flex-col gap-2 sm:gap-3 md:max-w-2xl"><div><span className="inline-block max-w-full rounded-full bg-treasure-gold px-3 py-1 text-xs font-black uppercase text-black [overflow-wrap:anywhere]">{active.badge}</span></div>
-        <h1 className="break-words text-2xl font-black leading-tight text-white sm:text-4xl md:text-5xl">{active.texto}</h1>
+        <h2 className="break-words text-2xl font-black leading-tight text-white sm:text-4xl md:text-5xl">{active.texto}</h2>
         {active.descripcion&&<p className="max-w-xl break-words text-sm text-white/85 sm:text-base">{active.descripcion}</p>}
         <div className="pt-1">{external?<a href={active.enlace} target="_blank" rel="sponsored noopener noreferrer" onClick={click} className={ctaClass} aria-label={`Visitar patrocinador: ${active.texto}`}>{active.button_text}</a>:<button type="button" className={ctaClass} onClick={internal}>{active.button_text}</button>}</div>
       </div>

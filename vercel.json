@@ -2,39 +2,68 @@
   "rewrites": [
     {
       "source": "/gestion/:path*",
-      "destination": "/index.html"
+      "destination": "/seo/gestion-operaciones.html"
     },
     {
       "source": "/auth/callback",
-      "destination": "/index.html"
+      "destination": "/seo/auth-callback.html"
     },
     {
       "source": "/reset-password",
-      "destination": "/index.html"
+      "destination": "/seo/reset-password.html"
     },
     {
       "source": "/terminos",
-      "destination": "/index.html"
+      "destination": "/seo/terminos.html"
     },
     {
       "source": "/privacidad",
-      "destination": "/index.html"
+      "destination": "/seo/privacidad.html"
     },
     {
       "source": "/pagos",
-      "destination": "/index.html"
+      "destination": "/seo/pagos.html"
     },
     {
       "source": "/cookies",
-      "destination": "/index.html"
+      "destination": "/seo/cookies.html"
     },
     {
       "source": "/datos-personales",
-      "destination": "/index.html"
+      "destination": "/seo/datos-personales.html"
     },
     {
       "source": "/normas",
-      "destination": "/index.html"
+      "destination": "/seo/normas.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/gestion/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/auth/callback",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/reset-password",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ]
 }

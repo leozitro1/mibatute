@@ -28,7 +28,7 @@
 .mb-design-preview > nav button { border-radius: 10px; }
 .mb-design-preview > main { padding-top: 24px; padding-bottom: 90px; }
 .mb-design-preview [aria-label="Banner principal"] { border-radius: 20px; box-shadow: none; }
-.mb-design-preview [aria-label="Banner principal"] h1 { font-weight: 600; letter-spacing: -1.2px; }
+.mb-design-preview [aria-label="Banner principal"] h2 { font-weight: 600; letter-spacing: -1.2px; }
 .mb-design-preview [aria-label="Banner principal"] .bg-treasure-gold { background: #eff5ea; color: #234d36; font-weight: 600; letter-spacing: .07em; font-size: 10px; }
 .mb-design-preview [aria-label="Banner principal"] :is(button,a).bg-white { font-weight: 600; border-radius: 10px; }
 .mb-design-preview .home-catalog h2 { font-weight: 600; letter-spacing: -.35px; color: #253d2e; }
@@ -126,7 +126,7 @@
   .design-comparison { bottom: 10px; right: 10px; left: 10px; justify-content: center; }
   .mb-design-preview > main { padding: 16px 12px 96px; }
   .mb-design-preview [aria-label="Banner principal"] { border-radius: 16px; }
-  .mb-design-preview [aria-label="Banner principal"] h1 { letter-spacing: -.5px; font-size: 28px; }
+  .mb-design-preview [aria-label="Banner principal"] h2 { letter-spacing: -.5px; font-size: 28px; }
   .mb-design-preview .home-catalog aside > div:first-child { padding: 0 12px; }
   .mb-design-preview .home-catalog aside section { padding-top: 6px; padding-bottom: 6px; }
   .mb-design-preview .home-catalog aside section > div:first-child button > span > span:first-child { font-weight: 500; }
