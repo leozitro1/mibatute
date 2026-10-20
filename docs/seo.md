@@ -7,7 +7,7 @@ Revisión: 20 de octubre de 2026.
 - `npm run build` genera metadatos iniciales por ruta, Open Graph, Twitter, robots.txt y sitemap.xml, sin llamadas a Supabase ni funciones de Vercel.
 - Inicio rastreable. Los documentos legales siguen accesibles para revisión, pero llevan `noindex` y no entran en el sitemap mientras `LEGAL_READY` sea falso. Al aprobarlos, el siguiente build los incluye.
 - Administración, callback y recuperación llevan `noindex` desde la respuesta inicial y también cabecera X-Robots-Tag. Esto no reemplaza autenticación/autorización.
-- El encabezado principal describe el mercado; la publicidad usa encabezados secundarios y no determina el tema de la página.
+- El mensaje introductorio se conserva en los metadatos SEO, sin añadir un bloque de texto visible a la portada. La publicidad usa encabezados secundarios.
 - CTA «Publica gratis», también en móvil. La publicación gratuita y la ausencia de comisión por venta no significan que los servicios opcionales con créditos sean gratuitos.
 
 ## Pendientes reales

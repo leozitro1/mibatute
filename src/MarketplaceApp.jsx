@@ -1756,11 +1756,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     </div>
                   )}
 
-                  {searchTerm.trim() === "" && <header className="-mt-2 mb-5 sm:-mt-4 sm:mb-6">
-                    <h1 className="text-sm sm:text-base font-medium leading-snug text-gray-600">Lo que ya no usas puede ser un gran hallazgo</h1>
-                    <p className="mt-1 text-xs sm:text-sm leading-relaxed text-gray-500">Publica gratis, vende o dona y dale una segunda oportunidad.</p>
-                  </header>}
-
                   <div className={`home-catalog flex flex-col lg:flex-row gap-4 lg:gap-8${filteredProducts.length === 12 && !homeBusy && !homeError ? ' home-catalog--full' : ''}${totalPages > 1 && !homeError ? ' home-catalog--paginated' : ''}`}>
                     <aside className="contents lg:block lg:w-1/4 shrink-0 min-w-0" aria-label="Filtros del catálogo">
                       <div className="order-1 min-w-0">
