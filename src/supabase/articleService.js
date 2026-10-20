@@ -1,5 +1,6 @@
 // src/supabase/articleService.js
 import { supabase } from "./supabaseClient";
+import { commitPublication } from './publicationCredits.js';
 import { uploadImageKitImage } from "../imagekit/imageService";
 import { useLocalImages, removeLocalImages } from '../imagekit/localImages';
 import { queryArticlesWithCondition } from "./articleQuery";
@@ -99,11 +100,7 @@ async function compressAndResizeImage(file) {
 async function ensureOptimizedImage(file) {
   if (typeof document === "undefined") return file;
 
-  try {
-    return await compressAndResizeImage(file);
-  } catch (e) {
-    throw e;
-  }
+  return compressAndResizeImage(file);
 }
 
 function normalizeMode(v) {
@@ -119,33 +116,7 @@ function normalizeMode(v) {
  * ✅ Insert/Update “a prueba de columnas”
  * Intenta escribir subcategory/subcategoria solo si existen.
  */
-async function safeInsertArticulos(payload) {
-  // ✅ Inserta soportando columnas que pueden NO existir (compatibilidad)
-  // Si Supabase devuelve: Could not find the '<col>' column, se elimina y reintenta.
-  let p = { ...(payload || {}) };
 
-  for (let i = 0; i < 8; i++) {
-    // ✅ OPT: solo id tras insert (el caller no necesita el row completo aquí)
-    const res = await supabase.from("articulos").insert(p).select("id").single();
-
-    if (!res?.error) return { data: res.data, error: null };
-
-    const msg = res?.error?.message || "";
-    const m = msg.match(/Could not find the '(.+?)' column/i);
-
-    if (m?.[1] && Object.prototype.hasOwnProperty.call(p, m[1])) {
-      const missing = m[1];
-      const next = { ...p };
-      delete next[missing];
-      p = next;
-      continue;
-    }
-
-    return { data: null, error: res.error };
-  }
-
-  return { data: null, error: { message: "No se pudo insertar en articulos (compatibilidad columnas)." } };
-}
 
 
 /**
@@ -237,7 +208,7 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
   let { data, error } = await supabase.from("articulo_imagenes").insert(rows).select("id,url,path,file_id,position");
 
   if (error?.message && /file_id/i.test(error.message)) {
-    const rowsWithoutFileId = rows.map(({ file_id, ...row }) => row);
+    const rowsWithoutFileId = rows.map(row => { const copy = { ...row }; delete copy.file_id; return copy; });
     ({ data, error } = await supabase
       .from("articulo_imagenes")
       .insert(rowsWithoutFileId)
@@ -247,23 +218,6 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
   if (error) return { success: false, error: error.message };
 
   return { success: true, data };
-}
-
-async function setArticlePrimaryImages(articleId, urls = []) {
-  const cleanUrls = Array.from(urls || []).filter(Boolean);
-  const first = cleanUrls[0] || "";
-  if (!articleId || !first) return { success: true };
-
-  const payload = {
-    image_url: first,
-    imagen_url: first,
-    imagen_url_principal: first,
-    imagenes: cleanUrls,
-  };
-
-  const { error } = await supabase.from("articulos").update(payload).eq("id", articleId);
-  if (error) return { success: false, error: error.message };
-  return { success: true };
 }
 
 /**
@@ -322,7 +276,7 @@ async function syncArticleImagesArray(articleId) {
 /**
  * ✅ Publica un artículo nuevo y guarda de 1 a 4 imágenes.
  */
-export async function publishArticle({ formData, files, user }) {
+export async function publishArticle({ formData, files, user, useCredit = false, requestId }) {
   if (!user?.id) return { success: false, error: "Usuario no autenticado" };
 
   const list = Array.from(files || []).filter(Boolean);
@@ -352,16 +306,7 @@ export async function publishArticle({ formData, files, user }) {
     return Math.max(1, Math.min(10, rounded));
   })();
 
-  // ✅ Destacado (por ahora libre). Lo mandamos en varios nombres por compatibilidad.
-  const featuredVal = !!(
-    formData?.destacado ??
-    formData?.is_featured ??
-    formData?.isFeatured ??
-    formData?.isfeatured ??
-    formData?.featured ??
-    false
-  );
-
+  // Publishing and highlighting are separate server-authorized operations.
   const payload = {
     owner_id: user.id,
     owner_name: user.user_metadata?.nombre || user.email || "Usuario",
@@ -374,9 +319,7 @@ export async function publishArticle({ formData, files, user }) {
     city: formData?.ciudad ?? formData?.city ?? null,
     locality: formData?.localidad_es ?? formData?.locality ?? null,
     // ✅ Destacado (compatibilidad de columnas)
-    is_featured: featuredVal,
-    destacado: featuredVal,
-    isFeatured: featuredVal,
+    is_featured: false,
     description: String(formData?.descripcion ?? formData?.description ?? "").trim(),
     estado_producto,
     status: "disponible",
@@ -387,70 +330,37 @@ export async function publishArticle({ formData, files, user }) {
     if (payload[k] === undefined) delete payload[k];
   }
 
-  const { data: articulo, error: artErr } = await safeInsertArticulos(payload);
-  if (artErr) return { success: false, error: artErr.message || "No se pudo insertar artículo" };
-
+  if (!requestId) return { success: false, error: "Falta el identificador de publicacion. Reabre el formulario." };
+  // Upload first: failed images never create a publication or consume a credit.
+  // The final RPC stores primary images and the debit in one database transaction.
   const uploaded = [];
-  try {
-    // ✅ Subir imágenes en paralelo (cada una se optimiza dentro de uploadArticleImage)
-    const results = await Promise.all(
-      list.map((file) => uploadArticleImage({ file, ownerId: user.id }))
-    );
-
-    const failed = results.find((r) => !r?.success);
-    if (failed) throw new Error(failed.error || "Error subiendo una imagen");
-
-    for (const r of results) uploaded.push({ url: r.url, path: r.path, file_id: r.file_id || null });
-
-    const uploadedUrls = uploaded.map((x) => x.url).filter(Boolean);
-    await setArticlePrimaryImages(articulo.id, uploadedUrls);
-
-    const ins = await insertArticleImages({
-      articuloId: articulo.id,
-      ownerId: user.id,
-      images: uploaded,
-    });
-
-    if (!ins.success) {
-      console.warn("No se pudo guardar articulo_imagenes; se conserva el artículo con imagen principal:", ins.error);
-      return {
-        success: true,
-        data: {
-          ...payload,
-          id: articulo.id,
-          imagenes: uploadedUrls,
-          image_url: uploadedUrls[0] || "",
-          imagen_url: uploadedUrls[0] || "",
-          imagen_url_principal: uploadedUrls[0] || "",
-          articulo_imagenes: [],
-          created_at: new Date().toISOString(),
-        },
-        warning: ins.error,
-      };
-    }
-
-    await syncArticleImagesArray(articulo.id);
-
-    return {
-      success: true,
-      data: {
-        ...payload,
-        id: articulo.id,
-        imagenes: uploadedUrls,
-        image_url: uploadedUrls[0] || "",
-        imagen_url: uploadedUrls[0] || "",
-        imagen_url_principal: uploadedUrls[0] || "",
-        articulo_imagenes: ins.data || [],
-        images: ins.data || [],
-        created_at: new Date().toISOString(),
-      },
-    };
-  } catch (e) {
-    if (!uploaded.length) {
-      await supabase.from("articulos").delete().eq("id", articulo.id);
-    }
-    return { success: false, error: e?.message || "Error publicando artículo" };
+  const results = await Promise.allSettled(list.map(file => uploadArticleImage({ file, ownerId: user.id })));
+  let uploadError = null;
+  for (const result of results) {
+    const image = result.status === 'fulfilled' ? result.value : null;
+    if (image?.success) uploaded.push({ url: image.url, path: image.path, file_id: image.file_id || null });
+    else uploadError = image?.error || result.reason?.message || 'Error subiendo una imagen';
   }
+  if (uploadError) { await removeStorageFiles(uploaded); return { success: false, error: uploadError }; }
+  const urls = uploaded.map(image => image.url);
+  const result = await commitPublication(supabase, {
+    article: { ...payload, imagenes: urls }, requestId, useCredit,
+  });
+  if (!result.success) {
+    // Only a definitive server refusal proves no row was committed. On a transport
+    // error keep images intact: the idempotent retry may discover a committed row.
+    if (result.code) await removeStorageFiles(uploaded);
+    return result;
+  }
+  const articulo = result.article;
+  // A retry after a lost response returns the existing row and never charges again.
+  if (result.alreadyExists) {
+    await removeStorageFiles(uploaded.filter(image => !(articulo.imagenes || []).includes(image.url)));
+    return { success: true, data: articulo, balance: result.balance };
+  }
+  const images = await insertArticleImages({ articuloId: articulo.id, ownerId: user.id, images: uploaded });
+  return { success: true, data: { ...articulo, articulo_imagenes: images.data || [], images: images.data || [] },
+    balance: result.balance, cost: result.cost, warning: images.success ? undefined : images.error };
 }
 
 /**

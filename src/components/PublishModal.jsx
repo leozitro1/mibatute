@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { X, Trash2 } from "lucide-react";
 import Cropper from "react-easy-crop";
+import { supabase } from "../supabase/supabaseClient";
+import { publicationStatus } from "../supabase/publicationCredits.js";
 import { publishArticle } from "../supabase/articleService";
 import ArticleFields from "./ArticleFields";
 import { detectContactoProhibido } from "./articleValidation";
@@ -128,6 +130,21 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
   const [files, setFiles] = useState([]); // File[]
   const [previews, setPreviews] = useState([]); // string[]
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [publicationLimit, setPublicationLimit] = useState(null);
+  const [limitError, setLimitError] = useState('');
+  const [usePublicationCredit, setUsePublicationCredit] = useState(false);
+  const publicationRequest = useRef(null);
+  const publicationSubmitLock = useRef(false);
+  useEffect(() => {
+    if (!isOpen || !user?.id) return;
+    let active = true;
+    publicationRequest.current = crypto.randomUUID();
+    Promise.resolve().then(() => { if (active) { setPublicationLimit(null); setLimitError(''); setUsePublicationCredit(false); } });
+    publicationStatus(supabase).then(status => { if (active) setPublicationLimit(status); })
+      .catch(error => { if (active) setLimitError(error.message); });
+    return () => { active = false; };
+  }, [isOpen, user?.id]);
+
 
   // ====== Crop Queue ======
   const [cropQueue, setCropQueue] = useState([]); // File[]
@@ -146,7 +163,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       setTimeout(() => {
         try {
           URL.revokeObjectURL(prev);
-        } catch {}
+        } catch { /* Preview may already have been released. */ }
       }, 0);
     }
     prevCropSrcRef.current = cropSrc || null;
@@ -156,7 +173,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       if (cropSrc) {
         try {
           URL.revokeObjectURL(cropSrc);
-        } catch {}
+        } catch { /* Preview may already have been released. */ }
       }
     };
   }, [cropSrc]);
@@ -172,7 +189,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     (urls || []).forEach((u) => {
       try {
         URL.revokeObjectURL(u);
-      } catch {}
+      } catch { /* Preview may already have been released. */ }
     });
   };
 
@@ -359,7 +376,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isSubmitting || isCropping || cropOpen) return;
+    if (publicationSubmitLock.current || isSubmitting || isCropping || cropOpen) return;
 
     if (!user) return alert("Debes iniciar sesión para publicar.");
     if (!user?.email_confirmed_at) return alert("Debes verificar tu correo electrónico antes de publicar.\n\nRevisa tu bandeja de entrada y haz clic en el enlace de confirmación.");
@@ -389,12 +406,21 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       }
     }
 
+    if (limitError || !publicationLimit) return alert(limitError || 'Espera mientras comprobamos tus publicaciones.');
+    if (modeNorm3 === 'venta' && publicationLimit.requiresCredit && !usePublicationCredit) {
+      return alert('Confirma el uso de 1 crédito para una venta adicional o finaliza otra venta para liberar un espacio gratuito.');
+    }
+    if (modeNorm3 === 'venta' && publicationLimit.requiresCredit && publicationLimit.balance < 1) {
+      return alert('No tienes créditos suficientes. Finaliza una venta para liberar un espacio gratuito.');
+    }
+
     // ✅ Validar que la descripción no tenga datos de contacto
     const contactError = detectContactoProhibido(formData.description);
     if (contactError) {
       return;
     }
 
+    publicationSubmitLock.current = true;
     setIsSubmitting(true);
 
     try {
@@ -429,9 +455,14 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         formData: { ...formDataEN, ...formDataES },
         files, // ✅ ya van recortadas 800x800 webp
         user,
+        requestId: publicationRequest.current,
+        useCredit: modeNorm3 === "venta" && usePublicationCredit,
       });
 
       if (!res?.success) {
+        if (['PUBLICATION_CREDIT_REQUIRED','INSUFFICIENT_CREDITS'].includes(res?.code)) {
+          setPublicationLimit(res); setUsePublicationCredit(false);
+        }
         alert("Error: " + (res?.error || "No se pudo publicar"));
         return;
       }
@@ -444,6 +475,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       console.error("Publish error:", err);
       alert("No se pudo publicar. Revisa la consola.");
     } finally {
+      publicationSubmitLock.current = false;
       setIsSubmitting(false);
     }
   };
@@ -510,10 +542,20 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
             <ArticleFields formData={formData} setFormData={setFormData} categories={CATEGORY_TREE}
               disabled={isSubmitting || isCropping || cropOpen} />
 
+            <div className="rounded-xl border border-[#dfe7d9] bg-[#f3f6f0] p-4 text-sm text-gray-600" aria-live="polite">
+              {limitError ? <p role="alert">{limitError}</p> : !publicationLimit ? <p>Comprobando tus publicaciones…</p> : normalizeMode(formData.mode) !== 'venta' ? <p>Publicar una donación es gratis. Destacarla después es opcional y requiere 1 crédito.</p> : <>
+                <p>Tienes <strong>{publicationLimit.active} ventas activas</strong>. Hasta 3 al mismo tiempo son gratis; las pausadas y reservadas también ocupan espacio.</p>
+                {publicationLimit.requiresCredit ? <>
+                  <p className="mt-2">Esta publicación adicional requiere <strong>1 crédito</strong> (valor individual: $2.500 COP). Saldo: {publicationLimit.balance}.</p>
+                  {publicationLimit.balance > 0 ? <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={usePublicationCredit} onChange={event=>setUsePublicationCredit(event.target.checked)} disabled={isSubmitting}/><span>Confirmo usar 1 crédito para publicar esta venta adicional. Destacarla requiere otro crédito.</span></label> : <p className="mt-2">Sin créditos disponibles. Puedes finalizar una venta para liberar un espacio gratuito. Las recargas aún no están habilitadas.</p>}
+                </> : <p className="mt-2">Esta publicación es gratis. Si eliges destacar después, se cobra 1 crédito aparte.</p>}
+              </>}
+            </div>
+
             {/* Botón publicar */}
             <button
               type="submit"
-              disabled={isSubmitting || isCropping || cropOpen}
+              disabled={isSubmitting || isCropping || cropOpen || !publicationLimit || !!limitError || (normalizeMode(formData.mode)==='venta' && publicationLimit.requiresCredit && (!usePublicationCredit || publicationLimit.balance<1))}
               className="w-full py-3 rounded-xl font-black uppercase tracking-widest bg-forest-green text-white hover:opacity-90 disabled:opacity-50"
             >
               {isSubmitting ? "Publicando..." : "Publicar"}

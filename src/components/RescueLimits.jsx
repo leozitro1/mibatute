@@ -21,9 +21,9 @@ export default function RescueLimits({purchaseLimit,donacionLimit}) {
       </section>}
       {donacionLimit&&<section aria-label="Solicitudes de donación">
         <h3>Donaciones</h3>
-        <p><strong>{donacionLimit.pending}/3 solicitudes pendientes</strong>. Una solicitud gratuita cada 6 horas.</p>
+        <p><strong>{donacionLimit.pending}/3 solicitudes pendientes</strong>. Dos postulaciones gratuitas cada 24 horas.</p>
         {donacionLimit.pending>=3&&<p className="font-semibold text-amber-800">Espera una decisión o cancela una solicitud antes de enviar otra.</p>}
-        <p>{donacionLimit.freeAvailable?'Solicitud gratuita disponible.':`Próxima gratuita: ${new Date(donacionLimit.nextFreeAt).toLocaleString('es-CO',{timeZone:'America/Bogota'})}.`}</p>
+        <p>{donacionLimit.freeAvailable?`${donacionLimit.freeRemaining ?? 1} postulaciones gratuitas disponibles.`:`Próxima gratuita: ${new Date(donacionLimit.nextFreeAt).toLocaleString('es-CO',{timeZone:'America/Bogota'})}.`}</p>
         <p>Las adicionales retienen 1 crédito al solicitar desde el artículo. Si no eres elegido se devuelve; cancelar voluntariamente no lo devuelve.</p>
       </section>}
     </div>

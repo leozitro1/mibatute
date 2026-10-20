@@ -26,3 +26,14 @@ El contenido preservado en drafts/legal-review se reintegró en el código activ
 ## Validación
 
 227 pruebas pasaron, incluida captura de elecciones de pruebas sin falsas aprobaciones, registro, rutas legales, MFA, aislamiento, solicitudes, cierre de soporte, mensajes de 500 caracteres y checkout deshabilitado. Compilación y lint de los módulos nuevos/modificados sin errores. No se crearon cuentas ajenas, pagos ni solicitudes ficticias en producción.
+
+
+## Entrega del 20 de octubre: reglas de ventas y donaciones
+
+El responsable autorizó publicar el conjunto probado en local en main y el mismo dominio. Las migraciones `2026-10-20-donation-daily-quota.sql` y `2026-10-20-publication-credits.sql` se aplicaron juntas en una transacción al proyecto de producción existente. La verificación posterior confirmó **8 de 8 funciones idénticas** a las probadas en local, RLS de recibos activo, escrituras de recibos revocadas al cliente, ejecución de publicación revocada al anónimo y trigger de control instalado. Continúan cero versiones legales finales habilitadas.
+
+- Hasta 3 ventas activas gratis; una nueva adicional requiere confirmar 1 crédito. Pausadas/reservadas cuentan; entregadas o vencidas liberan espacio, salvo las reservas pendientes de finalizar. Se conserva el límite general previo de 20 publicaciones activas.
+- Dos postulaciones gratuitas por ventana móvil de 24 horas; una adicional requiere 1 crédito, con máximo de 3 pendientes. El historial impide recuperar gratuidades cancelando o recibiendo un rechazo. Se conservan las devoluciones/retenciones de las solicitudes adicionales.
+- Destacar requiere otro crédito y tiene protección contra escrituras directas. Los reintentos de publicación/destacado no duplican el débito. Las publicaciones anteriores no reciben cargos retroactivos.
+- «Cómo funciona» incluye pasos, costos, seguridad del chat y paquetes propuestos; la cabecera muestra BETA. Las recargas y los botones de compra siguen deshabilitados; no se alteraron los precios del checkout inactivo ni se ejecutaron pagos.
+- **241 pruebas**, compilación y lint de los módulos funcionales modificados pasaron. La prueba contra la base local de venta adicional/destacado/reintentos se revirtió completamente. En producción se verificaron definiciones y permisos, sin crear publicaciones ni descontar saldos de usuarios para pruebas.

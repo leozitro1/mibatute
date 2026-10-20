@@ -1,0 +1,76 @@
+.how-guide { max-width: 1040px; margin: 0 auto; padding: 8px 0 28px; color: #536159; }
+.how-back { display: inline-flex; align-items: center; gap: 8px; color: #315b39; font-size: 14px; margin-bottom: 24px; }
+.how-intro { max-width: 680px; }
+.how-eyebrow { color: #637467; font-size: 12px; }
+.how-intro h1 { margin: 8px 0 10px; font-size: 30px; font-weight: 600; line-height: 1.2; }
+.how-intro p, .how-card p, .how-prices > p { font-size: 14px; line-height: 1.7; }
+.how-review { margin: 22px 0; padding: 12px 16px; border: 1px solid #e6dfc9; border-radius: 12px; background: #faf8ef; color: #74633c; font-size: 12px; line-height: 1.65; }
+.how-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-bottom: 24px; }
+.how-summary > div { display: flex; flex-direction: column; gap: 8px; background: #edf3e9; border: 1px solid #dde7d8; border-radius: 14px; padding: 20px; color: #315b39; }
+.how-summary span { font-size: 13px; }
+.how-summary strong { font-size: 19px; font-weight: 600; }
+.how-modes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+.how-card { background: white; border: 1px solid #e1e7dc; border-radius: 16px; padding: 24px; }
+.how-section-title { display: flex; align-items: center; gap: 10px; color: #315b39; margin-bottom: 12px; }
+.how-guide h2 { font-size: 20px; line-height: 1.4; font-weight: 600; color: #253d2e; }
+.how-card ol { list-style: decimal; padding-left: 20px; margin: 20px 0; }
+.how-card li { padding-left: 4px; margin-bottom: 14px; font-size: 14px; line-height: 1.75; }
+.how-card li::marker { color: #315b39; font-weight: 600; }
+.how-card strong, .how-prices strong { font-weight: 600; }
+.how-callout { background: #f3f6f0; padding: 14px; border-radius: 10px; font-size: 13px; line-height: 1.7; }
+.how-card p.how-callout { font-size: 13px; }
+.how-apply { margin-top: 18px; }
+.how-prices { margin-top: 32px; }
+.how-cost-list { margin-top: 18px; border: 1px solid #e1e7dc; border-radius: 14px; overflow: hidden; background: white; }
+.how-cost-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 22px; }
+.how-cost-row + .how-cost-row { border-top: 1px solid #edf0e9; }
+.how-cost-row h3 { color: #34443a; font-size: 14px; font-weight: 500; }
+.how-cost-row p { margin-top: 4px; color: #66736a; font-size: 12px; line-height: 1.6; }
+.how-cost-row > strong { white-space: nowrap; color: #34443a; font-size: 14px; }
+.how-cost-row > .how-price-free { color: #315b39; }
+.how-example { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 16px; border-radius: 12px; background: #edf3e9; color: #315b39; }
+.how-example svg { flex-shrink: 0; margin-top: 4px; }
+.how-prices .how-payment-note { margin-top: 10px; font-size: 12px; color: #687469; }
+.how-faq { margin-top: 34px; }
+.how-faq > h2 { margin-bottom: 14px; }
+.how-faq details { border-bottom: 1px solid #dde5d9; }
+.how-faq summary { cursor: pointer; padding: 17px 0; color: #34443a; font-size: 14px; font-weight: 500; }
+.how-faq details p { margin: 0 0 18px; max-width: 850px; font-size: 13px; line-height: 1.8; }
+.how-guide :is(button,summary):focus-visible { outline: 2px solid #315b39; outline-offset: 4px; border-radius: 4px; }
+@media(max-width:639px) {
+ .how-intro h1 { font-size: 24px; }
+ .how-summary { gap: 8px; }
+ .how-summary > div { padding: 13px 10px; gap: 7px; }
+ .how-summary span { font-size: 11px; line-height: 1.5; }
+ .how-summary strong { font-size: 14px; }
+ .how-modes { grid-template-columns: 1fr; gap: 14px; }
+ .how-card { padding: 18px; }
+ .how-guide h2 { font-size: 18px; }
+ .how-cost-row { padding: 15px; gap: 12px; }
+ .how-cost-row h3 { font-size: 13px; }
+ .how-cost-row > strong { font-size: 13px; }
+}
+
+.how-advantage { margin-bottom: 24px; padding: 20px 24px; border-left: 3px solid #9ab28a; background: #f0f4ec; border-radius: 0 12px 12px 0; }
+.how-advantage p { margin-top: 8px; font-size: 14px; line-height: 1.75; }
+.how-privacy { margin-top: 18px; }
+.how-privacy > p + p { margin-top: 12px; }
+.how-packs { margin-top: 34px; }
+.how-packs-intro, .how-support-copy { font-size: 14px; line-height: 1.75; }
+.how-support-copy { margin-top: 12px; }
+.how-pack-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin-top: 20px; }
+.how-pack { padding: 22px; border: 1px solid #dfe7d9; border-radius: 16px; background: white; }
+.how-pack h3 { font-size: 18px; font-weight: 600; color: #253d2e; }
+.how-pack-credits { margin-top: 3px; font-size: 12px; color: #69776c; }
+.how-pack-price { margin-top: 18px; font-size: 28px; font-weight: 600; color: #315b39; }
+.how-pack-price span { font-size: 12px; font-weight: 400; }
+.how-pack-unit { margin-top: 4px; font-size: 11px; color: #69776c; }
+.how-pack-saving { margin-top: 14px; font-size: 12px; font-weight: 500; color: #315b39; }
+.how-pack button { width: 100%; margin-top: 20px; padding: 10px; border-radius: 9px; background: #edf3e9; color: #687c61; font-size: 13px; cursor: not-allowed; }
+.how-pack-unavailable { display: block; margin-top: 8px; text-align: center; font-size: 11px; color: #69776c; }
+.how-packs > .how-payment-note { margin-top: 12px; font-size: 12px; line-height: 1.7; color: #69776c; }
+@media(max-width:639px) {
+ .how-advantage { padding: 17px; }
+ .how-pack-grid { grid-template-columns: 1fr; gap: 12px; }
+ .how-pack { padding: 20px; }
+}

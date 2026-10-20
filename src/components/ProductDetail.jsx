@@ -1028,7 +1028,7 @@ export default function ProductDetail({
                 <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl space-y-3">
                   <p className="text-sm font-black text-amber-800">⏳ Límite de postulaciones alcanzado</p>
                   <p className="text-xs text-amber-700 font-medium leading-relaxed">
-                    Tienes <strong>1 solicitud gratuita cada 6 horas</strong> y un maximo de <strong>3 pendientes simultaneas</strong>.
+                    Tienes <strong>2 postulaciones gratuitas cada 24 horas</strong> y un maximo de <strong>3 pendientes simultaneas</strong>.
                   </p>
 
                   {/* Opción esperar */}
@@ -1060,7 +1060,7 @@ export default function ProductDetail({
                       </>
                     ) : (
                       <p className="text-xs text-amber-700 font-medium">
-                        No tienes créditos. Recarga desde tu perfil.
+                        No tienes créditos. Puedes esperar al próximo cupo gratuito; las recargas aún no están habilitadas.
                       </p>
                     )}
                   </div>

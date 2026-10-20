@@ -446,7 +446,7 @@ export default function Navbar({
             type="button"
             className="flex shrink-0 items-center gap-2 sm:gap-3 cursor-pointer"
             onClick={handleLogoClick}
-            aria-label="Ir al inicio"
+            aria-label="MiBatute BETA, ir al inicio"
             title="Ir al inicio"
           >
             <img
@@ -459,8 +459,11 @@ export default function Navbar({
             />
 
             <div className="flex flex-col leading-none">
-              <span className="text-[20px] sm:text-[22px] md:text-[28px] font-extrabold text-gray-900">
-                Mi<span className="text-forest-green">Batute</span>
+              <span className="flex items-center gap-2">
+                <span className="text-[20px] sm:text-[22px] md:text-[28px] font-extrabold text-gray-900">
+                  Mi<span className="text-forest-green">Batute</span>
+                </span>
+                <span className="rounded border border-[#dce5d5] bg-[#f0f4eb] px-1.5 py-1 text-[9px] font-semibold leading-none tracking-wider text-[#526747]" title="Versión en desarrollo">BETA</span>
               </span>
               <span className="text-[12px] md:text-[13px] font-semibold text-gray-500 mt-1">
                 mi basura, tu tesoro
