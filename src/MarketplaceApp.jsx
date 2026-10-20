@@ -1749,8 +1749,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               {currentView === "home" && (
                 <div className="animate-in fade-in duration-500">
                   {searchTerm.trim() === "" && <header className="mb-5">
-                    <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#253d2e]">Compra, vende y dona en Colombia</h1>
-                    <p className="mt-1 text-sm text-gray-600">Una alternativa económica a Mercado Libre: publica gratis y vende sin comisión por venta. Encuentra artículos por categoría y ubicación.</p>
+                    <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#253d2e]">Lo que ya no usas puede ser un gran hallazgo</h1>
+                    <p className="mt-1 text-sm text-gray-600">Publica gratis, vende o dona y dale una segunda oportunidad.</p>
                   </header>}
                   {/* Mostrar banner solo cuando NO hay búsqueda (evita que se atraviese entre la barra y resultados) */}
                   {searchTerm.trim() === "" && (

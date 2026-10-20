@@ -575,7 +575,6 @@ export default function Navbar({
               onClick={handlePublish}
               disabled={publishDisabled}
               title={publishTitle}
-              aria-label={publishTitle}
               className={`inline-flex items-center justify-center gap-1 h-9 px-2 sm:h-auto sm:px-5 sm:py-2 rounded-lg text-xs sm:text-sm font-black transition shadow-md ${
                 publishDisabled
                   ? "bg-gray-200 text-gray-500 cursor-not-allowed"
@@ -587,7 +586,7 @@ export default function Navbar({
                 ? "Publicar (bloqueado)"
                 : user && isBanned
                 ? `Publicar (${formatRemaining(remainingMs)})`
-                : "Publica gratis"}</span>
+                : <>Publica<span className="hidden sm:inline"> gratis</span></>}</span>
             </button>
 
             {user ? (

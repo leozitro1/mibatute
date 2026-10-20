@@ -135,7 +135,7 @@ export default function HowItWorks({ onBack }) {
             ¿Se cobra comisión por vender o donar?
           </h4>
           <p className="text-sm text-gray-500">
-            No cobramos comisiones. Solo ofrecemos cupos opcionales para quienes
+            MiBatute es una alternativa económica a Mercado Libre: puedes publicar gratis y vender sin comisión por venta. Solo ofrecemos cupos opcionales para quienes
             deseen más oportunidades y quieran apoyar el crecimiento de la plataforma.
           </p>
         </div>

@@ -2,8 +2,8 @@ import { LEGAL_READY } from '../legal/config.js';
 import { policies } from '../legal/policies.js';
 
 export const SITE_URL = 'https://www.mibatute.com';
-export const HOME_TITLE = 'MiBatute | Publica gratis, compra, vende y dona en Colombia';
-export const HOME_DESCRIPTION = 'Publica tus artículos gratis en MiBatute. Compra, vende sin comisión por venta y encuentra donaciones en Colombia, con categorías y filtros por ubicación.';
+export const HOME_TITLE = 'MiBatute | Publica gratis y dale otra oportunidad';
+export const HOME_DESCRIPTION = 'Lo que ya no usas puede ser un gran hallazgo. Publica gratis, vende sin comisión por venta o dona tus artículos en MiBatute y dales una segunda oportunidad.';
 export const LEGAL_PATHS = [...Object.keys(policies), '/datos-personales'];
 export const PRIVATE_PATHS = ['/gestion/operaciones', '/gestion/direccion', '/auth/callback', '/reset-password'];
 export function metadataFor(pathname) {
