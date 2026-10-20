@@ -575,18 +575,19 @@ export default function Navbar({
               onClick={handlePublish}
               disabled={publishDisabled}
               title={publishTitle}
-              className={`inline-flex items-center justify-center gap-1 h-9 px-2 sm:h-auto sm:px-5 sm:py-2 rounded-lg text-xs sm:text-sm font-black transition shadow-md ${
+              aria-label={publishTitle}
+              className={`inline-flex items-center justify-center h-9 w-9 sm:h-auto sm:w-auto sm:px-5 sm:py-2 rounded-lg text-xs sm:text-sm font-black transition shadow-md ${
                 publishDisabled
                   ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                   : "bg-forest-green text-white hover:bg-opacity-90"
               }`}
             >
               <Plus size={19} className="sm:hidden" aria-hidden="true" />
-              <span>{user && isBlocked
+              <span className="hidden sm:inline">{user && isBlocked
                 ? "Publicar (bloqueado)"
                 : user && isBanned
                 ? `Publicar (${formatRemaining(remainingMs)})`
-                : <>Publica<span className="hidden sm:inline"> gratis</span></>}</span>
+                : "Publica gratis"}</span>
             </button>
 
             {user ? (
