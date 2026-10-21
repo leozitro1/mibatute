@@ -656,6 +656,23 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
       await asUser(user,'aal1');await assert.rejects(db.query("insert into staff_message_states(message_id,user_id) values($1,$2)",[sent.id,user]),/permission/);
       await open(master);await act('staff',admin,'permissions',{permissions:['moderation']});await open(admin);await assert.rejects(prepare(),/autorizado/);
     });
+    await t.test('complete article previews retain public detail fields and enforce reports or moderation with MFA',async()=>{
+      await db.exec('reset role;alter table public.articulos add column estado_producto integer;alter table public.articulos add column subcategory text');
+      const previewMigration=await readFile(new URL('../supabase/migrations/2026-10-20-staff-article-preview.sql',import.meta.url),'utf8');
+      await db.exec(previewMigration);await db.exec(previewMigration);
+      await db.query("insert into articulos(id,title,description,status,estado,review_status,owner_id,mode,price,category,subcategory,estado_producto,city,locality,image_url,is_featured) values($1,'Detalle completo','Descripción completa','en_revision','en_revision','pending',$2,'venta',15000,'Hogar','Sillas',8,'Bogotá','Suba','https://example.com/photo.jpg',true)",[id(10000),user]);
+      await db.query("insert into reputacion(reviewed_id,reviewer_id,estrellas) values($1,$2,4),($1,$2,5)",[user,master]);
+      await open(master);let detail=await rpc('staff_article_preview',[id(10000)]);
+      assert.equal(detail.subcategory,'Sillas');assert.equal(detail.estado_producto,8);assert.equal(detail.price,15000);assert.equal(detail.owner_id,user);assert.equal(detail.status,'en_revision');assert.equal(detail.is_featured,true);assert.ok(detail.imagenes.includes('https://example.com/photo.jpg'));
+      assert.ok(detail.owner_reputation.total>=2);assert.ok(!JSON.stringify(detail).includes('privado@example.com'));
+      for(const key of ['email','movil','direccion','buyer_id','ganador_id','messages','content_version'])assert.ok(!(key in detail));
+      await act('staff',admin,'permissions',{permissions:['reports']});await open(admin);assert.equal((await rpc('staff_article_preview',[id(10000)])).title,'Detalle completo');
+      await assert.rejects(rpc('staff_article_detail',[id(10000)]),/autorizado/,'Report viewing does not grant edit access');
+      await asUser(admin,'aal1');await assert.rejects(rpc('staff_article_preview',[id(10000)]),/autorizado/);
+      await asUser(user);await assert.rejects(rpc('staff_article_preview',[id(10000)]),/autorizado/);
+      await open(master);await act('staff',admin,'permissions',{permissions:[]});await open(admin);await assert.rejects(rpc('staff_article_preview',[id(10000)]),/autorizado/);
+      await open(master);await assert.rejects(rpc('staff_article_preview',[id(999999)]),/ya no existe/);
+    });
     await t.test('only an MFA-verified superadmin with a live session can read marketplace analytics',async()=>{
       await db.exec('reset role;alter table public.articulos add column delivered_at timestamptz');
       await db.exec(await readFile(new URL('../supabase/migrations/2026-10-16-market-analytics.sql',import.meta.url),'utf8'));

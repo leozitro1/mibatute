@@ -1,0 +1,66 @@
+.publish-progress { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:6px; list-style:none; margin:0 0 24px; padding:0; }
+.publish-progress li { display:flex; flex-direction:column; align-items:center; gap:6px; color:#7a857b; }
+.publish-progress li > span { display:flex; align-items:center; justify-content:center; width:27px; height:27px; border:1px solid #dfe6da; border-radius:50%; background:#f8faf5; font-size:12px; }
+.publish-progress small { font-size:11px; }
+.publish-progress li[aria-current="step"] { color:#2d5a27; font-weight:600; }
+.publish-progress li[aria-current="step"] > span { background:#2d5a27; border-color:#2d5a27; color:white; }
+.publish-progress li[data-complete="true"] > span { background:#edf3e7; color:#2d5a27; border-color:#bccdb3; }
+.publish-step-heading { margin-bottom:20px; }
+.publish-step-heading > p:first-child { margin-bottom:5px; font-size:11px; color:#637467; }
+.publish-step-heading h3 { font-size:21px; line-height:1.4; color:#253d2e; outline:none; }
+.publish-step-heading > p:last-child { margin-top:7px; font-size:13px; line-height:1.65; color:#69756a; }
+.publish-mode-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.publish-mode-options > button { display:flex; flex-direction:column; align-items:flex-start; gap:12px; min-width:0; padding:20px 16px; border:1px solid #dfe6da; border-radius:13px; background:#fff; color:#456341; text-align:left; }
+.publish-mode-options > button:hover { border-color:#819b72; background:#fafcf7; }
+.publish-mode-options > button[aria-pressed="true"] { border-color:#5b8050; background:#f0f5eb; box-shadow:inset 0 0 0 1px #5b8050; }
+.publish-mode-options strong { font-size:18px; font-weight:600; color:#253d2e; }
+.publish-mode-options span { font-size:13px; line-height:1.65; color:#536159; }
+.publish-mode-options small { font-size:12px; line-height:1.6; color:#69756a; }
+.publish-mode-options em { margin-top:auto; padding-top:8px; font-size:12px; font-weight:600; font-style:normal; }
+.publish-wizard-actions { display:flex; justify-content:space-between; gap:12px; position:sticky; bottom:-24px; z-index:1; padding:16px 0 8px; background:#fff; border-top:1px solid #edf0e9; margin-top:24px; }
+.publish-wizard-actions button { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:11px 16px; border-radius:9px; font-size:14px; }
+.publish-wizard-next { flex:1; color:#fff; }
+.publish-wizard-back { border:1px solid #dfe6da; color:#456341; }
+.publish-wizard-back:hover { background:#f3f6f0; }
+.publish-wizard-actions button:disabled { opacity:.5; cursor:not-allowed; }
+.publish-step-error { padding:12px; border:1px solid #edc8c0; border-radius:9px; color:#9c3326; background:#fff5f2; font-size:13px; line-height:1.6; }
+.publish-add-photo:focus-within { outline:2px solid #5b8050; outline-offset:3px; }
+.publish-review { padding:16px; border:1px solid #dfe6da; border-radius:12px; }
+.publish-review-photos { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:12px; }
+.publish-review-photos img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; }
+.publish-review-line { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px; color:#637467; }
+.publish-review-line button,.publish-review-edit button { color:#315b39; font-size:12px; text-decoration:underline; text-underline-offset:3px; }
+.publish-review h4 { font-size:18px; font-weight:600; color:#253d2e; overflow-wrap:anywhere; }
+.publish-review-price { display:block; margin:8px 0 14px; color:#2d5a27; font-size:20px; }
+.publish-review dl { display:grid; grid-template-columns:auto minmax(0,1fr); gap:7px 12px; font-size:12px; line-height:1.6; }
+.publish-review dt { color:#69756a; }
+.publish-review dd { overflow-wrap:anywhere; }
+.publish-review-description { margin-top:14px; font-size:13px; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere; }
+.publish-review-edit { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:12px; }
+.publish-highlight-note { display:flex; align-items:flex-start; gap:12px; padding:16px; border:1px solid #ead9b6; background:#fff9ee; border-radius:12px; color:#795622; }
+.publish-highlight-note > svg { flex-shrink:0; margin-top:2px; }
+.publish-highlight-note strong { display:block; font-size:14px; font-weight:600; }
+.publish-highlight-note p { margin-top:7px; font-size:12px; line-height:1.7; }
+.publish-review-hint { font-size:12px; line-height:1.65; color:#69756a; }
+@media(max-width:639px) {
+ .publish-mode-options { gap:10px; }
+ .publish-mode-options > button { padding:16px 12px; gap:10px; }
+ .publish-mode-options span,.publish-mode-options small { font-size:12px; }
+ .publish-step-heading h3 { font-size:19px; }
+ .publish-progress { gap:3px; }
+ .publish-progress small { font-size:10px; }
+ .publish-wizard-actions { bottom:-20px; }
+}
+.publish-crop-stage { height:min(42dvh,360px); }
+.publish-crop-tools { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.publish-fit-photo { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:9px 12px; background:#edf3e7; border:1px solid #bccdb3; border-radius:9px; color:#315b39; font-size:13px; }
+.publish-fit-photo:hover:not(:disabled) { background:#e3eddc; border-color:#819b72; }
+.publish-crop-tools > span { flex:1; min-width:140px; font-size:11px; line-height:1.5; color:#69756a; }
+.publish-zoom-labels { display:flex; justify-content:space-between; gap:12px; color:#69756a; font-size:11px; }
+.publish-zoom-labels span { display:inline-flex; align-items:center; gap:5px; }
+.publish-feature-toggle { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:44px; margin-top:12px; padding:10px 12px; border:1px solid #c9a86a; border-radius:9px; background:#fff; color:#795622; font-size:13px; }
+.publish-feature-toggle[aria-pressed="true"] { background:#f5e8cc; border-color:#a87b31; }
+.publish-feature-toggle:disabled { opacity:.55; cursor:not-allowed; }
+.publish-cost-summary { display:grid; gap:7px; padding:14px; border:1px solid #dfe6da; border-radius:10px; font-size:12px; color:#536159; }
+.publish-cost-summary > strong { padding-top:7px; border-top:1px solid #e1e7dc; color:#253d2e; font-size:14px; }
+.publish-cost-summary > p { color:#9c3326; line-height:1.6; }

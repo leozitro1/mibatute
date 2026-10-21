@@ -152,10 +152,11 @@ export default function ProductDetail({
   user,
   onCategoryClick,
   onSubcategoryClick,
+  staffPreview = false,
+  onOpenOwner,
 }) {
   const detailTitleId = useId();
   const publicationNow = usePublicationClock();
-  const publicName = formatPublicName(item?.owner_name || item?.owner?.name || item?.anunciante || item?.usuario_nombre);
 
   const [message, setMessage] = useState("");
   const [msgContactError, setMsgContactError] = useState(null); // ✅ validación contacto en vivo
@@ -308,7 +309,7 @@ export default function ProductDetail({
         if (photoResolvedFromItem) setStableOwnerPhoto(photoResolvedFromItem);
       }
 
-      if (!ownerId) return;
+      if (staffPreview || !ownerId) return;
       if (nameFromItem && photoResolvedFromItem) return;
 
       try {
@@ -330,19 +331,19 @@ export default function ProductDetail({
         setOwnerNameResolved((prev) => prev || nombreDb);
         setOwnerPhotoResolved((prev) => prev || fotoDbResolved);
         if (fotoDbResolved) setStableOwnerPhoto(fotoDbResolved);
-      } catch {}
+      } catch { /* Retain the owner information supplied with the article. */ }
     })();
 
     return () => {
       alive = false;
     };
-  }, [isOpen, item, ownerId, ownerNameRaw, ownerPhotoRaw]);
+  }, [isOpen, item, ownerId, ownerNameRaw, ownerPhotoRaw, staffPreview]);
 
   useEffect(() => {
     if (!isOpen) return;
     if (!item) return;
 
-    if (isUnderReview) {
+    if (staffPreview || isUnderReview) {
       setCheckingApplied(false);
       setHasApplied(false);
       setHasBeenRejected(false);
@@ -410,18 +411,18 @@ export default function ProductDetail({
         if (!alive) return;
         setHasApplied(false);
       } finally {
-        if (!alive) return;
-        setCheckingApplied(false);
+        if (alive) setCheckingApplied(false);
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [isOpen, item?.id, user?.id, ownerId, isGift, isAvailable, articuloId, isUnderReview]);
+  }, [isOpen, item?.id, user?.id, ownerId, isGift, isAvailable, articuloId, isUnderReview, staffPreview]);
 
   // Cargar reputación del vendedor
   useEffect(() => {
+    if (staffPreview) { setOwnerReputacion(item?.owner_reputation ?? null); return; }
     if (!isOpen || !ownerId) { setOwnerReputacion(null); return; }
     supabase.from("reputacion").select("estrellas").eq("reviewed_id", ownerId)
       .then(({ data }) => {
@@ -435,7 +436,7 @@ export default function ProductDetail({
       supabase.from("reputacion").select("id").eq("reviewer_id", user.id).eq("articulo_id", articuloId).limit(1)
         .then(({ data }) => setYaCalifiqueItem(!!(data && data.length > 0)));
     }
-  }, [isOpen, ownerId]);
+  }, [isOpen, ownerId, staffPreview, item?.owner_reputation]);
 
   const enviarCalificacionPD = async () => {
     if (!calificarModal || calificarEstrellas < 1 || !user?.id) return;
@@ -460,7 +461,7 @@ export default function ProductDetail({
             setOwnerReputacion({ promedio: Math.round(promedio * 10) / 10, total });
           });
       }
-    } catch (e) { alert("No se pudo enviar la calificación."); }
+    } catch { alert("No se pudo enviar la calificación."); }
     finally { setCalificarLoading(false); }
   };
 
@@ -914,6 +915,8 @@ export default function ProductDetail({
             </p>
           </div>
 
+          {staffPreview && <p className="product-detail-staff-note">Vista de revisión · Las reservas y postulaciones se realizan desde el mercado.</p>}
+
           {/* VENDEDOR */}
           <div className="product-detail-owner flex items-center gap-4 mb-2 p-4 border border-gray-100 rounded-2xl">
             <div className="product-detail-owner-avatar w-12 h-12 rounded-full overflow-hidden bg-treasure-gold/20 flex items-center justify-center font-black text-treasure-gold shrink-0">
@@ -932,7 +935,7 @@ export default function ProductDetail({
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-black text-gray-800 truncate">{ownerName}</p>
+              {staffPreview&&onOpenOwner&&ownerId?<button type="button" className="product-detail-owner-link" title="Abrir ficha del vendedor" onClick={()=>onOpenOwner({id:ownerId,nombre:ownerNameRaw||ownerName})}>{ownerName}</button>:<p className="text-sm font-black text-gray-800 truncate">{ownerName}</p>}
               <div className="flex items-center gap-1 text-[10px] text-gray-500 font-bold uppercase">
                 <ShieldCheck size={12} className="text-forest-green" />
                 Vendedor verificado
@@ -953,7 +956,7 @@ export default function ProductDetail({
               )}
             </div>
 
-            {!isOwner && (
+            {!staffPreview && !isOwner && (
               <button
                 type="button"
                 onClick={() => setReportOpen(true)}
@@ -997,7 +1000,7 @@ export default function ProductDetail({
             </div>
           )}
 
-          {isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
+          {!staffPreview && isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
             <div className="mt-6 space-y-4 border-t pt-6">
               {checkingApplied ? (
                 <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
@@ -1124,7 +1127,7 @@ export default function ProductDetail({
             </div>
           )}
 
-          {!isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
+          {!staffPreview && !isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
             <div className="mt-auto space-y-3 pt-6 border-t">
               {purchaseCreditQuote ? (
                 <div className="space-y-3 text-sm text-gray-700">
@@ -1152,7 +1155,7 @@ export default function ProductDetail({
             </div>
           )}
 
-          {canSeeChat && (
+          {!staffPreview && canSeeChat && (
             <div className="mt-8 animate-in slide-in-from-bottom-4 space-y-3">
               <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
                 <p className="text-sm font-bold text-gray-700">Chat privado habilitado ✅</p>

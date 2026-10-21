@@ -56,3 +56,6 @@
   .mb-design-preview .product-detail-owner { gap: 10px; padding: 12px; }
   .mb-design-preview .product-detail-owner > button { margin-left: auto; }
 }
+.mb-design-preview .product-detail-staff-note { margin:0 0 16px; padding:10px 12px; border:1px solid #dfe8d9; border-radius:8px; background:#f5f8f1; color:#456341; font-size:12px; line-height:1.6; }
+.mb-design-preview .product-detail-owner-link { display:inline-flex; align-items:center; min-height:44px; max-width:100%; text-align:left; overflow-wrap:anywhere; color:#2d5a27; font-size:14px; font-weight:600; text-decoration:underline; text-decoration-color:#a6b69d; text-underline-offset:4px; }
+.mb-design-preview .product-detail-owner-link:hover { color:#234d36; text-decoration-color:currentColor; }

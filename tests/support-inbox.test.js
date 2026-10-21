@@ -226,3 +226,29 @@ test('staff close support with a server timestamp, replies reopen it and retenti
   await as(null);await assert.rejects(rpc('preview_retention',[20]),/permission denied/);
  }finally{await db.close();}
 });
+
+test('staff case filters count and paginate the entire matching inbox and preserve user privacy',async()=>{
+ const {db,as,rpc}=await fixture();try{
+  await db.exec('alter table public.support_threads add column closed_at timestamptz;alter table public.support_threads add column closed_by uuid;');
+  const filterSql=await readFile(new URL('../supabase/migrations/2026-10-20-support-inbox-status-filter.sql',import.meta.url),'utf8');
+  await db.exec(filterSql);await db.exec(filterSql);
+  await db.exec(definition(closureSql,'support_set_closed'));
+  for(let n=0;n<28;n++)await db.query('insert into public.support_threads(id,user_id,subject,closed_at,user_hidden_at) values($1,$2,$3,$4,$5)',[id(2000+n),id(n===27?2:1),n<25?'Caso cerrado de prueba':'Caso abierto de prueba',n<25?new Date().toISOString():null,n===0?new Date().toISOString():null]);
+  await as(3,'aal2');
+  const first=await rpc('support_inbox',[true,'',1,'closed']),second=await rpc('support_inbox',[true,'',2,'closed']);
+  assert.equal(first.total,25);assert.equal(first.pages,2);assert.equal(first.rows.length,20);assert.equal(second.rows.length,5);
+  assert.equal(new Set([...first.rows,...second.rows].map(row=>row.id)).size,25);assert.ok([...first.rows,...second.rows].every(row=>row.closed_at));
+  const opened=await rpc('support_inbox',[true,'',99,'open']);assert.equal(opened.total,3);assert.equal(opened.page,1);assert.ok(opened.rows.every(row=>row.closed_at===null));
+  assert.equal((await rpc('support_inbox',[true,'Persona 2',1,'open'])).total,1);
+  assert.equal((await rpc('support_inbox',[true,'cerrado',1,'open'])).total,0);
+  assert.equal((await rpc('support_inbox',[true,'',1])).total,28,'Existing API remains available');
+  await rpc('support_set_closed',[id(2025),true,0]);assert.equal((await rpc('support_inbox',[true,'',1,'closed'])).total,26);
+  await rpc('support_set_closed',[id(2025),false,0]);assert.equal((await rpc('support_inbox',[true,'',1,'open'])).total,3);
+  await assert.rejects(rpc('support_inbox',[true,'',1,'invalid']),/inválido/);
+  await as(3);await assert.rejects(rpc('support_inbox',[true,'',1,'closed']),/autorizado/);
+  await as(1);await assert.rejects(rpc('support_inbox',[true,'',1,'open']),/autorizado/);
+  await assert.rejects(rpc('support_inbox',[false,'',1,'closed']),/exclusivo/);
+  const own=await rpc('support_inbox',[false,'',1,'all']);assert.equal(own.total,26);assert.ok(own.rows.every(row=>row.user_hidden_at===null));
+  await as(null);await assert.rejects(rpc('support_inbox',[true,'',1,'all']),/permission denied/);
+ }finally{await db.close();}
+});

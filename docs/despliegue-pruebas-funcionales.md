@@ -37,3 +37,19 @@ El responsable autorizó publicar el conjunto probado en local en main y el mism
 - Destacar requiere otro crédito y tiene protección contra escrituras directas. Los reintentos de publicación/destacado no duplican el débito. Las publicaciones anteriores no reciben cargos retroactivos.
 - «Cómo funciona» incluye pasos, costos, seguridad del chat y paquetes propuestos; la cabecera muestra BETA. Las recargas y los botones de compra siguen deshabilitados; no se alteraron los precios del checkout inactivo ni se ejecutaron pagos.
 - **241 pruebas**, compilación y lint de los módulos funcionales modificados pasaron. La prueba contra la base local de venta adicional/destacado/reintentos se revirtió completamente. En producción se verificaron definiciones y permisos, sin crear publicaciones ni descontar saldos de usuarios para pruebas.
+
+
+## Entrega del 21 de octubre: administración y publicación guiada
+
+El responsable autorizó commit en main y producción en el proyecto Vercel habitual, con todos los cambios preparados en local.
+
+- Administración: campana, contadores y puntos por publicaciones por revisar, reportes pendientes, solicitudes de datos y conversaciones sin leer por administrador. Un único canal privado reutilizado y consultas agrupadas, sin sondeo periódico. Filtro Todos/abiertos/cerrados en el buzón y regreso al listado con estilo de botón.
+- Reportes: la vista de publicación reutiliza el detalle público completo en modo de revisión. El nombre del vendedor abre su ficha para quienes tienen permiso de usuarios; desde allí se prepara un mensaje con referencia al artículo, sin enviarlo automáticamente.
+- Publicación: elección explícita Venta/Donación, fotos, artículo, ubicación y revisión final; validación por paso y conservación del borrador al retroceder. El precio máximo sigue en $500.000 COP por venta.
+- Fotos: ajustar la imagen completa, alejar y conservar proporción con márgenes. Flechas de orden y primera foto como portada al crear/editar. En edición, datos, posiciones y alias de portada se guardan en una sola transacción; mover las fotos del borrador no hace escrituras remotas.
+- Destacado opcional al publicar: confirmación del total, saldo suficiente y débito conjunto de 1 crédito para destacar una publicación gratuita, o 2 si también corresponde pagar una venta adicional. Recibos y libro de movimientos existentes, reintentos sin duplicar cargos y reversión completa ante fallos. Wompi y compras de recargas continúan deshabilitados.
+- Cómo funciona: mercado de pulgas digital, ventajas frente a otras plataformas, papel de MiBatute como puente de contacto, privacidad y seguridad de pagos/entregas, con conservación de obligaciones legales. Son explicaciones operativas; no se aprobó una versión jurídica definitiva.
+
+Las cinco migraciones aplicadas en una sola transacción de producción fueron `2026-10-20-staff-attention.sql`, `2026-10-20-support-inbox-status-filter.sql`, `2026-10-20-staff-article-preview.sql`, `2026-10-20-publish-with-highlight.sql` y `2026-10-21-article-photo-order.sql`. La verificación posterior confirmó **6 de 6 cuerpos de función idénticos** a los archivos probados (MD5), ejecución anónima revocada, permisos autenticados correctos y 6 triggers de invalidación instalados. Las APIs previas de publicación y buzón conservan sus firmas.
+
+Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores en los archivos revisados (persisten dos advertencias de dependencias de efectos en ProductDetail). Pruebas de navegador en local para publicación de venta/donación, recorte/ajuste, avance y regreso, selección del destacado, orden y vista de portada, ficha del vendedor y mensajes preparados. No se crearon publicaciones, mensajes ni cobros ficticios en producción para comprobar la entrega.

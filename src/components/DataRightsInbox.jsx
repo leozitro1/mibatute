@@ -6,11 +6,12 @@ import RetentionPreview from './RetentionPreview.jsx';
 import {finalResponseBlockers} from './dataRightsActions.js';
 import './SupportInbox.css';
 import './DataRightsInbox.css';
+import { AttentionDot } from '../staff/StaffAttention.jsx';
 
 const kinds={consultation:'Consultar mis datos o mi autorización',correction:'Corregir o actualizar datos',deletion:'Cerrar mi cuenta y solicitar supresión',revocation:'Revocar una autorización',complaint:'Reclamo sobre mis datos'};
 const statuses={open:'Recibida',reviewing:'En revisión',answered:'Respondida'};
 const stamp=value=>new Date(value).toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bogota'});
-export default function DataRightsInbox({client=supabase,isStaff=false,userId:staffUserId,onActivity,onAccessExpired}){
+export default function DataRightsInbox({client=supabase,isStaff=false,userId:staffUserId,revision:externalRevision=0,onActivity,onAccessExpired}){
  const [uid,setUid]=useState(isStaff?staffUserId:null),[authReady,setAuthReady]=useState(isStaff);
  const [kind,setKind]=useState('consultation'),[body,setBody]=useState(''),[page,setPage]=useState(1),[filter,setFilter]=useState(isStaff?'pending':'');
  const [data,setData]=useState({rows:[],pages:1,page:1}),[loading,setLoading]=useState(false),[sending,setSending]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[revision,setRevision]=useState(0);
@@ -31,7 +32,7 @@ export default function DataRightsInbox({client=supabase,isStaff=false,userId:st
  useEffect(()=>{
   if(!uid)return;const current=++sequence.current;setLoading(true);setError('');
   rpc('data_requests_inbox',{p_staff:isStaff,p_page:page,p_status:filter}).then(value=>{if(alive.current&&current===sequence.current)setData(value);}).catch(err=>{if(current===sequence.current)report(err);}).finally(()=>{if(alive.current&&current===sequence.current)setLoading(false);});
- },[uid,rpc,isStaff,page,filter,revision,report]);
+ },[uid,rpc,isStaff,page,filter,revision,externalRevision,report]);
  const submit=async event=>{
   event.preventDefault();if(flight.current)return;const text=body.trim();if(text.length<10||text.length>500)return;
   const signature=JSON.stringify([uid,kind,text]);if(request.current?.signature!==signature)request.current={signature,id:crypto.randomUUID()};
@@ -63,7 +64,7 @@ export default function DataRightsInbox({client=supabase,isStaff=false,userId:st
  };
  return <section className="support-inbox" aria-label="Solicitudes de datos personales">
   <div className="support-heading"><div><h2>{isStaff?'Solicitudes de datos personales':'Consulta, corrección y supresión de datos'}</h2><p>{isStaff?'Revisar el radicado no ejecuta una eliminación. Documenta las acciones y el fundamento de cualquier conservación.':'Este canal es independiente del soporte común y no tiene el límite de una conversación cada 24 horas.'}</p></div>{uid&&<button className="support-icon-button" type="button" aria-label="Actualizar solicitudes de datos" disabled={loading||sending} onClick={()=>setRevision(value=>value+1)}><RefreshCw size={16}/></button>}</div>
-  {isStaff&&<p className="legal-notice">Responsable de atención: {LEGAL_OPERATOR.name}. Apoyo: {LEGAL_ATTENTION.backup} ({LEGAL_ATTENTION.backupEmail}). Revisión: {LEGAL_ATTENTION.frequency}. La revisión del panel y del correo es manual; no hay alertas automáticas de vencimiento.</p>}
+  {isStaff&&<p className="legal-notice">Responsable de atención: {LEGAL_OPERATOR.name}. Apoyo: {LEGAL_ATTENTION.backup} ({LEGAL_ATTENTION.backupEmail}). Revisión: {LEGAL_ATTENTION.frequency}. El panel avisa de solicitudes pendientes; la revisión del correo es manual y estos avisos no calculan vencimientos legales.</p>}
   <p className="support-hint">Consultas: plazo general de 10 días hábiles. Reclamos: 15 días hábiles, según el trámite legal aplicable. No publiques contraseñas, datos bancarios ni documentos completos.</p>
   {isStaff&&<RetentionPreview client={client} onActivity={onActivity} onAccessExpired={onAccessExpired}/>}
   {!isStaff&&<p className="support-hint">Si no tienes acceso a tu cuenta, escribe a <a href={`mailto:${LEGAL_OPERATOR.email}`}>{LEGAL_OPERATOR.email}</a>. Indica qué solicitas y un medio de respuesta; la identidad se verificará cuando corresponda. No es necesario crear una cuenta para usar ese canal.</p>}
@@ -88,7 +89,7 @@ export default function DataRightsInbox({client=supabase,isStaff=false,userId:st
    {loading&&<p role="status">Cargando solicitudes…</p>}
    {!loading&&!data.rows.length&&<p className="support-empty">No hay solicitudes con ese filtro.</p>}
    <div className="support-list">{data.rows.map(row=>{const responseText=drafts[row.id]?.text??row.response??'';const finalSelected=drafts[row.id]?.status==='answered';const blockers=finalSelected?finalResponseBlockers(row,workDrafts[row.id]):[];return <article className="support-message" key={row.id}>
-    <h3>{kinds[row.kind]} · {statuses[row.status]}</h3><p className="support-hint">Radicado: {row.id}<br/>Recibida: {stamp(row.received_at||row.created_at)}{isStaff&&<><br/>Usuario: {row.user_id}</>}</p><p>{row.body}</p>
+    <h3>{isStaff&&['open','reviewing'].includes(row.status)&&<AttentionDot label="Solicitud de datos pendiente" />}{kinds[row.kind]} · {statuses[row.status]}</h3><p className="support-hint">Radicado: {row.id}<br/>Recibida: {stamp(row.received_at||row.created_at)}{isStaff&&<><br/>Usuario: {row.user_id}</>}</p><p>{row.body}</p>
     {row.response&&<><h4>Respuesta {row.responded_at&&`· ${stamp(row.responded_at)}`}</h4><p>{row.response}</p></>}
     {isStaff&&<section className="legal-case-work" aria-label="Seguimiento interno del caso">
      <p className="support-hint">Origen: {row.source==='email'?`Correo · ${row.requester_contact}`:'Formulario web'}<br/>A cargo de: {row.assigned_to===uid?'Tú':row.assignee_name||row.assigned_to||'Sin asignar'}</p>

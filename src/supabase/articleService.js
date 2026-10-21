@@ -1,5 +1,6 @@
 // src/supabase/articleService.js
 import { supabase } from "./supabaseClient";
+import { savePhotoOrder } from './photoOrder.js';
 import { commitPublication } from './publicationCredits.js';
 import { uploadImageKitImage } from "../imagekit/imageService";
 import { useLocalImages, removeLocalImages } from '../imagekit/localImages';
@@ -276,7 +277,7 @@ async function syncArticleImagesArray(articleId) {
 /**
  * ✅ Publica un artículo nuevo y guarda de 1 a 4 imágenes.
  */
-export async function publishArticle({ formData, files, user, useCredit = false, requestId }) {
+export async function publishArticle({ formData, files, user, useCredit = false, feature = false, requestId }) {
   if (!user?.id) return { success: false, error: "Usuario no autenticado" };
 
   const list = Array.from(files || []).filter(Boolean);
@@ -306,7 +307,7 @@ export async function publishArticle({ formData, files, user, useCredit = false,
     return Math.max(1, Math.min(10, rounded));
   })();
 
-  // Publishing and highlighting are separate server-authorized operations.
+  // The optional highlight is authorized separately from the article payload.
   const payload = {
     owner_id: user.id,
     owner_name: user.user_metadata?.nombre || user.email || "Usuario",
@@ -344,7 +345,7 @@ export async function publishArticle({ formData, files, user, useCredit = false,
   if (uploadError) { await removeStorageFiles(uploaded); return { success: false, error: uploadError }; }
   const urls = uploaded.map(image => image.url);
   const result = await commitPublication(supabase, {
-    article: { ...payload, imagenes: urls }, requestId, useCredit,
+    article: { ...payload, imagenes: urls }, requestId, useCredit, feature,
   });
   if (!result.success) {
     // Only a definitive server refusal proves no row was committed. On a transport
@@ -579,28 +580,8 @@ export async function deleteArticleImage(imageId) {
 /**
  * Reordena imágenes: recibe array de IDs en el orden final.
  */
-export async function reorderArticleImages(articleId, orderIds = []) {
-  try {
-    if (!articleId) return { success: false, error: "articleId es requerido" };
-
-    const ids = Array.from(orderIds || []).filter(Boolean);
-    if (!ids.length) return { success: false, error: "orderIds está vacío" };
-
-    for (let i = 0; i < ids.length; i++) {
-      const { error } = await supabase
-        .from("articulo_imagenes")
-        .update({ position: i })
-        .eq("id", ids[i])
-        .eq("articulo_id", articleId);
-
-      if (error) return { success: false, error: error.message };
-    }
-
-    await syncArticleImagesArray(articleId);
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err?.message || "Error inesperado" };
-  }
+export async function reorderArticleImages(articleId,orderIds=[]) {
+  return savePhotoOrder(supabase,articleId,orderIds);
 }
 
 /**
@@ -626,7 +607,7 @@ async function normalizeImagePositions(articleId) {
  * ✅ updateArticle (para tu EditArticleModal)
  * ✅ Ahora usa RPC segura para actualizar campos.
  */
-export async function updateArticle(articleId, formData = {}, file = null) {
+export async function updateArticle(articleId, formData = {}, file = null, {imageOrder=null} = {}) {
   try {
     if (!articleId) return { success: false, error: "articleId es requerido" };
     const { data: auth } = await supabase.auth.getSession();
@@ -647,6 +628,14 @@ export async function updateArticle(articleId, formData = {}, file = null) {
     }
     if (!title || !category || !subcategory) {
       return { success: false, error: "Completa titulo, categoria y subcategoria." };
+    }
+    if(imageOrder){
+      const saved=await savePhotoOrder(supabase,articleId,imageOrder,{title,description,category,subcategory,mode,price,
+        city:formData.ciudad??formData.city,locality:formData.localidad_es??formData.locality,
+        ...(condition!==null?{estado_producto:condition}:{})});
+      if(!saved.success||!file)return saved;
+      const added=await addArticleImages(articleId,[file],uid);
+      return added.success?getArticleWithImages(articleId):added;
     }
     const { data, error } = await supabase.from("articulos").update({
       title, titulo: title, description, category, categoria: category,

@@ -1,6 +1,10 @@
 .how-guide { max-width: 1040px; margin: 0 auto; padding: 8px 0 28px; color: #536159; }
-.how-back { display: inline-flex; align-items: center; gap: 8px; color: #315b39; font-size: 14px; margin-bottom: 24px; }
-.how-intro { max-width: 680px; }
+.how-back { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:10px 15px; border:1px solid #bccdb3; border-radius:9px; background:#edf3e7; color:#315b39; font-size:13px; font-weight:600; grid-column:2; grid-row:1 / 3; align-self:center; }
+.how-back svg { flex-shrink:0; }
+.how-back:hover { background:#e3eddc; border-color:#819b72; }
+.how-intro { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:20px; }
+.how-intro h1,.how-eyebrow { grid-column:1; }
+.how-intro > p { grid-column:1 / -1; max-width:680px; }
 .how-eyebrow { color: #637467; font-size: 12px; }
 .how-intro h1 { margin: 8px 0 10px; font-size: 30px; font-weight: 600; line-height: 1.2; }
 .how-intro p, .how-card p, .how-prices > p { font-size: 14px; line-height: 1.7; }
@@ -38,6 +42,10 @@
 .how-faq details p { margin: 0 0 18px; max-width: 850px; font-size: 13px; line-height: 1.8; }
 .how-guide :is(button,summary):focus-visible { outline: 2px solid #315b39; outline-offset: 4px; border-radius: 4px; }
 @media(max-width:639px) {
+ .how-intro { column-gap:12px; }
+ .how-back { max-width:130px; padding:9px 10px; font-size:12px; line-height:1.4; }
+ .how-eyebrow { grid-column:1 / -1; }
+ .how-back { grid-row:2; }
  .how-intro h1 { font-size: 24px; }
  .how-summary { gap: 8px; }
  .how-summary > div { padding: 13px 10px; gap: 7px; }
@@ -53,6 +61,16 @@
 
 .how-advantage { margin-bottom: 24px; padding: 20px 24px; border-left: 3px solid #9ab28a; background: #f0f4ec; border-radius: 0 12px 12px 0; }
 .how-advantage p { margin-top: 8px; font-size: 14px; line-height: 1.75; }
+.how-advantage strong { font-weight:700; }
+.how-advantage h3 { margin-top: 20px; font-size: 16px; font-weight: 600; line-height: 1.5; }
+.how-role { margin-bottom:18px; }
+.how-role > p + p { margin-top:12px; }
+.how-guide :is(.how-role,.how-privacy) a { color:#315b39; text-decoration:underline; text-underline-offset:3px; }
+.how-safety { margin-top:18px; background:#fff9ee; border-color:#ead9b6; }
+.how-safety .how-section-title,.how-safety h2 { color:#795622; }
+.how-safety ul { list-style:disc; padding-left:20px; margin-top:16px; }
+.how-safety li { font-size:14px; line-height:1.75; margin-bottom:12px; padding-left:4px; }
+.how-safety li:last-child { margin-bottom:0; }
 .how-privacy { margin-top: 18px; }
 .how-privacy > p + p { margin-top: 12px; }
 .how-packs { margin-top: 34px; }

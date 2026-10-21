@@ -1,0 +1,6 @@
+.photo-order-controls { position:relative; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; padding:6px; background:#fff; border-top:1px solid #e1e7dc; }
+.photo-order-controls > span { font-size:11px; font-weight:600; color:#456341; padding-left:3px; }
+.photo-order-controls > div { display:flex; gap:3px; margin-left:auto; }
+.photo-order-controls button { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border:1px solid #dfe6da; border-radius:8px; background:#f6f9f2; color:#315b39; }
+.photo-order-controls button:hover:not(:disabled) { background:#e8f0e1; border-color:#819b72; }
+.photo-order-controls button:disabled { opacity:.3; cursor:not-allowed; }

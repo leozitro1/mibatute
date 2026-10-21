@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
-import { commitPublication, publicationStatus } from '../src/supabase/publicationCredits.js';
+import { commitPublication, publicationStatus, publicationQuote } from '../src/supabase/publicationCredits.js';
 const id = n => `00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 const owner=id(1), buyer=id(2), other=id(3);
 
@@ -52,7 +52,7 @@ test('daily donation quota and paid publication rules are enforced by PostgreSQL
     alter table public.articulos add column estado_producto smallint;`);
   const migration = name => readFile(new URL(`../supabase/migrations/${name}.sql`,import.meta.url),'utf8');
   for(const name of ['2026-10-01-donation-decisions','2026-10-13-donation-credits',
-    '2026-10-01-publication-limit','2026-10-20-donation-daily-quota','2026-10-20-publication-credits']) await db.exec(await migration(name));
+    '2026-10-01-publication-limit','2026-10-20-donation-daily-quota','2026-10-20-publication-credits','2026-10-20-publish-with-highlight']) await db.exec(await migration(name));
   const asUser=async uid=>{await db.exec('reset role; set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[uid]);};
   const reset=async()=>{
     await db.exec('reset role; truncate public.article_publication_credits,public.donation_application_credits,public.postulaciones,public.postulacion_historial,public.postulaciones_rechazadas,public.cupos_historial,public.cupos,public.articulos cascade');
@@ -149,6 +149,41 @@ test('daily donation quota and paid publication rules are enforced by PostgreSQL
     await db.exec('reset role');await db.query('update public.cupos set saldo=1 where usuario_id=$1',[buyer]);await db.query("update public.articulos set status='pausado',estado='pausado' where id=$1",[id(13)]);await asUser(buyer);
     await assert.rejects(apply(13,true));assert.equal((await donationStatus()).balance,1);
   });
+  await t.test('publishing and highlighting charge one credit for free slots or donations and retries never charge twice',async()=>{
+    await reset();
+    const bundle=async(n,extra={})=>(await db.query('select public.publish_article_with_credit($1,$2,$3,$4) as r',[{...payload('venta'),...extra},id(n),false,true])).rows[0].r;
+    let result=await bundle(40);assert.equal(result.cost,1);assert.equal(result.publicationCost,0);assert.equal(result.featureCost,1);assert.equal(result.article.is_featured,true);assert.equal(result.balance,4);
+    result=await bundle(41,{mode:'donacion'});assert.equal(result.cost,1);assert.equal(result.article.is_featured,true);assert.equal(result.balance,3);
+    await db.exec('reset role');await db.query('update cupos set saldo=0 where usuario_id=$1',[owner]);await asUser(owner);
+    result=await bundle(40);assert.equal(result.alreadyExists,true);assert.equal(result.cost,0);assert.equal(result.balance,0);assert.equal(result.article.is_featured,true);
+    assert.equal((await db.query('select * from cupos_historial')).rows.length,2);
+    await asUser(other);await assert.rejects(bundle(40),/Identificador/);
+  });
+  await t.test('fourth sale plus highlight requires two credits and explicit publication consent, without partial charges',async()=>{
+    await reset();for(let n=10;n<13;n++)await publish(n);
+    const bundle=async(paid=true)=>(await db.query('select public.publish_article_with_credit($1,$2,$3,true) as r',[payload('venta'),id(40),paid])).rows[0].r;
+    assert.equal((await bundle(false)).code,'PUBLICATION_CREDIT_REQUIRED');assert.equal((await sales()).balance,5);
+    await db.exec('reset role');await db.query('update cupos set saldo=1 where usuario_id=$1',[owner]);await asUser(owner);
+    assert.equal((await bundle()).code,'INSUFFICIENT_CREDITS');assert.equal((await sales()).active,3);assert.equal((await sales()).balance,1);
+    assert.equal((await db.query('select count(*)::int n from article_publication_credits where article_id=$1',[id(40)])).rows[0].n,0);
+    await db.exec('reset role');await db.query('update cupos set saldo=2 where usuario_id=$1',[owner]);await asUser(owner);
+    const result=await bundle();assert.equal(result.cost,2);assert.equal(result.publicationCost,1);assert.equal(result.featureCost,1);assert.equal(result.balance,0);assert.equal(result.article.is_featured,true);
+    const ledger=(await db.query('select concepto,cantidad from cupos_historial')).rows;assert.deepEqual(ledger.map(row=>row.concepto).sort(),['destacado','publicacion_venta']);assert.equal(ledger.reduce((sum,row)=>sum+row.cantidad,0),-2);
+    assert.equal((await bundle()).cost,0);assert.equal((await sales()).balance,0);
+  });
+  await t.test('a failure while enabling the highlight rolls back the publication, both debits, receipt and ledger',async()=>{
+    await reset();for(let n=10;n<13;n++)await publish(n);
+    await db.exec(`reset role;create function public.reject_test_feature() returns trigger language plpgsql as $$begin if new.title='REJECT_FEATURE' and new.is_featured then raise exception 'invalid test highlight';end if;return new;end;$$;create trigger zzz_test_feature before update on public.articulos for each row execute function public.reject_test_feature();`);
+    await asUser(owner);
+    await assert.rejects(db.query('select public.publish_article_with_credit($1,$2,true,true)',[{...payload('venta'),title:'REJECT_FEATURE'},id(40)]),/invalid test highlight/);
+    assert.equal((await sales()).balance,5);assert.equal((await sales()).active,3);assert.equal((await db.query('select * from cupos_historial')).rows.length,0);
+    assert.equal((await db.query('select count(*)::int n from article_publication_credits where article_id=$1',[id(40)])).rows[0].n,0);
+  });
+  await t.test('old requests cannot be retroactively charged or highlighted through a retry of the new bundle',async()=>{
+    await reset();await publish(40);
+    const result=(await db.query('select public.publish_article_with_credit($1,$2,false,true) as r',[payload('venta'),id(40)])).rows[0].r;
+    assert.equal(result.alreadyExists,true);assert.equal(result.article.is_featured,false);assert.equal(result.balance,5);assert.equal(result.cost,0);
+  });
   await t.test('unverified, blocked and foreign identity cannot publish; migrations are repeatable',async()=>{
     await reset();await db.exec('reset role');await db.query('update auth.users set email_confirmed_at=null where id=$1',[buyer]);await asUser(buyer);
     await assert.rejects(publish(10),/verificar/);await asUser(owner);
@@ -166,4 +201,16 @@ test('publication client passes consent and stable id and never falls back to un
  const missing={rpc:async()=>({error:{code:'PGRST202'}})};
  assert.equal((await commitPublication(missing,{article:{},requestId:'x'})).success,false);
  await assert.rejects(publicationStatus(missing),/Falta habilitar/);
+});
+
+test('publication highlight selection is explicit and the quote includes both costs without extra queries',async()=>{
+ const quote=publicationQuote({requiresCredit:true,balance:1},'venta',true);assert.equal(quote.total,2);assert.equal(quote.sufficient,false);assert.equal(quote.canAddFeature,false);
+ assert.equal(publicationQuote({requiresCredit:true,balance:2},'venta',true).sufficient,true);
+ assert.equal(publicationQuote({requiresCredit:true,balance:1},'donacion',true).total,1);
+ assert.equal(publicationQuote({requiresCredit:false,balance:0},'venta',false).total,0);
+ assert.equal(publicationQuote(null,'venta',true).sufficient,false);
+ const calls=[];const client={rpc:async(name,args)=>{calls.push({name,args});return {data:{success:true,cost:1,article:{id:'request',is_featured:!!args.p_feature}}};}};
+ assert.equal((await commitPublication(client,{article:{},requestId:'request',feature:true})).article.is_featured,true);
+ assert.equal(calls.length,1);assert.equal(calls[0].args.p_feature,true);
+ await commitPublication(client,{article:{},requestId:'request'});assert.ok(!('p_feature' in calls[1].args));
 });

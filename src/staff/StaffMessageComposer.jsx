@@ -2,9 +2,9 @@ import { useEffect,useRef,useState } from 'react';
 import { ArrowLeft,Eye,Send,X } from 'lucide-react';
 import { staffRpc } from './staffClient.js';
 
-export default function StaffMessageComposer({recipients,all=false,onClose,onSent,onReady}) {
+export default function StaffMessageComposer({recipients,all=false,initialTitle='',initialBody='',onClose,onSent,onReady}) {
   const dialog=useRef(null),request=useRef(null),inFlight=useRef(false),attempt=useRef(null);
-  const [audience,setAudience]=useState(null),[title,setTitle]=useState(''),[body,setBody]=useState('');
+  const [audience,setAudience]=useState(null),[title,setTitle]=useState(initialTitle),[body,setBody]=useState(initialBody);
   const [preview,setPreview]=useState(false),[confirmation,setConfirmation]=useState(''),[busy,setBusy]=useState(true),[error,setError]=useState('');
   useEffect(()=>{
     if(!dialog.current.open)dialog.current.showModal();let active=true;

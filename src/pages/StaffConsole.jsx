@@ -4,17 +4,20 @@ import { ShieldCheck, Inbox, Package, Flag, Users, Megaphone, History, Menu, X, 
   ArrowLeft, ArrowRight, Search, RefreshCw, Check, Pause, Play, Clock, Ban, Settings2, UserPlus, Pencil, LockKeyhole, CreditCard, Loader2, Trash2, MessageSquare, Star, Eye, Coins, Mail, Send, ChartNoAxesCombined } from 'lucide-react';
 import { staffClient, staffRpc, allowedSections } from '../staff/staffClient.js';
 import { passwordError, recoveryCredentials, staffEmail } from '../staff/passwords.js';
-import { ARTICLE_CATEGORIES, DELETION_REASONS, EMPTY_ARTICLE_FILTERS, articleImages } from '../staff/moderation.js';
+import { ARTICLE_CATEGORIES, DELETION_REASONS, EMPTY_ARTICLE_FILTERS } from '../staff/moderation.js';
 import { COLOMBIA_DATA } from '../data/locations.js';
 import StaffChatAudit from '../staff/StaffChatAudit.jsx';
 import StaffReportDetail from '../staff/StaffReportDetail.jsx';
 import StaffArticleEditor from '../staff/StaffArticleEditor.jsx';
 import StaffUserDetail from '../staff/StaffUserDetail.jsx';
 import StaffMessageComposer from '../staff/StaffMessageComposer.jsx';
-import PublicationCountdown from '../components/PublicationCountdown.jsx';
 import { AUDIT_GROUPS,EMPTY_AUDIT_FILTERS,auditMemberLabel } from '../staff/audit.js';
 import './StaffConsole.css';
+import useStaffAttention from '../staff/useStaffAttention.js';
+import StaffAttention, { AttentionBadge, AttentionDot } from '../staff/StaffAttention.jsx';
+import { attentionCounts, attentionRow } from '../staff/attention.js';
 
+const ProductDetail=lazy(()=>import('../components/ProductDetail.jsx'));
 const StaffSponsors=lazy(()=>import('../staff/StaffSponsors.jsx'));
 const StaffStatistics=lazy(()=>import('../staff/StaffStatistics.jsx'));
 const DataRightsInbox=lazy(()=>import('../components/DataRightsInbox.jsx'));
@@ -82,6 +85,7 @@ export default function StaffConsole({ requireMaster=false }) {
   const activeStage=useRef(stage); activeStage.current=stage;
   const nav=allowedSections(account);
   const articleActionsBusy=busy||search.trim()!==query;
+  const canMessageUsers=account?.role==='master'||account?.permissions?.includes('users');
   const canAuditChats=account?.role==='master'||account?.permissions?.includes('chat_audit');
   const markStaffActivity=useCallback(()=>setIdleDeadline(Date.now()+15*60000),[]);
 
@@ -94,6 +98,10 @@ export default function StaffConsole({ requireMaster=false }) {
     }
     await staffClient.auth.signOut({scope:'local'});
   },[]);
+
+  const attention = useStaffAttention({ client: staffClient, enabled: stage === 'app', userId: account?.userId,
+    onAccessExpired: () => leave('La sesión venció. Vuelve a verificar tu acceso.') });
+  const counts = attention.counts ? attentionCounts(attention.counts, nav.map(item => item.id)) : null;
 
   const prepareGate=useCallback(async(forceMfa=false)=>{
     const access=await staffRpc('staff_bootstrap');
@@ -141,7 +149,7 @@ export default function StaffConsole({ requireMaster=false }) {
 
   const load=useCallback(async()=>{
     if(activeStage.current!=='app')return;
-    if(['sponsors','statistics','inbox','privacy'].includes(section)){requestId.current++;setBusy(false);return;}
+    if(['pending','sponsors','statistics','inbox','privacy'].includes(section)){requestId.current++;setBusy(false);return;}
     const id=++requestId.current;
     setBusy(true);setError('');
     try {
@@ -155,7 +163,8 @@ export default function StaffConsole({ requireMaster=false }) {
       else setError(err.message);
     } finally {if(id===requestId.current)setBusy(false);}
   },[section,query,page,articleFilters,userFilters,auditFilters,prepareGate,leave]);
-  useEffect(()=>{if(stage==='app')load();},[stage,load]);
+  const sectionRevision = attention.revisions[section] || 0;
+  useEffect(()=>{if(stage==='app')load();},[stage,load,sectionRevision]);
 
   const submitLogin=async event=>{
     event.preventDefault();if(gateInFlight.current)return;
@@ -244,7 +253,7 @@ export default function StaffConsole({ requireMaster=false }) {
   const openArticle=async row=>{
     const id=++previewId.current;setPreview({loading:true,title:row.title});setError('');
     try {
-      const article=await staffRpc('staff_article_detail',{p_id:row.id});
+      const article=await staffRpc('staff_article_preview',{p_id:row.id});
       if(id===previewId.current&&activeStage.current==='app'){setPreview(article);setIdleDeadline(Date.now()+15*60000);}
     } catch(err) {if(id===previewId.current)setPreview({title:row.title,error:err.message});}
   };
@@ -261,7 +270,7 @@ export default function StaffConsole({ requireMaster=false }) {
         result=await staffRpc('staff_action',{p_kind:kind,p_id:modal.row.id,p_action:modal.action,p_reason:reason,
           p_options:modal.action==='permissions'?{permissions:selectedPermissions}:modal.action==='delete'?{reason_code:deletionReason}:{days:Number(days)}});
       }
-      setModal(null);setNotice(result?.notice||'Cambio guardado en el historial.');setIdleDeadline(Date.now()+15*60000);await load();
+      setModal(null);setNotice(result?.notice||'Cambio guardado en el historial.');setIdleDeadline(Date.now()+15*60000);attention.refresh();await load();
     } catch(err) {
       if(err.code==='42501'){setModal(null);try{await prepareGate(true);}catch{await leave('Acceso no autorizado.');}}
       else setError(err.message);
@@ -306,16 +315,16 @@ export default function StaffConsole({ requireMaster=false }) {
     <aside className="staff-sidebar" data-open={menu} aria-label="Navegación del equipo">
       <div className="flex items-center justify-between"><div className="staff-brand">MiBatute</div><button className="md:hidden" type="button" aria-label="Cerrar menú" onClick={()=>setMenu(false)}><X size={20} /></button></div>
       <div className="staff-role">{account.role==='master'?'Super Admin':'Admin'}</div>
-      <nav className="staff-nav">{nav.map(item=>{const Icon=icons[item.icon];return <button key={item.id} type="button" aria-current={section===item.id?'page':undefined} onClick={()=>navigate(item.id)}><Icon size={18} aria-hidden="true" />{item.label}</button>;})}</nav>
+      <nav className="staff-nav">{nav.map(item=>{const Icon=icons[item.icon];return <button key={item.id} type="button" aria-current={section===item.id?'page':undefined} onClick={()=>navigate(item.id)}><Icon size={18} aria-hidden="true" /><span className="staff-nav-label">{item.label}</span><AttentionBadge count={item.id==='team'?0:counts?.[item.id]} /></button>;})}</nav>
       <div className="staff-sidebar-bottom"><button type="button" onClick={openPasswordChange} disabled={busy}><LockKeyhole size={17} />Cambiar contraseña</button><Link to="/"><ArrowLeft size={17} />Ver MiBatute</Link><button type="button" onClick={()=>leave()}><LogOut size={17} />Cerrar sesión</button></div>
     </aside>
     <div className="staff-main">
-      <header className="staff-header"><div className="flex items-center gap-3"><button type="button" className="staff-icon-button staff-menu-toggle" aria-label="Abrir menú" onClick={()=>setMenu(true)}><Menu size={20} /></button><strong>Espacio de gestión</strong></div><small className="flex items-center gap-2"><ShieldCheck size={15} /> MFA verificado</small></header>
+      <header className="staff-header"><div className="flex items-center gap-3"><button type="button" className="staff-icon-button staff-menu-toggle" aria-label="Abrir menú" onClick={()=>setMenu(true)}><Menu size={20} /></button><strong>Espacio de gestión</strong></div><div className="staff-header-actions"><StaffAttention counts={counts} status={attention.status} onNavigate={navigate} onRefresh={attention.refresh} /><small className="flex items-center gap-2"><ShieldCheck size={15} /> MFA verificado</small></div></header>
       <main className="staff-content">
         <div className="staff-heading"><div><h1>{current?.label}</h1>{section==='articles'&&<p className="staff-results-count" role="status">{articleActionsBusy||!data?'Calculando publicaciones…':`${new Intl.NumberFormat('es-CO').format(data.total)} ${data.total===1?'publicación':'publicaciones'}`}</p>}</div><div className="staff-tools">
           {!['pending','statistics','privacy'].includes(section)&&<label className="staff-search"><Search size={16} /><input aria-label="Buscar en el panel" placeholder={section==='users'?'Nombre, correo, teléfono o ID':'Buscar'} value={search} onChange={event=>{setSearch(event.target.value);setSelectedUsers([]);}} /></label>}
           {section==='team'&&<button type="button" className="staff-button staff-button-primary" onClick={()=>{setModal({action:'add',label:'Incorporar cuenta verificada'});setTeamEmail('');setTeamRole('admin');setReason('');setError('');}}><UserPlus size={16} />Incorporar</button>}
-          {!['statistics','privacy'].includes(section)&&<IconButton label="Actualizar" icon={RefreshCw} onClick={()=>['sponsors','inbox'].includes(section)?setSponsorRevision(previous=>previous+1):load()} disabled={busy} />}
+          {!['statistics','privacy'].includes(section)&&<IconButton label="Actualizar" icon={RefreshCw} onClick={()=>{attention.refresh();if(['sponsors','inbox'].includes(section))setSponsorRevision(previous=>previous+1);else load();}} disabled={busy} />}
         </div></div>
         {section==='articles'&&<div className="staff-filters" aria-label="Filtros de publicaciones">
           <div><label htmlFor="staff-filter-mode">Tipo de publicación</label><select id="staff-filter-mode" value={articleFilters.mode} onChange={event=>filterArticles('mode',event.target.value)}><option value="">Todos los tipos</option><option value="venta">Venta</option><option value="donacion">Donación</option></select></div>
@@ -349,17 +358,19 @@ export default function StaffConsole({ requireMaster=false }) {
         {busy&&!modal&&<p role="status" className="mb-4 flex items-center gap-2 text-sm text-gray-500"><Loader2 size={16} className="animate-spin" /> Cargando...</p>}
         {section==='pending'?<>
           <div className="staff-metrics">
-            {account.role==='master'||account.permissions.includes('moderation')?<button type="button" onClick={()=>navigate('articles')}><span>Publicaciones por revisar</span><strong>{data?.counts?.articles??'—'}</strong></button>:null}
-            {account.role==='master'||account.permissions.includes('reports')?<button type="button" onClick={()=>navigate('reports')}><span>Reportes abiertos</span><strong>{data?.counts?.reports??'—'}</strong></button>:null}
-            {account.role==='master'?<button type="button" onClick={()=>navigate('team')}><span>Cuentas del equipo</span><strong>{data?.counts?.team??'—'}</strong></button>:null}
+            {account.role==='master'||account.permissions.includes('moderation')?<button type="button" onClick={()=>navigate('articles')}><span>Publicaciones por revisar {counts?.articles>0&&<AttentionDot />}</span><strong>{counts?.articles??'—'}</strong></button>:null}
+            {account.role==='master'||account.permissions.includes('reports')?<button type="button" onClick={()=>navigate('reports')}><span>Reportes abiertos {counts?.reports>0&&<AttentionDot />}</span><strong>{counts?.reports??'—'}</strong></button>:null}
+            <button type="button" onClick={()=>navigate('privacy')}><span>Solicitudes de datos {counts?.privacy>0&&<AttentionDot />}</span><strong>{counts?.privacy??'—'}</strong></button>
+            <button type="button" onClick={()=>navigate('inbox')}><span>Conversaciones sin leer {counts?.inbox>0&&<AttentionDot label="Conversaciones sin leer" />}</span><strong>{counts?.inbox??'—'}</strong></button>
+            {account.role==='master'?<button type="button" onClick={()=>navigate('team')}><span>Cuentas del equipo</span><strong>{counts?.team??'—'}</strong></button>:null}
           </div>
           <div className="staff-status-band"><ShieldCheck size={20} className="text-forest-green" /><span>Verificación en dos pasos activa</span></div>
           <div className="staff-status-band"><History size={20} className="text-teal-700" /><span>Historial de acciones</span><button type="button" className="ml-auto staff-button" onClick={()=>navigate('audit')}>Consultar</button></div>
           {account.role==='master'&&<div className="staff-status-band"><CreditCard size={20} className="text-amber-700" /><span>Pagos y ajustes de créditos</span><span className="ml-auto staff-badge staff-badge-muted">Desactivados</span></div>}
-        </>:section==='privacy'?<Suspense fallback={<p role="status">Cargando solicitudes…</p>}><DataRightsInbox client={staffClient} isStaff userId={account.userId} onActivity={markStaffActivity} onAccessExpired={()=>leave('Verifica nuevamente tu acceso.')} /></Suspense>:section==='inbox'?<Suspense fallback={<p role="status">Cargando buzón…</p>}><SupportInbox key={account.userId} client={staffClient} isStaff userId={account.userId} query={query} revision={sponsorRevision} onActivity={markStaffActivity} onAccessExpired={()=>leave('La sesión venció. Vuelve a verificar tu acceso.')} /></Suspense>:section==='sponsors'?<Suspense fallback={<p role="status">Cargando campañas...</p>}><StaffSponsors query={query} revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:section==='statistics'?<Suspense fallback={<p role="status">Cargando estadísticas...</p>}><StaffStatistics revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:<>
+        </>:section==='privacy'?<Suspense fallback={<p role="status">Cargando solicitudes…</p>}><DataRightsInbox client={staffClient} isStaff userId={account.userId} revision={attention.revisions.privacy||0} onActivity={markStaffActivity} onAccessExpired={()=>leave('Verifica nuevamente tu acceso.')} /></Suspense>:section==='inbox'?<Suspense fallback={<p role="status">Cargando buzón…</p>}><SupportInbox key={account.userId} client={staffClient} isStaff userId={account.userId} query={query} revision={sponsorRevision+(attention.revisions.inbox||0)} managedRealtime onActivity={markStaffActivity} onAccessExpired={()=>leave('La sesión venció. Vuelve a verificar tu acceso.')} /></Suspense>:section==='sponsors'?<Suspense fallback={<p role="status">Cargando campañas...</p>}><StaffSponsors query={query} revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:section==='statistics'?<Suspense fallback={<p role="status">Cargando estadísticas...</p>}><StaffStatistics revision={sponsorRevision} onReady={markStaffActivity} onAccessExpired={leave} /></Suspense>:<>
           <table className={`staff-table ${section==='articles'?'staff-publications-table':section==='users'?'staff-users-table':''}`}><thead><tr>{section==='users'&&<th className="staff-user-selection"><input type="checkbox" aria-label="Seleccionar usuarios de esta página" checked={pageSelected} ref={node=>{if(node)node.indeterminate=!pageSelected&&pageUsers.some(row=>selectedUsers.some(user=>user.id===row.id));}} disabled={articleActionsBusy||!pageUsers.length} onChange={togglePageUsers} /></th>}<th>{section==='audit'?'Acción':section==='reports'?'Caso':'Registro'}</th>{section==='users'&&<><th>Publicaciones</th><th>Calificación</th><th>Créditos</th></>}<th>{section==='audit'?'Tipo':'Estado'}</th><th>Fecha</th><th>{section==='audit'?'Responsable':'Acciones'}</th></tr></thead>
             <tbody>{(data?.rows||[]).map(row=><tr key={row.id}>{section==='users'&&<td className="staff-user-selection"><input type="checkbox" aria-label={`Seleccionar usuario: ${row.nombre||'Usuario'}`} checked={selectedUsers.some(user=>user.id===row.id)} disabled={articleActionsBusy} onChange={()=>toggleUser(row)} /></td>}
-              <td>{section==='articles'?<><button type="button" className="staff-item staff-article-link" onClick={()=>openArticle(row)} aria-label={`Abrir publicación: ${row.title}`}>
+              <td className={attentionRow(section,row)?'staff-attention-cell':undefined}>{attentionRow(section,row)&&<AttentionDot label={section==='reports'?'Reporte sin resolver':'Publicación por revisar'} />}{section==='articles'?<><button type="button" className="staff-item staff-article-link" onClick={()=>openArticle(row)} aria-label={`Abrir publicación: ${row.title}`}>
                 {row.image_url&&<img src={row.image_url} alt="" loading="lazy" />}<span><span className="staff-article-title"><span className="staff-item-title">{row.title}</span>{row.is_featured&&<span className="staff-featured-star" role="img" aria-label="Publicación destacada" title="Publicación destacada"><Star size={16} aria-hidden="true" /></span>}</span><span className="staff-item-detail">{row.mode==='venta'?'Venta':'Donación'} · {row.city} · {row.locality}</span>{Number(row.chat_count)>0&&<span className="staff-chat-indicator" title={`${row.active_chat_count} abiertos o pendientes`}><MessageSquare size={14} aria-hidden="true" />{row.chat_count} {Number(row.chat_count)===1?'chat':'chats'}</span>}</span>
               </button><button type="button" className="staff-owner-link" aria-label={`Ver publicaciones de ${row.owner_name||'Usuario'}`} onClick={()=>{setOwnerName(row.owner_name||'Usuario');filterArticles('owner_id',row.owner_id);}} disabled={!row.owner_id}>Publicado por: <strong>{row.owner_name||'Usuario'}</strong></button></>:section==='reports'?<button type="button" className="staff-article-link" aria-label={`Abrir reporte: ${row.reason}`} onClick={()=>setReportDetail(row)}><span className="staff-item-title">{row.kind==='chat'?'Chat':'Publicación'} · {row.article_title||'Publicación no disponible'}</span><span className="staff-item-detail">{row.reason}</span><span className="staff-item-detail">Reportado: {row.reported_name||'Usuario'}</span></button>:section==='users'?<button type="button" className="staff-item staff-article-link" aria-label={`Ver usuario: ${row.nombre||'Usuario'}`} onClick={()=>setUserDetail(row)}>{row.foto_url&&<img src={row.foto_url} alt="" loading="lazy" />}<span><span className="staff-item-title">{row.nombre||'Usuario'}</span><span className="staff-item-detail">{[row.ciudad,row.localidad].filter(Boolean).join(' · ')||'Sin ubicación'}</span></span></button>:<div className="staff-item"><div><span className="staff-item-title">{titleFor(section,row)}</span><span className="staff-item-detail">{section==='team'?row.email:section==='audit'?row.reason:section==='sponsors'?row.descripcion:''}</span></div></div>}</td>
               {section==='users'&&<><td data-label="Publicaciones"><strong>{row.stats?.created??0} creadas</strong><span className="staff-item-detail">{row.stats?.active??0} activas</span><span className="staff-item-detail">{row.stats?.featured??0} destacadas · {row.stats?.reported??0} con reportes</span></td><td data-label="Calificación"><strong>{row.stats?.rating==null?'Sin calificar':`${Number(row.stats.rating).toFixed(1)} / 5`}</strong><span className="staff-item-detail">{row.stats?.rating_count??0} calificaciones</span></td></>}
@@ -382,19 +393,13 @@ export default function StaffConsole({ requireMaster=false }) {
         </>}
       </main>
     </div>
-    {messageComposer&&<StaffMessageComposer recipients={messageComposer.recipients} all={messageComposer.all} onReady={markStaffActivity} onClose={()=>setMessageComposer(null)} onSent={result=>{setMessageComposer(null);setSelectedUsers([]);setNotice(`${result.notice} ${result.count} ${result.count===1?'destinatario':'destinatarios'}.`);}} />}
+    {messageComposer&&<StaffMessageComposer recipients={messageComposer.recipients} all={messageComposer.all} initialTitle={messageComposer.articleContext?`Sobre tu publicación: ${messageComposer.articleContext.title}`.slice(0,120):''} initialBody={messageComposer.articleContext?`Hola, te contactamos sobre tu publicación «${messageComposer.articleContext.title}».\n\n`:''} onReady={markStaffActivity} onClose={()=>setMessageComposer(null)} onSent={result=>{setMessageComposer(null);setSelectedUsers([]);setNotice(`${result.notice} ${result.count} ${result.count===1?'destinatario':'destinatarios'}.`);}} />}
     {articleEditor&&<StaffArticleEditor key={articleEditor.id} article={articleEditor} onReady={markStaffActivity} onClose={()=>setArticleEditor(null)} onSaved={result=>{setArticleEditor(null);setNotice(result.notice);load();}} />}
-    {userDetail&&<StaffUserDetail key={userDetail.id} user={userDetail} onReady={markStaffActivity} onClose={()=>setUserDetail(null)} onAccessExpired={leave} onOpenArticle={account?.role==='master'||account?.permissions?.includes('moderation')?row=>{setUserDetail(null);openArticle(row);}:undefined} />}
-    {reportDetail&&<StaffReportDetail key={`${reportDetail.kind}-${reportDetail.id}`} report={reportDetail} onClose={()=>setReportDetail(null)} onOpenArticle={account?.role==='master'||account?.permissions?.includes('moderation')?row=>{setReportDetail(null);openArticle(row);}:undefined} />}
+    {userDetail&&<StaffUserDetail key={userDetail.id} user={userDetail} onMessage={canMessageUsers?recipient=>{setUserDetail(null);setMessageComposer({all:false,recipients:[recipient],articleContext:userDetail.articleContext});}:undefined} onReady={markStaffActivity} onClose={()=>setUserDetail(null)} onAccessExpired={leave} onOpenArticle={account?.role==='master'||account?.permissions?.includes('moderation')?row=>{setUserDetail(null);openArticle(row);}:undefined} />}
+    {reportDetail&&<StaffReportDetail key={`${reportDetail.kind}-${reportDetail.id}`} report={reportDetail} onClose={()=>setReportDetail(null)} onOpenArticle={row=>{setReportDetail(null);openArticle(row);}} />}
     {chatAudit&&<StaffChatAudit article={chatAudit} onClose={()=>setChatAudit(null)} onAccessExpired={async()=>{setChatAudit(null);try{await prepareGate(true);}catch{await leave('Acceso no autorizado.');}}} />}
-    {preview&&<dialog ref={previewRef} className="staff-modal staff-preview" aria-labelledby="staff-preview-title" onCancel={()=>{previewId.current++;setPreview(null);}}>
-      <div className="staff-modal-heading"><h2 id="staff-preview-title">{preview.title}</h2><IconButton label="Cerrar publicación" icon={X} onClick={()=>{previewId.current++;setPreview(null);}} /></div>
-      {preview.loading?<p role="status">Cargando publicación...</p>:preview.error?<p role="alert" className="staff-error">{preview.error}</p>:<>
-        <div className="staff-preview-images">{articleImages(preview).map(src=><a key={src} href={src} target="_blank" rel="noopener noreferrer"><img src={src} alt={preview.title} loading="lazy" /></a>)}</div>
-        <div className="staff-preview-meta"><span className="staff-badge">{labels[preview.status]||preview.status}</span><strong>{preview.mode==='venta'?new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(preview.price||0):'Donación'}</strong><PublicationCountdown article={preview} /></div>
-        <p className="staff-preview-description">{preview.description||'Sin descripción'}</p>
-        <dl className="staff-preview-facts"><dt>Ciudad / localidad</dt><dd>{preview.city} / {preview.locality}</dd><dt>Categoría</dt><dd>{preview.category||'Sin categoría'}</dd><dt>Publicada por</dt><dd>{preview.owner_name||'Usuario'}</dd><dt>Fecha</dt><dd>{date(preview.created_at)}</dd></dl>
-      </>}
+    {preview&&<dialog ref={previewRef} className={preview.loading||preview.error?'staff-modal staff-preview':'staff-public-detail'} aria-label="Detalle de publicación" onCancel={()=>{previewId.current++;setPreview(null);}}>
+      {preview.loading||preview.error?<><div className="staff-modal-heading"><h2>{preview.title}</h2><IconButton label="Cerrar publicación" icon={X} onClick={()=>{previewId.current++;setPreview(null);}} /></div>{preview.loading?<p role="status">Cargando publicación...</p>:<p role="alert" className="staff-error">{preview.error}</p>}</>:<div className="mb-design-preview"><Suspense fallback={<p role="status">Cargando detalle…</p>}><ProductDetail key={preview.id} item={preview} isOpen staffPreview onOpenOwner={canMessageUsers?owner=>{previewId.current++;setPreview(null);setUserDetail({...owner,articleContext:{id:preview.id,title:preview.title}});}:undefined} onClose={()=>{previewId.current++;setPreview(null);}} /></Suspense></div>}
     </dialog>}
     {modal&&<dialog ref={modalRef} aria-labelledby="staff-modal-title" className="staff-modal" onCancel={event=>{event.preventDefault();if(!busy)setModal(null);}}><form onSubmit={submitAction}>
       <div className="staff-modal-heading"><h2 id="staff-modal-title">{modal.label}</h2><IconButton label="Cerrar confirmación" icon={X} onClick={()=>setModal(null)} disabled={busy} /></div>

@@ -1,4 +1,4 @@
-import { ArrowLeft, Gift, Tag, Sparkles, Coins, Handshake, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Gift, Tag, Sparkles, Coins, Handshake, ShieldCheck, ShieldAlert } from 'lucide-react';
 import './HowItWorks.css';
 
 const costs = [
@@ -15,6 +15,7 @@ const packs = [
   { credits: 5, price: '$11.000', unit: '$2.200', saving: '$1.500' },
 ];
 const questions = [
+  ['¿Cuál es el precio máximo de un artículo?', 'MiBatute está pensado para ventas de monto reducido: puedes publicar artículos de venta con un precio de hasta $500.000 COP cada uno. Las donaciones se ofrecen gratis. Si vendes, acuerdas el pago directamente con la otra persona; MiBatute no recauda el precio del artículo.'],
   ['¿MiBatute cobra una comisión si vendo?', 'No. MiBatute no descuenta un porcentaje del precio de tu artículo. El crédito se usa para una función concreta, como una publicación adicional o un destacado; no es una comisión por concretar una venta.'],
   ['¿Cuándo recupero un espacio gratuito para vender?', 'Puedes mantener hasta 3 ventas activas gratis al mismo tiempo. Al finalizar una venta liberas un espacio y puedes publicar otro artículo gratis. Si ya tienes 3 activas, una publicación adicional requiere 1 crédito.'],
   ['¿Las 24 horas se reinician a medianoche?', 'No. Se cuentan las postulaciones gratuitas de las últimas 24 horas. Si usas una hoy a las 10:00 a. m., ese espacio vuelve a estar disponible mañana a las 10:00 a. m. La pantalla te indicará cuándo puedes volver a postularte gratis.'],
@@ -25,11 +26,11 @@ const questions = [
 
 export default function HowItWorks({ onBack }) {
   return <article className="marketplace-help how-guide">
-    <button type="button" onClick={onBack} className="how-back"><ArrowLeft size={17} aria-hidden="true"/> Volver a los artículos</button>
     <header className="how-intro">
       <span className="how-eyebrow">Una segunda oportunidad para tus artículos</span>
       <h1>Así funciona MiBatute</h1>
-      <p>Publica lo que ya no usas, véndelo o dónalo. Empieza gratis y elige si necesitas alguna función adicional.</p>
+      <button type="button" onClick={onBack} className="how-back"><ArrowLeft size={17} aria-hidden="true"/><span>Volver a los artículos</span></button>
+      <p>Un mercado de segunda mano para ventas de hasta $500.000 COP por artículo y donaciones gratuitas. Publica lo que ya no usas y dale otra oportunidad.</p>
     </header>
     <aside className="how-review" role="note"><strong>{import.meta.env.DEV ? 'Prueba local.' : 'MiBatute BETA.'}</strong> Las recargas todavía no están disponibles. Puedes usar tus créditos existentes; los paquetes de compra se muestran para revisión y aún no permiten pagos.</aside>
 
@@ -42,12 +43,22 @@ export default function HowItWorks({ onBack }) {
     <section className="how-advantage" aria-labelledby="how-advantage-title">
       <h2 id="how-advantage-title">Una alternativa a Mercado Libre, sin comisión por venta</h2>
       <p>En MiBatute no descontamos un porcentaje del precio de tu artículo cuando vendes. Tú acuerdas el precio con la otra persona. Solo usas créditos si eliges una función adicional, como publicar más ventas de las gratuitas o destacar un artículo.</p>
+      <p>MiBatute es tu <strong>mercado de pulgas digital</strong>: la idea de un mercado de pulgas, ahora en tu celular o computador. Explora sin recorrer puestos: busca algo específico por categoría y ubicación, o simplemente echa un vistazo y descubre un tesoro inesperado.</p>
+      <h3>También una alternativa a Facebook Marketplace, cuidando tu privacidad</h3>
+      <p>Publica sin vincular tu perfil de Facebook ni exponer tu vida personal en esa red. El contacto se centra en los artículos: la conversación con la otra persona se habilita por el chat interno de MiBatute, según el proceso de reserva o donación. No tienes que compartir tu teléfono ni tu correo para hablar; tú decides qué datos compartir para coordinar la entrega.</p>
+    </section>
+
+    <section className="how-card how-role" aria-labelledby="how-role-title">
+      <div className="how-section-title"><Handshake size={21} aria-hidden="true"/><h2 id="how-role-title">MiBatute es un puente de comunicación</h2></div>
+      <p>Facilitamos las publicaciones y el contacto por el chat interno. MiBatute no es quien vende o dona el artículo, no recauda ni custodia su precio y no organiza su transporte o entrega.</p>
+      <p>Quien vende o dona es responsable de describir el artículo con honestidad y cumplir lo acordado. Quien compra o recibe debe revisar el artículo y las condiciones antes de aceptar. Ustedes acuerdan directamente el pago, el lugar y la forma de entrega, y cada participante responde por sus propias actuaciones.</p>
+      <p className="how-callout">MiBatute no garantiza el cumplimiento de los acuerdos entre usuarios. Esto no elimina las obligaciones que legalmente correspondan a la plataforma ni los derechos de los participantes. Consulta los <a href="/terminos">Términos y condiciones</a>.</p>
     </section>
 
     <div className="how-modes">
       <section className="how-card" aria-labelledby="how-sell">
         <div className="how-section-title"><Tag size={21} aria-hidden="true"/><h2 id="how-sell">Quiero vender</h2></div>
-        <p>Publica hasta 3 artículos de venta activos al mismo tiempo, gratis y sin comisión por venta.</p>
+        <p>Publica hasta 3 artículos de venta activos al mismo tiempo, gratis y sin comisión por venta. El precio máximo es de <strong>$500.000 COP por artículo</strong>.</p>
         <ol>
           <li><strong>Crea tu publicación.</strong> Agrega fotos reales, precio, ubicación y una descripción honesta del estado del artículo.</li>
           <li><strong>Revisa a las personas interesadas.</strong> Consulta sus perfiles y acuerda los detalles por el chat de MiBatute.</li>
@@ -81,7 +92,20 @@ export default function HowItWorks({ onBack }) {
       <div className="how-section-title"><ShieldCheck size={21} aria-hidden="true"/><h2 id="how-privacy-title">El contacto es por el chat, por tu seguridad</h2></div>
       <p>La comunicación entre las personas de una operación se realiza únicamente por el chat de MiBatute. No mostramos automáticamente a la contraparte tu correo, teléfono ni la dirección personal de tu cuenta.</p>
       <p>Quien vende o dona decide por el chat qué datos necesita compartir para coordinar la entrega. Cada persona controla sus propios datos: no tienes que entregar tu número de teléfono para conversar.</p>
+      <p>No enviamos automáticamente datos de contacto de compradores, vendedores, donantes ni personas que reciben una donación a su contraparte. Ustedes deciden qué compartir por el chat para coordinarse. La información podrá suministrarse cuando corresponda por una obligación legal o un requerimiento de autoridad, conforme a la <a href="/privacidad">Política de privacidad</a>.</p>
       <p className="how-callout"><strong>Tu perfil público sí es visible:</strong> nombre público, foto y calificaciones, además de la ciudad y localidad del artículo. Los datos que tú incluyas en una publicación, foto o mensaje también podrán verlos sus destinatarios. Comparte solo lo necesario y nunca envíes contraseñas, códigos de verificación o datos de tarjetas.</p>
+    </section>
+
+    <section className="how-card how-safety" aria-labelledby="how-safety-title">
+      <div className="how-section-title"><ShieldAlert size={21} aria-hidden="true"/><h2 id="how-safety-title">Tu seguridad va primero</h2></div>
+      <p><strong>No envíes dinero si tienes dudas.</strong> Conversar por el chat o ver una calificación no garantiza que una operación sea segura.</p>
+      <ul>
+        <li>Evita anticipos a desconocidos. Revisa el artículo, su estado y las condiciones acordadas antes de pagar; no transfieras por presión ni por una supuesta urgencia.</li>
+        <li>Si recibes un pago, confirma el abono en tu propia aplicación bancaria. Una captura o un comprobante enviado por la otra persona no demuestra que recibiste el dinero.</li>
+        <li>Acuerda la entrega en un lugar público, concurrido y de día. Cuando sea posible, ve acompañado y evita revelar tu domicilio.</li>
+        <li>No compartas contraseñas, códigos de verificación ni datos completos de tarjetas. Desconfía de enlaces de pago o cobros para «liberar» un artículo o una donación.</li>
+        <li>Si algo no te da confianza, detén la operación y utiliza la opción de reportar. Conserva los mensajes y comprobantes para reclamar si lo necesitas.</li>
+      </ul>
     </section>
 
     <section className="how-prices" aria-labelledby="how-costs">

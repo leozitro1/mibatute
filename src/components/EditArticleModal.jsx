@@ -10,6 +10,8 @@ import {
 import { X, Camera, Loader2, Trash2, Plus, RefreshCw } from "lucide-react";
 import ArticleFields from "./ArticleFields";
 import { detectContactoProhibido } from "./articleValidation";
+import PhotoOrderControls from "./PhotoOrderControls.jsx";
+import { movePhoto,orderPhotos } from "./photoOrder.js";
 import { getEditableArticle } from "./editArticleData";
 
 const FALLBACK_IMG =
@@ -35,30 +37,14 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
   const [imgBusyId, setImgBusyId] = useState(null);
   const [addingBusy, setAddingBusy] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
+  const [imageOrder,setImageOrder] = useState([]);
 
-  // preview grande (solo visual)
-  const preview = useMemo(() => {
-    const a = fullArticle || article;
-
-    const fromImgs =
-      Array.isArray(a?.articulo_imagenes) && a.articulo_imagenes.length
-        ? a.articulo_imagenes[0]?.url
-        : "";
-
-    return (
-      a?.imagen_url_principal ||
-      a?.imagen_url ||
-      a?.image_url ||
-      (Array.isArray(a?.imagenes) ? a.imagenes[0] : "") ||
-      fromImgs ||
-      ""
-    );
-  }, [fullArticle, article]);
-
-  const images = useMemo(() => {
-    const a = fullArticle || article;
-    return Array.isArray(a?.articulo_imagenes) ? a.articulo_imagenes : [];
-  }, [fullArticle, article]);
+  const originalImages=useMemo(()=>[...((fullArticle||article)?.articulo_imagenes||[])].sort((a,b)=>(a.position??0)-(b.position??0)),[fullArticle,article]);
+  const images=useMemo(()=>orderPhotos(originalImages,imageOrder),[originalImages,imageOrder]);
+  const orderChanged=images.some((image,index)=>image.id!==originalImages[index]?.id);
+  const preview=images[0]?.url||(fullArticle||article)?.imagen_url_principal||(fullArticle||article)?.image_url||'';
+  const imageBusy=loading||addingBusy||!!imgBusyId||refreshBusy;
+  const reorderPhotos=(from,to)=>setImageOrder(movePhoto(images,from,to).map(image=>image.id));
 
   const remainingSlots = useMemo(() => Math.max(0, 4 - images.length), [images.length]);
 
@@ -73,9 +59,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
   useEffect(() => {
     if (!article || !isOpen) return;
     let alive = true;
-    setFormData(getEditableArticle(article));
-    setFullArticle(null);
-    setRefreshBusy(true);
+    Promise.resolve().then(()=>{if(alive){setFormData(getEditableArticle(article));setFullArticle(null);setImageOrder([]);setRefreshBusy(true);}});
     getArticleWithImages(article.id).then(res => {
       if (!alive) return;
       if (res.success) {
@@ -116,7 +100,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
       estado_producto: formData.conditionScore,
     };
 
-    const result = await updateArticle(article.id, payload, null);
+    const result = await updateArticle(article.id, payload, null, {imageOrder:orderChanged?images.map(image=>image.id):null});
 
     if (result?.success) {
       alert("¡Cambios guardados!");
@@ -195,14 +179,14 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
               type="button"
               onClick={() => refreshArticle(article?.id)}
               className="p-2 rounded-xl hover:bg-white/10 transition disabled:opacity-50"
-              disabled={refreshBusy}
+              disabled={imageBusy}
               title="Refrescar"
               aria-label="Refrescar"
             >
               {refreshBusy ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
             </button>
 
-            <button onClick={onClose} aria-label="Cerrar edición" className="hover:rotate-90 transition-transform" type="button">
+            <button onClick={onClose} disabled={imageBusy} aria-label="Cerrar edición" className="hover:rotate-90 transition-transform" type="button">
               <X size={24} />
             </button>
           </div>
@@ -234,7 +218,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              {images.map((img) => (
+              {images.map((img,index) => (
                 <div
                   key={img.id}
                   className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50"
@@ -242,7 +226,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
                   <img
                     src={img.url || FALLBACK_IMG}
                     className="w-full h-36 object-cover"
-                    alt="Foto"
+                    alt={`Foto ${index+1}${index===0?' · Portada':''}`}
                     onError={(e) => {
                       if (e.currentTarget.dataset.fallbackApplied) return;
                       e.currentTarget.dataset.fallbackApplied = "1";
@@ -250,7 +234,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
                     }}
                   />
 
-                  <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 transition flex items-end justify-between p-2">
+                  <div className="absolute top-0 left-0 right-0 h-36 bg-black/20 flex items-end justify-between p-2">
                     <label
                       className="flex items-center gap-1 text-white text-[10px] font-black uppercase bg-white/15 px-2 py-2 rounded-xl cursor-pointer hover:bg-white/25 transition"
                       title="Reemplazar"
@@ -265,7 +249,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
                         type="file"
                         className="hidden"
                         accept="image/*"
-                        disabled={imgBusyId === img.id}
+                        disabled={imageBusy}
                         onChange={(e) => {
                           const f = e.target.files?.[0];
                           e.target.value = "";
@@ -277,7 +261,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
                     <button
                       type="button"
                       onClick={() => handleDeleteImage(img.id)}
-                      disabled={imgBusyId === img.id}
+                      disabled={imageBusy}
                       className="flex items-center justify-center text-white bg-red-500/80 hover:bg-red-500 px-3 py-2 rounded-xl transition disabled:opacity-50"
                       title="Eliminar"
                       aria-label="Eliminar"
@@ -285,6 +269,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
                       <Trash2 size={14} />
                     </button>
                   </div>
+                  <PhotoOrderControls index={index} count={images.length} onMove={reorderPhotos} disabled={imageBusy}/>
                 </div>
               ))}
 
@@ -303,7 +288,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
                     className="hidden"
                     accept="image/*"
                     multiple={remainingSlots > 1}
-                    disabled={addingBusy || remainingSlots === 0}
+                    disabled={imageBusy || remainingSlots === 0}
                     onChange={(e) => {
                       handleAddImages(e.target.files);
                       e.target.value = "";
@@ -314,10 +299,11 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
             </div>
 
             <p className="text-[10px] text-gray-400 mt-2">
-              Puedes <b>eliminar</b>, <b>cambiar</b> o <b>agregar</b> fotos hasta completar 4.
+              Puedes eliminar, cambiar o agregar fotos hasta completar 4. Usa las flechas para ordenar: la primera será la portada. El nuevo orden se aplica al guardar los cambios.
             </p>
           </div>
 
+          {orderChanged&&<p className="text-sm text-forest-green" role="status">Tienes un nuevo orden de fotos pendiente de guardar.</p>}
           <ArticleFields formData={formData} setFormData={setFormData} categories={categories}
             disabled={refreshBusy || loading || addingBusy || !!imgBusyId} lockMode />
           {/* Guardar */}

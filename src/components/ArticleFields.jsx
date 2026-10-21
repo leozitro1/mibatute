@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { LOCATIONS } from "../data/locations";
 import { detectContactoProhibido } from "./articleValidation";
 
@@ -12,7 +13,8 @@ function conditionMeta(raw) {
 }
 
 
-export default function ArticleFields({ formData, setFormData, categories, disabled = false, lockMode = false }) {
+export default function ArticleFields({ formData, setFormData, categories, disabled = false, lockMode = false, section = 'all', hideMode = false }) {
+  const fieldId = useId();
   const CATEGORY_TREE = categories;
   const CATEGORY_OPTIONS = categories.map(c => c.key);
   const getSubsForCategory = (tree, category) => tree.find(c => c.key === category)?.subs || [];
@@ -21,10 +23,11 @@ export default function ArticleFields({ formData, setFormData, categories, disab
   const exceedsMaxVenta = formData.mode === "venta" && Number(formData.price) > MAX_VENTA_COP;
   const descError = detectContactoProhibido(formData.description);
   return <div className="space-y-4">
+            {section!=='location'&&<>
             {/* Título */}
             <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">¿Qué quieres publicar?</label>
-              <input
+              <label htmlFor={`${fieldId}-title`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">¿Qué quieres publicar?</label>
+              <input id={`${fieldId}-title`}
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -38,8 +41,8 @@ export default function ArticleFields({ formData, setFormData, categories, disab
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Categoría (macro) */}
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Categoría</label>
-                <select
+                <label htmlFor={`${fieldId}-category`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Categoría</label>
+                <select id={`${fieldId}-category`}
                   value={formData.category}
                   onChange={(e) => {
                     const nextCategory = e.target.value;
@@ -63,8 +66,8 @@ export default function ArticleFields({ formData, setFormData, categories, disab
 
               {/* Subcategoría */}
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Subcategoría</label>
-                <select
+                <label htmlFor={`${fieldId}-subcategory`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Subcategoría</label>
+                <select id={`${fieldId}-subcategory`}
                   value={formData.subcategory}
                   onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
                   className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
@@ -80,10 +83,10 @@ export default function ArticleFields({ formData, setFormData, categories, disab
             </div>
 
             {/* Modo + precio */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Tipo</label>
-                <select
+            {(!hideMode||formData.mode==='venta')&&<div className={hideMode?"grid grid-cols-1 gap-4":"grid grid-cols-1 sm:grid-cols-2 gap-4"}>
+              {!hideMode&&<div>
+                <label htmlFor={`${fieldId}-mode`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Tipo</label>
+                <select id={`${fieldId}-mode`}
                   value={formData.mode}
                   onChange={(e) => {
                     const m = e.target.value;
@@ -95,11 +98,11 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                   <option value="donacion">Donación</option>
                   <option value="venta">Venta</option>
                 </select>
-              </div>
+              </div>}
 
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Precio (solo si es venta)</label>
-                <input
+              {(!hideMode||formData.mode==='venta')&&<div>
+                <label htmlFor={`${fieldId}-price`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Precio (solo si es venta)</label>
+                <input id={`${fieldId}-price`}
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   type="number"
@@ -112,14 +115,16 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                 {exceedsMaxVenta && (
                   <p className="text-[11px] mt-1 text-red-600">Tope: ${MAX_VENTA_COP.toLocaleString("es-CO")} COP</p>
                 )}
-              </div>
-            </div>
+              </div>}
+            </div>}
 
+            </>}
+            {section!=='details'&&<>
             {/* Ciudad / localidad */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Ciudad</label>
-                <select
+                <label htmlFor={`${fieldId}-city`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Ciudad</label>
+                <select id={`${fieldId}-city`}
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value, locality: "" })}
                   className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
@@ -135,8 +140,8 @@ export default function ArticleFields({ formData, setFormData, categories, disab
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Localidad</label>
-                <select
+                <label htmlFor={`${fieldId}-locality`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Localidad</label>
+                <select id={`${fieldId}-locality`}
                   value={formData.locality}
                   onChange={(e) => setFormData({ ...formData, locality: e.target.value })}
                   className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
@@ -152,10 +157,12 @@ export default function ArticleFields({ formData, setFormData, categories, disab
               </div>
             </div>
 
+            </>}
+            {section!=='location'&&<>
             {/* Condición */}
             <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Estado del producto (1-10)</label>
-              <input
+              <label htmlFor={`${fieldId}-conditionScore`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Estado del producto (1-10)</label>
+              <input id={`${fieldId}-conditionScore`}
                 type="range"
                 min="1"
                 max="10"
@@ -176,11 +183,11 @@ export default function ArticleFields({ formData, setFormData, categories, disab
 
             {/* Descripción */}
             <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1">Descripción</label>
+              <label htmlFor={`${fieldId}-description`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Descripción</label>
               <p className="mb-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 font-medium leading-snug">
                 🔒 <strong>No incluyas datos de contacto</strong> (teléfonos, correos, redes sociales). Esto es por tu seguridad y la de la comunidad. Tu cuenta podría ser bloqueada.
               </p>
-              <textarea
+              <textarea id={`${fieldId}-description`}
                 value={formData.description}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -199,7 +206,7 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                 </p>
               )}
             </div>
-
+            </>}
 
   </div>;
 }

@@ -1,12 +1,12 @@
 import { useEffect,useRef,useState } from 'react';
-import { ArrowLeft,ArrowRight,Eye,Star,X } from 'lucide-react';
+import { ArrowLeft,ArrowRight,Eye,Star,X,Mail } from 'lucide-react';
 import { staffRpc } from './staffClient.js';
 
 const date=value=>value?new Date(value).toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bogota'}):'Sin registro';
 const states={disponible:'Disponible',reservado:'Reservada',entregado:'Entregada',en_revision:'En revisión',pausado:'Pausada'};
 const metrics=[['created','Creadas'],['active','Activas'],['reserved','Reservadas'],['delivered','Entregadas'],['deleted','Eliminadas'],['featured','Con destacado'],['reported','Con reportes'],['reviewing','En revisión / pausadas']];
 
-export default function StaffUserDetail({user,onClose,onReady,onAccessExpired,onOpenArticle}) {
+export default function StaffUserDetail({user,onClose,onReady,onAccessExpired,onOpenArticle,onMessage}) {
   const dialog=useRef(null),request=useRef(null);
   const [data,setData]=useState(null),[page,setPage]=useState(1),[busy,setBusy]=useState(true),[error,setError]=useState('');
   useEffect(()=>{
@@ -26,6 +26,7 @@ export default function StaffUserDetail({user,onClose,onReady,onAccessExpired,on
     {busy&&<p role="status">Cargando ficha...</p>}
     {profile&&<>
       <div className="staff-user-heading">{profile.foto_url&&<img src={profile.foto_url} alt="" />}<div><h3>{profile.nombre||'Usuario'}</h3><span className="staff-badge">{{blocked:'Bloqueado',suspended:'Suspendido',active:'Activo'}[profile.account_state]}</span>{profile.staff_role&&<span className="staff-badge">{profile.staff_role==='master'?'Super Admin':'Admin'}</span>}</div></div>
+      {onMessage&&<div className="staff-user-message-action">{user.articleContext&&<p>Sobre la publicación: <strong>{user.articleContext.title}</strong></p>}<button type="button" className="staff-button staff-button-primary" disabled={busy} onClick={()=>onMessage({id:profile.id,nombre:profile.nombre||'Usuario'})}><Mail size={16} />{user.articleContext?'Enviar mensaje sobre esta publicación':'Enviar mensaje'}</button></div>}
       <div className="staff-user-rating"><Star size={16} aria-hidden="true" /><strong>{stats.rating===null?'Sin calificaciones':`${Number(stats.rating).toFixed(1)} / 5`}</strong><span>{stats.rating_count} calificaciones registradas</span></div>
       <dl className="staff-user-metrics">{metrics.map(([key,label])=><div key={key}><dt>{label}</dt><dd>{stats[key]}</dd></div>)}</dl>
       <h3 className="staff-user-section-title">Datos de la cuenta</h3>

@@ -3,19 +3,22 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Mail, Plus, RefreshCw, Send, Tras
 import { supabase } from '../supabase/supabaseClient';
 import { SUPPORT_NOTICE_EVENT } from './supportSignals.js';
 import './SupportInbox.css';
+import { AttentionDot } from '../staff/StaffAttention.jsx';
 
 const date=value=>new Date(value).toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bogota'});
 const newList={rows:[],total:0,page:1,pages:1,next_thread_at:null};
 
-export default function SupportInbox({client=supabase,isStaff=false,isActive=true,userId,query='',revision=0,targetThreadId=null,targetVersion=null,onSeen,onRemoved,onActivity,onAccessExpired}) {
-  const [list,setList]=useState(newList),[pageSelection,setPageSelection]=useState({query,page:1}),[refresh,setRefresh]=useState(0),[threadRefresh,setThreadRefresh]=useState(0);
-  const page=pageSelection.query===query?pageSelection.page:1;
-  const setPage=value=>setPageSelection({query,page:value});
+export default function SupportInbox({client=supabase,isStaff=false,managedRealtime=false,isActive=true,userId,query='',revision=0,targetThreadId=null,targetVersion=null,onSeen,onRemoved,onActivity,onAccessExpired}) {
+  const [caseStatus,setCaseStatus]=useState('all');
+  const [list,setList]=useState(newList),[pageSelection,setPageSelection]=useState({query,status:'all',page:1}),[refresh,setRefresh]=useState(0),[threadRefresh,setThreadRefresh]=useState(0);
+  const status=isStaff?caseStatus:'all';
+  const page=pageSelection.query===query&&pageSelection.status===status?pageSelection.page:1;
+  const setPage=value=>setPageSelection({query,status,page:value});
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [activeId,setActiveId]=useState(null),[thread,setThread]=useState(null),[composing,setComposing]=useState(false);
   const [subject,setSubject]=useState(''),[body,setBody]=useState(''),[reply,setReply]=useState('');
   const [loading,setLoading]=useState(false),[threadLoading,setThreadLoading]=useState(false),[sending,setSending]=useState(false),[error,setError]=useState('');
-  const [ready,setReady]=useState(!isStaff),[,tick]=useState(0);
+  const [ready,setReady]=useState(!isStaff||managedRealtime),[,tick]=useState(0);
   const callbacks=useRef({onSeen,onRemoved,onActivity,onAccessExpired});callbacks.current={onSeen,onRemoved,onActivity,onAccessExpired};
   const alive=useRef(false),listVersion=useRef(0),threadVersion=useRef(0),inFlight=useRef(false),request=useRef(null),drafts=useRef(new Map());
   const selected=useRef(null);selected.current=activeId;
@@ -33,6 +36,7 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
       window.addEventListener(SUPPORT_NOTICE_EVENT,notice);document.addEventListener('visibilitychange',visible);
       return()=>{window.removeEventListener(SUPPORT_NOTICE_EVENT,notice);document.removeEventListener('visibilitychange',visible);};
     }
+    if(managedRealtime)return;
     let disposed=false,channel,joined=false,fallbackRan=false,dirty=false;
     const changed=event=>{if(inFlight.current)return;if(document.visibilityState==='visible')invalidate(event?.payload?.thread_id);else dirty=true;};
     const visible=()=>{if(dirty&&document.visibilityState==='visible'){dirty=false;invalidate();}};
@@ -44,15 +48,15 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
         .subscribe(status=>{if(status==='SUBSCRIBED'&&!disposed){clearTimeout(fallback);if(joined||fallbackRan)changed();else setReady(true);joined=true;}});
     }).catch(()=>{if(!disposed)setReady(true);});
     return()=>{disposed=true;clearTimeout(fallback);document.removeEventListener('visibilitychange',visible);if(channel)client.removeChannel(channel);};
-  },[client,isStaff,isActive,invalidate]);
+  },[client,isStaff,isActive,managedRealtime,invalidate]);
 
   useEffect(()=>{
     if(!ready||!isActive)return;
     const version=++listVersion.current;setLoading(true);
-    rpc('support_inbox',{p_staff:isStaff,p_search:query,p_page:page}).then(data=>{
+    rpc('support_inbox',{p_staff:isStaff,p_search:query,p_page:page,...(isStaff?{p_status:status}:{})}).then(data=>{
       if(alive.current&&version===listVersion.current){setList(data);}
     }).catch(err=>{if(version===listVersion.current)report(err);}).finally(()=>{if(alive.current&&version===listVersion.current)setLoading(false);});
-  },[rpc,isStaff,query,page,refresh,revision,ready,isActive,report]);
+  },[rpc,isStaff,query,status,page,refresh,revision,ready,isActive,report]);
 
   useEffect(()=>{
     if(!isActive){threadVersion.current++;return;}
@@ -126,6 +130,9 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
     <div className="support-heading"><div><h2>{isStaff?'Mensajes de usuarios':'Contacta a MiBatute'}</h2><p>{isStaff?'Admin y superadmin comparten estas conversaciones.':'Una conversación nueva cada 24 horas. Puedes responder en los hilos existentes.'}</p></div>
       <button type="button" className="support-icon-button" onClick={()=>invalidate()} disabled={loading||sending} aria-label="Actualizar conversaciones" title="Actualizar conversaciones"><RefreshCw size={17} /></button>
     </div>
+    {isStaff&&!activeId&&<div className="support-status-filter" role="group" aria-label="Estado de los casos">
+      {[['all','Todos'],['open','Casos abiertos'],['closed','Casos cerrados']].map(([value,label])=><button key={value} type="button" aria-pressed={status===value} disabled={sending} onClick={()=>{if(status===value)return;setCaseStatus(value);setPageSelection({query,status:value,page:1});setList(newList);setError('');}}>{label}</button>)}
+    </div>}
     {!isStaff&&<><button type="button" className="support-button support-button--primary" disabled={!canStart||sending||loading} onClick={()=>{setComposing(true);setActiveId(null);setError('');}}><Plus size={16} />Enviar mensaje a MiBatute</button>
       {!canStart&&<p className="support-hint">Puedes iniciar otra conversación el {date(list.next_thread_at)}. Tus respuestas siguen disponibles.</p>}</>}
     {error&&<p role="alert" className="support-error">{error}</p>}
@@ -135,7 +142,7 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
       <p className="support-hint">{body.length}/500 caracteres · Tu mensaje será privado y lo podrá atender el equipo de administración.</p>
       <div className="support-actions"><button type="button" className="support-button" disabled={sending} onClick={()=>setComposing(false)}>Cancelar</button><button type="submit" className="support-button support-button--primary" disabled={sending||subject.trim().length<3||body.trim().length<10||body.length>500||!canStart}><Send size={16} />{sending?'Enviando…':'Enviar mensaje'}</button></div>
     </form>:activeId?<div className="support-thread">
-      <div className="support-thread-toolbar"><button type="button" className="support-back" disabled={sending} onClick={()=>{setActiveId(null);setError('');}}><ArrowLeft size={16} />Todas las conversaciones</button>
+      <div className="support-thread-toolbar"><button type="button" className="support-button support-back" disabled={sending} onClick={()=>{setActiveId(null);setError('');}}><ArrowLeft size={16} />Todas las conversaciones</button>
         {isStaff&&thread&&<button type="button" className="support-button" disabled={sending||threadLoading||!!reply.trim()} onClick={setClosed} title={reply.trim()?'Envía o borra tu borrador antes de cambiar el estado':undefined}>{thread.closed_at?<RotateCcw size={16}/>:<CheckCircle2 size={16}/>} {thread.closed_at?'Reabrir caso':'Cerrar caso'}</button>}
         {!isStaff&&thread&&<button type="button" className="support-button support-delete" disabled={sending||threadLoading} onClick={()=>setDeleteTarget(activeId)}><Trash2 size={16} />Eliminar conversación</button>}
       </div>
@@ -157,7 +164,7 @@ export default function SupportInbox({client=supabase,isStaff=false,isActive=tru
     </div>:<>
       {loading&&!list.rows.length?<p role="status">Cargando conversaciones…</p>:!list.rows.length?<p className="support-empty"><Mail size={22} />{isStaff?'No hay conversaciones con ese filtro.':'Aquí aparecerán tus conversaciones con MiBatute.'}</p>:<div className="support-list">
         {list.rows.map(row=><div key={row.id} className="support-list-row"><button type="button" className="support-list-item" onClick={()=>select(row)}>
-          <div><strong>{row.subject}{row.closed_at&&<span className="support-closed-badge">Cerrado</span>}</strong>{row.unread&&<span className="support-unread">Sin leer</span>}</div>
+          <div><strong>{isStaff&&row.unread&&<AttentionDot label="Conversación sin leer" />}{row.subject}{row.closed_at&&<span className="support-closed-badge">Cerrado</span>}</strong>{row.unread&&<span className="support-unread">Sin leer</span>}</div>
           <p>{isStaff?`${row.user_name}${row.user_hidden_at?' · Eliminada por el usuario':''}`:row.last_author==='staff'?'Respuesta de MiBatute':'Mensaje enviado a MiBatute'}</p><time dateTime={row.updated_at}>{date(row.updated_at)}</time>
         </button>{!isStaff&&<button type="button" className="support-icon-button support-delete" disabled={sending} aria-label={`Eliminar conversación: ${row.subject}`} title="Eliminar conversación" onClick={()=>setDeleteTarget(row.id)}><Trash2 size={16} /></button>}{deleteTarget===row.id&&deletePrompt}</div>)}
       </div>}
