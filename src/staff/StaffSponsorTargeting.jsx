@@ -1,3 +1,4 @@
+import StyledSelect from "../components/StyledSelect.jsx";
 import { useState } from 'react';
 import { Plus,X } from 'lucide-react';
 import useLocations from "../data/useLocations.js";
@@ -15,7 +16,7 @@ export default function StaffSponsorTargeting({draft,change,busy}) {
   return <>
     <fieldset className="staff-sponsor-targeting" disabled={busy}><legend>Cobertura geográfica</legend>
       <p className="staff-item-detail">{zones.length?`${zones.length} zonas seleccionadas`:'Toda la plataforma'}</p>
-      <div className="staff-sponsor-fields"><div><label htmlFor="sponsor-city">Ciudad</label><select id="sponsor-city" value={city} onChange={event=>{setCity(event.target.value);setLocality('');}}><option value="">Seleccionar ciudad</option>{COLOMBIA_DATA.map(item=><option key={item.city}>{item.city}</option>)}</select></div>
+      <div className="staff-sponsor-fields"><div><label htmlFor="sponsor-city">Ciudad</label><StyledSelect id="sponsor-city" value={city} onChange={event=>{setCity(event.target.value);setLocality('');}}><option value="">Seleccionar ciudad</option>{COLOMBIA_DATA.map(item=><option key={item.city}>{item.city}</option>)}</StyledSelect></div>
       <div><label htmlFor="sponsor-locality">Localidad / zona</label><select id="sponsor-locality" value={locality} onChange={event=>setLocality(event.target.value)} disabled={!city||busy}><option value="">Toda la ciudad</option>{(COLOMBIA_DATA.find(item=>item.city===city)?.localities||[]).map(item=><option key={item}>{item}</option>)}</select></div></div>
       <button type="button" className="staff-button" onClick={add} disabled={!city||zones.length>=100}><Plus size={16} />Añadir zona</button>
       <ul className="staff-sponsor-zones">{zones.map((zone,index)=><li key={`${zone.city}-${zone.locality}`}><span>{zone.city} · {zone.locality||'Toda la ciudad'}</span><button type="button" className="staff-icon-button" title="Quitar zona" aria-label={`Quitar zona ${zone.city} ${zone.locality}`} onClick={()=>change('target_locations',zones.filter((_,position)=>position!==index))}><X size={16} /></button></li>)}</ul>

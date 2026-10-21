@@ -1,3 +1,4 @@
+import StyledSelect from "./StyledSelect.jsx";
 // src/components/AuthModal.jsx
 import { useEffect, useRef, useState } from "react";
 import {LEGAL_READY,registrationAcceptance} from '../legal/config.js';
@@ -483,7 +484,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
 
                     {/* SELECTS CIUDAD / LOCALIDAD */}
                     <div className="grid grid-cols-2 gap-2">
-                      <select
+                      <StyledSelect
                         value={ciudad}
                         onChange={(e) => {
                           setCiudad(e.target.value);
@@ -503,7 +504,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
                             {c}
                           </option>
                         ))}
-                      </select>
+                      </StyledSelect>
 
                       <select
                         value={localidad}

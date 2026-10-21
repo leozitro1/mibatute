@@ -1,3 +1,4 @@
+import StyledSelect from "../components/StyledSelect.jsx";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MapPin, Plus, Check, Pause, RefreshCw, Pencil, X, RotateCcw, Save } from 'lucide-react';
 import { staffRpc } from './staffClient.js';
@@ -72,10 +73,10 @@ export default function StaffLocations({ onReady, onAccessExpired }) {
         <h2><Plus size={18} />Añadir localidad</h2>
         <p className="staff-item-detail">En una ciudad activa estará disponible al guardar.</p>
         <label htmlFor="market-locality-city">Ciudad</label>
-        <select id="market-locality-city" value={selected} onChange={event => setSelected(event.target.value)} required disabled={busy}>
+        <StyledSelect id="market-locality-city" value={selected} onChange={event => setSelected(event.target.value)} required disabled={busy}>
           <option value="">Selecciona una ciudad</option>
           {cities.map(city => <option key={city.id} value={city.id}>{city.city}{city.active ? '' : ' (pendiente de activar)'}</option>)}
-        </select>
+        </StyledSelect>
         <label htmlFor="new-market-locality">Nombre de la localidad o zona</label>
         <input id="new-market-locality" value={locality} onChange={event => setLocality(event.target.value)} minLength={2} maxLength={80} required disabled={busy} />
         <button className="staff-button staff-button-primary" disabled={busy || !selected || !locality.trim()}><Plus size={16} />Añadir localidad</button>

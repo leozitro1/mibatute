@@ -1,3 +1,4 @@
+import StyledSelect from "./StyledSelect.jsx";
 import { useId } from "react";
 import useLocations from "../data/useLocations.js";
 import { detectContactoProhibido } from "./articleValidation";
@@ -126,7 +127,7 @@ export default function ArticleFields({ formData, setFormData, categories, disab
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor={`${fieldId}-city`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Ciudad</label>
-                <select id={`${fieldId}-city`}
+                <StyledSelect id={`${fieldId}-city`}
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value, locality: "" })}
                   className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
@@ -139,7 +140,7 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                       {c}
                     </option>
                   ))}
-                </select>
+                </StyledSelect>
               </div>
 
               <div>

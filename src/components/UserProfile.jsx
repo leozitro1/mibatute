@@ -1,3 +1,4 @@
+import StyledSelect from "./StyledSelect.jsx";
 // src/components/UserProfile.jsx
 import { createReadCache, listenMarketSignals } from "./marketSignals.js";
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
@@ -2499,7 +2500,7 @@ export default function UserProfile({
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
                   <div>
                     <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Ciudad</label>
-                    <select
+                    <StyledSelect
                       value={profile.ciudad ?? ""}
                       onChange={(e) => setProfile((p) => ({ ...p, ciudad: e.target.value, localidad: "" }))}
                       className={`w-full p-3 rounded-2xl border-none outline-none ${
@@ -2516,7 +2517,7 @@ export default function UserProfile({
                           {c}
                         </option>
                       ))}
-                    </select>
+                    </StyledSelect>
                   </div>
 
                   <div>

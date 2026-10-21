@@ -1,0 +1,24 @@
+.site-select { width:100%; min-width:0; position:relative; }
+.site-select-native { display:none!important; }
+.site-select-trigger { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; min-width:0; min-height:44px; padding:10px 12px; border:1px solid #dce4d8; border-radius:12px; background:#fff; color:#354432; font:inherit; font-size:14px; text-align:left; cursor:pointer; }
+.site-select-trigger:focus-visible { outline:2px solid #769565; outline-offset:3px; }
+.site-select-trigger[aria-expanded=true] { border-color:#9ab18c; box-shadow:0 0 0 3px #eef3e9; }
+.site-select-trigger:disabled { cursor:not-allowed; opacity:.55; }
+.site-select-trigger svg { flex-shrink:0; color:#6d8063; transition:transform .15s; }
+.site-select-arrow-open { transform:rotate(180deg); }
+.site-select-value { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.site-select-menu { display:none; position:fixed; inset:auto; margin:0; box-sizing:border-box; padding:7px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#c1ceba transparent; border:1px solid #dfe7da; border-radius:16px; background:#fff; color:#354432; box-shadow:0 14px 42px #263e2426; z-index:10000; }
+.site-select-menu:popover-open { display:block; }
+.site-select-menu[data-fallback-open=true] { display:block; }
+.site-select-caption { padding:7px 10px 9px; font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#7b8873; }
+.site-select-option { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; padding:10px 12px; border-radius:10px; font:inherit; font-size:14px; line-height:1.4; cursor:pointer; overflow-wrap:anywhere; }
+.site-select-option span { min-width:0; }
+.site-select-option svg { flex-shrink:0; color:#426932; }
+.site-select-option[data-highlighted=true] { background:#f1f5ed; }
+.site-select-option[aria-selected=true] { color:#315b29; font-weight:650; background:#ebf2e5; }
+.site-select-option[aria-disabled=true] { cursor:not-allowed; opacity:.45; }
+.site-select-error { display:block; margin-top:5px; color:#a6382a; font-size:12px; }
+.navbar-search-city .site-select { width:auto; max-width:128px; }
+.navbar-search-city .site-select-trigger { padding:0; gap:5px; background:transparent; border:0; border-radius:6px; font-size:12px; }
+.navbar-search-city .site-select-trigger[aria-expanded=true] { box-shadow:none; }
+@media(prefers-reduced-motion:reduce) { .site-select-trigger svg { transition:none; } }

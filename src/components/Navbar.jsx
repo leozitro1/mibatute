@@ -1,3 +1,4 @@
+import StyledSelect from "./StyledSelect.jsx";
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus, Coins, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
@@ -518,12 +519,11 @@ export default function Navbar({
               </div>
               <div className="navbar-search-city relative flex min-h-11 shrink-0 items-center gap-1.5 border-l border-gray-200 pl-2 pr-2 sm:pl-3">
                 <MapPin size={15} className="shrink-0 text-forest-green" aria-hidden="true" />
-                <select value={currentCity} onChange={(e) => onCityChange?.(e.target.value)}
+                <StyledSelect align="end" value={currentCity} onChange={(e) => onCityChange?.(e.target.value)}
                   className="min-h-11 min-w-0 max-w-28 bg-transparent pr-4 text-xs font-medium text-gray-700 outline-none appearance-none cursor-pointer focus-visible:outline-2 focus-visible:outline-forest-green"
                   aria-label="Seleccionar ciudad">
                   {ACTIVE_COLOMBIA_DATA.map((c) => <option key={c.city} value={c.city}>{c.city}</option>)}
-                </select>
-                <ChevronDown size={12} className="pointer-events-none absolute right-2 text-gray-500" aria-hidden="true" />
+                </StyledSelect>
               </div>
             </div>
             {categoriesNormalized.length > 0 ? (

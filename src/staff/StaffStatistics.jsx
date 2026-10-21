@@ -1,3 +1,4 @@
+import StyledSelect from "../components/StyledSelect.jsx";
 import { createElement,useEffect,useRef,useState } from 'react';
 import { RefreshCw,Search,Eye,ShoppingBag,Gift,Package,MapPin,Tag,TrendingUp } from 'lucide-react';
 import { staffRpc } from './staffClient.js';
@@ -52,7 +53,7 @@ export default function StaffStatistics({revision,onReady,onAccessExpired}) {
     <div className="staff-filters">
       <div><label htmlFor="stats-period">Período</label><select id="stats-period" value={filters.days} onChange={event=>change('days',Number(event.target.value))}>
         <option value={7}>Últimos 7 días</option><option value={30}>Últimos 30 días</option><option value={90}>Últimos 90 días</option></select></div>
-      <div><label htmlFor="stats-city">Ciudad</label><select id="stats-city" value={filters.city} onChange={event=>change('city',event.target.value)}><option value="">Todas las ciudades</option>{COLOMBIA_DATA.map(item=><option key={item.city}>{item.city}</option>)}</select></div>
+      <div><label htmlFor="stats-city">Ciudad</label><StyledSelect id="stats-city" value={filters.city} onChange={event=>change('city',event.target.value)}><option value="">Todas las ciudades</option>{COLOMBIA_DATA.map(item=><option key={item.city}>{item.city}</option>)}</StyledSelect></div>
       <div><label htmlFor="stats-locality">Localidad</label><select id="stats-locality" value={filters.locality} disabled={!filters.city} onChange={event=>change('locality',event.target.value)}><option value="">Todas las localidades</option>{(COLOMBIA_DATA.find(item=>item.city===filters.city)?.localities||[]).map(item=><option key={item}>{item}</option>)}</select></div>
       <div><label htmlFor="stats-category">Categoría</label><select id="stats-category" value={filters.category} onChange={event=>change('category',event.target.value)}><option value="">Todas las categorías</option>{ARTICLE_CATEGORIES.map(item=><option key={item}>{item}</option>)}</select></div>
       <button type="button" className="staff-icon-button" title="Actualizar estadísticas" aria-label="Actualizar estadísticas" disabled={busy} onClick={()=>{setBusy(true);setError('');setRefresh(value=>value+1);}}><RefreshCw size={17} /></button>
