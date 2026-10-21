@@ -9,7 +9,7 @@ export const PUBLICATION_STEPS = [
   { label:'Revisión', title:'Revisa antes de publicar', hint:'Comprueba las fotos, los datos y si tu publicación requiere un crédito.' },
 ];
 
-export function publicationStepError(step,{selectedMode,formData,files,categories}) {
+export function publicationStepError(step,{selectedMode,formData,files,categories,locations=LOCATIONS}) {
   if(step===0)return ['venta','donacion'].includes(selectedMode)?'':'Elige Venta o Donación para continuar.';
   if(step===1)return files.length>=1&&files.length<=4?'':'Agrega entre 1 y 4 fotos para continuar.';
   if(step===2){
@@ -22,8 +22,8 @@ export function publicationStepError(step,{selectedMode,formData,files,categorie
     return detectContactoProhibido(formData.description)||'';
   }
   if(step===3){
-    if(!LOCATIONS[formData.city])return 'Selecciona una ciudad.';
-    if(!LOCATIONS[formData.city].includes(formData.locality))return 'Selecciona una localidad de esa ciudad.';
+    if(!locations[formData.city])return 'Selecciona una ciudad.';
+    if(!locations[formData.city].includes(formData.locality))return 'Selecciona una localidad de esa ciudad.';
   }
   return '';
 }

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Plus,X } from 'lucide-react';
-import { COLOMBIA_DATA } from '../data/locations.js';
+import useLocations from "../data/useLocations.js";
 import { ARTICLE_CATEGORIES } from './moderation.js';
 
 export default function StaffSponsorTargeting({draft,change,busy}) {
+  const { COLOMBIA_DATA } = useLocations();
   const [city,setCity]=useState(''),[locality,setLocality]=useState('');
   const zones=draft.target_locations||[],categories=draft.target_categories||[];
   const add=()=>{

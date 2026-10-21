@@ -10,7 +10,7 @@ import { registerUser, loginUser } from "../supabase/authService";
 import { supabase } from "../supabase/supabaseClient";
 
 // ✅ Ciudades / Localidades
-import { LOCATIONS } from "../data/locations";
+import useLocations from "../data/useLocations.js";
 
 // ✅ Limpia payload y SOLO permite estas columnas en usuarios
 const sanitizeUsuariosPayload = (obj) => {
@@ -67,6 +67,7 @@ async function syncUsuariosFromAuthUser(authUser, fallbackForm = {}) {
 }
 
 export default function AuthModal({ isOpen, onClose, onLogin }) {
+  const { LOCATIONS } = useLocations();
   const [isRegister, setIsRegister] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 

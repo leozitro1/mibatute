@@ -1,7 +1,6 @@
 // src/data/locations.js
 
-// ✅ Para activar más ciudades, agrégalas aquí:
-// ["Bogotá", "Medellín", "Cali", "Barranquilla"]
+// Initial/offline fallback only. Superadmin manages the live catalog in Supabase.
 export const ACTIVE_CITIES = ["Bogotá"];
 
 export const COLOMBIA_DATA = [

@@ -18,6 +18,7 @@ export const STAFF_SECTIONS = [
   { id:'reports',label:'Reportes',permission:'reports',icon:'flag' },
   { id:'users',label:'Usuarios',permission:'users',icon:'users' },
   { id:'sponsors',label:'Patrocinadores',permission:'sponsors',icon:'megaphone' },
+  { id:'locations',label:'Ciudades y localidades',permission:'team',icon:'map' },
   { id:'statistics',label:'Estadísticas',permission:'team',icon:'chart' },
   { id:'team',label:'Equipo',permission:'team',icon:'shield' },
   { id:'audit',label:'Auditoría',permission:'access',icon:'history' },
@@ -25,5 +26,5 @@ export const STAFF_SECTIONS = [
 
 export function allowedSections(account) {
   return STAFF_SECTIONS.filter(section => section.permission==='access' || account?.role==='master'
-    || (!['sponsors','statistics'].includes(section.id)&&account?.permissions?.includes(section.permission)));
+    || (!['sponsors','statistics','locations'].includes(section.id)&&account?.permissions?.includes(section.permission)));
 }

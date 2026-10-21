@@ -34,7 +34,7 @@ import { saleDeletionBlocked, isSaleApproved } from './components/articleState.j
 import { queryArticlesWithCondition } from "./supabase/articleQuery";
 
 import { CATEGORY_TREE } from "./data/categories.js";
-import { COLOMBIA_DATA } from "./data/locations";
+import useLocations from "./data/useLocations.js";
 import { supabase } from "./supabase/supabaseClient";
 import { searchMetric } from './analytics/metrics.js';
 import { recordMarketMetric } from './analytics/publicMetrics.js';
@@ -177,6 +177,7 @@ function resolveInterestedMax(item) {
 }
 
 export default function MarketplaceApp() {
+  const { COLOMBIA_DATA } = useLocations();
   // Production uses the approved design; local development keeps the comparison.
   const [designPreview, setDesignPreview] = useState(() => !import.meta.env.DEV || new URLSearchParams(window.location.search).get('design') !== 'actual');
   const changeDesign = (value) => {
@@ -1336,7 +1337,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   const currentCityData = useMemo(() => {
     return COLOMBIA_DATA.find((c) => c.city === selectedCity);
-  }, [selectedCity]);
+  }, [selectedCity, COLOMBIA_DATA]);
 
   const handlePublishClick = () => {
     if (!currentUser) setIsAuthOpen(true);

@@ -1,7 +1,7 @@
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus, Coins, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
-import { ACTIVE_COLOMBIA_DATA } from "../data/locations";
+import useLocations from "../data/useLocations.js";
 import { supabase } from "../supabase/supabaseClient";
 import { NOTIFICATION_HISTORY_LIMIT } from './notificationHistory.js';
 import { CREDIT_BALANCE_CHANGED } from './creditBalance.js';
@@ -235,6 +235,12 @@ export default function Navbar({
   isProfile = false,
   realtimeStatus = "CONNECTING",
 }) {
+  const { ACTIVE_COLOMBIA_DATA } = useLocations();
+  useEffect(() => {
+    if (ACTIVE_COLOMBIA_DATA.length && !ACTIVE_COLOMBIA_DATA.some(item => item.city === currentCity)) {
+      onCityChange(ACTIVE_COLOMBIA_DATA[0].city);
+    }
+  }, [ACTIVE_COLOMBIA_DATA, currentCity, onCityChange]);
   const displayName = user?.nombre?.trim() || user?.displayName?.trim() || user?.email?.trim() || "";
   const avatarLetter = (displayName?.[0] || "U").toUpperCase();
 

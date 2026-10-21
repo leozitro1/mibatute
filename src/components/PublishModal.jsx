@@ -6,6 +6,7 @@ import { supabase } from "../supabase/supabaseClient";
 import { publicationStatus, publicationQuote } from "../supabase/publicationCredits.js";
 import { publishArticle } from "../supabase/articleService";
 import { CATEGORY_TREE as FALLBACK_CATEGORY_TREE } from "../data/categories.js";
+import useLocations from "../data/useLocations.js";
 import ArticleFields from "./ArticleFields";
 import PhotoOrderControls from "./PhotoOrderControls.jsx";
 import { movePhoto } from "./photoOrder.js";
@@ -89,6 +90,7 @@ async function getCroppedSquareFile({ imageSrc, cropPixels, originalName }) {
 }
 
 export default function PublishModal({ isOpen, onClose, onPublish, currentCity, user, categories }) {
+  const { LOCATIONS } = useLocations();
   const CATEGORY_TREE = Array.isArray(categories) && categories.length ? categories : FALLBACK_CATEGORY_TREE;
   const CATEGORY_OPTIONS = useMemo(() => CATEGORY_TREE.map((c) => c.key), [CATEGORY_TREE]);
 
@@ -116,7 +118,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     wizardForm.current?.scrollTo({top:0});
     stepHeading.current?.focus({preventScroll:true});
   },[step,isOpen]);
-  const stepProblem = index => publicationStepError(index,{selectedMode,formData,files,categories:CATEGORY_TREE});
+  const stepProblem = index => publicationStepError(index,{selectedMode,formData,files,categories:CATEGORY_TREE,locations:LOCATIONS});
   const goToStep = next => {setStepError('');setStep(next);};
   const advance = () => {const problem=stepProblem(step);if(problem){setStepError(problem);return;}goToStep(step+1);};
 

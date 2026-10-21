@@ -304,7 +304,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
           </div>
 
           {orderChanged&&<p className="text-sm text-forest-green" role="status">Tienes un nuevo orden de fotos pendiente de guardar.</p>}
-          <ArticleFields formData={formData} setFormData={setFormData} categories={categories}
+          <ArticleFields formData={formData} setFormData={setFormData} categories={categories} preserveLocation
             disabled={refreshBusy || loading || addingBusy || !!imgBusyId} lockMode />
           {/* Guardar */}
           <button

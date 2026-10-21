@@ -37,7 +37,7 @@ import {
   Star,
   Users,
 } from "lucide-react";
-import { LOCATIONS } from "../data/locations";
+import useLocations from "../data/useLocations.js";
 import ManageArticleModal from "./ManageArticleModal";
 import ApplicantRow from './ApplicantRow.jsx';
 import ProfileListFilters from "./ProfileListFilters";
@@ -1013,9 +1013,8 @@ export default function UserProfile({
 
   const emailReadonly = String(authEmail || user?.email || "").trim();
 
-  const SAFE_LOCATIONS = useMemo(() => {
-    return LOCATIONS && typeof LOCATIONS === "object" ? LOCATIONS : {};
-  }, []);
+  const { LOCATIONS: SAFE_LOCATIONS } = useLocations();
+
 
   // Cargar reputación propia
   useEffect(() => {
@@ -2511,6 +2510,7 @@ export default function UserProfile({
                       disabled={!isEditing || saving || isUserBlocked}
                     >
                       <option value="">Seleccionar ciudad...</option>
+                      {profile.ciudad && !SAFE_LOCATIONS[profile.ciudad] && <option value={profile.ciudad}>{profile.ciudad} (inactiva)</option>}
                       {Object.keys(SAFE_LOCATIONS).map((c) => (
                         <option key={c} value={c}>
                           {c}
@@ -2532,6 +2532,7 @@ export default function UserProfile({
                       }`}
                     >
                       <option value="">Seleccionar localidad...</option>
+                      {profile.localidad && !(SAFE_LOCATIONS[profile.ciudad] || []).includes(profile.localidad) && <option value={profile.localidad}>{profile.localidad}</option>}
                       {(SAFE_LOCATIONS[profile.ciudad] || []).map((l) => (
                         <option key={l} value={l}>
                           {l}

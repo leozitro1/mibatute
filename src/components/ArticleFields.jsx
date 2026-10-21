@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { LOCATIONS } from "../data/locations";
+import useLocations from "../data/useLocations.js";
 import { detectContactoProhibido } from "./articleValidation";
 
 const MAX_VENTA_COP = 500000;
@@ -13,7 +13,8 @@ function conditionMeta(raw) {
 }
 
 
-export default function ArticleFields({ formData, setFormData, categories, disabled = false, lockMode = false, section = 'all', hideMode = false }) {
+export default function ArticleFields({ formData, setFormData, categories, disabled = false, lockMode = false, section = 'all', hideMode = false, preserveLocation = false }) {
+  const { LOCATIONS } = useLocations();
   const fieldId = useId();
   const CATEGORY_TREE = categories;
   const CATEGORY_OPTIONS = categories.map(c => c.key);
@@ -132,6 +133,7 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                   disabled={disabled}
                 >
                   <option value="">Selecciona...</option>
+                  {preserveLocation && formData.city && !LOCATIONS[formData.city] && <option value={formData.city}>{formData.city} (inactiva)</option>}
                   {Object.keys(LOCATIONS).map((c) => (
                     <option key={c} value={c}>
                       {c}
@@ -149,6 +151,7 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                   disabled={disabled || !formData.city}
                 >
                   <option value="">Selecciona...</option>
+                  {preserveLocation && formData.locality && !localities.includes(formData.locality) && <option value={formData.locality}>{formData.locality}</option>}
                   {localities.map((l) => (
                     <option key={l} value={l}>
                       {l}

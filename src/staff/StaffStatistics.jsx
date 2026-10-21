@@ -1,7 +1,7 @@
 import { createElement,useEffect,useRef,useState } from 'react';
 import { RefreshCw,Search,Eye,ShoppingBag,Gift,Package,MapPin,Tag,TrendingUp } from 'lucide-react';
 import { staffRpc } from './staffClient.js';
-import { COLOMBIA_DATA } from '../data/locations.js';
+import useLocations from "../data/useLocations.js";
 import { ARTICLE_CATEGORIES } from './moderation.js';
 import './StaffStatistics.css';
 
@@ -20,6 +20,7 @@ function Ranking({title,icon,rows,secondary}) {
 }
 
 export default function StaffStatistics({revision,onReady,onAccessExpired}) {
+  const { COLOMBIA_DATA } = useLocations();
   const [filters,setFilters]=useState({days:30,city:'',locality:'',category:''});
   const [refresh,setRefresh]=useState(0),[metric,setMetric]=useState('searches');
   const [result,setResult]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState('');
