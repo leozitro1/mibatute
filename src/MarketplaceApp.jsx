@@ -177,7 +177,7 @@ function resolveInterestedMax(item) {
 }
 
 export default function MarketplaceApp() {
-  const { COLOMBIA_DATA } = useLocations();
+  const { ACTIVE_COLOMBIA_DATA: COLOMBIA_DATA } = useLocations();
   // Production uses the approved design; local development keeps the comparison.
   const [designPreview, setDesignPreview] = useState(() => !import.meta.env.DEV || new URLSearchParams(window.location.search).get('design') !== 'actual');
   const changeDesign = (value) => {

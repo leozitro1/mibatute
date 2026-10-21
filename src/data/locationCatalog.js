@@ -3,12 +3,13 @@ import { ACTIVE_COLOMBIA_DATA } from './locations.js';
 export function locationSnapshot(rows) {
   if (!Array.isArray(rows) || !rows.length || rows.some(row =>
     typeof row.city !== 'string' || !row.city.trim() || !Array.isArray(row.localities) ||
-    !row.localities.length || row.localities.some(value => typeof value !== 'string' || !value.trim()))) {
+    (row.active !== false && !row.localities.length) || row.localities.some(value => typeof value !== 'string' || !value.trim()) ||
+    (row.all_localities !== undefined && (!Array.isArray(row.all_localities) || row.all_localities.some(value => typeof value !== 'string' || !value.trim()))))) {
     throw new Error('El catálogo de ubicaciones no es válido.');
   }
   const active = rows.filter(row => row.active !== false);
   if (!active.length) throw new Error('Debe quedar al menos una ciudad activa.');
-  return { COLOMBIA_DATA: rows, ACTIVE_COLOMBIA_DATA: active,
+  return { COLOMBIA_DATA: rows.map(row => row.all_localities ? { ...row, localities: row.all_localities } : row), ACTIVE_COLOMBIA_DATA: active,
     LOCATIONS: Object.fromEntries(active.map(row => [row.city, row.localities])) };
 }
 
