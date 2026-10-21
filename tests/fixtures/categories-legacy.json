@@ -1,0 +1,110 @@
+[
+  {
+    "key": "Hogar & Muebles",
+    "label": "🌿 Hogar & Muebles",
+    "subs": [
+      "Muebles",
+      "Decoración",
+      "Electrodomésticos",
+      "Colchones",
+      "Cocina"
+    ]
+  },
+  {
+    "key": "Electrónica & Tecnología",
+    "label": "⚡ Electrónica & Tecnología",
+    "subs": [
+      "Celulares",
+      "Computadores",
+      "Televisores",
+      "Repuestos",
+      "Chatarra electrónica"
+    ]
+  },
+  {
+    "key": "Construcción & Herramientas",
+    "label": "🧱 Construcción & Herramientas",
+    "subs": [
+      "Materiales",
+      "Herramientas",
+      "Oficios",
+      "Madera",
+      "Metales"
+    ]
+  },
+  {
+    "key": "Ropa & Textiles",
+    "label": "👕 Ropa & Textiles",
+    "subs": [
+      "Ropa",
+      "Retazos",
+      "Telas",
+      "Uniformes"
+    ]
+  },
+  {
+    "key": "Reciclaje & Reutilización",
+    "label": "🔄 Reciclaje & Reutilización",
+    "subs": [
+      "Plásticos",
+      "Vidrio",
+      "Cartón",
+      "Materias primas"
+    ]
+  },
+  {
+    "key": "Infantil & Juguetes",
+    "label": "🧸 Infantil & Juguetes",
+    "subs": [
+      "Juguetes",
+      "Ropa infantil",
+      "Coches y sillas",
+      "Lactancia",
+      "Escolar"
+    ]
+  },
+  {
+    "key": "Deportes & Movilidad",
+    "label": "🚲 Deportes & Movilidad",
+    "subs": [
+      "Bicicletas",
+      "Patines",
+      "Gimnasio",
+      "Autopartes",
+      "Motos"
+    ]
+  },
+  {
+    "key": "Libros & Educación",
+    "label": "📚 Libros & Educación",
+    "subs": [
+      "Libros",
+      "Cuadernos y útiles",
+      "Cursos y material",
+      "Tecnología educativa",
+      "Instrumentos"
+    ]
+  },
+  {
+    "key": "Mascotas",
+    "label": "🐶 Mascotas",
+    "subs": [
+      "Accesorios",
+      "Alimento",
+      "Camas y casas",
+      "Salud",
+      "Juguetes"
+    ]
+  },
+  {
+    "key": "Antigüedades & Coleccionables",
+    "label": "🕰 Antigüedades & Coleccionables",
+    "subs": [
+      "Monedas",
+      "Relojes",
+      "Arte",
+      "Coleccionables",
+      "Vintage"
+    ]
+  }
+]

@@ -5,6 +5,7 @@ import Cropper from "react-easy-crop";
 import { supabase } from "../supabase/supabaseClient";
 import { publicationStatus, publicationQuote } from "../supabase/publicationCredits.js";
 import { publishArticle } from "../supabase/articleService";
+import { CATEGORY_TREE as FALLBACK_CATEGORY_TREE } from "../data/categories.js";
 import ArticleFields from "./ArticleFields";
 import PhotoOrderControls from "./PhotoOrderControls.jsx";
 import { movePhoto } from "./photoOrder.js";
@@ -13,23 +14,6 @@ import "./PublishModal.css";
 import { notifyCreditBalance } from "./creditBalance.js";
 import { photoFitZoom, photoCropDrawRect } from "./photoCropGeometry.js";
 import { detectContactoProhibido } from "./articleValidation";
-
-/**
- * ✅ fallback por si NO llega props.categories
- * (pero en tu App.jsx ya lo estamos pasando)
- */
-const FALLBACK_CATEGORY_TREE = [
-  { key: "Hogar & Muebles", icon: "🌿", subs: ["Muebles", "Decoración", "Electrodomésticos", "Colchones", "Cocina"] },
-  { key: "Electrónica & Tecnología", icon: "⚡", subs: ["Celulares", "Computadores", "Televisores", "Repuestos", "Chatarra electrónica"] },
-  { key: "Construcción & Herramientas", icon: "🧱", subs: ["Materiales", "Herramientas", "Oficios", "Madera", "Metales"] },
-  { key: "Ropa & Textiles", icon: "👕", subs: ["Ropa", "Retazos", "Telas", "Uniformes"] },
-  { key: "Reciclaje & Reutilización", icon: "🔄", subs: ["Plásticos", "Vidrio", "Cartón", "Materias primas"] },
-  { key: "Infantil & Juguetes", icon: "🧸", subs: ["Juguetes", "Ropa infantil", "Coches y sillas", "Lactancia", "Escolar"] },
-  { key: "Deportes & Movilidad", icon: "🚲", subs: ["Bicicletas", "Patines", "Gimnasio", "Autopartes", "Motos"] },
-  { key: "Libros & Educación", icon: "📚", subs: ["Libros", "Cuadernos y útiles", "Cursos y material", "Tecnología educativa", "Instrumentos"] },
-  { key: "Mascotas", icon: "🐶", subs: ["Accesorios", "Alimento", "Camas y casas", "Salud", "Juguetes"] },
-  { key: "Antigüedades & Coleccionables", icon: "🕰", subs: ["Monedas", "Relojes", "Arte", "Coleccionables", "Vintage"] },
-];
 
 // ✅ regla social: tope máximo para ventas
 const MAX_VENTA_COP = 500000;

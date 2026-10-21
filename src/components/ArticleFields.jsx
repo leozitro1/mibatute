@@ -81,6 +81,7 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                 </select>
               </div>
             </div>
+            <p className="text-xs text-gray-500">Elige la categoría más cercana. Si ninguna subcategoría encaja, selecciona «Otros».</p>
 
             {/* Modo + precio */}
             {(!hideMode||formData.mode==='venta')&&<div className={hideMode?"grid grid-cols-1 gap-4":"grid grid-cols-1 sm:grid-cols-2 gap-4"}>

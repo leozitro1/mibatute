@@ -21,7 +21,7 @@ export function correctionReason(code,details='') {
   const extra=details.trim();
   return extra?`${label}: ${extra}`:label;
 }
-export const ARTICLE_CATEGORIES=['Hogar & Muebles','Electrónica & Tecnología','Construcción & Herramientas','Ropa & Textiles','Reciclaje & Reutilización','Infantil & Juguetes','Deportes & Movilidad','Libros & Educación','Mascotas','Antigüedades & Coleccionables'];
+export { ARTICLE_CATEGORIES } from '../data/categories.js';
 export const EMPTY_ARTICLE_FILTERS={mode:'',city:'',locality:'',status:'',category:'',chat:'',featured:'',owner_id:''};
 
 export function articleImages(article) {

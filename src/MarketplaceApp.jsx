@@ -33,6 +33,7 @@ import { readArticleContext, readNotificationChatContext, resolveChatBuyerId, va
 import { saleDeletionBlocked, isSaleApproved } from './components/articleState.js';
 import { queryArticlesWithCondition } from "./supabase/articleQuery";
 
+import { CATEGORY_TREE } from "./data/categories.js";
 import { COLOMBIA_DATA } from "./data/locations";
 import { supabase } from "./supabase/supabaseClient";
 import { searchMetric } from './analytics/metrics.js';
@@ -78,25 +79,6 @@ const PUBLICATION_TYPES = [
   { key: "venta", label: "Ventas", icon: <Tag size={16} aria-hidden="true" /> },
   { key: "destacado", label: "Destacadas", icon: <Star size={16} aria-hidden="true" /> },
 ];
-/**
- * ✅ Árbol categorías + subcategorías
- */
-// ⚠️ IMPORTANTE:
-// Este árbol DEBE coincidir con el que usas al publicar (PublishModal.jsx).
-// Si no coincide, el filtro por subcategoría “no sirve” porque compara textos distintos.
-const CATEGORY_TREE = [
-  { key: "Hogar & Muebles", label: "🌿 Hogar & Muebles", subs: ["Muebles", "Decoración", "Electrodomésticos", "Colchones", "Cocina"] },
-  { key: "Electrónica & Tecnología", label: "⚡ Electrónica & Tecnología", subs: ["Celulares", "Computadores", "Televisores", "Repuestos", "Chatarra electrónica"] },
-  { key: "Construcción & Herramientas", label: "🧱 Construcción & Herramientas", subs: ["Materiales", "Herramientas", "Oficios", "Madera", "Metales"] },
-  { key: "Ropa & Textiles", label: "👕 Ropa & Textiles", subs: ["Ropa", "Retazos", "Telas", "Uniformes"] },
-  { key: "Reciclaje & Reutilización", label: "🔄 Reciclaje & Reutilización", subs: ["Plásticos", "Vidrio", "Cartón", "Materias primas"] },
-  { key: "Infantil & Juguetes", label: "🧸 Infantil & Juguetes", subs: ["Juguetes", "Ropa infantil", "Coches y sillas", "Lactancia", "Escolar"] },
-  { key: "Deportes & Movilidad", label: "🚲 Deportes & Movilidad", subs: ["Bicicletas", "Patines", "Gimnasio", "Autopartes", "Motos"] },
-  { key: "Libros & Educación", label: "📚 Libros & Educación", subs: ["Libros", "Cuadernos y útiles", "Cursos y material", "Tecnología educativa", "Instrumentos"] },
-  { key: "Mascotas", label: "🐶 Mascotas", subs: ["Accesorios", "Alimento", "Camas y casas", "Salud", "Juguetes"] },
-  { key: "Antigüedades & Coleccionables", label: "🕰 Antigüedades & Coleccionables", subs: ["Monedas", "Relojes", "Arte", "Coleccionables", "Vintage"] },
-];
-
 // ✅ helper: id robusto
 function getArticuloId(item) {
   return item?.id || item?.articulo_id || item?.uuid || item?.product_id || null;
