@@ -70,3 +70,8 @@ El estado En revisión puede conservar una respuesta provisional; guardarla no c
 El 19 de octubre de 2026, con la sesión de leozitro y MFA completados por el responsable, se comprobó el caso ficticio `756fb8ca-a8e4-4401-bd59-ccac625e52c5`. El panel mostró la respuesta provisional guardada y la verificación Pendiente. Al elegir Respuesta final, explicó el requisito pendiente y deshabilitó el botón. Se guardó «No requerida para esta respuesta» con la justificación de prueba general ya registrada; apareció «Seguimiento interno guardado». Luego se guardó la respuesta final, apareció su confirmación y el caso salió de Pendientes. Al filtrar Respondida se recuperaron el mismo radicado y respuesta, sin formulario de edición final.
 
 En `/datos-personales`, la sesión del usuario de prueba mostró el mismo radicado como Respondida y el texto final. No mostró las notas internas, el encargado ni la verificación privada. No se eliminaron datos, no se enviaron correos ni se movió dinero. La prueba por correo, el relevo de Edgar y la revisión jurídica permanecen pendientes.
+
+
+## Canal vigente desde el 22 de octubre de 2026
+
+Por instrucción del responsable, el único correo de atención es el buzón `info` del dominio `mibatute.com`. Sustituye los canales Gmail, hola y contacto indicados en el registro histórico anterior. El sitio ofrece botones de contacto sin mostrar la dirección completa. La recepción del nuevo buzón queda por comprobar; este cambio no configura SMTP ni envía correos.

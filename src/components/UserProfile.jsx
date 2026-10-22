@@ -9,7 +9,9 @@ import './UserProfile.css';
 import './TransactionActions.css';
 import WompiTopupDialog from './WompiTopupDialog.jsx';
 import SupportInbox from './SupportInbox.jsx';
-import {LEGAL_OPERATOR} from '../legal/config.js';
+import ContactButton from './ContactButton.jsx';
+import ContactText from './ContactText.jsx';
+import { publicContactText } from './contactText.js';
 import {
   Camera,
   ArrowLeft,
@@ -2370,7 +2372,7 @@ export default function UserProfile({
           <p className="mt-1 text-xs font-bold text-red-700">
             Tus acciones están desactivadas (chats, edición, gestión, eliminación).
           </p>
-          <p className="mt-2 text-xs text-red-700">Tus créditos están bloqueados y no puedes realizar recargas. Para solicitar la devolución de créditos comprados, comunícate con administración en <a className="underline" href={`mailto:${LEGAL_OPERATOR.email}`}>{LEGAL_OPERATOR.email}</a>.</p>
+          <p className="mt-2 text-xs text-red-700">Tus créditos están bloqueados y no puedes realizar recargas. Para solicitar la devolución de créditos comprados, <ContactButton className="underline" subject="Revisión de créditos comprados">contacta con administración por correo</ContactButton>.</p>
         </div>
       ) : null}
 
@@ -2786,7 +2788,7 @@ export default function UserProfile({
                                   {sevBadge.label}
                                 </span>
                                 <span className="text-sm font-bold text-gray-800 truncate">
-                                  {m?.title || "Mensaje del sistema"}
+                                  {publicContactText(m?.title || "Mensaje del sistema")}
                                 </span>
                               </div>
                               <span className="text-[10px] text-gray-400 font-medium">
@@ -2844,7 +2846,7 @@ export default function UserProfile({
                               </span>
                             </div>
                             <h3 id="system-message-title" className="text-base font-black text-gray-900 leading-snug">
-                              {sysMsgModal?.title || "Mensaje del sistema"}
+                              {publicContactText(sysMsgModal?.title || "Mensaje del sistema")}
                             </h3>
                             <p className="text-[11px] text-gray-400 font-medium mt-0.5">
                               {sysMsgModal?.created_at
@@ -2864,7 +2866,7 @@ export default function UserProfile({
 
                         {/* cuerpo del mensaje */}
                         <div className="bg-gray-50 rounded-2xl p-4 text-sm text-gray-700 font-medium leading-relaxed whitespace-pre-wrap">
-                          {sysMsgModal?.message}
+                          <ContactText text={sysMsgModal?.message} />
                         </div>
 
                         {/* acciones */}

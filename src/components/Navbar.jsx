@@ -1,4 +1,5 @@
 import StyledSelect from "./StyledSelect.jsx";
+import { publicContactText } from './contactText.js';
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus, Coins, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
@@ -151,8 +152,8 @@ function NotificationsDropdown({
         ) : (
           <div className="py-2">
             {items.map((n) => {
-              const title = safeText(n?.title || n?.titulo || n?.text, "Notificación");
-              const subtitle = safeText(n?.subtitle || n?.subtitulo || n?.message, "");
+              const title = publicContactText(safeText(n?.title || n?.titulo || n?.text, "Notificación"));
+              const subtitle = publicContactText(safeText(n?.subtitle || n?.subtitulo || n?.message, ""));
               const time = formatAgo(n?.created_at || n?.createdAt || n?.time);
 
               const thumb = safeText(n?.thumb || n?.image || n?.foto_url, "");

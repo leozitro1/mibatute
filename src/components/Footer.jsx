@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import {LEGAL_OPERATOR} from '../legal/config.js';
+import ContactButton from './ContactButton.jsx';
 
 export default function Footer({ onHowItWorks }) {
   const today = new Date();
@@ -28,8 +28,8 @@ export default function Footer({ onHowItWorks }) {
             <Link className={linkClass} to="/datos-personales">Solicitudes de datos</Link>
             <Link className={linkClass} to="/normas">Normas de la comunidad</Link>
             {onHowItWorks && <button type="button" className={`${linkClass} text-left`} onClick={onHowItWorks}>Cómo funciona</button>}
-            <a className={linkClass} href={`mailto:${LEGAL_OPERATOR.email}`}>Contacto</a>
-            <a className={linkClass} href={`mailto:${LEGAL_OPERATOR.email}?subject=Ayuda%20y%20PQR`}>Ayuda y PQR</a>
+            <ContactButton className={linkClass}>Contacto</ContactButton>
+            <ContactButton className={linkClass} subject="Ayuda y PQR">Ayuda y PQR</ContactButton>
             <Link className={linkClass} to="/normas">Consejos de seguridad</Link>
             </div>
           </nav>

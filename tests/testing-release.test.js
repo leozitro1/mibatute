@@ -5,7 +5,7 @@ import {CONTACT_EMAIL,PAID_TOPUPS_ENABLED,REGISTRATION_ENABLED} from '../src/con
 import checkout from '../api/wompi-checkout.js';
 
 test('testing release keeps paid checkout disabled without a request to any provider',async t=>{
- assert.equal(PAID_TOPUPS_ENABLED,false);assert.equal(CONTACT_EMAIL,'edgarleonardo202@gmail.com');
+ assert.equal(PAID_TOPUPS_ENABLED,false);assert.equal(CONTACT_EMAIL,['info','mibatute.com'].join('@'));
  t.mock.method(globalThis,'fetch',()=>{throw new Error('Disabled checkout must not make network requests');});
  for(const method of ['GET','POST']){
   let body;const res={statusCode:0,setHeader(){},end(value){body=JSON.parse(value);}};

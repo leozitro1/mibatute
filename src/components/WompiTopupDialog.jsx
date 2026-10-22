@@ -1,6 +1,6 @@
 import {useEffect} from 'react';
 import {CreditCard,X} from 'lucide-react';
-import {CONTACT_EMAIL} from '../config/availability.js';
+import ContactButton from './ContactButton.jsx';
 
 export default function WompiTopupDialog({onClose}) {
  useEffect(()=>{const close=event=>{if(event.key==='Escape')onClose();};document.addEventListener('keydown',close);return()=>document.removeEventListener('keydown',close);},[onClose]);
@@ -10,7 +10,7 @@ export default function WompiTopupDialog({onClose}) {
    <CreditCard size={24} className="mb-3 text-forest-green" aria-hidden="true"/>
    <h2 id="wompi-topup-title" className="pr-9 text-lg font-black text-gray-800">Recargas: próximamente</h2>
    <p className="my-4 text-sm text-gray-600">Las recargas están deshabilitadas durante esta etapa de pruebas. Puedes continuar usando las funciones incluidas en tu cuenta y los créditos que tengas disponibles.</p>
-   <a href={`mailto:${CONTACT_EMAIL}`} className="text-sm font-semibold text-forest-green underline">Contactar a MiBatute</a>
+   <ContactButton className="text-sm font-semibold text-forest-green underline" subject="Consulta sobre recargas">Contactar a MiBatute</ContactButton>
   </section>
  </div>;
 }

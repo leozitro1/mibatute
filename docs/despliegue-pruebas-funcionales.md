@@ -85,3 +85,11 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - La identificación del responsable queda expresamente pendiente en LEGAL_REVIEW. LEGAL_READY y LEGAL_APPROVED permanecen false; esta presentación del borrador no se considera cumplimiento de la información exigida por el artículo 2.2.2.25.3.1 del Decreto 1074 de 2015. Solicitar los datos por correo no sustituye ese requisito. Debe resolverse con revisión jurídica y canales de contacto adecuados antes de aprobar los documentos definitivos.
 - No se alteran consentimientos ni documentos históricos inmutables de la base de datos; no se activa una nueva versión definitiva ni se modifican registro, pagos o SMTP. La retirada del sitio actual no borra copias históricas ni el historial de Git.
 - Validación exclusivamente por terminal: compilación correcta, lint sin errores en los módulos modificados, nueve pruebas de infraestructura legal/registro de pruebas aprobadas y análisis del artefacto dist sin los datos personales retirados. No se abrió el navegador ni se tomaron capturas.
+
+
+## Entrega del 22 de octubre: canal único de contacto
+
+- El canal vigente es el buzón info del dominio mibatute.com; sustituye los contactos anteriores. Botones de correo construyen la dirección al pulsar, sin mostrarla completa ni incluir mailto en el HTML inicial. Dificulta rastreo básico, sin impedir extracción por un rastreador avanzado. No se comprobó recepción ni se enviaron correos.
+- Los avisos históricos conservan su contenido almacenado; la interfaz sustituye los antiguos contactos de MiBatute por el botón vigente. Los avisos nuevos usan una referencia genérica al canal. La migración contact-channel se aplicó en local y producción, preservando permisos, propietario y configuración de las dos funciones administrativas. No modifica sanciones ni crea mensajes de prueba.
+- 33 pruebas aprobadas, compilación correcta y lint limpio en los componentes de contacto revisados. El artefacto no contiene las direcciones completas del contacto anterior ni actual, ni los datos del operador retirados. No hubo pruebas de navegador local ni capturas; se usó el editor administrativo de producción para aplicar la migración.
+- Wompi sigue deshabilitado, la recepción del nuevo correo y la revisión jurídica continúan pendientes.

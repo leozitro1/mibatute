@@ -1,7 +1,8 @@
 import {useCallback,useEffect,useId,useRef,useState} from 'react';
 import {RefreshCw,Send} from 'lucide-react';
 import {supabase} from '../supabase/supabaseClient';
-import {LEGAL_OPERATOR,LEGAL_ATTENTION} from '../legal/config.js';
+import {LEGAL_ATTENTION} from '../legal/config.js';
+import ContactButton from './ContactButton.jsx';
 import RetentionPreview from './RetentionPreview.jsx';
 import {finalResponseBlockers} from './dataRightsActions.js';
 import './SupportInbox.css';
@@ -64,10 +65,10 @@ export default function DataRightsInbox({client=supabase,isStaff=false,userId:st
  };
  return <section className="support-inbox" aria-label="Solicitudes de datos personales">
   <div className="support-heading"><div><h2>{isStaff?'Solicitudes de datos personales':'Consulta, corrección y supresión de datos'}</h2><p>{isStaff?'Revisar el radicado no ejecuta una eliminación. Documenta las acciones y el fundamento de cualquier conservación.':'Este canal es independiente del soporte común y no tiene el límite de una conversación cada 24 horas.'}</p></div>{uid&&<button className="support-icon-button" type="button" aria-label="Actualizar solicitudes de datos" disabled={loading||sending} onClick={()=>setRevision(value=>value+1)}><RefreshCw size={16}/></button>}</div>
-  {isStaff&&<p className="legal-notice">Responsable de atención: {LEGAL_ATTENTION.lead}. Apoyo: {LEGAL_ATTENTION.backup} ({LEGAL_ATTENTION.backupEmail}). Revisión: {LEGAL_ATTENTION.frequency}. El panel avisa de solicitudes pendientes; la revisión del correo es manual y estos avisos no calculan vencimientos legales.</p>}
+  {isStaff&&<p className="legal-notice">Responsable de atención: {LEGAL_ATTENTION.lead}. Apoyo: {LEGAL_ATTENTION.backup}. <ContactButton className="underline">Contactar al equipo por correo</ContactButton>. Revisión: {LEGAL_ATTENTION.frequency}. El panel avisa de solicitudes pendientes; la revisión del correo es manual y estos avisos no calculan vencimientos legales.</p>}
   <p className="support-hint">Consultas: plazo general de 10 días hábiles. Reclamos: 15 días hábiles, según el trámite legal aplicable. No publiques contraseñas, datos bancarios ni documentos completos.</p>
   {isStaff&&<RetentionPreview client={client} onActivity={onActivity} onAccessExpired={onAccessExpired}/>}
-  {!isStaff&&<p className="support-hint">Si no tienes acceso a tu cuenta, escribe a <a href={`mailto:${LEGAL_OPERATOR.email}`}>{LEGAL_OPERATOR.email}</a>. Indica qué solicitas y un medio de respuesta; la identidad se verificará cuando corresponda. No es necesario crear una cuenta para usar ese canal.</p>}
+  {!isStaff&&<p className="support-hint">Si no tienes acceso a tu cuenta, <ContactButton className="underline" subject="Solicitud de datos personales">contacta por correo</ContactButton>. Indica qué solicitas y un medio de respuesta; la identidad se verificará cuando corresponda. No es necesario crear una cuenta para usar ese canal.</p>}
   {!authReady&&<p role="status">Revisando tu sesión…</p>}
   {authReady&&!uid&&<p className="support-hint">Inicia sesión desde la página principal para registrar y consultar solicitudes aquí, o utiliza el correo de atención.</p>}
   {error&&<p role="alert" className="support-error">{error}</p>}{notice&&<p role="status" className="legal-notice">{notice}</p>}

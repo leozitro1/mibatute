@@ -3,7 +3,7 @@ import {CONTACT_EMAIL,REGISTRATION_ENABLED} from '../config/availability.js';
 export const LEGAL_VERSION='2026-10-19.2';
 export const LEGAL_DATE='19 de octubre de 2026';
 export const LEGAL_OPERATOR={email:CONTACT_EMAIL,emailVerified:false,identityOnRequest:true};
-export const LEGAL_ATTENTION={lead:'Equipo de atención de MiBatute',backup:'equipo administrativo autorizado',backupEmail:'contacto@mibatute.com',frequency:'una vez cada día hábil',automaticRefunds:false,automaticErasure:false};
+export const LEGAL_ATTENTION={lead:'Equipo de atención de MiBatute',backup:'equipo administrativo autorizado',backupEmail:CONTACT_EMAIL,frequency:'una vez cada día hábil',automaticRefunds:false,automaticErasure:false};
 // Approved as an operational proposal, not yet legally validated or enabled for cleanup.
 export const LEGAL_RETENTION_PROPOSAL={approvedByOperator:true,approvedOn:'2026-10-19',chatMaxDaysAfterCompletion:90,supportDaysAfterClosure:180,dataRequestMonthsAfterFinalResponse:24,cleanupEnabled:false};
 export const LEGAL_APPROVED=false;
