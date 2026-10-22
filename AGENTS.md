@@ -5,5 +5,5 @@
 - No retirar funcionalidades o páginas a un archivo inactivo para hacer una entrega parcial sin comunicarlo y acordarlo. Mantener los pendientes legales identificados como borrador; publicarlos para revisión no equivale a aprobación jurídica.
 - Conservar registro y funciones del mercado operativos durante las pruebas. Las recargas y Wompi siguen deshabilitados hasta nueva instrucción. No marcar revisiones jurídicas como completadas ni activar borrados por publicar código.
 - Correo temporal de atención: `edgarleonardo202@gmail.com`. No cambiar el SMTP de autenticación de Resend por actualizar ese contacto.
-- No enviar capturas: el usuario revisa la página en vivo. Resumir lo publicado y las limitaciones reales.
+- No realizar pruebas en el navegador local ni capturas. Validar por terminal cuando corresponda. Dar respuestas cortas y precisas, con el resultado y las limitaciones reales.
 - El respaldo git anterior a la integración no debe aplicarse automáticamente sobre los archivos actuales. Revisar `docs/despliegue-pruebas-funcionales.md` antes de cambiar migraciones o bloqueos de registro.
