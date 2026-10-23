@@ -1,3 +1,4 @@
+import { CREDIT_PACKS, CREDIT_UNIT_PRICE_COP, formatCOP } from '../config/creditPricing.js';
 import { ArrowLeft, Gift, Tag, Sparkles, Coins, Handshake, ShieldCheck, ShieldAlert } from 'lucide-react';
 import './HowItWorks.css';
 
@@ -9,11 +10,13 @@ const costs = [
   ['Postularte a 2 donaciones en 24 horas', 'Gratis', 'Son 2 postulaciones por persona, no por artículo.'],
   ['Una postulación adicional a una donación', '1 crédito', 'Sujeta al límite de solicitudes pendientes.'],
 ];
-const packs = [
-  { credits: 1, price: '$2.500', unit: '$2.500', saving: null },
-  { credits: 3, price: '$7.000', unit: '$2.333,33', saving: '$500' },
-  { credits: 5, price: '$11.000', unit: '$2.200', saving: '$1.500' },
-];
+const packs = CREDIT_PACKS.map(pack => ({
+  credits: pack.credits,
+  price: formatCOP(pack.amountCOP),
+  unit: formatCOP(pack.amountCOP / pack.credits, 2),
+  saving: pack.amountCOP < pack.credits * CREDIT_UNIT_PRICE_COP
+    ? formatCOP(pack.credits * CREDIT_UNIT_PRICE_COP - pack.amountCOP) : null,
+}));
 const questions = [
   ['¿Cuál es el precio máximo de un artículo?', 'MiBatute está pensado para ventas de monto reducido: puedes publicar artículos de venta con un precio de hasta $500.000 COP cada uno. Las donaciones se ofrecen gratis. Si vendes, acuerdas el pago directamente con la otra persona; MiBatute no recauda el precio del artículo.'],
   ['¿MiBatute cobra una comisión si vendo?', 'No. MiBatute no descuenta un porcentaje del precio de tu artículo. El crédito se usa para una función concreta, como una publicación adicional o un destacado; no es una comisión por concretar una venta.'],
@@ -112,7 +115,7 @@ export default function HowItWorks({ onBack }) {
       <div className="how-section-title"><Coins size={21} aria-hidden="true"/><h2 id="how-costs">Qué es gratis y qué requiere créditos</h2></div>
       <p>El precio individual propuesto es <strong>$2.500 COP por crédito</strong>. Cada función de pago indicada abajo requiere un crédito independiente.</p>
       <div className="how-cost-list">{costs.map(([label,price,detail])=><div className="how-cost-row" key={label}><div><h3>{label}</h3><p>{detail}</p></div><strong className={price==='Gratis'?'how-price-free':''}>{price}</strong></div>)}</div>
-      <p className="how-example"><Sparkles size={18} aria-hidden="true"/><span><strong>Ejemplo:</strong> si ya tienes 3 ventas activas, publicar una cuarta y destacarla requiere 2 créditos en total: <strong>$5.000 COP</strong>.</span></p>
+      <p className="how-example"><Sparkles size={18} aria-hidden="true"/><span><strong>Ejemplo:</strong> si ya tienes 3 ventas activas, publicar una cuarta y destacarla requiere 2 créditos en total: <strong>$5.000 COP al precio individual</strong>. El costo por crédito puede ser menor si compraste un paquete.</span></p>
       <p className="how-payment-note">Las recargas aún no están disponibles. Esta propuesta no activa pagos ni modifica tu saldo.</p>
     </section>
 

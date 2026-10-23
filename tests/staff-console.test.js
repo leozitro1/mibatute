@@ -54,6 +54,7 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
     await db.exec(permanentBlock);await db.exec(permanentBlock);
     const contact=await readFile(new URL('../supabase/migrations/2026-10-19-temporary-contact-email.sql',import.meta.url),'utf8');await db.exec(contact);await db.exec(contact);
     const contactChannel=await readFile(new URL('../supabase/migrations/2026-10-22-contact-channel.sql',import.meta.url),'utf8');await db.exec(contactChannel);await db.exec(contactChannel);
+    const emailMigration=await readFile(new URL('../supabase/migrations/2026-10-23-email-notifications.sql',import.meta.url),'utf8');await db.exec(emailMigration);await db.exec(emailMigration);
     const session=uid=>id(Number(uid.slice(-12))+100);
     const asUser=async(uid,aal='aal2',age=0)=>{
       await db.exec('reset role;set role authenticated');
@@ -673,6 +674,19 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
       await asUser(user);await assert.rejects(rpc('staff_article_preview',[id(10000)]),/autorizado/);
       await open(master);await act('staff',admin,'permissions',{permissions:[]});await open(admin);await assert.rejects(rpc('staff_article_preview',[id(10000)]),/autorizado/);
       await open(master);await assert.rejects(rpc('staff_article_preview',[id(999999)]),/ya no existe/);
+    });
+    await t.test('only a live MFA superadmin can configure emails, with no queue or worker access for clients',async()=>{
+      await asUser(user);await assert.rejects(rpc('staff_email_settings'),/autorizado/);
+      await open(admin);await assert.rejects(rpc('staff_email_settings'),/autorizado/);
+      await asUser(master,'aal1');await assert.rejects(rpc('staff_email_settings'),/autorizado/);
+      await open(master);const initial=await rpc('staff_email_settings');assert.equal(initial.settings.enabled,false);
+      await assert.rejects(db.query('select * from public.email_outbox'),/permission/);
+      await assert.rejects(rpc('email_claim'),/permission/);
+      await assert.rejects(rpc('queue_market_email',[user,'published','forged','test','test']),/permission/);
+      const args=[false,50,JSON.stringify(initial.settings.events),initial.settings.updated_at];
+      await assert.rejects(rpc('staff_email_save',[false,81,args[2],args[3]]),/válida/);
+      await assert.rejects(rpc('staff_email_save',[false,50,'{}',args[3]]),/válida/);
+      await rpc('staff_email_save',args);await assert.rejects(rpc('staff_email_save',args),/cambió/);
     });
     await t.test('only an MFA-verified superadmin with a live session can read marketplace analytics',async()=>{
       await db.exec('reset role;alter table public.articulos add column delivered_at timestamptz');

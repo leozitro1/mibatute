@@ -20,11 +20,12 @@ export const STAFF_SECTIONS = [
   { id:'sponsors',label:'Patrocinadores',permission:'sponsors',icon:'megaphone' },
   { id:'locations',label:'Ciudades y localidades',permission:'team',icon:'map' },
   { id:'statistics',label:'Estadísticas',permission:'team',icon:'chart' },
+  { id:'settings',label:'Administración de la página',permission:'team',icon:'settings' },
   { id:'team',label:'Equipo',permission:'team',icon:'shield' },
   { id:'audit',label:'Auditoría',permission:'access',icon:'history' },
 ];
 
 export function allowedSections(account) {
   return STAFF_SECTIONS.filter(section => section.permission==='access' || account?.role==='master'
-    || (!['sponsors','statistics','locations'].includes(section.id)&&account?.permissions?.includes(section.permission)));
+    || (!['sponsors','statistics','locations','settings'].includes(section.id)&&account?.permissions?.includes(section.permission)));
 }

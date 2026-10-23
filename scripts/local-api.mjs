@@ -1,9 +1,11 @@
+import emailDispatch from '../api/email-dispatch.js';
 import imagekitAuth from '../api/imagekit-auth.js';
 import imagekitDelete from '../api/imagekit-delete.js';
 import wompiCheckout from '../api/wompi-checkout.js';
 import wompiEvents from '../api/wompi-events.js';
 
 const handlers = new Map([
+  ['/api/email-dispatch', emailDispatch],
   ['/api/imagekit-auth', imagekitAuth],
   ['/api/imagekit-delete', imagekitDelete],
   ['/api/wompi-checkout', wompiCheckout],
@@ -17,6 +19,7 @@ export function localApiPlugin(env) {
     configureServer(server) {
       for (const key of ['SUPABASE_URL', 'SUPABASE_ANON_KEY',
         'IMAGEKIT_PUBLIC_KEY', 'IMAGEKIT_PRIVATE_KEY', 'IMAGEKIT_URL_ENDPOINT',
+        'EMAIL_NOTIFICATIONS_ENABLED', 'RESEND_API_KEY', 'NOTIFICATION_EMAIL_FROM', 'CRON_SECRET',
         'SUPABASE_SERVICE_ROLE_KEY', 'WOMPI_ENABLED', 'WOMPI_ENVIRONMENT', 'WOMPI_PUBLIC_KEY', 'WOMPI_PRIVATE_KEY',
         'WOMPI_INTEGRITY_SECRET', 'WOMPI_EVENTS_SECRET']) {
         if (env[key] !== undefined) process.env[key] = env[key];
