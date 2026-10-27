@@ -27,7 +27,7 @@ export default function ArticlePhotoViewer({ images, activeIndex, title, fallbac
         }
       }}
     >
-      <button type="button" autoFocus onClick={onClose} aria-label="Cerrar foto" title="Cerrar foto" className="article-photo-viewer-close">
+      <button type="button" autoFocus onClick={onClose} aria-label="Cerrar foto" title="Cerrar foto" className="site-icon-close inline-flex items-center justify-center article-photo-viewer-close">
         <X size={24} />
       </button>
       <img key={activeIndex} src={images[activeIndex]} alt={title} className="article-photo-viewer-image" onError={event => {

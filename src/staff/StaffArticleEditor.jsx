@@ -35,7 +35,7 @@ export default function StaffArticleEditor({article,onClose,onSaved,onReady}) {
     finally {inFlight.current=false;setBusy(false);}
   };
   return <dialog ref={dialog} className="staff-modal staff-article-editor" aria-labelledby="staff-edit-title" onCancel={event=>{event.preventDefault();if(!busy)onClose();}}>
-    <div className="staff-modal-heading"><h2 id="staff-edit-title">Corregir publicación</h2><button type="button" className="staff-icon-button" aria-label="Cerrar edición" title="Cerrar edición" disabled={busy} onClick={onClose}><X size={17} /></button></div>
+    <div className="staff-modal-heading"><h2 id="staff-edit-title">Corregir publicación</h2><button type="button" className="site-icon-close inline-flex items-center justify-center staff-icon-button" aria-label="Cerrar edición" title="Cerrar edición" disabled={busy} onClick={onClose}><X size={17} /></button></div>
     {!data&&!error&&<p role="status">Cargando publicación...</p>}
     {data&&<form onSubmit={save}>
       {protectedArticle&&<p role="alert" className="staff-error">Las publicaciones reservadas o entregadas están protegidas.</p>}

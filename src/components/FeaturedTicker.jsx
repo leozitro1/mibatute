@@ -3,7 +3,21 @@ import { ArrowLeft, ArrowRight, Star, Users, Clock } from 'lucide-react';
 import { orderFeaturedItems } from './featuredOrder';
 import { isSaleArticle } from '../supabase/articleContext';
 
-export default function FeaturedTicker({ items = [], onItemClick }) {
+const shortCategoryNames={
+  'Hogar & Muebles':'Hogar y muebles',
+  'Electrónica & Tecnología':'Tecnología',
+  'Construcción & Herramientas':'Construcción',
+  'Ropa & Textiles':'Ropa y textiles',
+  'Reciclaje & Reutilización':'Reciclaje',
+  'Infantil & Juguetes':'Infantil',
+  'Deportes & Movilidad':'Deportes y movilidad',
+  'Libros & Educación':'Libros y educación',
+  'Mascotas':'Mascotas',
+  'Antigüedades & Coleccionables':'Antigüedades',
+};
+
+export default function FeaturedTicker({ items = [], onItemClick, category = 'Todo' }) {
+  const heading=category&&category!=='Todo'?`Destacados ${shortCategoryNames[category]||category.replaceAll('&','y')}`:'Destacados';
   const [seed] = useState(() => Math.floor(Math.random() * 0x100000000));
   const list = useMemo(() => orderFeaturedItems(items, seed), [items, seed]);
   const scroller = useRef(null);
@@ -12,10 +26,10 @@ export default function FeaturedTicker({ items = [], onItemClick }) {
   return (
     <section aria-labelledby="featured-title" className="mb-6">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 id="featured-title" className="flex items-center gap-2 text-lg font-black text-gray-800">
-          <Star size={18} className="text-yellow-600 fill-yellow-400" aria-hidden="true" />Destacados
+        <h2 id="featured-title" className="flex min-w-0 items-center gap-2 text-lg font-black text-gray-800">
+          <Star size={18} className="shrink-0 text-yellow-600 fill-yellow-400" aria-hidden="true" /><span>{heading}</span>
         </h2>
-        {list.length > 1 && <div className="flex gap-2">
+        {list.length > 1 && <div className="flex shrink-0 gap-2">
           <button type="button" aria-label="Destacados anteriores" title="Destacados anteriores"
             onClick={() => scroller.current?.scrollBy({ left: -scroller.current.clientWidth, behavior: 'smooth' })}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-forest-green">
@@ -28,7 +42,7 @@ export default function FeaturedTicker({ items = [], onItemClick }) {
           </button>
         </div>}
       </div>
-      <div ref={scroller} role="region" aria-label="Artículos destacados"
+      <div ref={scroller} role="region" aria-label={heading}
         className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
         {list.map(item => {
           const title = item.title || item.titulo || 'Artículo';

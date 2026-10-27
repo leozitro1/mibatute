@@ -24,7 +24,7 @@ export default function StaffMessageComposer({recipients,all=false,initialTitle=
     catch(err){setError(err.message);}finally{inFlight.current=false;setBusy(false);}
   };
   return <dialog ref={dialog} className="staff-modal" aria-labelledby="staff-message-title" onCancel={event=>{event.preventDefault();if(!busy)onClose();}}>
-    <form onSubmit={submit}><div className="staff-modal-heading"><h2 id="staff-message-title">{all?'Comunicado general':'Mensaje al buzón'}</h2><button type="button" className="staff-icon-button" title="Cerrar mensaje" aria-label="Cerrar mensaje" disabled={busy} onClick={onClose}><X size={17} /></button></div>
+    <form onSubmit={submit}><div className="staff-modal-heading"><h2 id="staff-message-title">{all?'Comunicado general':'Mensaje al buzón'}</h2><button type="button" className="site-icon-close inline-flex items-center justify-center staff-icon-button" title="Cerrar mensaje" aria-label="Cerrar mensaje" disabled={busy} onClick={onClose}><X size={17} /></button></div>
       {audience&&<p className="staff-message-audience"><strong>{audience.count} {audience.count===1?'destinatario':'destinatarios'}</strong>{!all&&<span>{recipients.map(user=>user.nombre||'Usuario').join(', ')}</span>}</p>}
       {busy&&!audience&&<p role="status">Consultando destinatarios...</p>}
       {error&&<p role="alert" className="staff-error">{error}</p>}

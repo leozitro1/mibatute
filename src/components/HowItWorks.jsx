@@ -35,7 +35,6 @@ export default function HowItWorks({ onBack }) {
       <button type="button" onClick={onBack} className="how-back"><ArrowLeft size={17} aria-hidden="true"/><span>Volver a los artículos</span></button>
       <p>Un mercado de segunda mano para ventas de hasta $500.000 COP por artículo y donaciones gratuitas. Publica lo que ya no usas y dale otra oportunidad.</p>
     </header>
-    <aside className="how-review" role="note"><strong>{import.meta.env.DEV ? 'Prueba local.' : 'MiBatute BETA.'}</strong> Las recargas todavía no están disponibles. Puedes usar tus créditos existentes; los paquetes de compra se muestran para revisión y aún no permiten pagos.</aside>
 
     <section className="how-summary" aria-label="Lo esencial">
       <div><Gift size={21} aria-hidden="true"/><span>Publicar donaciones</span><strong>Gratis</strong></div>
@@ -113,10 +112,9 @@ export default function HowItWorks({ onBack }) {
 
     <section className="how-prices" aria-labelledby="how-costs">
       <div className="how-section-title"><Coins size={21} aria-hidden="true"/><h2 id="how-costs">Qué es gratis y qué requiere créditos</h2></div>
-      <p>El precio individual propuesto es <strong>$2.500 COP por crédito</strong>. Cada función de pago indicada abajo requiere un crédito independiente.</p>
+      <p>El precio individual es <strong>$2.500 COP por crédito</strong>. Cada función de pago indicada abajo requiere un crédito independiente.</p>
       <div className="how-cost-list">{costs.map(([label,price,detail])=><div className="how-cost-row" key={label}><div><h3>{label}</h3><p>{detail}</p></div><strong className={price==='Gratis'?'how-price-free':''}>{price}</strong></div>)}</div>
       <p className="how-example"><Sparkles size={18} aria-hidden="true"/><span><strong>Ejemplo:</strong> si ya tienes 3 ventas activas, publicar una cuarta y destacarla requiere 2 créditos en total: <strong>$5.000 COP al precio individual</strong>. El costo por crédito puede ser menor si compraste un paquete.</span></p>
-      <p className="how-payment-note">Las recargas aún no están disponibles. Esta propuesta no activa pagos ni modifica tu saldo.</p>
     </section>
 
     <section className="how-packs" aria-labelledby="how-packs-title">
@@ -129,10 +127,8 @@ export default function HowItWorks({ onBack }) {
         <p className="how-pack-price">{pack.price} <span>COP</span></p>
         <p className="how-pack-unit">{pack.unit} COP por crédito{pack.credits===3?' aprox.':''}</p>
         <p className="how-pack-saving">{pack.saving?`Ahorras ${pack.saving} COP`:'Precio individual'}</p>
-        <button type="button" disabled aria-label={`Comprar ${pack.credits} ${pack.credits===1?'cupo':'cupos'}: próximamente`}>Comprar {pack.credits} {pack.credits===1?'cupo':'cupos'}</button>
-        <span className="how-pack-unavailable">Próximamente</span>
       </div>)}</div>
-      <p className="how-payment-note">Paquetes y descuentos propuestos, pendientes de aprobación. El ahorro se calcula frente a comprar créditos individuales a $2.500 COP. El precio del café varía según el lugar. Las compras aún no están habilitadas.</p>
+      <p className="how-payment-note">El ahorro se calcula frente a comprar créditos individuales a $2.500 COP. El precio del café varía según el lugar. Consulta tu saldo y las opciones de recarga desde tu perfil.</p>
     </section>
 
     <section className="how-faq" aria-labelledby="how-questions"><h2 id="how-questions">Antes de empezar</h2>{questions.map(([question,answer])=><details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</section>

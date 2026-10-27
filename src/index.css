@@ -6,3 +6,19 @@
   --color-treasure-gold: #FFB703;
   --color-smoke-white: #F8F9FA;
 }
+
+/* Keep icon-only close controls centered independently of text line height. */
+button.site-icon-close {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  flex-shrink: 0;
+  line-height: 1;
+}
+button.site-icon-close > svg {
+  display: block;
+  flex-shrink: 0;
+  margin: 0;
+}

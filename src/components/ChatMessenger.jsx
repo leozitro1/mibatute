@@ -1049,7 +1049,7 @@ export default function ChatMessenger({
               </div>
               <button
                 type="button"
-                className="p-2 rounded-xl hover:bg-gray-100"
+                className="site-icon-close inline-flex items-center justify-center p-2 rounded-xl hover:bg-gray-100"
                 onClick={() => setShowReport(false)}
                 title="Cerrar"
                 aria-label="Cerrar denuncia"

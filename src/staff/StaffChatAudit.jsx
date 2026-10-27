@@ -27,7 +27,7 @@ export default function StaffChatAudit({article,onClose,onAccessExpired}) {
   };
 
   return <dialog ref={dialog} className="staff-modal staff-chat-audit" aria-labelledby="staff-chat-audit-title" onCancel={onClose}>
-    <div className="staff-modal-heading"><h2 id="staff-chat-audit-title">Auditoría de chats</h2><button type="button" className="staff-icon-button" title="Cerrar auditoría" aria-label="Cerrar auditoría" onClick={onClose}><X size={17} /></button></div>
+    <div className="staff-modal-heading"><h2 id="staff-chat-audit-title">Auditoría de chats</h2><button type="button" className="site-icon-close inline-flex items-center justify-center staff-icon-button" title="Cerrar auditoría" aria-label="Cerrar auditoría" onClick={onClose}><X size={17} /></button></div>
     <p className="staff-item-title">{article.title}</p>
     {!data?<form onSubmit={event=>{event.preventDefault();read();}}>
       <label htmlFor="staff-chat-audit-reason">Motivo de acceso</label><textarea id="staff-chat-audit-reason" value={reason} onChange={event=>setReason(event.target.value)} minLength={8} maxLength={500} required disabled={busy} />

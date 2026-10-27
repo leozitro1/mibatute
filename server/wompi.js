@@ -1,3 +1,6 @@
+import process from 'node:process';
+import {Buffer} from 'node:buffer';
+import {PAID_TOPUPS_ENABLED} from '../src/config/availability.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
@@ -14,7 +17,14 @@ export function wompiConfig(env = process.env) {
     && env.WOMPI_INTEGRITY_SECRET?.startsWith(`${prefix}_integrity_`)
     && env.WOMPI_EVENTS_SECRET?.startsWith(`${prefix}_events_`)
     && !!env.SUPABASE_SERVICE_ROLE_KEY;
-  return { environment, configured: !!configured, url, anonKey,
+  let localSandbox=false,returnOrigin='https://www.mibatute.com';
+  try {
+    const backend=new URL(url),origin=new URL(env.WOMPI_RETURN_ORIGIN||'http://127.0.0.1:5174');
+    const loopback=host=>['127.0.0.1','localhost','[::1]'].includes(host);
+    localSandbox=env.WOMPI_LOCAL_SANDBOX==='true'&&environment==='test'&&loopback(backend.hostname)&&loopback(origin.hostname)&&['http:','https:'].includes(origin.protocol);
+    if(localSandbox)returnOrigin=origin.origin;
+  }catch { /* Missing or invalid local configuration never enables the sandbox. */ }
+  return { environment, configured: !!configured, checkoutEnabled:PAID_TOPUPS_ENABLED||localSandbox, localSandbox, returnOrigin, url, anonKey,
     publicKey: env.WOMPI_PUBLIC_KEY, privateKey: env.WOMPI_PRIVATE_KEY,
     integritySecret: env.WOMPI_INTEGRITY_SECRET, eventsSecret: env.WOMPI_EVENTS_SECRET,
     serviceKey: env.SUPABASE_SERVICE_ROLE_KEY,
@@ -27,6 +37,8 @@ export function checkoutUrl(order, config) {
   for (const [key,value] of Object.entries({ 'public-key': config.publicKey, currency: order.currency,
     'amount-in-cents': order.amount_in_cents, reference: order.reference,
     'expiration-time': order.expires_at, 'signature:integrity': signature })) url.searchParams.set(key,String(value));
+  const redirect=new URL('/',config.returnOrigin||'https://www.mibatute.com');redirect.searchParams.set('wompi_return','1');redirect.searchParams.set('reference',order.reference);
+  if(!config.localSandbox)url.searchParams.set('redirect-url',redirect.href);
   return url.href;
 }
 

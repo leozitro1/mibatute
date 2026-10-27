@@ -507,7 +507,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
             <h2 className="font-black text-gray-800 uppercase text-sm tracking-widest">Publica tu artículo</h2>
             <button
               onClick={handleClose}
-              aria-label="Cerrar publicación nueva" className="p-1 hover:bg-gray-200 rounded-full transition"
+              aria-label="Cerrar publicación nueva" className="site-icon-close inline-flex items-center justify-center p-1 hover:bg-gray-200 rounded-full transition"
               disabled={isSubmitting || isCropping}
               type="button"
             >
@@ -583,7 +583,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
                 <p>Tienes <strong>{publicationLimit.active} ventas activas</strong>. Hasta 3 al mismo tiempo son gratis; las pausadas y reservadas también ocupan espacio.</p>
                 {publicationLimit.requiresCredit ? <>
                   <p className="mt-2">Esta publicación adicional requiere <strong>1 crédito</strong> (valor individual: $2.500 COP). Saldo: {publicationLimit.balance}.</p>
-                  {publicationLimit.balance > 0 ? <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={usePublicationCredit} onChange={event=>setUsePublicationCredit(event.target.checked)} disabled={isSubmitting}/><span>Confirmo usar 1 crédito para publicar esta venta adicional. Destacarla requiere otro crédito.</span></label> : <p className="mt-2">Sin créditos disponibles. Puedes finalizar una venta para liberar un espacio gratuito. Las recargas aún no están habilitadas.</p>}
+                  {publicationLimit.balance > 0 ? <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={usePublicationCredit} onChange={event=>setUsePublicationCredit(event.target.checked)} disabled={isSubmitting}/><span>Confirmo usar 1 crédito para publicar esta venta adicional. Destacarla requiere otro crédito.</span></label> : <p className="mt-2">Sin créditos disponibles. Puedes finalizar una venta para liberar un espacio gratuito. Puedes consultar las opciones de recarga en tu perfil.</p>}
                 </> : <p className="mt-2">Esta publicación es gratis. El destacado es opcional y cuesta 1 crédito adicional.</p>}
               </>}
             </div>
@@ -613,7 +613,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
                 type="button"
                 onClick={cancelCropAll}
                 disabled={isCropping}
-                className="p-1 hover:bg-gray-200 rounded-full transition disabled:opacity-40"
+                className="site-icon-close inline-flex items-center justify-center p-1 hover:bg-gray-200 rounded-full transition disabled:opacity-40"
                 title="Cancelar"
               >
                 <X size={20} />

@@ -128,7 +128,7 @@ function NotificationsDropdown({
           onClick={onClose}
           aria-label="Cerrar notificaciones"
           title="Cerrar notificaciones"
-          className="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+          className="site-icon-close inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
         >
           <X size={18} />
         </button>
@@ -512,7 +512,7 @@ export default function Navbar({
                       onSearch?.("");
                       requestAnimationFrame(() => searchInputRef.current?.focus());
                     }}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-11 w-11 rounded-lg text-gray-500 hover:text-forest-green transition"
+                    className="site-icon-close inline-flex items-center justify-center absolute right-0 top-1/2 -translate-y-1/2 h-11 w-11 rounded-lg text-gray-500 hover:text-forest-green transition"
                     aria-label="Borrar búsqueda" title="Borrar búsqueda">
                     <X size={16} />
                   </button>

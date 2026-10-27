@@ -1,6 +1,7 @@
+import {notificationCounts} from '../src/components/marketSignals.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { profileNotificationBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot } from '../src/components/profileNotificationBadges.js';
+import { profileNotificationBadges,profileInboxBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot } from '../src/components/profileNotificationBadges.js';
 import { mergeNotificationHistory,markNotificationHistoryRead,markNotificationBellRead,NOTIFICATION_STATE_LIMIT,writeNotificationHistory,readNotificationHistory } from '../src/components/notificationHistory.js';
 
 const now='2026-10-16T12:00:00.000Z';
@@ -71,17 +72,20 @@ test('a receipt acknowledgement affects only that namespace and preserves unrela
   assert.deepEqual(profileNotificationBadges(marked,'me'),{publicaciones:0,rescates:1,buzon:1});
 });
 
-test('marking the bell read does not read chats, inbox receipts or profile menu badges',()=>{
+test('marking the bell read clears profile badges without altering chats or inbox receipts',()=>{
   const items=[item('post','postulacion'),item('chat','chat',{chat_id:'c',buyer_id:'me'}),item('notice','system_notice',{receipt_id:'r'})];
-  const before=profileNotificationBadges(items,'me'),marked=markNotificationBellRead(items,items);
+  const cleared={publicaciones:0,rescates:0,buzon:0},marked=markNotificationBellRead(items,items);
   assert.ok(marked.every(entry=>entry.bellRead&&!entry.read&&entry.unreadCount===1));
-  assert.deepEqual(profileNotificationBadges(marked,'me'),before);
+  assert.deepEqual(profileNotificationBadges(marked,'me'),cleared);
+  assert.deepEqual(notificationCounts(marked),{chats:0,profile:0,byArticle:{}});
   const refreshed=mergeNotificationHistory(marked,items,NOTIFICATION_STATE_LIMIT);assert.ok(refreshed.every(entry=>entry.bellRead));
   const inbox=mergeInboxNotifications(refreshed,[{receipt_id:'r',created_at:now,title:'Aviso',read_at:null}]);
-  assert.equal(inbox.find(entry=>entry.receipt_id==='r').bellRead,true);assert.deepEqual(profileNotificationBadges(inbox,'me'),before);
+  assert.equal(inbox.find(entry=>entry.receipt_id==='r').bellRead,true);assert.deepEqual(profileNotificationBadges(inbox,'me'),cleared);
   const newer={...items[1],created_at:'2026-10-16T12:01:00.000Z'};
   assert.ok(!markNotificationBellRead([newer],items)[0].bellRead,'Arrivals newer than the snapshot remain unread');
-  assert.ok(!mergeNotificationHistory(marked,[newer],NOTIFICATION_STATE_LIMIT).find(entry=>entry.id==='chat').bellRead);
+  const updated=mergeNotificationHistory(marked,[newer],NOTIFICATION_STATE_LIMIT);
+  assert.ok(!updated.find(entry=>entry.id==='chat').bellRead);
+  assert.equal(profileNotificationBadges(updated,'me').rescates,1);
 });
 
 test('bell-only acknowledgements persist locally without changing underlying unread counts',()=>{
@@ -89,7 +93,7 @@ test('bell-only acknowledgements persist locally without changing underlying unr
   const storage={value:null,getItem(){return this.value;},setItem(key,value){this.value=value;}};
   writeNotificationHistory(storage,'me',markNotificationBellRead([notification],[notification]));
   const loaded=readNotificationHistory(storage,'me');assert.equal(loaded[0].bellRead,true);assert.equal(loaded[0].unreadCount,4);
-  assert.equal(profileNotificationBadges(loaded,'me').rescates,4);
+  assert.equal(profileNotificationBadges(loaded,'me').rescates,0);
 });
 
 test('a support read snapshot cannot clear a reply that arrived afterwards',()=>{
@@ -115,4 +119,12 @@ test('removing support threads clears only their notices, including old offline 
  const newer={...support,created_at:'2026-10-16T12:01:00.000Z'};
  assert.equal(mergeActivitySnapshot([newer],[],Date.parse(now)).length,1,'A concurrent new response survives an older HTTP snapshot');
  assert.equal(mergeActivitySnapshot([support],[support],Date.parse(now)).length,1);
+});
+
+
+test('inbox categories count system, support and user chats using existing unread and bell state',()=>{
+ const items=[item('system','system_notice',{receipt_id:'s'}),item('support','system_notice',{receipt_kind:'support',receipt_id:'t'}),item('chat','chat',{chat_id:'c',buyer_id:'me',unreadCount:3}),item('read-chat','chat',{chat_id:'r',read:true}),item('bell','chat',{chat_id:'b',bellRead:true})];
+ assert.deepEqual(profileInboxBadges(items,'me'),{system:1,conversations:1,users:3});
+ assert.deepEqual(profileInboxBadges(markNotificationBellRead(items,items),'me'),{system:0,conversations:0,users:0});
+ assert.deepEqual(profileInboxBadges(items,null),{system:0,conversations:0,users:0});
 });

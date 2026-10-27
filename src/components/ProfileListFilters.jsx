@@ -20,19 +20,20 @@ export default function ProfileListFilters({ value, onChange, rescates = false, 
               value={value.search} onChange={event => update('search', event.target.value)}
               className={`${inputClass} pl-8 pr-8`} />
             {value.search && <button type="button" aria-label="Borrar búsqueda de artículos" title="Borrar búsqueda"
-              onClick={() => update('search', '')} className="absolute right-0 top-0 flex h-11 w-8 items-center justify-center text-gray-500"><X size={14} /></button>}
+              onClick={() => update('search', '')} className="site-icon-close inline-flex items-center justify-center absolute right-0 top-0 h-11 w-8 text-gray-500"><X size={14} /></button>}
           </div>
         </label>
-        {!rescates && <label className="profile-list-featured flex items-center gap-2 text-xs font-semibold text-gray-600">
-          <input type="checkbox" checked={value.featured} onChange={event => update('featured', event.target.checked)} className="h-4 w-4 accent-forest-green" />
-          Solo destacados
-        </label>}
-        <div className="profile-list-summary">
         <button type="button" onClick={() => setOpen(previous => !previous)} aria-expanded={open} aria-controls={optionsId}
           className="profile-list-toggle inline-flex min-h-11 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700">
           <SlidersHorizontal size={16} aria-hidden="true" />Filtros{active && <span className="profile-list-active" aria-label="activos" />}
           <ChevronDown size={16} className={open ? 'rotate-180' : ''} aria-hidden="true" />
         </button>
+        {!rescates && <label className="profile-list-featured flex items-center gap-2 text-xs font-semibold text-gray-600">
+          <input type="checkbox" checked={value.featured} onChange={event => update('featured', event.target.checked)} className="h-4 w-4 accent-forest-green" />
+          Solo destacados
+        </label>}
+        <div className="profile-list-summary">
+
         <span aria-live="polite" className="text-xs text-gray-500">{count} de {total} artículos</span>
         {active && <button type="button" onClick={() => onChange({ ...DEFAULT_PROFILE_FILTERS })}
           className="profile-list-reset inline-flex items-center gap-1.5 text-xs font-semibold text-forest-green" title="Limpiar filtros"><RotateCcw size={14} />Limpiar</button>}

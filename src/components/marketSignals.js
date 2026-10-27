@@ -22,7 +22,7 @@ export function notificationCounts(items) {
   const byArticle = {};
   let chats = 0, profile = 0;
   for (const item of items) {
-    if (item.read || !['chat', 'postulacion', 'venta'].includes(item.type)) continue;
+    if (item.read || item.bellRead || !['chat', 'postulacion', 'venta'].includes(item.type)) continue;
     const count = item.unreadCount || 0;
     const field = item.type === 'chat' ? 'unreadChats' : item.type === 'postulacion' ? 'newSolicitudes' : 'pendingVentas';
     if (item.type === 'chat') chats += count;

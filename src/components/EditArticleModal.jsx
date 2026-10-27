@@ -186,7 +186,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
               {refreshBusy ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
             </button>
 
-            <button onClick={onClose} disabled={imageBusy} aria-label="Cerrar edición" className="hover:rotate-90 transition-transform" type="button">
+            <button onClick={onClose} disabled={imageBusy} aria-label="Cerrar edición" className="site-icon-close inline-flex items-center justify-center hover:rotate-90 transition-transform" type="button">
               <X size={24} />
             </button>
           </div>

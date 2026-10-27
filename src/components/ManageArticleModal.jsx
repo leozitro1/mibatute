@@ -538,7 +538,7 @@ export default function ManageArticleModal({
               disabled={savingWinner}
               aria-label={isVenta ? 'Cerrar gestión' : 'Cerrar postulaciones'}
               title="Cerrar"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 disabled:opacity-40"
+              className="site-icon-close inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-md text-gray-500 transition hover:bg-gray-100 disabled:opacity-40"
             >
               <X size={20} />
             </button>

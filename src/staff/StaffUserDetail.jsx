@@ -21,7 +21,7 @@ export default function StaffUserDetail({user,onClose,onReady,onAccessExpired,on
   const changePage=value=>{setBusy(true);setError('');setPage(value);};
   const profile=data?.profile,stats=data?.stats;
   return <dialog ref={dialog} className="staff-modal staff-user-detail" aria-labelledby="staff-user-title" onCancel={onClose}>
-    <div className="staff-modal-heading"><h2 id="staff-user-title">Ficha de usuario</h2><button type="button" className="staff-icon-button" aria-label="Cerrar ficha de usuario" title="Cerrar ficha" onClick={onClose}><X size={17} /></button></div>
+    <div className="staff-modal-heading"><h2 id="staff-user-title">Ficha de usuario</h2><button type="button" className="site-icon-close inline-flex items-center justify-center staff-icon-button" aria-label="Cerrar ficha de usuario" title="Cerrar ficha" onClick={onClose}><X size={17} /></button></div>
     {error&&<p role="alert" className="staff-error">{error}</p>}
     {busy&&<p role="status">Cargando ficha...</p>}
     {profile&&<>

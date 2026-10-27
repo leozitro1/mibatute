@@ -13,7 +13,7 @@ export default function LegalPage({path='/terminos'}){
  const [metrics,setMetrics]=useState(()=>metricsAllowed(localStorage,navigator));
  return <div className="legal-page"><main className="legal-document">
   <Link className="legal-back" to="/">← Volver a MiBatute</Link>
-  {!LEGAL_READY&&<p className="legal-draft" role="status">Borrador para revisión. Hay verificaciones y decisiones pendientes de aprobación. El sitio continúa en pruebas y las recargas permanecen deshabilitadas.</p>}
+  {!LEGAL_READY&&<p className="legal-draft" role="status">Borrador para revisión. Hay verificaciones y decisiones pendientes de aprobación. El sitio continúa en pruebas.</p>}
   <h1>{page.title}</h1><p className="legal-version">Versión {LEGAL_VERSION} · Revisión: {LEGAL_DATE}{LEGAL_READY?' · Vigente':' · Pendiente de aprobación'}</p><p>{page.intro}</p>
   <nav className="legal-nav" aria-label="Documentos legales">{LEGAL_LINKS.map(([url,label])=><Link key={url} to={url} aria-current={path===url?'page':undefined}>{label}</Link>)}</nav>
   <section className="legal-operator"><h2>Contacto de MiBatute</h2><p>Puedes solicitar información sobre el responsable de MiBatute y sus datos de contacto por correo.</p><ContactButton className="support-button support-button--primary" subject="Solicitud de información sobre el responsable de MiBatute">Solicitar información por correo</ContactButton></section>

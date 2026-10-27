@@ -10,6 +10,8 @@ import { submitArticleReport } from '../supabase/reports.js';
 import { notifyCreditBalance } from './creditBalance.js';
 import { isSaleArticle } from "../supabase/articleContext.js";
 import usePublicationClock from './usePublicationClock.js';
+import {recordArticleView} from './articleViews.js';
+import PublicationViews from './PublicationViews.jsx';
 import PublicationCountdown from './PublicationCountdown.jsx';
 import { isPublicationUnavailable } from './articleLifetime.js';
 
@@ -248,6 +250,10 @@ export default function ProductDetail({
   const isGift = tipoNorm !== "venta";
 
   const articuloId = getArticuloId(item);
+  useEffect(()=>{
+    if(isOpen)void recordArticleView(supabase,{articleId:articuloId,ownerId,userId:user?.id,staff:staffPreview||['admin','master'].includes(user?.app_metadata?.role)});
+  },[isOpen,articuloId,ownerId,user?.id,user?.app_metadata?.role,staffPreview]);
+
 
   const isOwner = useMemo(() => {
     if (!user?.id || !ownerId) return false;
@@ -749,7 +755,7 @@ export default function ProductDetail({
               onClick={safeClose}
               aria-label="Cerrar publicación"
               title="Cerrar publicación"
-              className="md:hidden absolute top-4 right-4 z-30 bg-white/80 p-2 rounded-full shadow-lg"
+              className="site-icon-close inline-flex items-center justify-center md:hidden absolute top-4 right-4 z-30 bg-white/80 p-2 rounded-full shadow-lg"
               type="button"
             >
               <X size={20} />
@@ -821,7 +827,7 @@ export default function ProductDetail({
             {(item.isFeatured || item.is_featured) && <span className="product-detail-featured">Destacado</span>}
             </div>
 
-            <button onClick={safeClose} aria-label="Cerrar publicación" title="Cerrar publicación" className="hidden md:block p-1 hover:bg-gray-100 rounded-full" type="button">
+            <button onClick={safeClose} aria-label="Cerrar publicación" title="Cerrar publicación" className="site-icon-close inline-flex items-center justify-center hidden md:flex p-1 hover:bg-gray-100 rounded-full" type="button">
               <X size={24} className="text-gray-400" />
             </button>
           </div>
@@ -890,8 +896,9 @@ export default function ProductDetail({
             <MapPin size={16} className="text-forest-green" />
             <span className="font-bold">{locationText}</span>
           </div>
-          <div className="mb-3">
+          <div className="mb-3 flex flex-wrap items-center gap-3">
             <PublicationCountdown article={item} now={publicationNow} />
+            {(isOwner||staffPreview)&&<PublicationViews article={item}/>}
           </div>
 
           {showPrice && (
@@ -1063,7 +1070,7 @@ export default function ProductDetail({
                       </>
                     ) : (
                       <p className="text-xs text-amber-700 font-medium">
-                        No tienes créditos. Puedes esperar al próximo cupo gratuito; las recargas aún no están habilitadas.
+                        No tienes créditos. Puedes esperar al próximo cupo gratuito o consultar las opciones de recarga en tu perfil.
                       </p>
                     )}
                   </div>
@@ -1250,7 +1257,7 @@ export default function ProductDetail({
                     if (reportSending) return;
                     setReportOpen(false);
                   }}
-                  className="p-2 rounded-full hover:bg-gray-100"
+                  className="site-icon-close inline-flex items-center justify-center p-2 rounded-full hover:bg-gray-100"
                   title="Cerrar"
                 >
                   <X size={18} className="text-gray-500" />

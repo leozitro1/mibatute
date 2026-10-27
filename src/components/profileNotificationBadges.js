@@ -1,4 +1,4 @@
-import { activityDestination } from './activityNotifications.js';
+import { activityDestination,CONVERSATION_NOTIFICATION_TYPES } from './activityNotifications.js';
 import { mergeNotificationHistory,NOTIFICATION_STATE_LIMIT } from './notificationHistory.js';
 
 const receiptKey=item=>`${item.receipt_kind||'system'}:${item.receipt_id}`;
@@ -10,7 +10,7 @@ export function profileNotificationBadges(items,userId,ownedArticles=[]) {
   const notifications=mergeNotificationHistory([],items,NOTIFICATION_STATE_LIMIT),receipts=new Set();
   const accepted=new Set(notifications.filter(item=>item.type==='donation_accepted').map(item=>String(item.articulo_id)));
   for(const item of notifications){
-    if(item.read||!item.unreadCount)continue;
+    if(item.read||item.bellRead||!item.unreadCount)continue;
     if(item.type==='ganador'&&accepted.has(String(item.articulo_id)))continue;
     let tab;
     if(item.type==='system_notice'){
@@ -23,6 +23,14 @@ export function profileNotificationBadges(items,userId,ownedArticles=[]) {
     counts[tab]+=item.unreadCount;
   }
   return counts;
+}
+
+
+export function profileInboxBadges(items,userId) {
+ const notices=profileNotificationBadges(items.filter(item=>item.type==='system_notice'),userId).buzon;
+ const support=profileNotificationBadges(items.filter(item=>item.type==='system_notice'&&item.receipt_kind==='support'),userId).buzon;
+ const chats=profileNotificationBadges(items.filter(item=>CONVERSATION_NOTIFICATION_TYPES.has(item.type)||item.type==='ganador'),userId);
+ return {system:Math.max(0,notices-support),conversations:support,users:chats.publicaciones+chats.rescates};
 }
 
 export function mergeInboxNotifications(previous,messages) {

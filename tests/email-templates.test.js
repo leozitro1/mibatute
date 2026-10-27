@@ -34,5 +34,6 @@ test('publication highlights the individual price and credit notices distinguish
  const gift=renderActivityEmail(EMAIL_PREVIEWS.find(item=>item.kind==='credits_gift'));
  assert.match(gift.text,/No es una compra ni genera un cobro/);
  const purchase=renderActivityEmail(EMAIL_PREVIEWS.find(item=>item.kind==='credits_purchase'));
+ assert.match(purchase.text,/Gracias por recargar/);assert.match(purchase.text,/Últimas 5 recargas/);
  assert.match(purchase.text,/Los créditos comprados no vencen/);assert.match(purchase.text,/MB-EJEMPLO/);
 });

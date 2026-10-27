@@ -227,7 +227,7 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
 export async function getArticleWithImages(articleId) {
   // ✅ OPT: columnas explícitas en vez de * (evita traer todo el row en cada edit)
   const { data, error } = await queryArticlesWithCondition(
-      `id,titulo,title,mode,tipo,estado,status,
+      `article_view_totals(view_count),id,titulo,title,mode,tipo,estado,status,
        city,locality,categoria,category,subcategoria,subcategory,
        description,price,
        owner_id,usuario_id,buyer_id,ganador_id,winner_id,recipient_id,

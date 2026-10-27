@@ -12,7 +12,7 @@ export default async function handler(req,res) {
   if (event?.environment!==config.environment || !verifyWompiEvent(event,config.eventsSecret)) {
     return sendJson(res,401,{ error: 'Evento no autentico.' });
   }
-  if (event.event!=='transaction.updated' || event.data?.transaction?.status!=='APPROVED') {
+  if (event.event!=='transaction.updated' || !['APPROVED','DECLINED','VOIDED','ERROR'].includes(event.data?.transaction?.status)) {
     return sendJson(res,200,{ received: true });
   }
   const transactionId = event.data.transaction.id;
@@ -24,15 +24,15 @@ export default async function handler(req,res) {
     });
     if (!response.ok) return sendJson(res,503,{ error: 'No se pudo verificar el pago.' });
     const { data: transaction } = await response.json();
-    if (transaction?.id!==transactionId || transaction.status!=='APPROVED'
+    if (transaction?.id!==transactionId || !['APPROVED','DECLINED','VOIDED','ERROR'].includes(transaction.status)
       || transaction.currency!=='COP' || !Number.isSafeInteger(transaction.amount_in_cents)) {
       return sendJson(res,409,{ error: 'El pago no esta aprobado.' });
     }
     const admin = createClient(config.url,config.serviceKey,{ auth: { persistSession: false, autoRefreshToken: false } });
-    const { error } = await admin.rpc('credit_wompi_topup',{
+    const { error } = transaction.status==='APPROVED'?await admin.rpc('credit_wompi_topup',{
       p_reference: transaction.reference, p_transaction_id: transaction.id,
       p_amount: transaction.amount_in_cents, p_currency: transaction.currency, p_environment: config.environment,
-    });
+    }):await admin.rpc('wompi_record_failure',{p_reference:transaction.reference,p_transaction_id:transaction.id,p_status:transaction.status,p_environment:config.environment});
     if (error) return sendJson(res,503,{ error: 'No se pudo confirmar la recarga.' });
     return sendJson(res,200,{ received: true });
   } catch { return sendJson(res,503,{ error: 'No se pudo verificar el pago. Se reintentara por evento.' }); }

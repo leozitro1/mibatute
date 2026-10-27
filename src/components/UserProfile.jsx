@@ -9,6 +9,7 @@ import './UserProfile.css';
 import './TransactionActions.css';
 import WompiTopupDialog from './WompiTopupDialog.jsx';
 import SupportInbox from './SupportInbox.jsx';
+import UserConversationInbox from './UserConversationInbox.jsx';
 import ContactButton from './ContactButton.jsx';
 import ContactText from './ContactText.jsx';
 import { publicContactText } from './contactText.js';
@@ -46,6 +47,7 @@ import ApplicantRow from './ApplicantRow.jsx';
 import ProfileListFilters from "./ProfileListFilters";
 import RescueLimits from './RescueLimits.jsx';
 import ProfileRatingAction from './ProfileRatingAction.jsx';
+import PublicationViews from './PublicationViews.jsx';
 import PublicationCountdown from './PublicationCountdown.jsx';
 import usePublicationClock from './usePublicationClock.js';
 import { isPublicationUnavailable } from './articleLifetime.js';
@@ -708,7 +710,7 @@ function ModalSolicitudes({
             disabled={!!updatingKey}
             aria-label="Cerrar postulaciones"
             title="Cerrar"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-40"
+            className="site-icon-close inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-md text-gray-500 hover:bg-gray-100 disabled:opacity-40"
           >
             <X size={20} />
           </button>
@@ -886,7 +888,7 @@ export default function UserProfile({
   myProducts = [],
   notifByArticulo = {},
   notificationBadges = {},
-  supportUnreadCount = 0,
+  inboxCategoryCounts = {system:0,conversations:0,users:0},
   onInboxNotifications,
   onInboxReceiptChange,
   inboxRevision=0,
@@ -907,7 +909,8 @@ export default function UserProfile({
   const inboxTabKey=event=>{
     if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
     event.preventDefault();
-    const next=event.key==='Home'?'system':event.key==='End'?'conversations':inboxTab==='conversations'?'system':'conversations';
+    const tabs=['system','conversations','users'];
+    const next=event.key==='Home'?tabs[0]:event.key==='End'?tabs.at(-1):tabs[(tabs.indexOf(inboxTab)+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length];
     changeInboxTab(next);event.currentTarget.parentElement.querySelector(`[data-inbox-tab="${next}"]`)?.focus();
   };
   const [personalDetailsOpen, setPersonalDetailsOpen] = useState(false);
@@ -1987,7 +1990,8 @@ export default function UserProfile({
     articuloOverridesById,
   ]);
 
-  const {publicaciones:pubNotifCount=0,rescates:rescNotifCount=0,buzon:inboxUnreadCount=0}=notificationBadges;
+  const {publicaciones:pubNotifCount=0,rescates:rescNotifCount=0}=notificationBadges;
+  const inboxUnreadCount=inboxCategoryCounts.system+inboxCategoryCounts.conversations+inboxCategoryCounts.users;
 
   const formatDate = (item) => {
     try {
@@ -2645,6 +2649,7 @@ export default function UserProfile({
                   <span className="text-sm font-semibold text-gray-400 ml-1">crédito{cuposSaldo !== 1 ? "s" : ""}</span>
                 </p>
                 <p className="text-[11px] text-gray-400 mt-0.5">{isUserBlocked ? 'El saldo se conserva, pero no puede utilizarse mientras la cuenta esté bloqueada.' : 'Los créditos sirven para destacar, solicitar donaciones adicionales o reservar compras adicionales. Los destacados no son reembolsables.'}</p>
+                {!isUserBlocked && <p className="mt-2 text-xs text-forest-green">Desde $2.500 COP, menos que muchos cafés. Recargar es opcional y nos ayuda a mantener MiBatute funcionando.</p>}
                 {donacionLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{donacionLimit.heldCredits} crédito{donacionLimit.heldCredits === 1 ? '' : 's'} retenido{donacionLimit.heldCredits === 1 ? '' : 's'} en solicitudes pendientes. El saldo muestra los disponibles.</p>}
                 {purchaseLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{purchaseLimit.heldCredits} crédito{purchaseLimit.heldCredits === 1 ? '' : 's'} retenido{purchaseLimit.heldCredits === 1 ? '' : 's'} en compras adicionales.</p>}
               </div>
@@ -2653,9 +2658,10 @@ export default function UserProfile({
                 onClick={() => {if(!isUserBlocked)setRecargaOpen(true);}}
                 disabled={isUserBlocked}
                 title={isUserBlocked ? 'Recargas desactivadas por bloqueo de cuenta' : 'Recargar con Wompi'}
-                className="profile-topup shrink-0 min-h-11 px-4 py-2 rounded-lg bg-forest-green text-white font-bold text-sm hover:bg-green-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="profile-topup inline-flex items-center justify-center gap-2 shrink-0 min-h-11 px-4 py-2 rounded-lg bg-forest-green text-white font-bold text-sm hover:bg-green-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Recargas - Proximamente
+                <Gift size={18} strokeWidth={1.8} aria-hidden="true" />
+                Recargar créditos
               </button>
             </div>
           </section>
@@ -2734,11 +2740,14 @@ export default function UserProfile({
               {activeTab === "buzon" && (
                 <>
                   <div className="profile-inbox-tabs" role="tablist" aria-label="Secciones del buzón">
-                    {[['system','Avisos del sistema',Bell,Math.max(0,inboxUnreadCount-supportUnreadCount)],['conversations','Conversaciones del sistema',MessageCircle,supportUnreadCount]].map(([tab,label,Icon,count])=>(
+                    {[['system','Avisos del sistema',Bell,inboxCategoryCounts.system],['conversations','Conversaciones del sistema',MessageCircle,inboxCategoryCounts.conversations],['users','Conversaciones de usuarios',MessageSquare,inboxCategoryCounts.users]].map(([tab,label,Icon,count])=>(
                       <button key={tab} type="button" role="tab" id={`${inboxTabId}-${tab}-tab`} aria-controls={`${inboxTabId}-${tab}-panel`} aria-selected={inboxTab===tab} tabIndex={inboxTab===tab?0:-1} data-inbox-tab={tab} onKeyDown={inboxTabKey} onClick={()=>changeInboxTab(tab)}>
                         <Icon size={16} aria-hidden="true" /><span>{label}</span>{count>0&&<span className="profile-inbox-count" aria-label={`${count} sin leer`}>{count}</span>}
                       </button>
                     ))}
+                  </div>
+                  <div role="tabpanel" id={`${inboxTabId}-users-panel`} aria-labelledby={`${inboxTabId}-users-tab`} hidden={inboxTab!=='users'} className="profile-inbox-panel">
+                    <UserConversationInbox key={user.id} userId={user.id} isActive={inboxTab==='users'} onOpenChat={onOpenChat}/>
                   </div>
                   <div role="tabpanel" id={`${inboxTabId}-conversations-panel`} aria-labelledby={`${inboxTabId}-conversations-tab`} hidden={inboxTab!=='conversations'} className="profile-inbox-panel">
                   <SupportInbox key={user.id} userId={user.id} isActive={inboxTab==='conversations'}
@@ -2858,7 +2867,7 @@ export default function UserProfile({
                             type="button"
                             onClick={() => setSysMsgModal(null)}
                             aria-label="Cerrar aviso"
-                            className="p-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition shrink-0"
+                            className="site-icon-close inline-flex items-center justify-center p-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition shrink-0"
                           >
                             <X size={16} />
                           </button>
@@ -3039,7 +3048,7 @@ export default function UserProfile({
                               </p>
                             )}
 
-                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <div className="profile-article-labels flex flex-wrap items-center gap-2 mt-1">
                               <span
                                 className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-xl ${statusUI.cls}`}
                               >
@@ -3054,10 +3063,6 @@ export default function UserProfile({
                                 {tipoUI.label}
                               </span>
 
-                              <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
-                                {formatDate(art)}
-                              </span>
-                              <PublicationCountdown article={art} now={publicationNow} />
 
                               {hasSolicitudes ? (
                                 <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 ring-1 ring-orange-200 px-2 py-1 rounded-xl text-[10px] font-black uppercase">
@@ -3081,6 +3086,8 @@ export default function UserProfile({
                             </div>
                           </div>
 
+                          <div className="profile-article-side">
+                            <span className="profile-article-date text-[10px] text-gray-400 font-medium">{formatDate(art)}</span>
                           <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start ${isEntregado ? "[&>button:not([data-rating-action])]:opacity-50" : ""}`}>
                             {canRate && (
                               <ProfileRatingAction
@@ -3245,6 +3252,11 @@ export default function UserProfile({
                             </div>
                             ) : null}
                           </fieldset>
+                            <div className="profile-article-metrics">
+                              <PublicationViews article={art}/>
+                              <PublicationCountdown article={art} now={publicationNow}/>
+                            </div>
+                          </div>
                         </div>
                       );
                     })
@@ -3369,7 +3381,7 @@ export default function UserProfile({
                             {pendingRating && <p data-rating-notice className="profile-rating-notice">Calificación pendiente</p>}
                             <h4 className="font-bold text-gray-800 truncate">{titulo}</h4>
 
-                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <div className="profile-article-labels flex flex-wrap items-center gap-2 mt-1">
                               {!rejectedRescate && <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-xl ${statusUI.cls}`}>
                                 <statusUI.Icon size={12} />
                                 {statusUI.label}
@@ -3380,9 +3392,6 @@ export default function UserProfile({
                                 {tipoUI.label}
                               </span>
 
-                              <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
-                                {isVenta ? "Compra / contacto" : "Postulado"}: {formatDateTime(r?.created_at) || "Sin fecha"}
-                              </span>
 
                               {fueReservadoYCancelado && (
                                 <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-500 ring-1 ring-gray-300 px-2 py-1 rounded-xl text-[10px] font-black uppercase">
@@ -3422,6 +3431,10 @@ export default function UserProfile({
                             ) : null}
                           </div>
 
+                          <div className="profile-article-side">
+                            <span className="profile-article-date text-[10px] text-gray-400 font-medium">
+                              {isVenta ? "Compra / contacto" : "Postulado"}: {formatDateTime(r?.created_at) || "Sin fecha"}
+                            </span>
                           <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 shrink-0 flex items-center gap-2 ${isEntregadoRescate ? "[&>button:not([data-rating-action])]:opacity-50" : ""}`}>
                             {canRate && (
                               <ProfileRatingAction
@@ -3487,6 +3500,10 @@ export default function UserProfile({
                               )}
                             </button>
                           </fieldset>
+                            <div className="profile-article-metrics">
+                              <PublicationCountdown article={art} now={publicationNow}/>
+                            </div>
+                          </div>
                         </div>
                       );
                     })
@@ -3732,7 +3749,7 @@ export default function UserProfile({
               <div className="font-black text-gray-800 truncate pr-3">Previsualización</div>
               <button
                 type="button"
-                className="p-2 rounded-xl hover:bg-gray-100 transition"
+                className="site-icon-close inline-flex items-center justify-center p-2 rounded-xl hover:bg-gray-100 transition"
                 onClick={() => {
                   setPreviewOpen(false);
                   setPreviewArt(null);

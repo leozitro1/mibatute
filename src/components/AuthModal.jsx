@@ -385,7 +385,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
             </h2>
             <button
               onClick={handleClose}
-              className="p-1 hover:bg-gray-100 rounded-full"
+              className="site-icon-close inline-flex items-center justify-center p-1 hover:bg-gray-100 rounded-full"
               aria-label="Cerrar"
               type="button"
               disabled={isSubmitting}

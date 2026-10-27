@@ -18,7 +18,7 @@ export default function StaffReportDetail({report,onClose,onOpenArticle}) {
     return()=>{active=false;};
   },[report.id,report.kind]);
   return <dialog ref={dialog} className="staff-modal staff-report-detail" aria-labelledby="staff-report-title" onCancel={onClose}>
-    <div className="staff-modal-heading"><h2 id="staff-report-title">Detalle del reporte</h2><button type="button" className="staff-icon-button" aria-label="Cerrar reporte" title="Cerrar reporte" onClick={onClose}><X size={17} /></button></div>
+    <div className="staff-modal-heading"><h2 id="staff-report-title">Detalle del reporte</h2><button type="button" className="site-icon-close inline-flex items-center justify-center staff-icon-button" aria-label="Cerrar reporte" title="Cerrar reporte" onClick={onClose}><X size={17} /></button></div>
     {error?<p role="alert" className="staff-error">{error}</p>:!data?<p role="status">Cargando reporte...</p>:<>
       <p className="staff-item-title">{data.article_title||'Publicación no disponible'}</p>
       <dl className="staff-preview-facts"><dt>Tipo</dt><dd>{data.kind==='chat'?'Denuncia de chat':'Reporte de publicación'}</dd>

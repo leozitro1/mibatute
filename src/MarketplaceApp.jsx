@@ -13,7 +13,7 @@ import useDetailScroll from './components/useDetailScroll.js';
 import { createListingCache } from './components/listingCache.js';
 import { readNotificationHistory, writeNotificationHistory, mergeNotificationHistory,
   markNotificationHistoryRead, markNotificationBellRead, NOTIFICATION_STATE_LIMIT } from './components/notificationHistory.js';
-import { profileNotificationBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot } from './components/profileNotificationBadges.js';
+import { profileNotificationBadges,profileInboxBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot } from './components/profileNotificationBadges.js';
 import { subscribeStaffInbox } from './components/staffInboxSignals.js';
 import { catalogTopic, dispatchMarketSignal, noticeFromSignal, notificationCounts } from './components/marketSignals.js';
 import { isPublicationExpired } from './components/articleLifetime.js';
@@ -42,6 +42,7 @@ import { recordMarketMetric } from './analytics/publicMetrics.js';
 
 import { crearPostulacionConLimite } from "./supabase/solicitudesService";
 
+const WompiReturnDialog = lazy(()=>import('./components/WompiTopupDialog.jsx'));
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Terms = lazy(() => import("./pages/Terms"));
@@ -284,6 +285,10 @@ export default function MarketplaceApp() {
 
   // ✅ Chat global
   const [chatOpen, setChatOpen] = useState(null);
+  const [wompiReturn,setWompiReturn]=useState(()=>{
+    const query=new URLSearchParams(window.location.search);
+    return query.get('wompi_return')==='1'?{reference:query.get('reference'),transactionId:query.get('id')}:null;
+  });
   // chatOpen = { article, chat, otherUserId, role, errorMessage? }
 
   // ✅ Notificaciones
@@ -818,7 +823,7 @@ export default function MarketplaceApp() {
   // =========================================================
 
   const openChatByArticleAndBuyer = useCallback(
-    async ({ article: requestedArticle, buyerId: requestedBuyerId, expectedChatId = null }) => {
+    async ({ article: requestedArticle, buyerId: requestedBuyerId, expectedChatId = null, fromInbox = false }) => {
       const uid = getActiveUid();
       const articuloId = getArticuloId(requestedArticle);
       if (!uid) return alert("Debes iniciar sesión.");
@@ -829,14 +834,15 @@ export default function MarketplaceApp() {
           ? await readNotificationChatContext(supabase, { chatId: expectedChatId, articleId: articuloId, userId: uid })
           : await readArticleContext(supabase, articuloId);
         const historicalChat = expectedChatId && article.transaction_chat?.status === 'closed';
+        const inboxChat = fromInbox && expectedChatId && article.transaction_chat;
         if (isInReview(article)) return alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
         const isSale = normTipo(article.mode || article.tipo) === "venta";
         const buyerId = resolveChatBuyerId({ article, chat: expectedChatId ? article.transaction_chat : null, userId: uid, otherUserId: requestedBuyerId });
-        if (!historicalChat && isSale && (!article.buyer_id || !["reservado", "entregado"].includes(normEstado(article.estado || article.status)))) {
+        if (!historicalChat && !inboxChat && isSale && (!article.buyer_id || !["reservado", "entregado"].includes(normEstado(article.estado || article.status)))) {
           return alert("Esta venta no tiene una reserva activa. Actualiza tus publicaciones.");
         }
-        let finalChat = historicalChat ? article.transaction_chat : validateTransactionChat(article, uid);
-        if (isSale && finalChat?.status === "pending") {
+        let finalChat = historicalChat || inboxChat ? article.transaction_chat : validateTransactionChat(article, uid);
+        if (!inboxChat && isSale && finalChat?.status === "pending") {
           if (String(uid) !== String(article.owner_id)) {
             return alert("Para hablar con el vendedor, él debe aprobar la compra. Tu solicitud está pendiente de aprobación.");
           }
@@ -1042,7 +1048,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     if (pageError) throw pageError;
     const pageIds = [...new Set([...pageData.ids, ...pageData.featuredIds])];
     // ✅ Solo columnas necesarias para el listado — sin select("*")
-    const columns = `id, titulo, title, mode, tipo, estado, status,
+    const columns = `article_view_totals(view_count),id, titulo, title, mode, tipo, estado, status,
          city, locality, description,
          price, interested_count, usuario_id, owner_id, buyer_id,
          ganador_id, winner_id, recipient_id,
@@ -1611,6 +1617,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     historyUidRef.current === currentUser?.id ? notifications : [], currentUser?.id, myProducts
   ), [notifications, currentUser?.id, myProducts]);
 
+  const inboxCategoryCounts=useMemo(()=>profileInboxBadges(historyUidRef.current===currentUser?.id?notifications:[],currentUser?.id),[notifications,currentUser?.id]);
+
   if (loading) {
     return <div className="h-screen flex items-center justify-center font-black uppercase">Cargando MiBatute...</div>;
   }
@@ -1949,6 +1957,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                       <FeaturedTicker
                         key={JSON.stringify([searchTerm.trim().toLowerCase(), selectedCategory, selectedSubcategory, selectedCity, selectedLocality, quickTipo, onlyActive, hiddenAdsOwnerId, currentUser?.id])}
                         items={featuredProducts}
+                        category={selectedCategory}
                         onItemClick={setSelectedProduct}
                       />
                       <div ref={listingRef} className="mb-4 flex flex-wrap justify-between items-center gap-3 scroll-mt-24">
@@ -2083,7 +2092,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   myProducts={myProducts}
                   notifByArticulo={notifByArticulo}
                   notificationBadges={profileBadges}
-                  supportUnreadCount={profileNotificationBadges(historyUidRef.current===currentUser?.id?notifications.filter(item=>item.receipt_kind==='support'):[],currentUser?.id).buzon}
+                  inboxCategoryCounts={inboxCategoryCounts}
                   onInboxNotifications={syncInboxNotifications}
                   onInboxReceiptChange={syncInboxReceipt}
                   inboxRevision={inboxRevision}
@@ -2110,7 +2119,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                       setIsManageOpen(true);
                     } catch (error) { alert(error.message); }
                   }}
-                  onOpenChat={async ({ article, buyerId }) => {
+                  onOpenChat={async ({ article, buyerId, chatId, fromInbox }) => {
+                    if(chatId){await openChatByArticleAndBuyer({article,buyerId,expectedChatId:chatId,fromInbox});return;}
                     // ✅ BLOQUEO REVISIÓN (perfil)
                     if (isInReview(article)) {
                       alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
@@ -2280,6 +2290,11 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
       {['/terminos','/privacidad','/pagos','/cookies','/datos-personales','/normas'].map(path=><Route key={path} path={path} element={<Terms key={path} path={path}/>} />)}
       </Routes>
+      {wompiReturn&&<WompiReturnDialog reference={wompiReturn.reference} transactionId={wompiReturn.transactionId}
+        onConfirmed={balance=>notifyCreditBalance(currentUser?.id,balance)} onClose={()=>{
+          const url=new URL(window.location.href);for(const key of ['wompi_return','reference','id'])url.searchParams.delete(key);
+          window.history.replaceState(null,'',url.pathname+url.search+url.hash);setWompiReturn(null);
+        }}/>}
       <LegalConsentDialog key={currentUser?.id||'anonymous'} userId={currentUser?.id} onLogout={handleLogout}/>
     </Suspense>
   );

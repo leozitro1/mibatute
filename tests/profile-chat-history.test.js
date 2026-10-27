@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+const id=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
+
+test('profile chat history is participant-only, paginated, includes closed chats and hides deleted articles',async()=>{
+ const db=new PGlite();
+ try{
+  await db.exec(`create role anon;create role authenticated;create schema auth;
+   create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+   create table usuarios(id uuid primary key,nombre text,email text,is_blocked boolean default false,bloqueado boolean default false,ban_until timestamptz);
+   create view usuarios_publicos as select id,nombre from usuarios;
+   create table articulos(id uuid primary key,title text,mode text,status text,imagen_url_principal text,image_url text);
+   create table chats(id uuid primary key,articulo_id uuid references articulos(id) on delete cascade,buyer_id uuid,seller_id uuid,status text,created_at timestamptz default now());
+   create table chat_messages(chat_id uuid references chats(id) on delete cascade,body text);
+   insert into usuarios(id,nombre,email) values('${id(1)}','Vendedor','private@example.com'),('${id(2)}','Comprador','private2@example.com'),('${id(3)}','Ajeno','private3@example.com');
+   insert into articulos values('${id(10)}','Bicicleta','venta','disponible',null,null),('${id(11)}','Mesa','donacion','entregado',null,null);
+   insert into chats values('${id(20)}','${id(10)}','${id(2)}','${id(1)}','closed',now()),('${id(21)}','${id(11)}','${id(2)}','${id(1)}','closed',now());
+   insert into chat_messages values('${id(20)}','Mensaje privado');`);
+  const sql=await readFile(new URL('../supabase/migrations/2026-10-27-profile-chat-history.sql',import.meta.url),'utf8');await db.exec(sql);await db.exec(sql);
+  const asUser=async n=>{await db.exec('reset role;set role authenticated');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id(n)]);};
+  const read=async(page=1)=>(await db.query('select profile_chat_history($1) result',[page])).rows[0].result;
+  await asUser(3);assert.deepEqual((await read()).rows,[]);
+  await asUser(2);const buyer=await read();assert.equal(buyer.rows.length,2);assert.ok(buyer.rows.every(row=>row.other_name==='Vendedor'&&row.chat_status==='closed'));
+  assert.doesNotMatch(JSON.stringify(buyer),/private@|Mensaje privado|email|body/);
+  await assert.rejects(read(0),/válida/);await assert.rejects(read(501),/válida/);
+  await asUser(1);assert.ok((await read()).rows.every(row=>row.other_name==='Comprador'));
+  await db.exec(`reset role;insert into chats select md5(n::text)::uuid,'${id(10)}','${id(2)}','${id(1)}','open',now()-n*interval '1 day' from generate_series(30,42) n;`);
+  await asUser(1);assert.equal((await read()).rows.length,12);assert.equal((await read()).hasMore,true);assert.equal((await read(2)).rows.length,3);
+  await db.exec(`reset role;delete from articulos where id='${id(10)}'`);
+  await asUser(2);assert.equal((await read()).rows.length,1);
+  await db.exec('reset role');assert.equal((await db.query('select count(*) n from chat_messages')).rows[0].n,0);
+  await db.exec(`update usuarios set ban_until=now()+interval '1 day' where id='${id(2)}'`);
+  await asUser(2);await assert.rejects(read(),/cuenta/);
+  await db.exec('reset role;set role anon');await assert.rejects(read(),/permission/);
+ }finally{await db.close();}
+});

@@ -103,3 +103,43 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - Diez ejemplos ficticios del mismo HTML/texto del envío, con seguridad según contexto, sin recursos externos y con vista móvil/escritorio desplegable. La publicación creada ofrece destacado por $2.500 COP; compra y regalo/compensación tienen controles independientes. No se enviaron correos reales ni se habilitaron pagos.
 - Migración email-notifications instalada en producción: siete de siete funciones comparadas con las probadas, cinco triggers (sin Wompi aún), tablas con RLS y privilegios directos revocados al cliente. Estado inicial: apagado, tope 50, cero mensajes en la cola. No se crearon compras, sanciones ni eventos ficticios en producción.
 - 297 pruebas generales aprobadas y comprobación adicional del procesador inactivo, compilación y lint de los módulos funcionales sin errores. Sin navegador local ni capturas. La revisión jurídica y la configuración de envío/recepción real siguen pendientes.
+
+
+## Propuesta local del 27 de octubre: conversaciones de usuarios en el buzón
+
+- Tercera subpestaña con ventas y rescates de los que la cuenta es participante. Consulta privada de 12 filas, sin cuerpos de mensajes ni datos de contacto; mantiene chats cerrados mientras existe el artículo. Consulta al abrir/actualizar/cambiar de página y reutiliza señales existentes, sin canales adicionales ni sondeo periódico.
+- Apertura por identificador de conversación para no confundir al comprador histórico con una reserva posterior. Consultar un pendiente desde esta lista no aprueba la compra; las reglas existentes mantienen los chats pendientes/cerrados y las entregas en solo lectura. Eliminar el artículo conserva la eliminación en cascada existente y lo retira de la lista.
+- Marcar avisos de la campana como leídos oculta los globos del perfil, las subpestañas y los contadores de avisos de artículos, conservando los mensajes y sus recibos. Un evento posterior vuelve a activar su aviso; las confirmaciones se conservan en el historial local disponible.
+- Migración profile-chat-history instalada solamente en Supabase local. Producción no modificada. 50 pruebas dirigidas aprobadas y compilación correcta. Comprobación por terminal, sin navegador ni capturas; servidor local en 127.0.0.1:5174. Pendiente revisión del usuario, sin commit ni deploy.
+
+
+## Propuesta local del 27 de octubre: checkout Wompi Sandbox
+
+- El usuario configuró las cuatro llaves Sandbox en el archivo local ignorado por Git. Se comprobaron prefijos sin mostrar valores. Se habilitó el checkout únicamente para desarrollo, con Supabase y origen de retorno en loopback; producción conserva PAID_TOPUPS_ENABLED=false y no recibió cambios.
+- Paquetes vigentes en servidor y UI: 1/$2.500, 3/$7.000 y 5/$11.000 COP. Nueva migración de precios preserva importes y referencias anteriores; un pendiente antiguo no sustituye una cotización nueva con otro precio. También conserva estados terminales para preparar una referencia nueva tras un rechazo.
+- En local el usuario abre el widget oficial de Wompi, sin redirección a localhost para evitar el 403 de CloudFront. Al recibir el identificador del widget se consulta la transacción desde el servidor, contrastando propietario, referencia, moneda, importe y estado; únicamente APPROVED abona mediante la función idempotente. Un aprobado ya registrado se consulta sin volver a llamar al proveedor. No hay sondeo periódico: retorno o comprobación manual. Eventos firmados conservan el circuito de confirmación y registran rechazos sin abonos.
+- La base local tiene la opción administrativa de créditos ficticios de Sandbox; se reinició solo PostgREST para cargarla. Esto no se configuró en producción. La prueba SQL de precio, abono y repetición se revirtió en su totalidad; no se crearon pagos de prueba contra Wompi desde las herramientas.
+- Se verificaron 302 pruebas generales, compilación y lint de los módulos del checkout sin errores. El artefacto del navegador no contiene las claves privadas configuradas. Servidor local reiniciado en 127.0.0.1:5174; el checkout responde 401 sin sesión, como corresponde. Sin pruebas de navegador ni capturas; pendiente la prueba manual del usuario en el checkout Sandbox. Sin commit ni deploy.
+
+
+## Avisos persistentes de recargas (local, 27 de octubre)
+
+- Migración `2026-10-27-wompi-inbox-receipts.sql` aplicada solo en Supabase local: una recarga aprobada y efectivamente abonada crea un recibo privado en Avisos del sistema. Incluye créditos, importe y referencia; Sandbox se identifica como simulación. Conserva fechas de recargas anteriores.
+- Verificar de nuevo no duplica el aviso ni restaura uno eliminado. La notificación se genera desde el recibo, evitando un segundo aviso genérico por el mismo abono. No requiere consultas periódicas ni depende del envío de correos. Ocho pruebas de Wompi y recibos aprobadas. Sin commit ni deploy.
+
+
+## Contador de aperturas (local, 27 de octubre)
+
+- Solo se registra al abrir ProductDetail, nunca en tarjetas. Excluye propietario y cuentas admin/master en servidor; la vista de auditoría ni siquiera solicita el registro. Invitados usan un identificador aleatorio de sesión, sin IP ni datos de contacto; usuarios identificados se deduplican entre sesiones durante 24 horas.
+- Cache de sesión y memoria evita peticiones repetidas. Un RPC directo a Supabase por apertura elegible; ninguna función Vercel ni sondeo periódico. Totales separados de articulos para evitar triggers de negocio o emisiones realtime. Los totales viajan en la consulta existente mediante relación de PostgREST.
+- Solo propietario y staff autorizado leen totales, junto al temporizador en sus publicaciones y en el detalle de auditoría. Valores orientativos desde la instalación, sin reconstruir visitas históricas. Tabla temporal de deduplicación con limpieza ocasional acotada y borrado en cascada al eliminar artículo.
+- Migración article-views aplicada únicamente local. Dos pruebas específicas de permisos, exclusiones y deduplicación aprobadas; compilación correcta. Sin navegador, commit ni deploy.
+
+
+## Publicación autorizada del 27 de octubre de 2026
+
+- El usuario autorizó commit y deploy completos en main y el proyecto Vercel habitual. No se crean ramas, previews ni otro dominio.
+- Comprobaciones finales: 307 pruebas aprobadas, compilación y git diff --check correctos; artefactos sin secretos de la configuración local. Los archivos .env locales siguen ignorados y fuera del despliegue.
+- Migraciones aplicadas en una única transacción en el proyecto Supabase mibatute (sgxzjggxlswvpedrosck): base de recargas Wompi (ausente previamente), precios vigentes, historial privado de chats, avisos persistentes de recarga y estadísticas de aperturas. Verificación posterior: las cinco comprobaciones de historial, vistas, avisos, guardia legal y ausencia de abonos Sandbox resultaron verdaderas.
+- La nueva tabla de recargas conserva la guardia legal existente; no se activa el consentimiento estricto de registro ni se modifica el correo o SMTP. PAID_TOPUPS_ENABLED permanece false. El checkout Sandbox queda exclusivamente local y no se suben sus llaves.
+- Incluye todos los ajustes revisados en local: conversaciones del buzón, globos contrastados, correos de recarga, últimas cinco recargas, nuevas recargas, textos e iconos, alineación de controles, disposición móvil de listas y filtros y títulos de destacados por categoría.
