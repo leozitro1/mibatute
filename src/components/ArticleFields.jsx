@@ -1,3 +1,4 @@
+import ArticleSizeField from "./ArticleSizeField.jsx";
 import StyledSelect from "./StyledSelect.jsx";
 import { useId } from "react";
 import useLocations from "../data/useLocations.js";
@@ -190,6 +191,8 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                 <small>Describe las fallas y muéstralas en las fotos. El estado es informado por quien publica.</small>
               </div>
             </div>
+
+            <ArticleSizeField value={formData.sizeClass || ''} name={`${fieldId}-size`} onChange={sizeClass => setFormData(previous => ({ ...previous, sizeClass }))} disabled={disabled} />
 
             {/* Descripción */}
             <div>

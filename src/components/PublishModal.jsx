@@ -8,6 +8,7 @@ import { publishArticle } from "../supabase/articleService";
 import { CATEGORY_TREE as FALLBACK_CATEGORY_TREE } from "../data/categories.js";
 import useLocations from "../data/useLocations.js";
 import { productCondition } from "./productCondition.js";
+import { articleSize } from "../data/articleSizes.js";
 import ArticleFields from "./ArticleFields";
 import PhotoOrderControls from "./PhotoOrderControls.jsx";
 import { movePhoto } from "./photoOrder.js";
@@ -109,6 +110,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     locality: "",
     description: "",
     conditionScore: 8, // 1-10
+    sizeClass: "",
   });
 
   const [step,setStep] = useState(0);
@@ -270,6 +272,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       locality: "",
       description: "",
       conditionScore: 8,
+      sizeClass: "",
     });
 
     cleanupPreviews(previews);
@@ -453,6 +456,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         localidad_es: formData.locality,
         descripcion: formData.description,
         estado_producto: Number(formData.conditionScore) || 8,
+        size_class: formData.sizeClass || null,
         is_featured: false,
       };
 
@@ -466,6 +470,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         locality: formData.locality,
         description: formData.description,
         estado_producto: Number(formData.conditionScore) || 8,
+        size_class: formData.sizeClass || null,
         is_featured: false,
       };
 
@@ -523,7 +528,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
             <div className="publish-step-heading"><p>Paso {step+1} de {PUBLICATION_STEPS.length}</p><h3 ref={stepHeading} tabIndex={-1}>{PUBLICATION_STEPS[step].title}</h3><p>{PUBLICATION_STEPS[step].hint}</p></div>
             {stepError&&<p className="publish-step-error" role="alert">{stepError}</p>}
             {step===0&&<div className="publish-mode-options" role="group" aria-label="Tipo de publicación">
-              <button type="button" aria-pressed={selectedMode==='venta'} onClick={()=>{setSelectedMode('venta');setFormData(previous=>({...previous,mode:'venta'}));setUsePublicationCredit(false);setStepError('');}}><Tag size={25} aria-hidden="true"/><strong>Venta</strong><span>Vende lo que ya no usas por un máximo de <b>$500.000 COP</b> por artículo.</span><small>Hasta 3 ventas activas gratis. Las adicionales requieren 1 crédito.</small><em>{selectedMode==='venta'?'Seleccionada':'Elegir venta'}</em></button>
+              <button type="button" aria-pressed={selectedMode==='venta'} onClick={()=>{setSelectedMode('venta');setFormData(previous=>({...previous,mode:'venta'}));setUsePublicationCredit(false);setStepError('');}}><Tag size={25} aria-hidden="true"/><strong>Venta</strong><span>Vende lo que ya no usas por un máximo de <b>$500.000 COP</b> por artículo.</span><small>3 ventas activas gratis, o 4 si tienes una donación disponible. Las adicionales requieren 1 crédito.</small><em>{selectedMode==='venta'?'Seleccionada':'Elegir venta'}</em></button>
               <button type="button" aria-pressed={selectedMode==='donacion'} onClick={()=>{setSelectedMode('donacion');setFormData(previous=>({...previous,mode:'donacion',price:''}));setUsePublicationCredit(false);setStepError('');}}><Gift size={25} aria-hidden="true"/><strong>Donación</strong><span>No botes lo que ya no usas: materiales sobrantes, electrodomésticos o herramientas dañadas, papel y más.</span><small>Aclara su estado: alguien puede repararlo o aprovecharlo. Publicar es gratis.</small><em>{selectedMode==='donacion'?'Seleccionada':'Elegir donación'}</em></button>
             </div>}
             {step===1&&<>
@@ -577,13 +582,14 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
               <div className="publish-review-photos">{previews.map((src,index)=><img key={src} src={src} alt={`Foto ${index+1} del artículo`}/>)}</div>
               <div className="publish-review-line"><span>{selectedMode==='venta'?'Venta':'Donación'}</span><button type="button" onClick={()=>goToStep(0)}>Cambiar tipo</button></div>
               <h4>{formData.title}</h4><strong className="publish-review-price">{selectedMode==='venta'?new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(formData.price)):'Gratis'}</strong>
-              <dl><dt>Categoría</dt><dd>{formData.category} · {formData.subcategory}</dd><dt>Estado</dt><dd>{formData.conditionScore}/10 · {productCondition(formData.conditionScore)?.label}</dd><dt>Ubicación</dt><dd>{formData.city}, {formData.locality}</dd></dl>
+              <dl><dt>Categoría</dt><dd>{formData.category} · {formData.subcategory}</dd><dt>Estado</dt><dd>{formData.conditionScore}/10 · {productCondition(formData.conditionScore)?.label}</dd><dt>Tamaño</dt><dd>{articleSize(formData.sizeClass)?.label || "Sin especificar"}</dd><dt>Ubicación</dt><dd>{formData.city}, {formData.locality}</dd></dl>
               <p className="publish-review-description">{formData.description}</p>
               <div className="publish-review-edit"><button type="button" onClick={()=>goToStep(1)}>Editar fotos</button><button type="button" onClick={()=>goToStep(2)}>Editar artículo</button><button type="button" onClick={()=>goToStep(3)}>Editar ubicación</button></div>
             </section>
             <div className="rounded-xl border border-[#dfe7d9] bg-[#f3f6f0] p-4 text-sm text-gray-600" aria-live="polite">
               {limitError ? <p role="alert">{limitError}</p> : !publicationLimit ? <p>Comprobando tus publicaciones…</p> : normalizeMode(formData.mode) !== 'venta' ? <p>Publicar una donación es gratis. Destacarla es opcional y requiere 1 crédito.</p> : <>
-                <p>Tienes <strong>{publicationLimit.active} ventas activas</strong>. Hasta 3 al mismo tiempo son gratis; las pausadas y reservadas también ocupan espacio.</p>
+                <p>Tienes <strong>{publicationLimit.active} ventas activas</strong>. Hasta {publicationLimit.freeLimit ?? 3} al mismo tiempo son gratis; las pausadas y reservadas también ocupan espacio.</p>
+                <p className="mt-2">{publicationLimit.donationBonus ? 'Tu donación disponible habilita un cuarto cupo gratuito. Si deja de estar activa, tus ventas existentes siguen publicadas sin cobros retroactivos.' : 'Una donación disponible, con foto y descripción, habilita una cuarta venta gratis. Las donaciones reservadas, pausadas, vencidas o en revisión no cuentan.'}</p>
                 {publicationLimit.requiresCredit ? <>
                   <p className="mt-2">Esta publicación adicional requiere <strong>1 crédito</strong> (valor individual: $2.500 COP). Saldo: {publicationLimit.balance}.</p>
                   {publicationLimit.balance > 0 ? <label className="mt-3 flex items-start gap-2"><input type="checkbox" checked={usePublicationCredit} onChange={event=>setUsePublicationCredit(event.target.checked)} disabled={isSubmitting}/><span>Confirmo usar 1 crédito para publicar esta venta adicional. Destacarla requiere otro crédito.</span></label> : <p className="mt-2">Sin créditos disponibles. Puedes finalizar una venta para liberar un espacio gratuito. Puedes consultar las opciones de recarga en tu perfil.</p>}

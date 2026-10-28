@@ -10,6 +10,7 @@ export function getEditableArticle(article = {}) {
     mode: mode.includes("venta") ? "venta" : "donacion",
     price: article.price ?? article.precio ?? "",
     is_featured: !!(article.is_featured ?? article.isFeatured),
+    sizeClass: article.size_class || "",
     conditionScore: article.estado_producto ?? 8,
   };
 }

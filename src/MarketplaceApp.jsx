@@ -1053,7 +1053,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     // Resolve a shared link in the existing catalog request, even on another page/city.
     const pageIds = [...new Set([...pageData.ids, ...pageData.featuredIds, ...(sharedId ? [sharedId] : [])])];
     // ✅ Solo columnas necesarias para el listado — sin select("*")
-    const columns = `article_view_totals(view_count),id, titulo, title, mode, tipo, estado, status,
+    const columns = `article_view_totals(view_count),id, titulo, title, mode, tipo, estado, status, size_class,
          city, locality, description,
          price, interested_count, usuario_id, owner_id, buyer_id,
          ganador_id, winner_id, recipient_id,
@@ -2172,7 +2172,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 />
               )}
 
-              {currentView === "how-it-works" && <HowItWorks onBack={() => setCurrentView("home")} />}
+              {currentView === "how-it-works" && <HowItWorks reuseImpact={homePage.reuseImpact} onBack={() => setCurrentView("home")} />}
               </Suspense>
             </main>
             <Footer onHowItWorks={() => {

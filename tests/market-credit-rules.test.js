@@ -192,6 +192,55 @@ test('daily donation quota and paid publication rules are enforced by PostgreSQL
     await db.exec('reset role');await db.exec(await migration('2026-10-20-donation-daily-quota'));await db.exec(await migration('2026-10-20-publication-credits'));
     await asUser(owner);assert.equal((await sales()).active,1);
   });
+  await t.test('one valid available donation unlocks only one sale slot; removal never charges existing sales',async()=>{
+    await db.exec('reset role;alter table articulos add column size_class text;alter table articulos add column review_status text;');
+    await db.exec(await migration('2026-10-28-donation-sale-bonus'));
+    await reset();for(let n=10;n<13;n++)await publish(n);
+    assert.equal((await sales()).freeLimit,3);
+    await publish(20,false,{mode:'donacion'});
+    assert.equal((await sales()).freeLimit,4);assert.equal((await sales()).donationBonus,true);
+    await assert.rejects(db.query("update articulos set mode='venta',price=10000 where id=$1",[id(20)]),/requiere confirmar/);
+    const fourth=await publish(13,true);assert.equal(fourth.cost,0);assert.equal(fourth.balance,5);
+    assert.equal((await publish(14)).code,'PUBLICATION_CREDIT_REQUIRED');
+    await assert.rejects(db.query("insert into articulos(id,owner_id,mode,status,estado,created_at) values($1,$2,'venta','disponible','disponible',now())",[id(30),owner]),/requiere confirmar/);
+    assert.equal((await publish(14,true)).cost,1);
+    await db.query("update articulos set status='pausado',estado='pausado' where id=$1",[id(20)]);
+    assert.equal((await sales()).freeLimit,3);assert.equal((await sales()).active,5);assert.equal((await sales()).balance,4);
+    await db.query('update articulos set title=$1 where id=$2',['Sigue publicada',id(13)]);
+    assert.equal((await sales()).balance,4);
+    await db.query('delete from articulos where id=any($1)',[[id(13),id(14)]]);
+    assert.equal((await publish(15)).code,'PUBLICATION_CREDIT_REQUIRED');
+    await publish(21,false,{mode:'donacion'});await publish(22,false,{mode:'donacion'});
+    assert.equal((await sales()).freeLimit,4,'multiple donations do not stack');
+    assert.equal((await publish(15)).cost,0);
+    await db.query("update articulos set status='entregado',estado='entregado' where id=any($1)",[[id(21),id(22)]]);
+    assert.equal((await sales()).freeLimit,3);assert.equal((await sales()).active,4);assert.equal((await sales()).balance,4);
+    await db.exec('reset role');await db.exec(await migration('2026-10-28-donation-sale-bonus'));await asUser(owner);
+    assert.equal((await sales()).active,4);assert.equal((await sales()).balance,4);
+    await reset();for(let n=10;n<13;n++)await publish(n);await publish(20,false,{mode:'donacion'});
+    const highlighted=(await db.query('select publish_article_with_credit($1,$2,false,true) as r',[payload('venta'),id(13)])).rows[0].r;
+    assert.equal(highlighted.publicationCost,0);assert.equal(highlighted.featureCost,1);assert.equal(highlighted.balance,4);
+  });
+  await t.test('bonus ignores unavailable, incomplete and foreign donations and keeps staff/public access private',async()=>{
+    await reset();await publish(20,false,{mode:'donacion'});
+    for(const state of ['pausado','reservado','en_revision','entregado']){
+      await db.query('update articulos set status=$1,estado=$1 where id=$2',[state,id(20)]);
+      assert.equal((await sales()).freeLimit,3,state);
+    }
+    await db.query("update articulos set status='disponible',estado='disponible',created_at=now()-interval '60 days' where id=$1",[id(20)]);
+    assert.equal((await sales()).freeLimit,3,'expired');
+    await db.query("update articulos set created_at=now(),review_status='en_revision' where id=$1",[id(20)]);
+    assert.equal((await sales()).freeLimit,3,'review flag despite available status');
+    await db.query("update articulos set review_status='approved',description='' where id=$1",[id(20)]);
+    assert.equal((await sales()).freeLimit,3,'missing description');
+    await db.query("update articulos set description='Usada pero funciona',imagenes='{}',image_url=null,imagen_url_principal=null where id=$1",[id(20)]);
+    assert.equal((await sales()).freeLimit,3,'missing photos');
+    await db.query("update articulos set image_url='https://example.com/test.jpg' where id=$1",[id(20)]);
+    assert.equal((await sales()).freeLimit,4,'complete approved available donation');
+    await asUser(buyer);assert.equal((await sales()).freeLimit,3,'another owner');
+    await assert.rejects(db.query('select sale_free_limit($1)',[owner]),/permission denied/);
+    await db.exec('reset role;set role anon');await assert.rejects(db.query('select sale_publication_status()'),/permission denied/);
+  });
  } finally { await db.close(); }
 });
 

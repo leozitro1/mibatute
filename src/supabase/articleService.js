@@ -227,7 +227,7 @@ async function insertArticleImages({ articuloId, ownerId, images }) {
 export async function getArticleWithImages(articleId) {
   // ✅ OPT: columnas explícitas en vez de * (evita traer todo el row en cada edit)
   const { data, error } = await queryArticlesWithCondition(
-      `article_view_totals(view_count),id,titulo,title,mode,tipo,estado,status,
+      `article_view_totals(view_count),id,titulo,title,mode,tipo,estado,status,size_class,
        city,locality,categoria,category,subcategoria,subcategory,
        description,price,
        owner_id,usuario_id,buyer_id,ganador_id,winner_id,recipient_id,
@@ -323,6 +323,7 @@ export async function publishArticle({ formData, files, user, useCredit = false,
     is_featured: false,
     description: String(formData?.descripcion ?? formData?.description ?? "").trim(),
     estado_producto,
+    size_class: formData?.size_class || formData?.sizeClass || null,
     status: "disponible",
     applicants: [],
   };
@@ -632,6 +633,7 @@ export async function updateArticle(articleId, formData = {}, file = null, {imag
     if(imageOrder){
       const saved=await savePhotoOrder(supabase,articleId,imageOrder,{title,description,category,subcategory,mode,price,
         city:formData.ciudad??formData.city,locality:formData.localidad_es??formData.locality,
+        size_class:formData.sizeClass || null,
         ...(condition!==null?{estado_producto:condition}:{})});
       if(!saved.success||!file)return saved;
       const added=await addArticleImages(articleId,[file],uid);
@@ -643,6 +645,7 @@ export async function updateArticle(articleId, formData = {}, file = null, {imag
       city: formData.ciudad ?? formData.city,
       locality: formData.localidad_es ?? formData.locality,
       is_featured: !!formData.is_featured,
+      size_class: formData.sizeClass || null,
       ...(condition !== null ? { estado_producto: condition } : {}),
     }).eq("id", articleId).eq("owner_id", uid)
       .in("status", ["disponible", "pausado"]).select("id").single();

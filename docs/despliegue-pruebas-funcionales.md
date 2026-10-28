@@ -153,3 +153,13 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - Compartir junto a Reportar: opciones nativas o copia/enlace seleccionable. URL limpia sin parámetros de pagos ni datos privados. Apertura del artículo compartido mediante la consulta de catálogo existente, incluso fuera de la primera página, respetando RLS y estado.
 - Diagnóstico de configuración de correos restringido al superadmin, sin valores secretos ni envío durante la comprobación. Las cinco variables de producción están presentes; recepción de correo aún pendiente de confirmación. Cron y topes vigentes conservados.
 - 317 pruebas aprobadas y compilación correcta. Sin pruebas en navegador local ni capturas. Wompi y recargas reales conservan el bloqueo de producción; la revisión jurídica sigue pendiente.
+
+
+## Segunda entrega autorizada del 28 de octubre: tamaños, impacto y donaciones
+
+- Tamaño opcional pequeño/mediano/grande en creación, edición, resumen y detalle; también se conserva al reordenar fotos y se muestra en la vista del admin. Sin estimaciones de peso.
+- Detalle compacto: estado con ayuda a la izquierda, tamaño con ayuda a la derecha; ubicación junto a vistas privadas y días restantes. No se cambian las reglas de acceso a vistas.
+- Contador al pie de Cómo funciona, sin ocupar la página principal. Cuenta cada publicación marcada como entregada una vez desde su activación; total anónimo persistente al eliminar artículos, sin datos históricos añadidos ni entregas ficticias. Aprovecha la consulta del catálogo.
+- Tres ventas gratis, o cuatro mientras exista una donación disponible con foto y descripción. Excluye pausadas, reservadas, vencidas/en revisión y la propia donación si se convierte en venta. Sin acumulación por varias donaciones ni cobros retroactivos; los excedentes mantienen el consentimiento de un crédito y el destacado es independiente.
+- Migraciones article-size-reuse-impact y donation-sale-bonus instaladas en producción en una única transacción. Verificadas columna, contador inicial cero, helper de cupo y privacidad de tabla/helper. No se modificaron saldos, SMTP ni datos de usuarios existentes.
+- 321 pruebas aprobadas, compilación y diff correctos, sin secretos locales en el artefacto del navegador. Publicación autorizada en main y el proyecto habitual; sin navegador local ni capturas. Pagos reales siguen deshabilitados y la revisión jurídica continúa pendiente.

@@ -1,10 +1,11 @@
 // src/components/ProductDetail.jsx
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { X, MapPin, ShieldCheck, Lock, Flag, BadgeCheck, Expand, CircleHelp } from "lucide-react";
+import { X, MapPin, ShieldCheck, Lock, Flag, BadgeCheck, Expand, CircleHelp, Package } from "lucide-react";
 import './ProductDetail.css';
 import './ProductDetailDesign.css';
 import './ProductCondition.css';
 import { productCondition } from './productCondition.js';
+import { articleSize } from "../data/articleSizes.js";
 import ArticleShareButton from './ArticleShareButton.jsx';
 import ArticlePhotoViewer from './ArticlePhotoViewer.jsx';
 import { donationStatus } from '../supabase/donationApplications.js';
@@ -658,6 +659,7 @@ export default function ProductDetail({
 
   const conditionScore = getConditionScore(item);
   const condition = productCondition(conditionScore);
+  const size = articleSize(item?.size_class);
 
   const ownerName = ownerNameResolved ? formatPublicName(ownerNameResolved) : "Vendedor";
   const ownerPhoto = stableOwnerPhoto || ownerPhotoResolved || "";
@@ -865,30 +867,38 @@ export default function ProductDetail({
 
           <h1 id={detailTitleId} className="text-2xl font-black text-gray-800 mb-2 leading-tight">{titulo}</h1>
 
-          {condition ? (
-            <div className="mb-3">
-              <div className={`product-detail-condition inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${condition.cls}`}>
+          {(condition || size) && <div className="mb-3">
+            <div className="product-detail-meta-row">
+              {condition && <div className={`product-detail-condition inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${condition.cls}`}>
                 <BadgeCheck size={16} aria-hidden="true" />
                 <span className="text-xs font-black">{conditionScore}/10</span>
                 <span className="text-[10px] font-black uppercase tracking-widest">{condition.label}</span>
-              </div>
-              <div className="product-condition-description">
-                {condition.description}{" "}
-                <details className="product-condition-help">
+                <details className="product-condition-help" key={conditionScore}>
                   <summary aria-label="Información sobre el estado del producto"><CircleHelp size={15} aria-hidden="true" /></summary>
-                  <span className="product-condition-help-text">Estado informado por quien publica.</span>
+                  <span className="product-condition-help-text">{condition.description} Estado informado por quien publica.</span>
                 </details>
-              </div>
+              </div>}
+              {size && <div className="product-detail-size" aria-label={`Tamaño ${size.label.toLowerCase()}`}>
+                <Package size={16} aria-hidden="true" />
+                <span>{size.label}</span>
+                <details className="product-condition-help" key={size.value}>
+                  <summary aria-label={`Cómo transportar un artículo ${size.label.toLowerCase()}`}><CircleHelp size={15} aria-hidden="true" /></summary>
+                  <span className="product-condition-help-text">{size.description}</span>
+                </details>
+              </div>}
             </div>
-          ) : null}
 
-          <div className="product-detail-location flex items-center gap-2 text-gray-500 text-sm mb-6">
-            <MapPin size={16} className="text-forest-green" />
-            <span className="font-bold">{locationText}</span>
-          </div>
-          <div className="mb-3 flex flex-wrap items-center gap-3">
-            <PublicationCountdown article={item} now={publicationNow} />
-            {(isOwner||staffPreview)&&<PublicationViews article={item}/>}
+          </div>}
+
+          <div className="product-detail-location-row">
+            <div className="product-detail-location flex items-center gap-2 text-gray-500 text-sm">
+              <MapPin size={16} className="text-forest-green" />
+              <span className="font-bold">{locationText}</span>
+            </div>
+            <div className="product-detail-countdown">
+              {(isOwner||staffPreview)&&<PublicationViews article={item}/>}
+              <PublicationCountdown article={item} now={publicationNow} />
+            </div>
           </div>
 
           {showPrice && (

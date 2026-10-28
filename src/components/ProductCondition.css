@@ -13,3 +13,16 @@
 .product-condition-help summary:hover, .product-condition-help[open] summary { background: #edf3e7; }
 .product-condition-help summary:focus-visible { outline: 2px solid #2d5a27; outline-offset: 2px; }
 .product-condition-help-text { position: absolute; z-index: 2; top: 100%; right: 0; width: 180px; padding: 9px 12px; border: 1px solid #dfe6da; border-radius: 9px; background: #f5f8f1; color: #2d5a27; box-shadow: 0 3px 10px #253d2e12; font-size: 12px; font-weight: 400; line-height: 1.5; }
+
+.product-detail-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.product-detail-meta-row .product-detail-condition { min-width: 0; flex-wrap: wrap; }
+.product-detail-size { margin-left: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; padding: 3px 10px 3px 12px; border: 1px solid #dfe8d9; border-radius: 8px; background: #f5f8f1; color: #456341; }
+.product-detail-size > span { font-size: 11px; font-weight: 500; }
+.product-detail-size > svg { flex-shrink: 0; }
+
+.product-detail-meta-row .product-detail-condition { padding: 3px 10px 3px 12px; }
+.product-detail-meta-row .product-detail-condition .product-condition-help-text { left: 0; right: auto; text-transform: none; letter-spacing: normal; }
+
+.product-detail-location-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.product-detail-information .product-detail-location-row .product-detail-location { flex: 1; min-width: 0; margin-bottom: 0; }
+.product-detail-countdown { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; padding-top: 2px; }
