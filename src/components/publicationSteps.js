@@ -1,5 +1,5 @@
 import { LOCATIONS } from '../data/locations.js';
-import { detectContactoProhibido } from './articleValidation.js';
+import {validatePublicationText} from './articleValidation.js';
 
 export const PUBLICATION_STEPS = [
   { label:'Tipo', title:'¿Quieres vender o donar?', hint:'Elige cómo quieres darle otra oportunidad a tu artículo.' },
@@ -9,7 +9,7 @@ export const PUBLICATION_STEPS = [
   { label:'Revisión', title:'Revisa antes de publicar', hint:'Comprueba las fotos, los datos y si tu publicación requiere un crédito.' },
 ];
 
-export function publicationStepError(step,{selectedMode,formData,files,categories,locations=LOCATIONS}) {
+export function publicationStepError(step,{selectedMode,formData,files,categories,locations=LOCATIONS,rules=[]}) {
   if(step===0)return ['venta','donacion'].includes(selectedMode)?'':'Elige Venta o Donación para continuar.';
   if(step===1)return files.length>=1&&files.length<=4?'':'Agrega entre 1 y 4 fotos para continuar.';
   if(step===2){
@@ -19,7 +19,7 @@ export function publicationStepError(step,{selectedMode,formData,files,categorie
     if(selectedMode==='venta'&&(!Number.isFinite(Number(formData.price))||Number(formData.price)<=0||Number(formData.price)>500000))return 'El precio debe estar entre $1 y $500.000 COP.';
     if(!Number.isInteger(Number(formData.conditionScore))||Number(formData.conditionScore)<1||Number(formData.conditionScore)>10)return 'Indica el estado del artículo entre 1 y 10.';
     if(!formData.description.trim())return 'Describe el artículo, su estado y los detalles que debe conocer quien lo recibe.';
-    return detectContactoProhibido(formData.description)||'';
+    return validatePublicationText(formData.title,formData.description,rules)||'';
   }
   if(step===3){
     if(!locations[formData.city])return 'Selecciona una ciudad.';

@@ -2,6 +2,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
 import { Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown, LayoutGrid, MapPin, SlidersHorizontal, Gift, Tag, Star, BadgeCheck } from "lucide-react";
+import { sharedArticleId } from "./components/articleShare.js";
 import Navbar from "./components/Navbar";
 import Footer from './components/Footer.jsx';
 import LegalConsentDialog from './components/LegalConsentDialog.jsx';
@@ -198,6 +199,8 @@ export default function MarketplaceApp() {
 
   const [currentView, setCurrentView] = useState("home"); // home | profile | how-it-works
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const sharedArticleRef = useRef(sharedArticleId(window.location.href));
+  const [sharedArticleError, setSharedArticleError] = useState("");
   const viewedArticleId = selectedProduct && currentUser?.id !== (selectedProduct.owner_id || selectedProduct.usuario_id) ? selectedProduct.id : null;
   useEffect(() => {
     if (!viewedArticleId || document.visibilityState !== 'visible') return;
@@ -1046,7 +1049,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       p_filters: homeFilters, p_page: requestedPage,
     });
     if (pageError) throw pageError;
-    const pageIds = [...new Set([...pageData.ids, ...pageData.featuredIds])];
+    const sharedId = sharedArticleRef.current;
+    // Resolve a shared link in the existing catalog request, even on another page/city.
+    const pageIds = [...new Set([...pageData.ids, ...pageData.featuredIds, ...(sharedId ? [sharedId] : [])])];
     // ✅ Solo columnas necesarias para el listado — sin select("*")
     const columns = `article_view_totals(view_count),id, titulo, title, mode, tipo, estado, status,
          city, locality, description,
@@ -1125,6 +1130,19 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     productsRef.current = normalized;
     setProducts(normalized);
 
+    if (sharedId && sharedArticleRef.current === sharedId) {
+      sharedArticleRef.current = null;
+      const shared = normalized.find(article => String(article.id) === sharedId);
+      const visible = shared && ['disponible', 'reservado', 'entregado', 'available', 'reserved', 'delivered'].includes(shared.estado || shared.status)
+        && ![shared.review_status, shared.approval_status, shared.moderation_status, shared.revision_status].some(value => ['pending', 'en_revision', 'rejected', 'rechazado'].includes(value));
+      if (isUserBlocked) setSharedArticleError("Tu cuenta está bloqueada. No puedes abrir publicaciones.");
+      else if (visible) setSelectedProduct(shared);
+      else setSharedArticleError("Esta publicación ya no está disponible o no se puede consultar.");
+      const url = new URL(window.location.href);
+      url.searchParams.delete('articulo');
+      window.history.replaceState(window.history.state, '', url);
+    }
+
     setSelectedProduct((prev) => {
       if (!prev?.id) return prev;
       const updated = normalized.find((x) => x.id === prev.id);
@@ -1137,7 +1155,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     } finally {
       if (request === homeRequestRef.current) setHomeBusy(false);
     }
-  }, [homeFilters, requestedPage, currentUser?.id]);
+  }, [homeFilters, requestedPage, currentUser?.id, isUserBlocked]);
 
   // ✅ Carga inicial única — sin polling agresivo
   // Se recarga solo cuando el usuario vuelve a la pestaña (visibilitychange)
@@ -1996,6 +2014,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                         <span>Hay novedades en las publicaciones.</span>
                         <button type="button" disabled={homeBusy} onClick={() => load()} className="shrink-0 font-bold underline disabled:opacity-50">Actualizar</button>
                       </div>}
+                      {sharedArticleError && <p role="status" className="mb-4 rounded-xl border border-green-100 bg-green-50 p-3 text-sm text-forest-green">{sharedArticleError}</p>}
                       {homeError ? (
                         <div role="alert" className="py-12 text-center">
                           <p className="text-sm text-red-600">{homeError}</p>

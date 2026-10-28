@@ -18,7 +18,7 @@
 .mb-design-preview .product-detail-featured { background: #ffdbb5; color: #7c3916; border-radius: 7px; padding: 6px 10px; font-size: 11px; font-weight: 600; }
 .mb-design-preview .product-detail-categories { background: transparent; border: 0; border-radius: 0; padding: 0; gap: 6px; flex-wrap: wrap; }
 .mb-design-preview .product-detail-categories button { min-height: 44px; font-size: 12px; font-weight: 500; text-align: left; }
-.mb-design-preview .product-detail-condition { border-color: #dfe8d9; background: #f5f8f1; color: #456341; flex-wrap: wrap; border-radius: 8px; }
+.mb-design-preview .product-detail-condition { flex-wrap: wrap; border-radius: 8px; }
 .mb-design-preview .product-detail-condition span:last-child { font-size: 11px; font-weight: 500; }
 .mb-design-preview .product-detail-location { align-items: flex-start; margin-bottom: 10px; gap: 7px; color: #69756a; }
 .mb-design-preview .product-detail-location svg { flex-shrink: 0; margin-top: 2px; stroke-width: 1.65; }

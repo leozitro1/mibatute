@@ -1,0 +1,11 @@
+.product-detail-actions { display: flex; align-items: flex-start; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.article-share { position: relative; }
+.article-share-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 12px; border: 1px solid #dfe6da; border-radius: 10px; background: #f5f8f1; color: #2d5a27; font-size: 12px; font-weight: 500; }
+.article-share-button:hover { background: #edf3e7; }
+.article-share-button:disabled { opacity: .6; }
+.article-share-button:focus-visible { outline: 2px solid #2d5a27; outline-offset: 2px; }
+.article-share-feedback, .article-share-fallback { display: block; max-width: 180px; margin-top: 5px; color: #2d5a27; font-size: 11px; line-height: 1.5; }
+.article-share-fallback input { width: 100%; min-width: 0; padding: 7px; border: 1px solid #dfe6da; border-radius: 6px; font-size: 12px; }
+@media (max-width: 767px) { .article-share-button { min-height: 44px; } }
+.product-detail-actions > button { min-height: 36px; border-radius: 10px; font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: normal; }
+@media (max-width: 767px) { .product-detail-actions > button { min-height: 44px; } }

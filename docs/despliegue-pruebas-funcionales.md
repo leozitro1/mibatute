@@ -143,3 +143,13 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - Migraciones aplicadas en una única transacción en el proyecto Supabase mibatute (sgxzjggxlswvpedrosck): base de recargas Wompi (ausente previamente), precios vigentes, historial privado de chats, avisos persistentes de recarga y estadísticas de aperturas. Verificación posterior: las cinco comprobaciones de historial, vistas, avisos, guardia legal y ausencia de abonos Sandbox resultaron verdaderas.
 - La nueva tabla de recargas conserva la guardia legal existente; no se activa el consentimiento estricto de registro ni se modifica el correo o SMTP. PAID_TOPUPS_ENABLED permanece false. El checkout Sandbox queda exclusivamente local y no se suben sus llaves.
 - Incluye todos los ajustes revisados en local: conversaciones del buzón, globos contrastados, correos de recarga, últimas cinco recargas, nuevas recargas, textos e iconos, alineación de controles, disposición móvil de listas y filtros y títulos de destacados por categoría.
+
+
+## Entrega autorizada del 28 de octubre: controles y publicaciones
+
+- Publicación completa en main y el proyecto habitual, autorizada tras revisión local. Incluye filtro de contactos en título/descripción, avisos en formularios/normas y reglas de palabras/frases administrables únicamente por superadmin con MFA. Sin sanciones automáticas ni OCR de fotos.
+- Migraciones account-input-limits y publication-text-rules aplicadas juntas en producción: celular suministrado de 10 dígitos al registrar, compensaciones administrativas de 1–3 créditos con auditoría/idempotencia, tabla privada de reglas y guard de publicación. No modifica datos históricos ni saldos.
+- Saldo con animación de 10 segundos al aumentar, respetando movimiento reducido. Estado del producto con seis rangos, guía al crear/editar, colores y explicación en detalle; nota del publicador mediante icono de ayuda.
+- Compartir junto a Reportar: opciones nativas o copia/enlace seleccionable. URL limpia sin parámetros de pagos ni datos privados. Apertura del artículo compartido mediante la consulta de catálogo existente, incluso fuera de la primera página, respetando RLS y estado.
+- Diagnóstico de configuración de correos restringido al superadmin, sin valores secretos ni envío durante la comprobación. Las cinco variables de producción están presentes; recepción de correo aún pendiente de confirmación. Cron y topes vigentes conservados.
+- 317 pruebas aprobadas y compilación correcta. Sin pruebas en navegador local ni capturas. Wompi y recargas reales conservan el bloqueo de producción; la revisión jurídica sigue pendiente.

@@ -1,5 +1,6 @@
 // src/components/ProductCard.jsx
 import { MapPin, Lock, Users, BadgeCheck, Clock } from "lucide-react";
+import { productCondition } from './productCondition.js';
 import { cardImageUrl } from '../imagekit/imageUrls.js';
 
 const FALLBACK_SVG =
@@ -33,29 +34,6 @@ function normStatus(status) {
   if (s === "reserved") return "reservado";
   if (s === "delivered") return "entregado";
   return s || "disponible";
-}
-
-
-// ===================== Estado del producto (1–10) =====================
-function clampInt(n, min, max) {
-  if (n == null || n === '') return null;
-  const x = Number(n);
-  if (!Number.isFinite(x)) return null;
-  const v = Math.round(x);
-  if (v < min) return min;
-  if (v > max) return max;
-  return v;
-}
-
-function conditionMeta(score10) {
-  const s = clampInt(score10, 1, 10);
-  if (s === null) return null;
-
-  // Rangos: 1–3 rojo, 4–6 amarillo, 7–8 verde, 9–10 verde fuerte
-  if (s <= 3) return { score: s, label: "Muy deteriorado", cls: "bg-red-100 text-red-800 border border-red-200" };
-  if (s <= 6) return { score: s, label: "Uso medio", cls: "bg-yellow-100 text-yellow-900 border border-yellow-200" };
-  if (s <= 8) return { score: s, label: "Buen estado", cls: "bg-green-100 text-green-800 border border-green-200" };
-  return { score: s, label: "Casi nuevo", cls: "bg-emerald-100 text-emerald-800 border border-emerald-200" };
 }
 
 
@@ -163,7 +141,7 @@ export default function ProductCard({
   const imageSrc = cardImageUrl(pickImageSrc(image));
 
   // ✅ estado del producto (1–10) para badge en card
-  const conditionInfo = conditionMeta(
+  const conditionInfo = productCondition(
     conditionScore ?? condition ?? estadoProducto
   );
   const showCondition = !!conditionInfo;
@@ -278,7 +256,7 @@ export default function ProductCard({
             title={`Estado ${conditionInfo.score}/10 · ${conditionInfo.label}. Informado por quien publica.`}
             aria-label={`Estado ${conditionInfo.score} de 10, ${conditionInfo.label}`}
           >
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow ${conditionInfo.cls}`}>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider shadow ${conditionInfo.cls}`}>
               <BadgeCheck size={14} aria-hidden="true" />
               {conditionInfo.score}/10
             </span>

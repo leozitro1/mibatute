@@ -65,6 +65,7 @@ export const registerUser = async (email, password, extraData = {}) => {
 
   const nombre = String(extraData?.nombre || "").trim();
   const movil = String(extraData?.movil || "").trim();
+  if(!/^[0-9]{10}$/.test(movil))return {success:false,error:'El celular debe tener exactamente 10 dígitos, sin indicativo de país.'};
 
   const ciudad = String(extraData?.ciudad || extraData?.city || "").trim();
   const localidad = String(extraData?.localidad || extraData?.location || "").trim();

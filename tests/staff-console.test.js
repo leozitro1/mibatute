@@ -502,6 +502,23 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
       const audit=(await db.query('select * from staff_audit where id=$1',[request])).rows[0];assert.equal(audit.actor_id,admin);assert.equal(audit.changes.balance_before,7);assert.equal(audit.changes.balance_after,12);
       await asUser(master);await assert.rejects(grant(),/otros datos/);
     });
+    await t.test('current compensation limit is three for admin and master, and signup phones are exactly ten digits',async()=>{
+      await db.exec("reset role;alter table auth.users add column if not exists raw_user_meta_data jsonb default '{}';");
+      await db.exec(await readFile(new URL('../supabase/migrations/2026-10-28-account-input-limits.sql',import.meta.url),'utf8'));
+      for(const [position,actor] of [admin,master].entries()){
+        await open(actor);
+        for(const amount of [0,-1,4,1000,null])await assert.rejects(rpc('staff_compensate_credits',[id(200),amount,'Compensacion de prueba',id(1900+position)]),/1 y 3/);
+        const before=(await rpc('staff_user_detail',[id(200),1])).profile.credits;
+        const args=[id(200),3,'Compensacion de prueba',id(1900+position)];
+        const result=await rpc('staff_compensate_credits',args);
+        assert.equal(result.balance,before+3);assert.deepEqual(await rpc('staff_compensate_credits',args),result);
+      }
+      await db.exec('reset role');
+      for(const [index,mobile] of ['123','12345678901','30012345ab',''].entries()){
+        await assert.rejects(db.query('insert into auth.users(id,raw_user_meta_data) values($1,$2)',[id(1950+index),JSON.stringify({movil:mobile})]),/10 dígitos/);
+      }
+      await db.query('insert into auth.users(id,raw_user_meta_data) values($1,$2)',[id(1960),JSON.stringify({movil:'3001234567'})]);
+    });
     await t.test('only Super Admin edits campaigns; public metrics are bounded, per-page idempotent and exclude paused or scheduled ads',async()=>{
       const draft={texto:'Campana metrica',descripcion:'Publicidad local',imagen_url:'https://images.example.com/banner.webp',mobile_image_url:'',enlace:'https://example.com/oferta',placement:'hero',position:4,badge:'Publicidad',button_text:'Visitar sitio',destination:'external',activo:true,starts_at:null,ends_at:null};
       const save=(id,data,version=null)=>rpc('staff_save_sponsor',[id,JSON.stringify(data),version]);
@@ -695,6 +712,20 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
       await open(admin);await assert.rejects(rpc('staff_market_dashboard'),/autorizado/);
       await open(master);assert.equal((await rpc('staff_market_dashboard')).trend.length,30);
       await asUser(master,'aal1');await assert.rejects(rpc('staff_market_dashboard'),/autorizado/);
+    });
+    await t.test('only a verified master can manage publication words; public reads contain active terms only',async()=>{
+      await db.exec('reset role');
+      await db.exec(await readFile(new URL('../supabase/migrations/2026-10-28-publication-text-rules.sql',import.meta.url),'utf8'));
+      const save=()=>rpc('staff_save_publication_rule',[null,'venta peligrosa',true,null]);
+      await asUser(user,'aal1');await assert.rejects(save(),/autorizado/);
+      await open(admin);await assert.rejects(save(),/autorizado/);
+      await asUser(master,'aal1');await assert.rejects(save(),/autorizado/);
+      await open(master);const rule=await save();assert.equal(rule.active,true);
+      assert.equal((await rpc('staff_publication_rules')).length,1);
+      await db.exec("reset role;set role anon");
+      assert.deepEqual(await rpc('publication_text_rules'),['venta peligrosa']);
+      await assert.rejects(db.query('select * from publication_text_rules'),/permission/);
+      await assert.rejects(db.query('select public.staff_publication_rules()'),/permission/);
     });
   } finally {await db.close();}
 });

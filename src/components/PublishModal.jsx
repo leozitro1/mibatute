@@ -7,6 +7,7 @@ import { publicationStatus, publicationQuote } from "../supabase/publicationCred
 import { publishArticle } from "../supabase/articleService";
 import { CATEGORY_TREE as FALLBACK_CATEGORY_TREE } from "../data/categories.js";
 import useLocations from "../data/useLocations.js";
+import { productCondition } from "./productCondition.js";
 import ArticleFields from "./ArticleFields";
 import PhotoOrderControls from "./PhotoOrderControls.jsx";
 import { movePhoto } from "./photoOrder.js";
@@ -14,7 +15,8 @@ import { PUBLICATION_STEPS, publicationStepError } from "./publicationSteps.js";
 import "./PublishModal.css";
 import { notifyCreditBalance } from "./creditBalance.js";
 import { photoFitZoom, photoCropDrawRect } from "./photoCropGeometry.js";
-import { detectContactoProhibido } from "./articleValidation";
+import {validatePublicationText} from './articleValidation.js';
+import {cachedPublicationRules} from '../supabase/publicationRules.js';
 
 // ✅ regla social: tope máximo para ventas
 const MAX_VENTA_COP = 500000;
@@ -118,7 +120,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     wizardForm.current?.scrollTo({top:0});
     stepHeading.current?.focus({preventScroll:true});
   },[step,isOpen]);
-  const stepProblem = index => publicationStepError(index,{selectedMode,formData,files,categories:CATEGORY_TREE,locations:LOCATIONS});
+  const stepProblem = index => publicationStepError(index,{selectedMode,formData,files,categories:CATEGORY_TREE,locations:LOCATIONS,rules:cachedPublicationRules()});
   const goToStep = next => {setStepError('');setStep(next);};
   const advance = () => {const problem=stepProblem(step);if(problem){setStepError(problem);return;}goToStep(step+1);};
 
@@ -430,8 +432,9 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     if(!quote.sufficient){setStepError('Revisa tu saldo o quita el destacado antes de publicar.');return;}
 
     // ✅ Validar que la descripción no tenga datos de contacto
-    const contactError = detectContactoProhibido(formData.description);
+    const contactError = validatePublicationText(formData.title,formData.description,cachedPublicationRules());
     if (contactError) {
+      setStep(2);setStepError(contactError);
       return;
     }
 
@@ -574,7 +577,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
               <div className="publish-review-photos">{previews.map((src,index)=><img key={src} src={src} alt={`Foto ${index+1} del artículo`}/>)}</div>
               <div className="publish-review-line"><span>{selectedMode==='venta'?'Venta':'Donación'}</span><button type="button" onClick={()=>goToStep(0)}>Cambiar tipo</button></div>
               <h4>{formData.title}</h4><strong className="publish-review-price">{selectedMode==='venta'?new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(formData.price)):'Gratis'}</strong>
-              <dl><dt>Categoría</dt><dd>{formData.category} · {formData.subcategory}</dd><dt>Estado</dt><dd>{formData.conditionScore}/10</dd><dt>Ubicación</dt><dd>{formData.city}, {formData.locality}</dd></dl>
+              <dl><dt>Categoría</dt><dd>{formData.category} · {formData.subcategory}</dd><dt>Estado</dt><dd>{formData.conditionScore}/10 · {productCondition(formData.conditionScore)?.label}</dd><dt>Ubicación</dt><dd>{formData.city}, {formData.locality}</dd></dl>
               <p className="publish-review-description">{formData.description}</p>
               <div className="publish-review-edit"><button type="button" onClick={()=>goToStep(1)}>Editar fotos</button><button type="button" onClick={()=>goToStep(2)}>Editar artículo</button><button type="button" onClick={()=>goToStep(3)}>Editar ubicación</button></div>
             </section>

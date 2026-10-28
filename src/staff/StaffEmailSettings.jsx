@@ -5,6 +5,7 @@ import StaffEmailPreview from './StaffEmailPreview.jsx';
 import {EMAIL_EVENTS} from '../config/emailNotifications.js';
 
 export default function StaffEmailSettings({onReady,onAccessExpired}){
+ const [deliveryStatus,setDeliveryStatus]=useState(null);
  const [data,setData]=useState(null),[form,setForm]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const load=useCallback(async()=>{
   setBusy(true);setError('');
@@ -20,6 +21,15 @@ export default function StaffEmailSettings({onReady,onAccessExpired}){
   try{const value=await staffRpc('staff_email_save',{p_enabled:form.enabled,p_limit:Number(form.daily_limit),p_events:form.events,p_version:data.settings.updated_at});setData(value);setForm(value.settings);onReady?.();setNotice('Configuración guardada.');}
   catch(err){setError(err.message||'No se pudo guardar.');}finally{setBusy(false);}
  };
+ const checkDelivery=async()=>{
+  setBusy(true);setError('');setNotice('');
+  try{
+   const {data:session}=await staffClient.auth.getSession();
+   const response=await fetch('/api/email-dispatch?check=1',{method:'POST',headers:{Authorization:`Bearer ${session?.session?.access_token||''}`}});
+   const result=await response.json();if(!response.ok)throw new Error(result.error||'No se pudo comprobar el servidor.');
+   setDeliveryStatus(result);
+  }catch(err){setError(err.message);}finally{setBusy(false);}
+ };
  const dispatch=async()=>{
   setBusy(true);setError('');setNotice('');
   try{
@@ -32,6 +42,13 @@ export default function StaffEmailSettings({onReady,onAccessExpired}){
  return <section aria-labelledby="staff-email-title">
   <div className="staff-location-list-heading"><h2 id="staff-email-title"><Mail size={19} aria-hidden="true"/> Correos de actividad</h2><button type="button" className="staff-button" disabled={busy} onClick={load}><RefreshCw size={15}/>Actualizar</button></div>
   <p>Controla los avisos de la página. Registro, activación y recuperación de contraseña se gestionan aparte en Supabase y comparten la cuota de Resend.</p>
+  <p>El interruptor controla qué avisos se guardan. El envío también requiere que el servidor tenga sus credenciales y el programador configurados.</p>
+  <button type="button" className="staff-button" disabled={busy} onClick={checkDelivery}><RefreshCw size={15}/>Comprobar configuración de envío</button>
+  {deliveryStatus&&<div role="status" className={deliveryStatus.automaticReady?'staff-item-detail':'staff-error'}>
+   <p>{deliveryStatus.automaticReady?'Servidor listo para procesar correos automáticamente.':deliveryStatus.manualReady?'El envío manual está configurado; falta habilitar el programador automático.':'El servidor aún no puede enviar correos. Activar los avisos no completa esta configuración.'}</p>
+   {!!deliveryStatus.missing?.length&&<p>Falta configurar en Vercel: {deliveryStatus.missing.join(', ')}.</p>}
+   <p>Esta comprobación no envía correos ni consume la cuota de Resend.</p>
+  </div>}
   <StaffEmailPreview/>
   {error&&<p className="staff-error" role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
   {form&&<form onSubmit={save}>
@@ -47,6 +64,6 @@ export default function StaffEmailSettings({onReady,onAccessExpired}){
   </form>}
   {data&&<><div className="staff-summary"><div><span>Intentos en 24 h</span><strong>{data.attempts24h} / {data.settings.daily_limit}</strong></div><div><span>Aceptados por Resend en 24 h</span><strong>{data.sent24h}</strong></div><div><span>Pendientes</span><strong>{data.pending}</strong></div><div><span>Fallidos o por comprobar en 24 h</span><strong>{data.failed24h}</strong></div></div>
   <p>El procesamiento automático propuesto es cada 15 minutos, en lotes de hasta 3. Requiere configurar y habilitar el servidor al publicar. Sin consultas periódicas desde tu navegador. Los errores de cuota o credenciales pausan los avisos; una entrega incierta no se reenvía automáticamente.</p>
-  <button type="button" className="staff-button" onClick={dispatch} disabled={busy||dirty||!data.settings.enabled||!data.pending}><Send size={16}/>Procesar hasta 3 pendientes</button></>}
+  <button type="button" className="staff-button" onClick={dispatch} disabled={busy||dirty||!data.settings.enabled||!data.pending||deliveryStatus?.manualReady===false}><Send size={16}/>Procesar hasta 3 pendientes</button></>}
  </section>;
 }

@@ -9,7 +9,8 @@ import {
 } from "../supabase/articleService";
 import { X, Camera, Loader2, Trash2, Plus, RefreshCw } from "lucide-react";
 import ArticleFields from "./ArticleFields";
-import { detectContactoProhibido } from "./articleValidation";
+import {validatePublicationText} from './articleValidation.js';
+import {cachedPublicationRules} from '../supabase/publicationRules.js';
 import PhotoOrderControls from "./PhotoOrderControls.jsx";
 import { movePhoto,orderPhotos } from "./photoOrder.js";
 import { getEditableArticle } from "./editArticleData";
@@ -83,7 +84,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
 
     setLoading(true);
 
-    const contactError = detectContactoProhibido(formData.description);
+    const contactError = validatePublicationText(formData.title,formData.description,cachedPublicationRules());
     if (contactError) {
       setLoading(false);
       return alert(contactError);

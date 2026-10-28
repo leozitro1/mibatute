@@ -194,3 +194,6 @@
 @media(max-width:639px) {
   .user-profile .profile-article-side [data-profile-actions] { justify-content:center; }
 }
+
+.credit-balance-value { position:relative;display:inline-block;border-radius:8px;isolation:isolate; }
+.credit-balance-sparkle { position:absolute;right:-16px;top:-9px;color:#b98018;opacity:0;pointer-events:none; }

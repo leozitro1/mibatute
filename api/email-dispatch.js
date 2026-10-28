@@ -2,6 +2,7 @@ import {Buffer} from 'node:buffer';
 import process from 'node:process';
 import {timingSafeEqual} from 'node:crypto';
 import {createClient} from '@supabase/supabase-js';
+import {emailDeliveryConfig} from '../server/emailDeliveryConfig.js';
 import {deliverNotifications} from '../server/emailNotifications.js';
 
 export const maxDuration=60;
@@ -22,6 +23,7 @@ export default async function handler(req,res){
   const {error}=await userClient.rpc('staff_email_settings');
   if(error)return send(res,403,{error:'Acceso no autorizado.'});
  }
+ if(req.method==='POST'&&new URL(req.url||'/api/email-dispatch','http://localhost').searchParams.get('check')==='1')return send(res,200,{...emailDeliveryConfig(),sent:0});
  if(process.env.EMAIL_NOTIFICATIONS_ENABLED!=='true')return send(res,200,{configured:false,sent:0,error:'El envío real está desactivado en este entorno.'});
  const apiKey=process.env.RESEND_API_KEY,from=process.env.NOTIFICATION_EMAIL_FROM,key=process.env.SUPABASE_SERVICE_ROLE_KEY;
  if(!apiKey||!from||!key||!url)return send(res,503,{configured:false,error:'Falta configurar el remitente o las credenciales del servidor.'});

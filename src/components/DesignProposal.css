@@ -74,7 +74,7 @@
 .mb-design-preview .product-card-body > p.text-gray-400 { color: #69756a; }
 .mb-design-preview .product-card-mode { background: #ffffffed; color: #344b3d; font-weight: 600; text-transform: none; letter-spacing: 0; border: 1px solid #e5e9e1; }
 .mb-design-preview .product-card > .product-card-photo > .bg-treasure-gold { background: #ffdbb5; color: #7c3916; font-weight: 600; }
-.mb-design-preview .product-card-condition > span { background: #fffffff2; color: #3d5947; font-weight: 500; box-shadow: none; border: 1px solid #e1e8dd; }
+.mb-design-preview .product-card-condition > span { font-weight: 500; box-shadow: none; }
 .mb-design-preview .product-card-applicants { font-weight: 500; box-shadow: none; }
 .mb-design-preview .product-card-actions > span { font-weight: 650; letter-spacing: -.3px; }
 .mb-design-preview .product-card-actions button { background: #f0f5ec; border-color: #e0e9d9; color: #2d5a27; font-weight: 600; border-radius: 8px; min-height: 44px; }

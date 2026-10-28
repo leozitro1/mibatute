@@ -1,18 +1,13 @@
 import StyledSelect from "./StyledSelect.jsx";
 import { useId } from "react";
 import useLocations from "../data/useLocations.js";
-import { detectContactoProhibido } from "./articleValidation";
+import {publicationTextIssue,PUBLICATION_CONTACT_NOTICE} from './articleValidation.js';
+import usePublicationRules from './usePublicationRules.js';
+
+import { productCondition } from "./productCondition.js";
+import "./ProductCondition.css";
 
 const MAX_VENTA_COP = 500000;
-
-function conditionMeta(raw) {
-  const v = Math.max(1, Math.min(10, Number(raw) || 1));
-  if (v <= 3) return { label: "Muy deteriorado", cls: "bg-red-50 text-red-700 border-red-200" };
-  if (v <= 6) return { label: "Uso medio", cls: "bg-yellow-50 text-yellow-800 border-yellow-200" };
-  if (v <= 8) return { label: "Buen estado", cls: "bg-green-50 text-green-700 border-green-200" };
-  return { label: "Casi nuevo", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
-}
-
 
 export default function ArticleFields({ formData, setFormData, categories, disabled = false, lockMode = false, section = 'all', hideMode = false, preserveLocation = false }) {
   const { LOCATIONS } = useLocations();
@@ -23,8 +18,12 @@ export default function ArticleFields({ formData, setFormData, categories, disab
   const subOptions = getSubsForCategory(categories, formData.category);
   const localities = LOCATIONS[formData.city] || [];
   const exceedsMaxVenta = formData.mode === "venta" && Number(formData.price) > MAX_VENTA_COP;
-  const descError = detectContactoProhibido(formData.description);
+  const condition = productCondition(formData.conditionScore) || productCondition(8);
+  const rules=usePublicationRules();
+  const titleError=publicationTextIssue(formData.title,rules);
+  const descError=publicationTextIssue(formData.description,rules);
   return <div className="space-y-4">
+            <p id={`${fieldId}-contact-policy`} className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">{PUBLICATION_CONTACT_NOTICE}</p>
             {section!=='location'&&<>
             {/* Título */}
             <div>
@@ -34,10 +33,14 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 type="text"
+                maxLength={160}
+                aria-describedby={`${fieldId}-contact-policy${titleError?' '+fieldId+'-title-error':''}`}
+                aria-invalid={!!titleError}
                 placeholder="Ej: Licuadora funcionando / repuestos..."
                 className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none focus:border-forest-green"
                 disabled={disabled}
               />
+              {titleError&&<p id={`${fieldId}-title-error`} role="status" className="mt-1 text-xs text-red-700">{titleError}</p>}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -165,34 +168,33 @@ export default function ArticleFields({ formData, setFormData, categories, disab
             </>}
             {section!=='location'&&<>
             {/* Condición */}
-            <div>
+            <div style={{ '--condition-color': condition.color }}>
               <label htmlFor={`${fieldId}-conditionScore`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Estado del producto (1-10)</label>
               <input id={`${fieldId}-conditionScore`}
                 type="range"
                 min="1"
                 max="10"
-                value={formData.conditionScore}
+                step="1"
+                value={condition.score}
                 onChange={(e) => setFormData({ ...formData, conditionScore: Number(e.target.value) })}
-                className="w-full"
+                className="product-condition-slider"
+                style={{ accentColor: condition.color }}
+                aria-valuetext={`${condition.score} de 10: ${condition.label}. ${condition.description}`}
+                aria-describedby={`${fieldId}-condition-guide`}
                 disabled={disabled}
               />
-              {(() => {
-                const meta = conditionMeta(formData.conditionScore);
-                return (
-                  <div className={`inline-flex items-center px-2 py-1 border rounded-lg text-xs ${meta.cls}`}>
-                    {meta.label} ({formData.conditionScore}/10)
-                  </div>
-                );
-              })()}
+              <div className="product-condition-endpoints" aria-hidden="true"><span>1 · Muy deteriorado</span><span>10 · Nuevo</span></div>
+              <div id={`${fieldId}-condition-guide`} className="product-condition-guide" aria-live="polite" aria-atomic="true">
+                <strong>{condition.score}/10 · {condition.label}</strong>
+                <p>{condition.description}</p>
+                <small>Describe las fallas y muéstralas en las fotos. El estado es informado por quien publica.</small>
+              </div>
             </div>
 
             {/* Descripción */}
             <div>
               <label htmlFor={`${fieldId}-description`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Descripción</label>
-              <p className="mb-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 font-medium leading-snug">
-                🔒 <strong>No incluyas datos de contacto</strong> (teléfonos, correos, redes sociales). Esto es por tu seguridad y la de la comunidad. Tu cuenta podría ser bloqueada.
-              </p>
-              <textarea id={`${fieldId}-description`}
+              <textarea id={`${fieldId}-description`} maxLength={4000} aria-describedby={`${fieldId}-contact-policy`} aria-invalid={!!descError}
                 value={formData.description}
                 onChange={(e) => {
                   const val = e.target.value;

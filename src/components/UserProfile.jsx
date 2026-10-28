@@ -7,6 +7,7 @@ import { notifyCreditBalance } from './creditBalance.js';
 import { accountCreditStatus } from '../supabase/donationApplications.js';
 import './UserProfile.css';
 import './TransactionActions.css';
+import CreditBalanceValue from './CreditBalanceValue.jsx';
 import WompiTopupDialog from './WompiTopupDialog.jsx';
 import SupportInbox from './SupportInbox.jsx';
 import UserConversationInbox from './UserConversationInbox.jsx';
@@ -2645,7 +2646,7 @@ export default function UserProfile({
               <div className="flex-1 min-w-[140px]">
                 <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">{isUserBlocked ? 'Créditos bloqueados' : 'Saldo de créditos'}</p>
                 <p className="text-2xl font-black text-gray-800">
-                  {cuposSaldo === null ? "..." : cuposSaldo}
+                  <CreditBalanceValue value={cuposSaldo}/>
                   <span className="text-sm font-semibold text-gray-400 ml-1">crédito{cuposSaldo !== 1 ? "s" : ""}</span>
                 </p>
                 <p className="text-[11px] text-gray-400 mt-0.5">{isUserBlocked ? 'El saldo se conserva, pero no puede utilizarse mientras la cuenta esté bloqueada.' : 'Los créditos sirven para destacar, solicitar donaciones adicionales o reservar compras adicionales. Los destacados no son reembolsables.'}</p>

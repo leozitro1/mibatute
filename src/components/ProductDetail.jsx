@@ -1,8 +1,11 @@
 // src/components/ProductDetail.jsx
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { X, MapPin, ShieldCheck, Lock, Flag, BadgeCheck, Expand } from "lucide-react";
+import { X, MapPin, ShieldCheck, Lock, Flag, BadgeCheck, Expand, CircleHelp } from "lucide-react";
 import './ProductDetail.css';
 import './ProductDetailDesign.css';
+import './ProductCondition.css';
+import { productCondition } from './productCondition.js';
+import ArticleShareButton from './ArticleShareButton.jsx';
 import ArticlePhotoViewer from './ArticlePhotoViewer.jsx';
 import { donationStatus } from '../supabase/donationApplications.js';
 import { supabase } from "../supabase/supabaseClient";
@@ -115,12 +118,6 @@ function formatCOP(value) {
   }
 }
 
-function clampInt(v, min, max) {
-  const n = Math.round(Number(v));
-  if (!Number.isFinite(n)) return null;
-  return Math.min(max, Math.max(min, n));
-}
-
 function getConditionScore(item) {
   const raw =
     item?.estado_producto ??
@@ -129,21 +126,7 @@ function getConditionScore(item) {
     item?.condition_score ??
     item?.estado_condicion ??
     item?.estado;
-  const n = clampInt(raw, 1, 10);
-  return n;
-}
-
-function conditionMeta(score) {
-  const s = clampInt(score, 1, 10);
-  if (!s) return null;
-
-  if (s <= 3)
-    return { label: "Muy deteriorado", cls: "bg-red-100 text-red-800 border-red-200" };
-  if (s <= 6)
-    return { label: "Uso medio", cls: "bg-yellow-100 text-yellow-900 border-yellow-200" };
-  if (s <= 8)
-    return { label: "Buen estado", cls: "bg-emerald-100 text-emerald-900 border-emerald-200" };
-  return { label: "Casi nuevo", cls: "bg-green-100 text-green-900 border-green-200" };
+  return productCondition(raw)?.score ?? null;
 }
 
 export default function ProductDetail({
@@ -674,7 +657,7 @@ export default function ProductDetail({
   const descripcion = item?.descripcion || item?.description || "";
 
   const conditionScore = getConditionScore(item);
-  const condition = conditionMeta(conditionScore);
+  const condition = productCondition(conditionScore);
 
   const ownerName = ownerNameResolved ? formatPublicName(ownerNameResolved) : "Vendedor";
   const ownerPhoto = stableOwnerPhoto || ownerPhotoResolved || "";
@@ -889,6 +872,13 @@ export default function ProductDetail({
                 <span className="text-xs font-black">{conditionScore}/10</span>
                 <span className="text-[10px] font-black uppercase tracking-widest">{condition.label}</span>
               </div>
+              <div className="product-condition-description">
+                {condition.description}{" "}
+                <details className="product-condition-help">
+                  <summary aria-label="Información sobre el estado del producto"><CircleHelp size={15} aria-hidden="true" /></summary>
+                  <span className="product-condition-help-text">Estado informado por quien publica.</span>
+                </details>
+              </div>
             </div>
           ) : null}
 
@@ -963,7 +953,9 @@ export default function ProductDetail({
               )}
             </div>
 
-            {!staffPreview && !isOwner && (
+            {!staffPreview && <div className="product-detail-actions">
+              {!isUnderReview && <ArticleShareButton key={articuloId} articleId={articuloId} title={titulo} />}
+              {!isOwner && (
               <button
                 type="button"
                 onClick={() => setReportOpen(true)}
@@ -973,7 +965,8 @@ export default function ProductDetail({
                 <Flag size={14} />
                 Reportar
               </button>
-            )}
+              )}
+            </div>}
           </div>
 
           {isOwner && (

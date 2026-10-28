@@ -1,0 +1,15 @@
+.product-condition-slider { display: block; width: 100%; height: 28px; margin: 6px 0; accent-color: var(--condition-color); cursor: pointer; }
+.product-condition-slider:disabled { cursor: default; opacity: .6; }
+.product-condition-slider:focus-visible { outline: 2px solid var(--condition-color); outline-offset: 3px; border-radius: 6px; }
+.product-condition-endpoints { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; font-size: 11px; color: #68736c; }
+.product-condition-guide { border: 1px solid #e5e9e3; border-left: 3px solid var(--condition-color); border-radius: 10px; padding: 12px 14px; background: #fafbf8; }
+.product-condition-guide strong { color: var(--condition-color); font-size: 13px; }
+.product-condition-guide p, .product-condition-description { margin: 5px 0 0; color: var(--color-forest-green, #2d5a27); font-size: 12px; line-height: 1.5; }
+.product-condition-guide small { display: block; margin-top: 7px; color: #68736c; font-size: 11px; line-height: 1.5; }
+
+.product-condition-help { display: inline-block; position: relative; vertical-align: middle; }
+.product-condition-help summary { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; list-style: none; color: var(--color-forest-green, #2d5a27); }
+.product-condition-help summary::-webkit-details-marker { display: none; }
+.product-condition-help summary:hover, .product-condition-help[open] summary { background: #edf3e7; }
+.product-condition-help summary:focus-visible { outline: 2px solid #2d5a27; outline-offset: 2px; }
+.product-condition-help-text { position: absolute; z-index: 2; top: 100%; right: 0; width: 180px; padding: 9px 12px; border: 1px solid #dfe6da; border-radius: 9px; background: #f5f8f1; color: #2d5a27; box-shadow: 0 3px 10px #253d2e12; font-size: 12px; font-weight: 400; line-height: 1.5; }

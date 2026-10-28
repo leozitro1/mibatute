@@ -472,10 +472,15 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
                       <Phone className="absolute left-3 top-3 text-gray-400" size={18} />
                       <input
                         type="tel"
-                        placeholder="Número móvil"
+                        placeholder="Celular de 10 dígitos"
+                        inputMode="numeric"
+                        maxLength={10}
+                        minLength={10}
+                        pattern="[0-9]{10}"
+                        title="Escribe los 10 dígitos de tu celular, sin indicativo de país."
                         className="w-full border rounded-xl p-3 pl-10 outline-none focus:ring-2 focus:ring-forest-green"
                         value={movil}
-                        onChange={(e) => setMovil(e.target.value)}
+                        onChange={(e) => setMovil(e.target.value.replace(/\D/g, "").slice(0, 10))}
                         required
                         disabled={isSubmitting}
                         autoComplete="tel"
