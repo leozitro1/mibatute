@@ -37,3 +37,11 @@ test('publication highlights the individual price and credit notices distinguish
  assert.match(purchase.text,/Gracias por recargar/);assert.match(purchase.text,/Últimas 5 recargas/);
  assert.match(purchase.text,/Los créditos comprados no vencen/);assert.match(purchase.text,/MB-EJEMPLO/);
 });
+
+
+test('only paid top-up emails identify MITRIAPP without treating it as the legal operator',()=>{
+ const purchase=renderActivityEmail(EMAIL_PREVIEWS.find(item=>item.kind==='credits_purchase'));
+ assert.match(purchase.text,/comercio puede aparecer como MITRIAPP/);assert.match(purchase.html,/comercio puede aparecer como MITRIAPP/);
+ assert.match(purchase.text,/recarga de créditos de MiBatute/);
+ for(const item of EMAIL_PREVIEWS.filter(item=>item.kind!=='credits_purchase'))assert.doesNotMatch(renderActivityEmail(item).text,/MITRIAPP/);
+});

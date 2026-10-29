@@ -5,6 +5,7 @@ import WompiTopupHistory from './WompiTopupHistory.jsx';
 import ContactButton from './ContactButton.jsx';
 import {supabase} from '../supabase/supabaseClient';
 import {PAID_TOPUPS_ENABLED,LOCAL_WOMPI_SANDBOX} from '../config/availability.js';
+import {WOMPI_MERCHANT_NOTICE} from '../config/paymentMerchant.js';
 import {CREDIT_PACKS,formatCOP} from '../config/creditPricing.js';
 
 export default function WompiTopupDialog({onClose,onConfirmed,reference=null,transactionId=null}) {
@@ -58,6 +59,7 @@ export default function WompiTopupDialog({onClose,onConfirmed,reference=null,tra
    <button type="button" aria-label="Cerrar recarga" onClick={onClose} className="site-icon-close inline-flex items-center justify-center absolute right-2 top-2 h-11 w-11 text-gray-500"><X size={20}/></button>
    <CreditCard size={24} className="mb-3 text-forest-green" aria-hidden="true"/>
    <h2 id="wompi-topup-title" className="pr-9 text-lg font-black text-gray-800">Recargar créditos</h2>
+   <p className="mt-3 rounded-xl border border-[#e1e7dc] bg-[#f8faf5] p-3 text-xs leading-relaxed text-[#596b51]"><strong className="font-semibold">Identificación del pago.</strong> {WOMPI_MERCHANT_NOTICE}</p>
    {!enabled?<p className="my-4 text-sm text-gray-600">Puedes consultar tu saldo en el perfil. Para recibir ayuda con una recarga, contacta a MiBatute.</p>:<>
     {LOCAL_WOMPI_SANDBOX&&<p className="my-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><strong>Sandbox: prueba sin dinero real.</strong> Usa únicamente los datos de prueba de Wompi. Los créditos de esta prueba solo afectan la base local.</p>}
     {error&&<p role="alert" className="my-3 text-sm text-red-700">{error}</p>}

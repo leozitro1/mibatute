@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "MiBatute",
+  "short_name": "MiBatute",
+  "description": "Publica, compra o dona artículos en MiBatute.",
+  "lang": "es-CO",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "283x283",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

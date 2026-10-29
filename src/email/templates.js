@@ -1,3 +1,4 @@
+import {WOMPI_MERCHANT_NOTICE} from '../config/paymentMerchant.js';
 import {CREDIT_UNIT_PRICE_COP,formatCOP} from '../config/creditPricing.js';
 
 const SITE = 'https://www.mibatute.com/';
@@ -30,7 +31,7 @@ const content = {
  },
  credits_purchase: {
   label:'Recarga confirmada', action:'Consultar mis créditos',
-  next:'Gracias por recargar y ayudarnos a mantener MiBatute funcionando. Los créditos de esta compra ya fueron abonados. Puedes utilizarlos para destacar, publicar una venta adicional o realizar una postulación adicional, según las reglas de cada función. Los créditos comprados no vencen. Consulta el detalle en tu perfil → Recargar créditos → Últimas 5 recargas.',
+  next:'Gracias por recargar y ayudarnos a mantener MiBatute funcionando. Los créditos de esta compra ya fueron abonados. Puedes utilizarlos para destacar, publicar una venta adicional o realizar una postulación adicional, según las reglas de cada función. Los créditos comprados no vencen. Consulta el detalle en tu perfil → Recargar créditos → Últimas 5 recargas. '+WOMPI_MERCHANT_NOTICE,
   tip:'No vuelvas a pagar para intentar corregir un saldo. Si notas una diferencia, conserva la referencia y consulta al equipo desde tu cuenta; nunca compartas datos de tarjeta ni códigos de verificación.',
  },
  credits_gift: {
