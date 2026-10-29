@@ -5,6 +5,7 @@ import { Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown, LayoutGrid, MapPin
 import { sharedArticleId } from "./components/articleShare.js";
 import Navbar from "./components/Navbar";
 import Footer from './components/Footer.jsx';
+import InstallSuggestion from './components/InstallSuggestion.jsx';
 import LegalConsentDialog from './components/LegalConsentDialog.jsx';
 import { notifyCreditBalance } from './components/creditBalance.js';
 import FilterSection from "./components/FilterSection";
@@ -1655,6 +1656,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               <button type="button" aria-pressed={!designPreview} onClick={() => changeDesign(false)}>Actual</button>
               <button type="button" aria-pressed={designPreview} onClick={() => changeDesign(true)}>Propuesta</button>
             </div>}
+            <InstallSuggestion />
             <Navbar
               onSearch={setSearchTerm}
               searchTerm={searchTerm}
@@ -1753,7 +1755,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               }}
             />
 
-            <main className="max-w-7xl mx-auto px-4 py-8">
+            <main className="marketplace-main max-w-7xl mx-auto px-4 py-8">
               <Suspense fallback={<div role="status" className="py-12 text-center">Cargando...</div>}>
               {currentView === "home" && (
                 <div className="animate-in fade-in duration-500">

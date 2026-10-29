@@ -379,13 +379,14 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
     <div className="marketplace-overlay auth-overlay fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
       <div role="dialog" aria-modal="true" aria-label={mode === "forgot" ? "Recuperar contraseña" : isRegister ? "Crear cuenta" : "Ingresar"} className="marketplace-surface marketplace-modal auth-dialog bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
         <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">
+          <div className="relative mb-6 flex flex-col items-center gap-3 text-center">
+            <img src="/logo.png" alt="MiBatute" width="88" height="88" className="h-22 w-22 object-contain" />
+            <h2 className="px-8 text-2xl font-bold text-gray-800">
               {mode === "forgot" ? "Recuperar contraseña" : isRegister ? "Crea tu cuenta" : "¡Hola de nuevo!"}
             </h2>
             <button
               onClick={handleClose}
-              className="site-icon-close inline-flex items-center justify-center p-1 hover:bg-gray-100 rounded-full"
+              className="site-icon-close absolute right-0 top-0 inline-flex items-center justify-center p-1 hover:bg-gray-100 rounded-full"
               aria-label="Cerrar"
               type="button"
               disabled={isSubmitting}

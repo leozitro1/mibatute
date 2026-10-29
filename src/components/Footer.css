@@ -1,6 +1,7 @@
 /* Keep browser layouts unchanged; compact only the installed mobile app. */
 @media (display-mode: standalone) and (max-width: 1023px) {
-  .site-footer { margin-top: 16px; }
+  .mb-design-preview > .marketplace-main { padding-bottom: 16px; }
+  .site-footer { margin-top: 0; }
   .site-footer-content { padding-block: 8px; }
   .site-footer-nav { min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
   .site-footer-links { width: max-content; min-width: 100%; flex-wrap: nowrap; justify-content: flex-start; column-gap: 20px; padding: 6px; }
