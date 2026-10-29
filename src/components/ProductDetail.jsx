@@ -6,6 +6,7 @@ import './ProductDetailDesign.css';
 import './ProductCondition.css';
 import { productCondition } from './productCondition.js';
 import { articleSize } from "../data/articleSizes.js";
+import { compactGalleryOnScroll } from './productGallery.js';
 import ArticleShareButton from './ArticleShareButton.jsx';
 import ArticlePhotoViewer from './ArticlePhotoViewer.jsx';
 import { donationStatus } from '../supabase/donationApplications.js';
@@ -162,8 +163,7 @@ export default function ProductDetail({
   const handleInformationScroll = (event) => {
     if (!window.matchMedia('(max-width: 767px)').matches) return;
     const top = event.currentTarget.scrollTop;
-    // Different thresholds prevent flicker near the collapse point.
-    setCompactGallery(current => top > 48 ? true : top <= 0 ? false : current);
+    setCompactGallery(current => compactGalleryOnScroll(current, top));
   };
 
   const [checkingApplied, setCheckingApplied] = useState(false);
