@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import ContactButton from './ContactButton.jsx';
+import './Footer.css';
 
 export default function Footer({ onHowItWorks }) {
   const today = new Date();
@@ -9,8 +10,8 @@ export default function Footer({ onHowItWorks }) {
   const linkClass = 'inline-flex min-h-11 items-center text-sm text-gray-600 hover:text-forest-green hover:underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-forest-green';
 
   return (
-    <footer className="mt-8 border-t border-gray-200 bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-4">
+    <footer className="site-footer mt-8 border-t border-gray-200 bg-white">
+      <div className="site-footer-content mx-auto max-w-7xl px-4 py-4">
         <div className="flex flex-col items-center gap-2">
           <Link to="/" className="inline-flex w-fit items-center gap-2" aria-label="MiBatute, ir al inicio">
             <img src="/logo.png" alt="" width="32" height="32" className="h-8 w-8 object-contain" />
@@ -19,8 +20,8 @@ export default function Footer({ onHowItWorks }) {
               <span className="block text-xs text-gray-500">mi basura, tu tesoro</span>
             </span>
           </Link>
-          <nav aria-label="Enlaces del pie de página" className="w-full">
-            <div className="flex w-full flex-wrap items-center justify-center gap-x-6 gap-y-1 px-1">
+          <nav aria-label="Enlaces del pie de página" className="site-footer-nav w-full">
+            <div className="site-footer-links flex w-full flex-wrap items-center justify-center gap-x-6 gap-y-1 px-1">
             <Link className={linkClass} to="/terminos">Términos y condiciones</Link>
             <Link className={linkClass} to="/privacidad">Privacidad</Link>
             <Link className={linkClass} to="/pagos">Pagos y devoluciones</Link>

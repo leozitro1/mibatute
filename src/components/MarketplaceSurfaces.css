@@ -65,3 +65,8 @@
   .marketplace-chat-article { padding: 12px; }
   .marketplace-chat [data-chat-composer] { padding-inline: 12px; }
 }
+
+/* Prevent iPhone focus zoom in installed mobile login/register/recovery forms. */
+@media (display-mode: standalone) and (max-width: 1023px) {
+  .marketplace-surface.auth-dialog :is(input:not([type="checkbox"]):not([type="radio"]), select) { font-size: 16px; }
+}
