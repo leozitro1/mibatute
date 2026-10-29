@@ -1,0 +1,19 @@
+.navbar-publish-mobile-label { display: none; }
+.navbar-account-actions { display: contents; }
+
+@media (display-mode: standalone) and (max-width: 1023px) {
+  .navbar-layout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .navbar-brand { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; }
+  .navbar-actions { display: contents; }
+  .navbar-publish-button { grid-column: 2; grid-row: 1; width: auto; min-width: 112px; height: 44px; gap: 8px; padding: 0 16px; font-size: 14px; }
+  .navbar-publish-button > svg, .navbar-publish-mobile-label { display: inline; }
+  .navbar-publish-desktop-label { display: none; }
+  .navbar-account-actions { display: flex; grid-column: 1 / -1; grid-row: 2; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+  .navbar-search-region { grid-column: 1 / -1; grid-row: 3; }
+}
+
+@media (display-mode: standalone) and (min-width: 768px) and (max-width: 1023px) {
+  .navbar-layout { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .navbar-account-actions { grid-column: 3; grid-row: 1; }
+  .navbar-search-region { grid-row: 2; }
+}

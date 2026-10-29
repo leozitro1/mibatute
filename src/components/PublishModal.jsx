@@ -509,7 +509,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
 
   return (
     <>
-      <div className="marketplace-overlay fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+      <div className="marketplace-overlay article-form-overlay fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
         <div role="dialog" aria-modal="true" aria-label="Publicar artículo" className="marketplace-surface marketplace-modal publish-article-dialog bg-white rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
           <div className="marketplace-modal-header p-4 border-b flex justify-between items-center bg-smoke-white">
             <h2 className="font-black text-gray-800 uppercase text-sm tracking-widest">Publica tu artículo</h2>

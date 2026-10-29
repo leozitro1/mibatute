@@ -169,7 +169,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
   };
 
   return (
-    <div className="marketplace-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="marketplace-overlay article-form-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div role="dialog" aria-modal="true" aria-label="Editar publicación" className="marketplace-surface marketplace-modal edit-article-dialog bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Header */}
         <div className="marketplace-modal-header bg-forest-green p-6 flex justify-between items-center text-white">

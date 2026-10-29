@@ -28,3 +28,14 @@
   .hero-banner .hero-banner-copy h2 { font-size: 28px; -webkit-line-clamp: 3; }
   .hero-banner .hero-banner-copy > p { -webkit-line-clamp: 3; }
 }
+
+@media (display-mode: standalone) and (max-width: 1023px) {
+  .hero-banner { height: 280px; margin-bottom: 16px; }
+  .hero-banner .hero-banner-content { padding-block: 16px; }
+  .hero-banner .hero-banner-copy { gap: 6px; }
+  .hero-banner .hero-banner-content .hero-banner-copy h2 { font-size: 24px; -webkit-line-clamp: 2; }
+  .hero-banner .hero-banner-copy > p { font-size: 13px; line-height: 18px; -webkit-line-clamp: 2; }
+  .hero-banner .hero-banner-controls { margin-top: 8px; }
+  .hero-banner-controls > div:first-child { flex-wrap: nowrap; overflow-x: auto; }
+  .hero-banner-controls > div:first-child > button { flex-shrink: 0; }
+}

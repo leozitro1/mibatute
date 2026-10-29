@@ -28,3 +28,13 @@
 .system-message-dialog button:focus-visible { outline: 2px solid #5b8050; outline-offset: 2px; }
 .system-message-actions button:hover, .system-message-close:hover { filter: brightness(.96); }
 @media(max-width: 480px) { .system-message-overlay { padding: 12px; }.system-message-header { padding: 16px; }.system-message-content { padding: 20px 16px; }.system-message-content h3 { font-size: 19px; }.system-message-actions { padding: 12px; gap: 6px; }.system-message-actions button { min-height: 44px; padding-inline: 8px; font-size: 11px; } }
+
+@media (display-mode: standalone) and (max-width: 1023px) {
+  .system-message-overlay { padding: 0; align-items: stretch; }
+  .system-message-dialog { height: 100%; max-width: none; max-height: 100%; border: 0; border-radius: 0; }
+  .system-message-header { flex-shrink: 0; padding-top: max(16px, env(safe-area-inset-top)); }
+  .system-message-content { flex: 1; }
+  .system-message-actions { flex-shrink: 0; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .system-message-dialog .system-message-close { width: 44px; height: 44px; }
+  .system-message-actions button { min-height: 44px; }
+}

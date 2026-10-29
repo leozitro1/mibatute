@@ -3,6 +3,7 @@ import { publicContactText } from './contactText.js';
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus, Coins, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
+import './Navbar.css';
 import useLocations from "../data/useLocations.js";
 import { supabase } from "../supabase/supabaseClient";
 import { NOTIFICATION_HISTORY_LIMIT } from './notificationHistory.js';
@@ -449,10 +450,10 @@ export default function Navbar({
         {realtimeStatus === 'RECOVERING' ? 'Actualizando tus avisos…' : 'Reconectando tus notificaciones…'}
       </p>}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap xl:flex-nowrap items-center justify-between gap-2 sm:gap-4">
+        <div className="navbar-layout max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap xl:flex-nowrap items-center justify-between gap-2 sm:gap-4">
           <button
             type="button"
-            className="flex shrink-0 items-center gap-2 sm:gap-3 cursor-pointer"
+            className="navbar-brand flex shrink-0 items-center gap-2 sm:gap-3 cursor-pointer"
             onClick={handleLogoClick}
             aria-label="MiBatute BETA, ir al inicio"
             title="Ir al inicio"
@@ -488,7 +489,7 @@ export default function Navbar({
             </div>
           </button>
 
-          <div className={`order-3 basis-full xl:order-none xl:basis-auto flex-1 min-w-0 relative${isProfile ? " opacity-40 pointer-events-none select-none" : ""}`}>
+          <div className={`navbar-search-region order-3 basis-full xl:order-none xl:basis-auto flex-1 min-w-0 relative${isProfile ? " opacity-40 pointer-events-none select-none" : ""}`}>
             <div className="navbar-search-field flex min-w-0 items-center rounded-xl border border-gray-200 bg-gray-100 focus-within:ring-2 focus-within:ring-forest-green">
               <div className="relative min-w-0 flex-1">
                 <input
@@ -579,27 +580,29 @@ export default function Navbar({
               ) : null}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+          <div className="navbar-actions flex shrink-0 items-center gap-1 sm:gap-3">
             <button
               type="button"
               onClick={handlePublish}
               disabled={publishDisabled}
               title={publishTitle}
               aria-label={publishTitle}
-              className={`inline-flex items-center justify-center h-9 w-9 sm:h-auto sm:w-auto sm:px-5 sm:py-2 rounded-lg text-xs sm:text-sm font-black transition shadow-md ${
+              className={`navbar-publish-button inline-flex items-center justify-center h-9 w-9 sm:h-auto sm:w-auto sm:px-5 sm:py-2 rounded-lg text-xs sm:text-sm font-black transition shadow-md ${
                 publishDisabled
                   ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                   : "bg-forest-green text-white hover:bg-opacity-90"
               }`}
             >
               <Plus size={19} className="sm:hidden" aria-hidden="true" />
-              <span className="hidden sm:inline">{user && isBlocked
+              <span className="navbar-publish-mobile-label" aria-hidden="true">Publicar</span>
+              <span className="navbar-publish-desktop-label hidden sm:inline">{user && isBlocked
                 ? "Publicar (bloqueado)"
                 : user && isBanned
                 ? `Publicar (${formatRemaining(remainingMs)})`
                 : "Publica gratis"}</span>
             </button>
 
+            <div className="navbar-account-actions">
             {user ? (
               <div className="relative">
                 <button
@@ -699,6 +702,7 @@ export default function Navbar({
             </a>
               </div>
             )}
+            </div>
           </div>
         </div>
       </nav>
