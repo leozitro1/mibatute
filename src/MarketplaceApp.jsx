@@ -1650,7 +1650,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       <Route
         path="/"
         element={
-          <div className={`min-h-screen bg-[#F5F5F5]${designPreview ? ' mb-design-preview' : ''}`} data-realtime-state={realtimeStatus} data-realtime-revision={realtimeRevision}>
+          <div className={`marketplace-shell min-h-screen bg-[#F5F5F5]${designPreview ? ' mb-design-preview' : ''}`} data-realtime-state={realtimeStatus} data-realtime-revision={realtimeRevision}>
             {import.meta.env.DEV && <div className="design-comparison" role="group" aria-label="Comparar diseño local">
               <span>Vista local</span>
               <button type="button" aria-pressed={!designPreview} onClick={() => changeDesign(false)}>Actual</button>

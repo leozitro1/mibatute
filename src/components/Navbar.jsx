@@ -2,7 +2,7 @@ import StyledSelect from "./StyledSelect.jsx";
 import { publicContactText } from './contactText.js';
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, MapPin, User, ChevronDown, LogOut, Bell, X, Plus, Coins, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
+import { Search, MapPin, User, Home, ChevronDown, LogOut, Bell, X, Plus, Coins, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
 import './Navbar.css';
 import useLocations from "../data/useLocations.js";
 import { supabase } from "../supabase/supabaseClient";
@@ -443,6 +443,7 @@ export default function Navbar({
     : isBanned
     ? `Sancionado. Puedes publicar en ${formatRemaining(remainingMs)}`
     : "Publica gratis";
+  const balanceLabel = isBlocked ? `${creditBalance ?? '...'} créditos bloqueados` : creditBalance === null ? 'Saldo no disponible' : `${creditBalance} créditos disponibles`;
 
   return (
     <>
@@ -603,6 +604,10 @@ export default function Navbar({
             </button>
 
             <div className="navbar-account-actions">
+            {user && <span className="navbar-mobile-balance" title={balanceLabel} aria-label={balanceLabel}>
+              {isBlocked ? <LockKeyhole size={16} aria-hidden="true" /> : <Coins size={16} aria-hidden="true" />}
+              {creditBalance === null ? '...' : creditBalance.toLocaleString('es-CO')}
+            </span>}
             {user ? (
               <div className="relative">
                 <button
@@ -638,7 +643,7 @@ export default function Navbar({
             ) : null}
 
             {user ? (
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="navbar-desktop-account flex items-center gap-1 sm:gap-2">
                 <button
                   type="button"
                   onClick={onProfileClick}
@@ -656,8 +661,8 @@ export default function Navbar({
                     {displayName}
                   </span>
                   <span className="inline-flex items-center gap-1 pr-1 text-xs font-bold tabular-nums text-gray-700"
-                    title={isBlocked ? `${creditBalance ?? '...'} créditos bloqueados` : creditBalance === null ? "Saldo no disponible" : `${creditBalance} créditos disponibles`}
-                    aria-label={isBlocked ? `${creditBalance ?? '...'} créditos bloqueados` : creditBalance === null ? "Saldo no disponible" : `${creditBalance} créditos disponibles`}>
+                    title={balanceLabel}
+                    aria-label={balanceLabel}>
                     {isBlocked ? <LockKeyhole size={16} className="shrink-0 text-gray-400" aria-hidden="true" /> : <Coins size={16} className="shrink-0 text-amber-600" aria-hidden="true" />}
                     {creditBalance === null ? '...' : creditBalance.toLocaleString('es-CO')}
                   </span>
@@ -677,7 +682,7 @@ export default function Navbar({
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="navbar-desktop-account flex items-center gap-1 sm:gap-2">
             {/* ✅ TyC siempre visible (abre en nueva pestaña) */}
 
 
@@ -705,6 +710,22 @@ export default function Navbar({
             </div>
           </div>
         </div>
+      </nav>
+
+      <nav className="mobile-app-nav" aria-label="Navegación de la app">
+        <button type="button" onClick={user ? onProfileClick : onLoginClick}
+          aria-label={user ? 'Perfil' : 'Ingresar'} title={user ? 'Perfil' : 'Ingresar'}
+          aria-current={user && isProfile ? 'page' : undefined}>
+          <User size={24} aria-hidden="true" />
+        </button>
+        <button type="button" className="mobile-app-publish" onClick={handlePublish} disabled={publishDisabled}
+          aria-label={`Publicar: ${publishTitle}`} title={publishTitle}>
+          <Plus size={22} aria-hidden="true" /><span>Publicar</span>
+        </button>
+        <button type="button" onClick={user ? () => setShowLogoutConfirm(true) : handleLogoClick}
+          aria-label={user ? 'Salir' : 'Inicio'} title={user ? 'Salir' : 'Inicio'}>
+          {user ? <LogOut size={23} aria-hidden="true" /> : <Home size={24} aria-hidden="true" />}
+        </button>
       </nav>
 
       {showLogoutConfirm && (
