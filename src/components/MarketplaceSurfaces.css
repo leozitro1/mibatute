@@ -68,6 +68,7 @@
 
 /* Prevent iPhone focus zoom in installed mobile login/register/recovery forms. */
 @media (display-mode: standalone) and (max-width: 1023px) {
+  .navbar-search-input { font-size: 16px; }
   .marketplace-overlay.auth-overlay { padding: 0; align-items: stretch; }
   .marketplace-surface.auth-dialog { width: 100%; height: 100%; max-width: none; max-height: 100%; border: 0; border-radius: 0; overflow-y: auto; }
   .auth-dialog > div { padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); }
