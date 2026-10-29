@@ -376,7 +376,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
   if (!isOpen) return null;
 
   return (
-    <div className="marketplace-overlay fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+    <div className="marketplace-overlay auth-overlay fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
       <div role="dialog" aria-modal="true" aria-label={mode === "forgot" ? "Recuperar contraseña" : isRegister ? "Crear cuenta" : "Ingresar"} className="marketplace-surface marketplace-modal auth-dialog bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
