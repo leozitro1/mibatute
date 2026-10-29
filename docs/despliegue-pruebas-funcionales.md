@@ -163,3 +163,11 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - Tres ventas gratis, o cuatro mientras exista una donación disponible con foto y descripción. Excluye pausadas, reservadas, vencidas/en revisión y la propia donación si se convierte en venta. Sin acumulación por varias donaciones ni cobros retroactivos; los excedentes mantienen el consentimiento de un crédito y el destacado es independiente.
 - Migraciones article-size-reuse-impact y donation-sale-bonus instaladas en producción en una única transacción. Verificadas columna, contador inicial cero, helper de cupo y privacidad de tabla/helper. No se modificaron saldos, SMTP ni datos de usuarios existentes.
 - 321 pruebas aprobadas, compilación y diff correctos, sin secretos locales en el artefacto del navegador. Publicación autorizada en main y el proyecto habitual; sin navegador local ni capturas. Pagos reales siguen deshabilitados y la revisión jurídica continúa pendiente.
+
+
+## Entrega autorizada del 29 de octubre: buzón y chats abiertos
+
+- Avisos del sistema con cabecera, remitente, fecha, asunto y cuerpo en párrafos; datos como motivo, saldo y referencia en bloques discretos. Se conservan contactos protegidos, lectura, eliminación confirmada y contenido como texto plano. Cierre por teclado y navegación de foco en el diálogo.
+- Conversaciones de usuarios con Solo chats abiertos seleccionado por defecto y alineado a la derecha de la explicación. Desmarcar incluye pendientes y cerrados; cada cambio vuelve a la primera página. Caché y respuestas tardías se distinguen por usuario, página y filtro; sin nuevos canales ni sondeo.
+- Migración profile-chat-open-filter instalada en producción: filtra antes de paginar 12 filas, conserva participantes y bloqueo de cuentas y la API anterior de un argumento. Comprobación posterior de compatibilidad, nueva función y permisos: cuatro resultados verdaderos. No se leen ni modifican mensajes privados para esta comprobación.
+- 323 pruebas aprobadas, compilación y diff correctos. Sin navegador local ni capturas. Publicación autorizada en main y el proyecto habitual; pagos reales y revisión jurídica conservan su estado anterior.

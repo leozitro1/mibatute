@@ -12,7 +12,7 @@ import WompiTopupDialog from './WompiTopupDialog.jsx';
 import SupportInbox from './SupportInbox.jsx';
 import UserConversationInbox from './UserConversationInbox.jsx';
 import ContactButton from './ContactButton.jsx';
-import ContactText from './ContactText.jsx';
+import SystemMessageDialog from './SystemMessageDialog.jsx';
 import { publicContactText } from './contactText.js';
 import {
   Camera,
@@ -2832,80 +2832,20 @@ export default function UserProfile({
                   ) : null}
 
                   {/* ── Modal mensaje completo ─────────────────────────────── */}
-                  {sysMsgModal && (
-                    <div
-                      className="marketplace-overlay fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4"
-                      onClick={() => setSysMsgModal(null)}
-                    >
-                      <div
-                        role="dialog" aria-modal="true" aria-labelledby="system-message-title"
-                        data-system-message-receipt={sysMsgModal.receipt_id}
-                        className="marketplace-surface marketplace-modal w-full max-w-md max-h-[85dvh] overflow-y-auto bg-white rounded-3xl shadow-2xl p-6 [overflow-wrap:anywhere]"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {/* cabecera */}
-                        <div className="flex items-start justify-between gap-3 mb-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <span className={`inline-flex items-center text-[9px] font-black uppercase px-2 py-0.5 rounded-lg ${
-                                { critical: "bg-gray-100 text-gray-700 ring-1 ring-gray-200",
-                                  warning:  "bg-gray-100 text-gray-700 ring-1 ring-gray-200",
-                                  info:     "bg-gray-100 text-gray-600 ring-1 ring-gray-200" }[sysMsgModal?.severity] || "bg-gray-100 text-gray-600 ring-1 ring-gray-200"
-                              }`}>
-                                {{ critical: "URGENTE", warning: "AVISO", info: "INFO" }[sysMsgModal?.severity] || "INFO"}
-                              </span>
-                            </div>
-                            <h3 id="system-message-title" className="text-base font-black text-gray-900 leading-snug">
-                              {publicContactText(sysMsgModal?.title || "Mensaje del sistema")}
-                            </h3>
-                            <p className="text-[11px] text-gray-400 font-medium mt-0.5">
-                              {sysMsgModal?.created_at
-                                ? new Date(sysMsgModal.created_at).toLocaleString("es-CO", { dateStyle: "long", timeStyle: "short" })
-                                : ""}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setSysMsgModal(null)}
-                            aria-label="Cerrar aviso"
-                            className="site-icon-close inline-flex items-center justify-center p-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition shrink-0"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-
-                        {/* cuerpo del mensaje */}
-                        <div className="bg-gray-50 rounded-2xl p-4 text-sm text-gray-700 font-medium leading-relaxed whitespace-pre-wrap">
-                          <ContactText text={sysMsgModal?.message} />
-                        </div>
-
-                        {/* acciones */}
-                        <div className="flex gap-2 mt-4">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              markReceipt(sysMsgModal.receipt_id, sysMsgModal.read_at ? "unread" : "read", sysMsgModal.receipt_kind);
-                              setSysMsgModal((prev) => prev ? { ...prev, read_at: prev.read_at ? null : new Date().toISOString() } : null);
-                            }}
-                            className="flex-1 py-2.5 rounded-2xl bg-gray-100 text-gray-800 font-bold text-sm hover:bg-gray-200 transition"
-                          >
-                            {sysMsgModal?.read_at ? "Marcar no leído" : "Marcar leído"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!window.confirm("¿Borrar este mensaje? No se puede deshacer.")) return;
-                              markReceipt(sysMsgModal.receipt_id, "delete", sysMsgModal.receipt_kind);
-                              setSysMsgModal(null);
-                            }}
-                            className="flex-1 py-2.5 rounded-2xl bg-red-50 text-red-700 font-bold text-sm hover:bg-red-100 transition"
-                          >
-                            Borrar
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  {sysMsgModal && <SystemMessageDialog
+                    key={sysMsgModal.receipt_id}
+                    message={sysMsgModal}
+                    onClose={() => setSysMsgModal(null)}
+                    onToggleRead={() => {
+                      markReceipt(sysMsgModal.receipt_id, sysMsgModal.read_at ? "unread" : "read", sysMsgModal.receipt_kind);
+                      setSysMsgModal(previous => previous ? { ...previous, read_at: previous.read_at ? null : new Date().toISOString() } : null);
+                    }}
+                    onDelete={() => {
+                      if (!window.confirm("¿Borrar este mensaje? No se puede deshacer.")) return;
+                      markReceipt(sysMsgModal.receipt_id, "delete", sysMsgModal.receipt_kind);
+                      setSysMsgModal(null);
+                    }}
+                  />}
 
                   {/* ── Buzón vacío ────────────────────────────────────────── */}
                   {sysMsgs.length === 0 && !sysMsgsLoading && (

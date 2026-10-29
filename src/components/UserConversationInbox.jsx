@@ -5,17 +5,19 @@ import {listenMarketSignals} from './marketSignals.js';
 
 export default function UserConversationInbox({userId,isActive,onOpenChat}){
  const [page,setPage]=useState(1),[data,setData]=useState({rows:[],hasMore:false}),[busy,setBusy]=useState(false),[error,setError]=useState(''),[opening,setOpening]=useState(null);
+ const [onlyOpen,setOnlyOpen]=useState(true);
+ const filterKey=JSON.stringify([userId,page,onlyOpen]);
  const sequence=useRef(0),loaded=useRef(null),[revision,setRevision]=useState(0);
  const load=useCallback(async()=>{
   const request=++sequence.current;setBusy(true);setError('');
   try{
-   const {data:result,error:failure}=await supabase.rpc('profile_chat_history',{p_page:page});
+   const {data:result,error:failure}=await supabase.rpc('profile_chat_history',{p_page:page,p_open_only:onlyOpen});
    if(failure)throw failure;
-   if(sequence.current===request){setData(result||{rows:[],hasMore:false});loaded.current=page;}
+   if(sequence.current===request){setData(result||{rows:[],hasMore:false});loaded.current=filterKey;}
   }catch{if(sequence.current===request)setError('No se pudieron cargar las conversaciones. Intenta actualizar.');}
   finally{if(sequence.current===request)setBusy(false);}
- },[page]);
- useEffect(()=>{if(isActive&&loaded.current!==page)load();},[isActive,page,load,revision]);
+ },[page,onlyOpen,filterKey]);
+ useEffect(()=>{if(isActive&&loaded.current!==filterKey)load();},[isActive,filterKey,load,revision]);
  useEffect(()=>()=>{sequence.current++;},[]);
  useEffect(()=>listenMarketSignals(signal=>{
   if(signal.uid!==userId)return;
@@ -30,6 +32,7 @@ export default function UserConversationInbox({userId,isActive,onOpenChat}){
   }
   if(signal.kind==='reconnect'){loaded.current=null;setRevision(value=>value+1);}
  }),[userId]);
+ const rows=onlyOpen?data.rows.filter(row=>row.chat_status==='open'&&!['entregado','delivered'].includes(row.article_status)):data.rows;
  const open=async row=>{
   setOpening(row.chat_id);setError('');
   try{await onOpenChat?.({article:{id:row.article_id},buyerId:row.buyer_id,chatId:row.chat_id,fromInbox:true});}
@@ -37,9 +40,9 @@ export default function UserConversationInbox({userId,isActive,onOpenChat}){
   finally{setOpening(null);}
  };
  return <section className="user-conversations" aria-label="Conversaciones de ventas y rescates">
-  <div className="user-conversations-heading"><div><h3>Conversaciones de usuarios</h3><p>Ventas y rescates, incluidos los cerrados. Las conversaciones cerradas son de solo lectura; al eliminar el artículo también desaparecen sus chats.</p></div><button type="button" onClick={load} disabled={busy} title="Actualizar conversaciones" aria-label="Actualizar conversaciones"><RefreshCw size={17} className={busy?'animate-spin':''}/></button></div>
+  <div className="user-conversations-heading"><div className="user-conversations-intro"><h3>Conversaciones de usuarios</h3><p>Chats de ventas y rescates. Desmarca el filtro para ver también pendientes y cerrados. Los cerrados son de solo lectura; al eliminar el artículo desaparecen sus chats.</p></div><div className="user-conversations-tools"><label className="user-conversations-open-filter"><input type="checkbox" checked={onlyOpen} onChange={event=>{sequence.current++;loaded.current=null;setOnlyOpen(event.target.checked);setPage(1);}}/>Solo chats abiertos</label><button type="button" onClick={load} disabled={busy} title="Actualizar conversaciones" aria-label="Actualizar conversaciones"><RefreshCw size={17} className={busy?'animate-spin':''}/></button></div></div>
   {error&&<p role="alert" className="text-red-700">{error}</p>}
-  {busy?<p role="status">Cargando conversaciones…</p>:data.rows.length? <ul className="user-conversations-list">{data.rows.map(row=>{
+  {busy?<p role="status">Cargando conversaciones…</p>:rows.length? <ul className="user-conversations-list">{rows.map(row=>{
    const closed=row.chat_status==='closed'||row.article_status==='entregado';
    const pending=row.chat_status==='pending';
    return <li key={row.chat_id}><button type="button" onClick={()=>open(row)} disabled={!!opening}>
@@ -47,7 +50,7 @@ export default function UserConversationInbox({userId,isActive,onOpenChat}){
     <span className="user-conversation-copy"><strong>{row.title||'Artículo'}</strong><span>{row.other_name} · {row.mode==='venta'?'Venta':'Rescate'}</span><small>{new Date(row.activity_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'})}</small></span>
     <span className={`user-conversation-state ${closed?'is-closed':''}`}>{closed?<><LockKeyhole size={13}/>Solo lectura</>:pending?'Pendiente':row.article_status==='en_revision'?'En revisión':'Abierta'}<span>{opening===row.chat_id?'Abriendo…':'Ver chat'}</span></span>
    </button></li>;
-  })}</ul>:!error&&<p className="user-conversations-empty"><MessageCircle size={28}/>Aún no tienes conversaciones con otros usuarios.</p>}
+  })}</ul>:!error&&<p className="user-conversations-empty"><MessageCircle size={28}/>{onlyOpen?'No tienes chats abiertos. Desmarca el filtro para consultar los demás.':'Aún no tienes conversaciones con otros usuarios.'}</p>}
   {(page>1||data.hasMore)&&<div className="user-conversations-pages"><button type="button" disabled={busy||page===1} onClick={()=>setPage(value=>value-1)} aria-label="Conversaciones anteriores"><ArrowLeft size={16}/></button><span>Página {page}</span><button type="button" disabled={busy||!data.hasMore} onClick={()=>setPage(value=>value+1)} aria-label="Más conversaciones"><ArrowRight size={16}/></button></div>}
  </section>;
 }
