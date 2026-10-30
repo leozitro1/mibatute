@@ -1,0 +1,21 @@
+.local-notice-settings { flex-shrink: 0; padding: 10px 16px; border-bottom: 1px solid #e4eadd; color: #526747; }
+.local-notice-settings[open] { max-height: 42dvh; overflow-y: auto; }
+.local-notice-settings summary { min-height: 36px; padding-block: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.local-notice-settings > div { padding-top: 8px; }
+.local-notice-settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; font-size: 12px; }
+.local-notice-settings input { width: 20px; height: 20px; accent-color: #2d5a27; }
+.local-notice-settings p { margin: 6px 0; font-size: 11px; line-height: 1.6; color: #69756a; }
+.local-notice-settings button { min-height: 44px; padding: 8px 10px; margin-top: 6px; border: 1px solid #cedcc5; border-radius: 9px; background: #edf3e7; font-size: 12px; font-weight: 600; }
+.local-notice-settings button:disabled { opacity: .6; }
+.local-notice-settings p[role='alert'] { color: #a13d33; }
+.local-notice-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 350; display: flex; align-items: flex-start; gap: 10px; box-sizing: border-box; width: 100%; padding: calc(14px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 14px max(12px, env(safe-area-inset-left)); border-bottom: 1px solid #cedcc5; border-radius: 0 0 16px 16px; background: #fffffff5; box-shadow: 0 8px 28px #19332226; color: #354a3a; animation: local-notice-slide-down 280ms ease-out; }
+@keyframes local-notice-slide-down { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .local-notice-banner { animation: none; } }
+.local-notice-banner > svg { flex-shrink: 0; margin-top: 3px; color: #2d5a27; }
+.local-notice-banner > div { flex: 1; min-width: 0; }
+.local-notice-banner strong { font-size: 13px; font-weight: 600; }
+.local-notice-banner p { margin-top: 4px; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.local-notice-banner .local-notice-context { color: #69756a; font-size: 12px; -webkit-line-clamp: 1; }
+.local-notice-banner button { min-height: 44px; color: #2d5a27; font-size: 12px; font-weight: 600; }
+.local-notice-banner .local-notice-dismiss { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 44px; }
+.local-notice-banner button:focus-visible, .local-notice-settings :is(button,input,summary):focus-visible { outline: 2px solid #527749; outline-offset: 3px; }

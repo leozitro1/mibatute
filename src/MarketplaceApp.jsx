@@ -1198,6 +1198,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     market: signal => {
       const uid = notificationUidRef.current;
       if (!uid) return;
+      let foregroundNotice = null;
       if (signal.kind === 'balance') notifyCreditBalance(uid, Number(signal.saldo));
       if (signal.notice) {
         let notice = signal.notice;
@@ -1211,6 +1212,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
             notice = { ...notice, read: true, unreadCount: 0 };
         }
         saveNotificationHistory(mergeNotificationHistory(notificationsRef.current, [notice], NOTIFICATION_STATE_LIMIT), uid);
+        foregroundNotice = notice;
         if (notice.type === 'system_notice') setInboxRevision(value => value + 1);
       }
       if (signal.kind === 'application' && Number.isInteger(signal.interested_count)) {
@@ -1251,6 +1253,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               subtitle: `${article.title || 'Artículo'} · Solicitud de compra recibida.`,
               thumb: buildArticleThumb(article), read: existing?.read === true, unreadCount: existing?.read ? 0 : 1 };
             saveNotificationHistory(mergeNotificationHistory(notificationsRef.current, [notice], NOTIFICATION_STATE_LIMIT), uid);
+            foregroundNotice = notice;
           } else {
             saveNotificationHistory(notificationsRef.current.map(item => item.id === `venta-${article.id}`
               ? { ...item, read: true, unreadCount: 0 } : item), uid);
@@ -1261,7 +1264,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         saveNotificationHistory(notificationsRef.current.map(item => item.id === `venta-${signal.chat.articulo_id}`
           ? { ...item, title: 'Venta en curso', read: true, unreadCount: 0 } : item), uid);
       }
-      dispatchMarketSignal({ ...signal, uid });
+      dispatchMarketSignal({ ...signal, uid, foregroundNotice });
     },
     reconnect: () => {
       // Coalesce socket flaps. Recover missed personal state, then notifications;
@@ -1667,6 +1670,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               notifChatCount={notifChatCount}
               isProfile={currentView === "profile"}
               mobileCatalogHome={mobileApp && currentView === 'home'}
+              appMode={mobileApp}
+              activeChatId={chatOpen?.chat?.id || null}
               profileHeaderRef={setMobileProfileHeader}
               notifications={historyUidRef.current === currentUser?.id ? notifications.map(item=>({...item,read:item.read||!!item.bellRead})) : []}
               onNotificationsOpen={() => { if (!realtimeReadyRef.current) loadNotifications({ reuseCached: true }); }}

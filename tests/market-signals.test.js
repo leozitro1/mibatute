@@ -80,7 +80,7 @@ test('reconnect reads use an ordered cursor and page through more than 100 misse
   assert.equal(result.length,101);assert.match(calls[0],/id.gt.initial/);assert.match(calls[1],/id.gt.m99/);
 });
 
-test('database signals target only recipients, exclude private bodies and ignore idle/counter updates', async () => {
+test('database signals target only recipients, bound private previews and ignore idle/counter updates', async () => {
   const db = new PGlite();
   const id = n => `10000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
   try {
@@ -108,6 +108,19 @@ test('database signals target only recipients, exclude private bodies and ignore
     await db.exec(`insert into chat_messages(id,chat_id,sender_id,body) values('${id(3)}','${id(2)}','${id(11)}','CUERPO PRIVADO');`);
     let rows=await signals();assert.equal(rows.length,1);assert.equal(rows[0].topic,`mb:inbox:user:${id(10)}`);
     assert.equal(rows[0].payload.notice.type,'chat');assert.ok(rows[0].private);assert.ok(!JSON.stringify(rows).includes('CUERPO'));
+    const previews=await readFile(new URL('../supabase/migrations/2026-10-30-local-message-preview.sql',import.meta.url),'utf8');
+    await db.exec('truncate realtime.messages');
+    await db.exec(previews);await db.exec(previews);
+    assert.deepEqual(await signals(),[],'Enabling previews does not replay message history');
+    await db.query('insert into chat_messages(id,chat_id,sender_id,body) values($1,$2,$3,$4)',[id(6),id(2),id(11),'Vista privada '.repeat(40)]);
+    rows=await signals();assert.equal(rows.length,1,'No additional event for the preview');
+    assert.equal(rows[0].topic,`mb:inbox:user:${id(10)}`);assert.ok(rows[0].private);
+    assert.equal(rows[0].payload.message_preview.length,240);
+    assert.ok(rows[0].payload.message_preview.startsWith('Vista privada'));
+    assert.ok(!JSON.stringify(rows[0].payload.notice).includes('Vista privada'),'Body stays outside persisted notice');
+    await db.exec('truncate realtime.messages');
+    await db.query('insert into chat_messages(id,chat_id,sender_id,body) values($1,$2,$3,$4)',[id(7),id(2),id(99),'Intruso']);
+    assert.deepEqual(await signals(),[],'A sender outside the conversation gets no signal');
     await db.exec(`truncate realtime.messages;update chats set last_message_at=now(),updated_at=now();
       update articulos set interested_count=interested_count+1,updated_at=now();update usuarios set nombre='Otro nombre';`);
     assert.deepEqual(await signals(),[],'No signal for message timestamps, counters, or unrelated profile edits');

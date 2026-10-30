@@ -66,6 +66,10 @@
   .marketplace-chat [data-chat-composer] { padding-inline: 12px; }
 }
 
+@media (max-width: 1023px) {
+  .marketplace-chat [data-chat-composer] textarea { font-size: 16px; }
+}
+
 /* Installed mobile app: full-screen forms and readable inputs without focus zoom. */
 @media (display-mode: standalone) and (max-width: 1023px) {
   .navbar-search-input { font-size: 16px; }

@@ -1,0 +1,7 @@
+.app-update-banner { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; padding: max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 12px max(12px,env(safe-area-inset-left)); background: #fb8500; color: #301900; }
+.app-update-banner > svg { flex-shrink: 0; }
+.app-update-banner > div { flex: 1; min-width: 0; }
+.app-update-banner strong { font-size: 13px; font-weight: 700; }
+.app-update-banner p { margin-top: 3px; font-size: 12px; line-height: 1.4; }
+.app-update-banner button { flex-shrink: 0; max-width: 112px; min-height: 44px; padding: 8px 10px; border-radius: 10px; border: 1px solid #301900; background: #fff5e7; color: #301900; font-size: 12px; font-weight: 700; line-height: 1.4; }
+.app-update-banner button:focus-visible { outline: 2px solid #301900; outline-offset: 3px; }

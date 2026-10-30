@@ -8,6 +8,9 @@ import useLocations from "../data/useLocations.js";
 import { supabase } from "../supabase/supabaseClient";
 import { NOTIFICATION_HISTORY_LIMIT } from './notificationHistory.js';
 import { CREDIT_BALANCE_CHANGED } from './creditBalance.js';
+import useLocalAppNotices from './useLocalAppNotices.js';
+import { LocalNoticeBanner, LocalNoticeSettings } from './LocalAppNotices.jsx';
+import AppUpdateBanner from './AppUpdateBanner.jsx';
 
 const logoMiBatute = "/logo.png";
 
@@ -82,6 +85,7 @@ function NotificationsDropdown({
   hasUnread,
   marking,
   markError,
+  localPreferences,
   emptyText = "No tienes notificaciones",
 }) {
   const panelRef = useRef(null);
@@ -118,7 +122,7 @@ function NotificationsDropdown({
   return (
     <div
       ref={panelRef}
-      className="marketplace-surface marketplace-notifications fixed right-3 top-16 sm:absolute sm:right-0 sm:top-[44px] w-[360px] max-w-[calc(100vw-24px)] bg-white border border-gray-200 shadow-xl rounded-lg overflow-hidden z-[80]"
+      className={`marketplace-surface marketplace-notifications fixed right-3 top-16 sm:absolute sm:right-0 sm:top-[44px] w-[360px] max-w-[calc(100vw-24px)] bg-white border border-gray-200 shadow-xl rounded-lg overflow-hidden z-[80]${localPreferences ? ' max-h-[85dvh] flex flex-col' : ''}`}
       role="menu"
       aria-label="Notificaciones"
     >
@@ -135,6 +139,7 @@ function NotificationsDropdown({
         </button>
       </div>
 
+      {localPreferences}
       {onMarkAllRead && <div className="px-4 py-2 border-b border-gray-100">
         <button type="button" onClick={onMarkAllRead} disabled={marking||!hasUnread}
           aria-label="Marcar todas como leídas" title="Marcar todas como leídas"
@@ -145,7 +150,7 @@ function NotificationsDropdown({
         {markError&&<p role="alert" className="mt-1 text-xs text-red-700">{markError}</p>}
       </div>}
 
-      <div className="max-h-[60vh] overflow-auto">
+      <div className="max-h-[60vh] min-h-0 overflow-auto">
         {!items?.length ? (
           <div className="p-6 text-center">
             <p className="text-sm text-gray-500 font-bold">{emptyText}</p>
@@ -238,6 +243,8 @@ export default function Navbar({
   isProfile = false,
   profileHeaderRef,
   mobileCatalogHome = false,
+  appMode = false,
+  activeChatId = null,
   realtimeStatus = "CONNECTING",
 }) {
   const { ACTIVE_COLOMBIA_DATA } = useLocations();
@@ -361,6 +368,7 @@ export default function Navbar({
 
   const msgBtnRef = useRef(null);
   const [openNotifs, setOpenNotifs] = useState(false);
+  const localNotices = useLocalAppNotices({uid:user?.id,active:appMode && !isBlocked && !user?.is_blocked && !user?.bloqueado,items:notifications,activeChatId});
   const [markingNotifications,setMarkingNotifications]=useState(false);
   const [notificationMarkError,setNotificationMarkError]=useState('');
   const markingRef=useRef(false);
@@ -449,10 +457,14 @@ export default function Navbar({
 
   return (
     <>
+      <LocalNoticeBanner notice={localNotices.banner} onClose={localNotices.dismissBanner} onView={() => {
+        localNotices.dismissBanner();setOpenNotifs(true);msgBtnRef.current?.focus({preventScroll:true});
+      }} />
       {user && !['CONNECTING', 'SUBSCRIBED'].includes(realtimeStatus) && <p role="status" className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-800">
         {realtimeStatus === 'RECOVERING' ? 'Actualizando tus avisos…' : 'Reconectando tus notificaciones…'}
       </p>}
       <nav className={`bg-white border-b border-gray-200 sticky top-0 z-50${isProfile ? ' navbar-profile' : ''}${mobileCatalogHome ? ' navbar-mobile-catalog' : ''}`}>
+        <AppUpdateBanner active={appMode} />
         <div className="navbar-layout max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap xl:flex-nowrap items-center justify-between gap-2 sm:gap-4">
           {isProfile && <div ref={profileHeaderRef} className="navbar-profile-identity" />}
           <button
@@ -640,6 +652,7 @@ export default function Navbar({
                   hasUnread={notifications.some(item=>!item.read&&item.unreadCount>0)}
                   marking={markingNotifications}
                   markError={notificationMarkError}
+                  localPreferences={appMode && user ? <LocalNoticeSettings controller={localNotices} /> : null}
                   emptyText="No tienes notificaciones"
                 />
               </div>
