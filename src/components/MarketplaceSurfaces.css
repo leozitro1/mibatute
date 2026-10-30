@@ -50,6 +50,8 @@
 .marketplace-chat [data-chat-composer] { flex-shrink: 0; background: #fff; padding: 12px 16px max(12px,env(safe-area-inset-bottom)); }
 .marketplace-chat [data-chat-composer] textarea { border-radius: 12px; padding: 12px; }
 .marketplace-chat [data-chat-composer] button { height: 48px; border-radius: 10px; font-size: 13px; padding-inline: 18px; }
+.marketplace-chat .chat-safety-reminder { display: flex; align-items: flex-start; justify-content: center; gap: 6px; margin-top: 10px; color: #69756a; font-size: 11px; line-height: 1.5; text-align: center; }
+.marketplace-chat .chat-safety-reminder svg { flex-shrink: 0; margin-top: 1px; color: #527349; }
 .marketplace-chat [data-chat-pickup] { flex-shrink: 1; min-height: 0; background: #fafbf8; }
 .marketplace-chat [data-chat-pickup]:has(.pickup-proposal-form) { max-height: calc(var(--chat-viewport-height,100dvh) * .6); }
 .marketplace-chat .pickup-proposal-actions { position: sticky; bottom: 0; z-index: 1; padding: 12px 0; border-top: 1px solid #e1e7dc; background: #fff; }
@@ -73,7 +75,7 @@
   .marketplace-chat-overlay { top: var(--chat-viewport-top,0px); bottom: auto; height: var(--chat-viewport-height,100dvh); }
   .marketplace-chat-overlay .marketplace-chat { height: 100%; max-height: 100%; min-height: 0; }
   .marketplace-chat-header { flex-shrink: 0; }
-  .marketplace-chat [data-chat-composer] { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  .marketplace-chat [data-chat-composer] { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }
   .marketplace-chat .chat-composer-row { display: flex; flex-wrap: nowrap; align-items: flex-end; }
   /* The shared form selector has high specificity; iOS needs at least 16px. */
   .marketplace-chat :is(input,select,textarea) { font-size: 16px !important; }

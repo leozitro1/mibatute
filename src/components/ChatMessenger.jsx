@@ -1,6 +1,6 @@
 // src/components/ChatMessenger.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Flag, X } from 'lucide-react';
+import { Flag, ShieldCheck, X } from 'lucide-react';
 import { supabase } from "../supabase/supabaseClient";
 import { submitChatReport } from '../supabase/reports.js';
 import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
@@ -832,7 +832,7 @@ export default function ChatMessenger({
           <div className="min-w-0 flex-1">
             <p className="font-black text-gray-900 truncate">{otherName}</p>
             <p className="text-[10px] font-black uppercase text-gray-400">
-              {estado} {chatClosed ? "· chat cerrado" : ""} {role ? `· ${role}` : ""}
+              {estado} {chatClosed ? "· chat cerrado" : ""} {role === 'buyer' ? '· Comprador' : role === 'seller' ? '· Vendedor' : ''}
             </p>
           </div>
 
@@ -1042,6 +1042,10 @@ export default function ChatMessenger({
               </button>
             </div>
           )}
+          {!readOnly && <p className="chat-safety-reminder">
+            <ShieldCheck size={15} aria-hidden="true" />
+            <span>Cuida tus datos: no compartas claves ni códigos. Evita anticipos y verifica el pago antes de entregar.</span>
+          </p>}
         </div>
         </div>
       </div>
