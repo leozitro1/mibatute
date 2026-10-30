@@ -33,7 +33,7 @@ import './components/MarketplaceSurfaces.css';
 import CategoryIcon from './components/CategoryIcon';
 import { deleteArticleImages, getArticleWithImages } from "./supabase/articleService";
 import { transitionSale } from "./supabase/saleTransaction";
-import { readArticleContext, readNotificationChatContext, resolveChatBuyerId, validateTransactionChat } from "./supabase/articleContext";
+import { readArticleContext, donationNotificationTarget, readNotificationChatContext, resolveChatBuyerId, validateTransactionChat } from "./supabase/articleContext";
 import { saleDeletionBlocked, isSaleApproved } from './components/articleState.js';
 import { queryArticlesWithCondition } from "./supabase/articleQuery";
 
@@ -835,7 +835,7 @@ export default function MarketplaceApp() {
           : await readArticleContext(supabase, articuloId);
         const historicalChat = expectedChatId && article.transaction_chat?.status === 'closed';
         const inboxChat = fromInbox && expectedChatId && article.transaction_chat;
-        if (isInReview(article)) return alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
+        if (isInReview(article) && !inboxChat) return alert("Este artículo está en revisión. Puedes consultar su historial desde el buzón.");
         const isSale = normTipo(article.mode || article.tipo) === "venta";
         const buyerId = resolveChatBuyerId({ article, chat: expectedChatId ? article.transaction_chat : null, userId: uid, otherUserId: requestedBuyerId });
         if (!historicalChat && !inboxChat && isSale && (!article.buyer_id || !["reservado", "entregado"].includes(normEstado(article.estado || article.status)))) {
@@ -1489,12 +1489,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     }
   };
 
-  const cancelSale = async (articleId) => {
-    const { article } = await transitionSale(supabase, articleId, "cancel");
-    applyArticleUpdate(article);
-    return article;
-  };
-
   // ✅ ELIMINAR PUBLICACIÓN
   const deleteArticle = async (articleId) => {
     const uid = getActiveUid();
@@ -1704,7 +1698,13 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 }
 
                 if (item?.type === "postulacion") {
-                  await openManageFromNotif(item?.articulo_id);
+                  try {
+                    const target = await donationNotificationTarget(supabase, { articleId: item.articulo_id, userId: uid, notificationId: item.id });
+                    setIsManageOpen(false);
+                    setManageArticle(null);
+                    setProfileNotificationTarget(target);
+                    setCurrentView("profile");
+                  } catch (error) { alert(error.message); }
                   return;
                 }
 
@@ -2121,6 +2121,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 <UserProfile
                   mobileHeaderTarget={mobileProfileHeader}
                   notificationTarget={profileNotificationTarget}
+                  onNotificationHandled={target => setProfileNotificationTarget(previous => previous === target ? null : previous)}
                   user={currentUser}
                   myProducts={myProducts}
                   notifByArticulo={notifByArticulo}
@@ -2267,7 +2268,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 setIsManageOpen(false);
                 setManageArticle(null);
               }}
-              onCancelSale={cancelSale}
               onCancelSaleSuccess={async (updatedArticle) => {
                 const id = getArticuloId(updatedArticle || manageArticle);
                 const fresh = updatedArticle ? { success: true, data: updatedArticle } : await getArticleWithImages(id);
@@ -2315,6 +2315,12 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               role={chatOpen?.role}
               errorMessage={chatOpen?.errorMessage}
               onSeenChange={markChatSeen}
+              onSaleChange={result => {
+                if (result.article) {
+                  applyArticleUpdate(result.article);
+                  setChatOpen(previous => previous ? { ...previous, article: { ...previous.article, ...result.article }, chat: result.chat || previous.chat } : previous);
+                }
+              }}
             />
             </DeferredPanel>
           </div>

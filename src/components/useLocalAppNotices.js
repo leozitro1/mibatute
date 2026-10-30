@@ -67,8 +67,8 @@ export default function useLocalAppNotices({uid,active,items,activeChatId}) {
     }
   };
   return {badge,banners,count,support:iconBadgeSupport(),updatePreferences,enableBadge,
-    request:request?.uid === uid && request.gate === gate ? request : null,
-    banner:active && banners && banner?.uid === uid && banner.gate === gate && (!banner.chatId || banner.chatId !== activeChatId)
+    request:request && request.uid === uid && request.gate === gate ? request : null,
+    banner:active && banners && banner && banner.uid === uid && banner.gate === gate && (!banner.chatId || banner.chatId !== activeChatId)
       && (banner.preview || items.some(item => localNoticeMetadata(item)?.group === banner.group)) ? banner : null,
     previewBanner:() => {if (latest.current.uid && latest.current.active && latest.current.banners) setBanner({uid:latest.current.uid,gate,kind:'message',group:'preview',at:Date.now(),preview:true,context:'Artículo de ejemplo',body:'Hola, ¿podemos coordinar la entrega para mañana?'});},
     dismissBanner:() => setBanner(null)};

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
-import { isSaleArticle, readArticleContext, readNotificationChatContext, resolveChatBuyerId, validateTransactionChat } from '../src/supabase/articleContext.js';
+import { donationNotificationTarget, isSaleArticle, readArticleContext, readNotificationChatContext, resolveChatBuyerId, validateTransactionChat } from '../src/supabase/articleContext.js';
 
 test('empty legacy type cannot turn a sale into a donation', () => {
   assert.equal(isSaleArticle({ mode: 'venta', tipo: '' }), true);
@@ -118,4 +118,17 @@ test('grouped article context preserves participant privacy, ownership and image
     await db.exec('reset role; set role anon');
     await assert.rejects(context(), /permission denied/);
   } finally { await db.close(); }
+});
+
+
+test('donation bell targets the profile applications view using one context read',async()=>{
+ let calls=0;
+ const article={id:'article',owner_id:'owner',mode:'donacion',status:'disponible'};
+ const client={rpc:async(name,args)=>{calls++;assert.equal(name,'article_context');assert.deepEqual(args,{p_article_id:'article'});return {data:[article]};}};
+ const target=await donationNotificationTarget(client,{articleId:'article',userId:'owner',notificationId:'notice'});
+ assert.equal(calls,1);assert.deepEqual(target,{id:'notice',tab:'publicaciones',action:'applications',articleId:'article',article});
+ await assert.rejects(donationNotificationTarget(client,{articleId:'article',userId:'other'}),/donación tuya/);
+ article.mode='venta';await assert.rejects(donationNotificationTarget(client,{articleId:'article',userId:'owner'}),/donación tuya/);
+ const missing={rpc:async()=>({data:[]})};await assert.rejects(donationNotificationTarget(missing,{articleId:'article',userId:'owner'}),/no existe/);
+ await assert.rejects(donationNotificationTarget(client,{articleId:'article',userId:null}),/identificar/);
 });

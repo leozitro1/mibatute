@@ -66,7 +66,7 @@ import {
 // ✅ servicio para Mis Rescates
 import { obtenerMisRescates } from "../supabase/rescatesService";
 import { canOpenRescateChat, isRescateVisible, saleCancellation, isRescateSaleLocked, donationRejection } from "../supabase/rescatesQuery";
-import { transitionSale } from "../supabase/saleTransaction";
+import { saleSafetyAction, saleSafetyStatus } from "../supabase/saleSafety";
 import { isSaleArticle } from "../supabase/articleContext";
 import { preferLatestArticle, articleHistoryExpiresAt } from "./articleState";
 
@@ -887,6 +887,7 @@ async function fetchProfileFallback(userId) {
 export default function UserProfile({
   mobileHeaderTarget,
   notificationTarget,
+  onNotificationHandled,
   user,
   myProducts = [],
   notifByArticulo = {},
@@ -2052,12 +2053,14 @@ export default function UserProfile({
     alert("Falta pasar onOpenEdit a <UserProfile /> para abrir el modal de edición.");
   };
 
-  const abrirSolicitudesDeArticulo = async (art0) => {
+  const abrirSolicitudesDeArticulo = useCallback(async (art0) => {
     if (isUserBlocked) return alert(blockedUserMsg());
 
-    const art = getArtEffective(art0);
+    const art = preferLatestArticle(art0, articuloOverridesById.get(String(getArticuloId(art0))));
+    if (String(art?.owner_id || art?.usuario_id) !== String(user?.id)) return alert("Solo puedes consultar las postulaciones de tus donaciones.");
     const titulo = art?.titulo || art?.title || "Artículo";
     if (isArticuloEnRevision(art)) return alert(revisionBlockMsg(titulo));
+    if (normEstado(art?.estado || art?.status) === 'entregado' || isPublicationUnavailable(art)) return alert('Esta publicación ya finalizó o venció.');
 
     const articuloId = getArticuloId(art);
     if (!articuloId) return alert("Este artículo no tiene ID válido.");
@@ -2081,7 +2084,15 @@ export default function UserProfile({
     } finally {
       setCargandoSolicitudes(false);
     }
-  };
+  }, [isUserBlocked, articuloOverridesById, user?.id]);
+
+  const openedApplicationsNotification = useRef(null);
+  useEffect(() => {
+    if (notificationTarget?.action !== 'applications' || !notificationTarget.article
+      || openedApplicationsNotification.current === notificationTarget) return;
+    openedApplicationsNotification.current = notificationTarget;
+    void abrirSolicitudesDeArticulo(notificationTarget.article).finally(() => onNotificationHandled?.(notificationTarget));
+  }, [notificationTarget, abrirSolicitudesDeArticulo, onNotificationHandled]);
 
   const verMensajes = async (art0) => {
     if (isUserBlocked) return alert(blockedUserMsg());
@@ -2180,7 +2191,7 @@ export default function UserProfile({
     const isPurchase = isVentaArticulo(art) && String(art.buyer_id || "") === String(user.id);
     const isActivePurchase = isPurchase && normEstado(art.estado || art.status) === "reservado";
     if (isPurchase && isRescateSaleLocked(rescate)) {
-      return alert("La compra ya fue aprobada. Se conserva hasta siete días después de la entrega.");
+      return alert("Para cancelar una compra aprobada, abre su chat desde Buzón → Conversaciones de usuarios. El historial se conserva para revisión.");
     }
     if (isPurchase && normEstado(art.estado || art.status) === "entregado") {
       return alert("La compra entregada se conserva en tu historial.");
@@ -2197,7 +2208,9 @@ export default function UserProfile({
       setCancelandoId(key);
 
       if (isActivePurchase) {
-        const { article } = await transitionSale(supabase, articuloId, "cancel");
+        const state = await saleSafetyStatus(supabase, articuloId);
+        const { article, notice } = await saleSafetyAction(supabase, state, 'cancel', 'El comprador retiró su solicitud de reserva.');
+        if (notice) alert(notice);
         onArticuloReservado?.(article);
         setRescatesReload(value => value + 1);
         return;

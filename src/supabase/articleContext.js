@@ -50,3 +50,12 @@ export function validateTransactionChat(article, userId) {
   }
   return chat;
 }
+
+export async function donationNotificationTarget(client, { articleId, userId, notificationId }) {
+  if (!userId || !articleId) throw new Error('No se pudo identificar la publicación de esta notificación.');
+  const article = await readArticleContext(client, articleId);
+  if (String(article.owner_id || article.usuario_id) !== String(userId) || isSaleArticle(article)) {
+    throw new Error('Esta notificación no corresponde a una donación tuya.');
+  }
+  return { id: notificationId, tab: 'publicaciones', action: 'applications', articleId: article.id, article };
+}

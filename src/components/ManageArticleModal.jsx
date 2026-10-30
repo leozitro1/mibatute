@@ -4,7 +4,7 @@ import { X, Users, MessageCircle, CheckCircle2, XCircle, Loader2 } from 'lucide-
 import './TransactionActions.css';
 import { listenMarketSignals } from "./marketSignals.js";
 import ApplicantRow from './ApplicantRow.jsx';
-import { isSaleApproved } from './articleState.js';
+import SaleSafetyPanel from './SaleSafetyPanel.jsx';
 import { supabase } from "../supabase/supabaseClient";
 import { transitionSale } from "../supabase/saleTransaction";
 import { obtenerPostulaciones } from '../supabase/solicitudesService';
@@ -89,7 +89,6 @@ export default function ManageArticleModal({
   onClose,
   article,
   onOpenChat, // opcional
-  onCancelSale, // opcional (si App.jsx lo pasa)
   onCancelSaleSuccess, // opcional: para refrescar lista (ej: load())
 }) {
   const titleId = useId();
@@ -441,42 +440,6 @@ export default function ManageArticleModal({
     alert("Aún no está conectada la vista de chat.");
   };
 
-  // ===========================
-  // ✅ VENTA: CANCELAR
-  // ===========================
-  const internalCancelSale = async () => {
-    if (!articuloId) return;
-
-    try {
-      const { article: updatedArticle } = await transitionSale(supabase, articuloId, "cancel");
-
-      alert("Venta cancelada. El artículo volvió a estar disponible ✅");
-
-      if (typeof onCancelSaleSuccess === "function") {
-        await onCancelSaleSuccess(updatedArticle);
-      }
-
-      onClose?.();
-    } catch (e) {
-      console.error(e);
-      alert("No se pudo cancelar la venta: " + (e?.message || "Error"));
-    }
-  };
-
-  const handleCancelSale = async () => {
-    if (typeof onCancelSale === "function") {
-      try {
-        const updatedArticle = await onCancelSale(articuloId);
-        if (typeof onCancelSaleSuccess === "function") await onCancelSaleSuccess(updatedArticle);
-        onClose?.();
-      } catch (e) {
-        alert("No se pudo cancelar la venta: " + (e?.message || "Error"));
-      }
-      return;
-    }
-    await internalCancelSale();
-  };
-
   const titulo = article?.titulo || article?.title || "Sin título";
 
   // ✅ ganador visible: prioridad winnerPublic, luego winnerDisplayLocal
@@ -623,20 +586,12 @@ export default function ManageArticleModal({
                     {savingWinner ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}
                     {savingWinner ? "Guardando..." : "Marcar entregado"}
                   </button>
-
-                  <button
-                    onClick={handleCancelSale}
-                    className="profile-delivery-button profile-delivery-cancel"
-                    type="button"
-                    disabled={savingWinner || isSaleApproved(article)}
-                    title={isSaleApproved(article) ? "Venta aprobada: finalízala confirmando la entrega" : "Cancelar la solicitud de compra"}
-                  >
-                    <XCircle size={16} aria-hidden="true" />
-                    Cancelar venta
-                  </button>
                   </div>
                 </div>
               )}
+              {buyerId && <SaleSafetyPanel articleId={articuloId} onUpdated={async result => {
+                if (result.article) await onCancelSaleSuccess?.(result.article);
+              }} />}
             </div>
           ) : (
             <div>

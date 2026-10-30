@@ -5,6 +5,7 @@ import { supabase } from "../supabase/supabaseClient";
 import { submitChatReport } from '../supabase/reports.js';
 import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
 import { resolveChatBuyerId } from "../supabase/articleContext";
+import SaleSafetyPanel from './SaleSafetyPanel.jsx';
 import ChatPickupAgreement from "./ChatPickupAgreement";
 import { CHAT_MESSAGE_FIELDS, listenMarketSignals, mergeChatMessages, readChatMessages, singleFlight } from "./marketSignals.js";
 import { trackChatViewport } from './chatViewport.js';
@@ -306,6 +307,7 @@ export default function ChatMessenger({
   otherUserFallbackName = "Usuario",
   onSeenChange,
   onActivityChange,
+  onSaleChange,
 }) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -356,7 +358,7 @@ export default function ChatMessenger({
   }, [chatRow?.status]);
 
   const chatPending = chatRow?.status === "pending";
-  const readOnly = isEntregado || chatClosed || chatPending || meBlocked;
+  const readOnly = isEntregado || estado === "en_revision" || chatClosed || chatPending || meBlocked;
 
   const title = useMemo(() => article?.titulo || article?.title || "Chat", [article]);
 
@@ -699,7 +701,7 @@ export default function ChatMessenger({
     if (hasOffensive) {
       try {
         setText(enmascararContenido(bodyText));
-      } catch {}
+      } catch { /* Conserva el texto si no se puede enmascarar; el envío sigue bloqueado. */ }
       alert("🚫 Tu mensaje contiene lenguaje ofensivo. Por favor ajústalo para poder enviarlo.");
       return;
     }
@@ -1004,6 +1006,10 @@ export default function ChatMessenger({
         <div className="chat-bottom-panel border-t border-gray-100 bg-white">
           {chatRow?.id && !meBlocked && (
             <div data-chat-pickup className="max-h-[45dvh] overflow-y-auto overscroll-contain">
+              {String(article?.mode || article?.tipo || '').toLowerCase() === 'venta' && <SaleSafetyPanel
+                key={`safety-${chatRow.id}`} articleId={articuloId} chatId={chatRow.id}
+                onUpdated={result => { if (result.chat) setChatRow(result.chat); onSaleChange?.(result); }}
+              />}
               <ChatPickupAgreement
                 onActivityChange={onActivityChange}
                 key={`${chatRow.id}_${userId}`}

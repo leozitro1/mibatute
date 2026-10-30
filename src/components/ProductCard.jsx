@@ -167,7 +167,7 @@ export default function ProductCard({
     : `${count} interesados • ${remaining} cupos disponibles`;
 
   // ✅ etiqueta compacta para el badge (clara)
-  const badgeText = `${count} ${count === 1 ? "solicitud" : "solicitudes"}`;
+  const badgeText = count > 0 ? `${count}/${max} solicitudes` : "0 solicitudes";
 
   const blockedMsg =
     "🚫 Tu cuenta está BLOQUEADA. No puedes abrir artículos ni acceder a chats por el momento.";
