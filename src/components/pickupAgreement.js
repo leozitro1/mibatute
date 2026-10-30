@@ -1,5 +1,10 @@
 export const PICKUP_TIME_ZONE = "America/Bogota";
 
+export function validatePickupPlace(place) {
+  return typeof place === 'string' && place.trim().length > 0 && place.trim().length <= 200
+    ? '' : 'Escribe el lugar de recogida (máximo 200 caracteres).';
+}
+
 export function bogotaDate(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: PICKUP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",

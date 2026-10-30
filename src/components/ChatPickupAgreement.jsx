@@ -2,12 +2,12 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { CalendarClock, Check, X, Plus, RefreshCw, Ban } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
 import { singleFlight } from "./marketSignals.js";
-import { bogotaDate, formatPickupSlot, pickupStatusLabel, validatePickupSlot } from "./pickupAgreement";
+import { bogotaDate, formatPickupSlot, pickupStatusLabel, validatePickupSlot, validatePickupPlace } from "./pickupAgreement";
 
-const fields = "id,chat_id,proposed_by,pickup_date,start_time,end_time,status,confirmed_by,confirmed_at,ended_by,ended_at,created_at";
+const fields = "id,chat_id,proposed_by,pickup_date,start_time,end_time,pickup_place,status,confirmed_by,confirmed_at,ended_by,ended_at,created_at";
 const buttonClass = "inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 px-3 py-2 text-xs font-semibold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed";
 
-export default function ChatPickupAgreement({ chatId, userId, canAct, onActivityChange }) {
+export default function ChatPickupAgreement({ chatId, userId, sellerId, canAct, onActivityChange }) {
   const [rows, setRows] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -76,6 +76,7 @@ export default function ChatPickupAgreement({ chatId, userId, canAct, onActivity
   const displayed = active || (rows[0]?.status === "completed" ? rows[0] : null);
   const mine = active?.proposed_by === userId;
   const enabled = canAct && loaded && !busy;
+  const canPropose = canAct && !!userId && userId === sellerId;
   const mutate = async (name, args) => {
     if (working.current || !enabled) return;
     working.current = true;
@@ -104,19 +105,23 @@ export default function ChatPickupAgreement({ chatId, userId, canAct, onActivity
   };
   const respond = action => mutate("respond_chat_pickup", { p_pickup_id: active.id, p_action: action });
   const openForm = () => {
+    if (!canPropose || !enabled) return;
     setReplaceConsent(false);
-    setForm({ date: "", start: "", end: "", replaceId: active?.id || null });
+    setForm({ date: "", start: "", end: "", place: active?.pickup_place || "", replaceId: active?.id || null });
   };
   const propose = event => {
     event.preventDefault();
-    const message = validatePickupSlot(form.date, form.start, form.end);
+    if (!canPropose || !form) return;
+    const message = validatePickupPlace(form.place) || validatePickupSlot(form.date, form.start, form.end);
     if (message) { setError(message); return; }
     if (form.replaceId && !replaceConsent) { setError("Confirma el reemplazo de la recogida anterior."); return; }
     mutate("propose_chat_pickup", {
       p_chat_id: chatId, p_date: form.date, p_start: form.start, p_end: form.end,
-      p_replace_id: form.replaceId,
+      p_replace_id: form.replaceId, p_place: form.place.trim(),
     });
   };
+
+  if (!canPropose && rows.length === 0) return null;
 
   return (
     <section aria-label="Acuerdo de recogida" aria-busy={busy} className="border-b border-gray-100 bg-white px-4 py-3 text-gray-800">
@@ -127,6 +132,7 @@ export default function ChatPickupAgreement({ chatId, userId, canAct, onActivity
       {displayed ? (
         <div className="mt-2" aria-live="polite">
           <p className="text-sm break-words">{formatPickupSlot(displayed)}</p>
+          {displayed.pickup_place && <p className="mt-1 text-sm break-words"><strong>Lugar:</strong> {displayed.pickup_place}</p>}
           <p className={`mt-1 text-xs ${displayed.status !== "pending" ? "text-green-700" : "text-gray-600"}`}>
             {displayed.status === "completed" ? "Recogida completada" : displayed.status === "confirmed" ? "Confirmada por ambas personas" : mine ? "Esperando confirmacion de la otra persona" : "Propuesta por la otra persona"}
           </p>
@@ -138,21 +144,26 @@ export default function ChatPickupAgreement({ chatId, userId, canAct, onActivity
             <button type="button" className={buttonClass} disabled={!enabled} onClick={() => respond("confirm")}><Check size={15} aria-hidden="true" />Confirmar</button>
             <button type="button" className={buttonClass} disabled={!enabled} onClick={() => respond("reject")}><X size={15} aria-hidden="true" />Rechazar</button>
           </>}
-          <button type="button" className={buttonClass} disabled={!enabled} onClick={openForm}>
-            <Plus size={15} aria-hidden="true" />{active ? "Proponer otro horario" : "Proponer recogida"}
-          </button>
+          {canPropose && <button type="button" className={buttonClass} disabled={!enabled} onClick={openForm}>
+            <Plus size={15} aria-hidden="true" />{active ? "Cambiar recogida" : "Proponer recogida"}
+          </button>}
           {active && <button type="button" className={buttonClass} disabled={!enabled} onClick={() => respond("cancel")}><Ban size={15} aria-hidden="true" />Cancelar recogida</button>}
         </div>
       )}
-      {form && canAct && (
-        <form onSubmit={propose} className="mt-3 space-y-3">
+      {form && canPropose && (
+        <form onSubmit={propose} className="pickup-proposal-form mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <label htmlFor={`${id}-date`} className="col-span-2 text-xs">Dia
+            <label htmlFor={`${id}-place`} className="col-span-2 min-w-0 text-xs">Lugar
+              <input id={`${id}-place`} type="text" required maxLength={200} value={form.place} disabled={busy}
+                placeholder="Casa, C. Comercial, parque…"
+                onChange={e => setForm({ ...form, place: e.target.value })} className="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-2 py-2 text-sm" />
+            </label>
+            <label htmlFor={`${id}-date`} className="col-span-2 min-w-0 text-xs">Dia
               <input id={`${id}-date`} type="date" required min={bogotaDate()} value={form.date} disabled={busy}
                 onChange={e => setForm({ ...form, date: e.target.value })} className="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-2 py-2 text-sm" />
             </label>
             {[['start', 'Desde'], ['end', 'Hasta']].map(([key, label]) => (
-              <label key={key} htmlFor={`${id}-${key}`} className="min-w-0 text-xs">{label}
+              <label key={key} htmlFor={`${id}-${key}`} className="col-span-2 sm:col-span-1 min-w-0 text-xs">{label}
                 <input id={`${id}-${key}`} type="time" required step="60" value={form[key]} disabled={busy}
                   onChange={e => setForm({ ...form, [key]: e.target.value })} className="mt-1 block w-full min-w-0 rounded-md border border-gray-300 px-2 py-2 text-sm" />
               </label>
@@ -162,7 +173,7 @@ export default function ChatPickupAgreement({ chatId, userId, canAct, onActivity
             <input type="checkbox" required checked={replaceConsent} disabled={busy} onChange={e => setReplaceConsent(e.target.checked)} className="mt-1 shrink-0" />
             Reemplazar la recogida anterior. La nueva propuesta requiere otra confirmacion.
           </label>}
-          <div className="flex flex-wrap gap-2">
+          <div className="pickup-proposal-actions flex flex-wrap gap-2">
             <button type="submit" className={buttonClass} disabled={!enabled}><CalendarClock size={15} aria-hidden="true" />{busy ? "Guardando..." : "Enviar propuesta"}</button>
             <button type="button" className={buttonClass} disabled={busy} onClick={() => setForm(null)}><X size={15} aria-hidden="true" />Cerrar</button>
           </div>
@@ -177,6 +188,7 @@ export default function ChatPickupAgreement({ chatId, userId, canAct, onActivity
         <ul className="mt-1 divide-y divide-gray-100">
           {rows.filter(row => row !== displayed).map(row => <li key={row.id} className="py-2 break-words">
             {formatPickupSlot(row)} <span className="text-gray-500">· {pickupStatusLabel[row.status]}</span>
+            {row.pickup_place && <p className="mt-1 break-words">Lugar: {row.pickup_place}</p>}
           </li>)}
         </ul>
       </details>}

@@ -1617,6 +1617,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   const featuredProducts = useMemo(() => {
     return products.filter(p => homePage.featuredIds.includes(p.id) && p.isFeatured
       && !isPublicationExpired(p, publicationNow)
+      && ![p.estado, p.status].some(value => normEstado(value || "") === "reservado")
       && normEstado(p.estado || p.status || "") !== "entregado");
   }, [products, homePage.featuredIds, publicationNow]);
 

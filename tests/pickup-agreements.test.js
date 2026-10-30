@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
-import { bogotaDate, validatePickupSlot, formatPickupSlot } from '../src/components/pickupAgreement.js';
+import { bogotaDate, validatePickupSlot, formatPickupSlot, validatePickupPlace } from '../src/components/pickupAgreement.js';
 
 const owner = '11111111-1111-1111-1111-111111111111';
 const buyer = '22222222-2222-2222-2222-222222222222';
@@ -20,6 +20,11 @@ test('pickup date helpers use Bogota regardless of device timezone', () => {
     ['2030-01-01', '10:00', '24:00'], ['2030-02-30', '10:00', '11:00'],
   ]) assert.notEqual(validatePickupSlot(date, start, end, now), '');
   assert.match(formatPickupSlot({ pickup_date: '2030-01-01', start_time: '09:00:00', end_time: '11:00:00' }), /09:00 - 11:00/);
+});
+
+test('pickup place accepts free text and requires a bounded nonempty location',()=>{
+  for (const value of ['Casa de mi hermana','C. Comercial — entrada sur','Parque, frente al kiosco']) assert.equal(validatePickupPlace(value),'');
+  for (const value of ['', ' \n\t ',null,'a'.repeat(201)]) assert.notEqual(validatePickupPlace(value),'');
 });
 
 test('pickup RPCs enforce participants, reservation and state', async t => {
@@ -47,6 +52,8 @@ test('pickup RPCs enforce participants, reservation and state', async t => {
     `);
     const migration = await readFile(new URL('../supabase/migrations/2026-10-08-pickup-agreements.sql', import.meta.url), 'utf8');
     await db.exec(migration);
+    const sellerPlaceMigration = await readFile(new URL('../supabase/migrations/2026-10-30-pickup-seller-place.sql', import.meta.url), 'utf8');
+    await db.exec(sellerPlaceMigration);
     const asUser = async id => {
       await db.exec('reset role; set role authenticated;');
       await db.query("select set_config('request.jwt.claim.sub',$1,false)", [id]);
@@ -58,22 +65,39 @@ test('pickup RPCs enforce participants, reservation and state', async t => {
       await db.query("insert into public.chats values($1,$2,$3,$4,$4,null,'open')", [chat, article, buyer, owner]);
       await asUser(owner);
     };
-    const propose = async (replace = null, date = '2099-01-01', start = '09:00', end = '11:00', chatId = chat) =>
-      (await db.query('select to_jsonb(public.propose_chat_pickup($1,$2::date,$3::time,$4::time,$5)) as result',
-        [chatId, date, start, end, replace])).rows[0].result;
+    const propose = async (replace = null, date = '2099-01-01', start = '09:00', end = '11:00', chatId = chat, place = 'Parque principal, entrada norte') =>
+      (await db.query('select to_jsonb(public.propose_chat_pickup($1,$2::date,$3::time,$4::time,$5,$6)) as result',
+        [chatId, date, start, end, replace, place])).rows[0].result;
     const respond = async (id, action) => (await db.query('select to_jsonb(public.respond_chat_pickup($1,$2)) as result', [id, action])).rows[0].result;
     const rows = async () => (await db.query('select * from public.chat_pickups order by created_at,id')).rows;
 
     await t.test('migration can be reapplied with history and realtime membership intact', async () => {
       await reset(); const pending = await propose();
       await db.exec('reset role; create publication supabase_realtime;');
-      await db.exec(migration); await db.exec(migration);
+      await db.exec(migration); await db.exec(sellerPlaceMigration); await db.exec(sellerPlaceMigration);
       await asUser(owner);
       assert.equal((await rows())[0].id, pending.id);
       assert.equal((await rows())[0].status, 'pending');
       await assert.rejects(db.query("update public.chat_pickups set status='confirmed'"), /permission denied/);
       await db.exec('reset role;');
       assert.equal((await db.query("select * from pg_publication_tables where pubname='supabase_realtime' and tablename='chat_pickups'")).rows.length, 1);
+    });
+
+    await t.test('only the seller/donor can propose, including through the old RPC; place is mandatory and private',async()=>{
+      for (const mode of ['venta','donacion']) {
+        await reset(mode);await asUser(buyer);
+        await assert.rejects(propose(),/Solo el vendedor/);
+        await assert.rejects(db.query("select public.propose_chat_pickup($1,'2099-01-01','09:00','11:00')",[chat]),/Solo el vendedor/);
+        await asUser(owner);
+        for (const place of [null,'',' \t\n','a'.repeat(201)]) await assert.rejects(propose(null,'2099-01-01','09:00','11:00',chat,place),/lugar de recogida/);
+        await assert.rejects(db.query("select public.propose_chat_pickup($1,'2099-01-01','09:00','11:00')",[chat]),/lugar de recogida/);
+        const pending=await propose(null,'2099-01-01','09:00','11:00',chat,'  Casa de Ana, al lado del parque  ');
+        assert.equal(pending.pickup_place,'Casa de Ana, al lado del parque');
+        await asUser(buyer);assert.equal((await rows())[0].pickup_place,pending.pickup_place);
+        await assert.rejects(propose(pending.id),/Solo el vendedor/);
+        assert.equal((await respond(pending.id,'confirm')).pickup_place,pending.pickup_place);
+        await asUser(other);assert.equal((await rows()).length,0);
+      }
     });
 
     await t.test('only the other participant confirms; repeats cannot change confirmation', async () => {
@@ -89,6 +113,16 @@ test('pickup RPCs enforce participants, reservation and state', async t => {
       assert.equal((await rows())[0].confirmed_at.toISOString(), new Date(confirmed.confirmed_at).toISOString());
       await respond(pending.id, 'cancel');
       await assert.rejects(respond(pending.id, 'confirm'), /ya cambio/);
+    });
+
+    await t.test('older agreements without a place remain readable and confirmable after migration',async()=>{
+      await reset();await db.exec('reset role');
+      const legacy=(await db.query("insert into public.chat_pickups(chat_id,proposed_by,pickup_date,start_time,end_time) values($1,$2,'2099-01-01','09:00','11:00') returning id",[chat,buyer])).rows[0];
+      await db.exec(sellerPlaceMigration);await asUser(owner);
+      assert.equal((await rows())[0].pickup_place,null);
+      assert.equal((await respond(legacy.id,'confirm')).status,'confirmed');
+      const updated=await propose(legacy.id);
+      assert.ok(updated.pickup_place);assert.equal(updated.proposed_by,owner);
     });
 
     await t.test('privacy, anonymous access and direct writes remain denied despite default grants', async () => {
@@ -135,7 +169,7 @@ test('pickup RPCs enforce participants, reservation and state', async t => {
       for (const field of ['winner_id','recipient_id']) {
         await reset('donacion');
         await db.exec(`reset role; update public.articulos set ganador_id=null,${field}='${buyer}';`);
-        await asUser(buyer); assert.equal((await propose()).status, 'pending');
+        await asUser(owner); assert.equal((await propose()).status, 'pending');
       }
     });
 
@@ -157,6 +191,7 @@ test('pickup RPCs enforce participants, reservation and state', async t => {
       await reset(); const first = await propose();
       await assert.rejects(propose(), /explicitamente/);
       await asUser(buyer); await respond(first.id, 'confirm');
+      await asUser(owner);
       await assert.rejects(propose(first.id, '2000-01-01'), /fecha futura/);
       assert.equal((await rows())[0].status, 'confirmed');
       const second = await propose(first.id);
@@ -164,7 +199,8 @@ test('pickup RPCs enforce participants, reservation and state', async t => {
       assert.equal((await rows()).find(row => row.id === first.id).status, 'replaced');
       await assert.rejects(propose(first.id), /explicitamente/);
       await assert.rejects(respond(first.id, 'cancel'), /ya cambio/);
-      await asUser(owner); await respond(second.id, 'reject');
+      await asUser(buyer); await respond(second.id, 'reject');
+      await asUser(owner);
       await assert.rejects(propose(second.id), /recogida cambio/);
       assert.equal((await propose()).status, 'pending');
     });
@@ -172,7 +208,7 @@ test('pickup RPCs enforce participants, reservation and state', async t => {
     await t.test('a failed replacement insert rolls back the retired predecessor; unique index backs RPC serialization', async () => {
       await reset(); const pending = await propose();
       await db.exec("reset role; alter table public.chat_pickups add constraint test_insert_failure check(status <> 'pending') not valid;");
-      await asUser(buyer); await assert.rejects(propose(pending.id), /test_insert_failure/);
+      await asUser(owner); await assert.rejects(propose(pending.id), /test_insert_failure/);
       assert.equal((await rows())[0].status, 'pending');
       await db.exec('reset role; alter table public.chat_pickups drop constraint test_insert_failure;');
       await assert.rejects(db.query("insert into public.chat_pickups(chat_id,proposed_by,pickup_date,start_time,end_time) values($1,$2,'2099-01-01','09:00','10:00')", [chat,buyer]), /chat_pickups_one_active/);
@@ -182,6 +218,7 @@ test('pickup RPCs enforce participants, reservation and state', async t => {
       await reset(); const first = await propose(); await asUser(buyer);
       const confirmations = await Promise.allSettled([respond(first.id, 'confirm'), respond(first.id, 'confirm')]);
       assert.equal(confirmations.filter(result => result.status === 'fulfilled').length, 1);
+      await asUser(owner);
       const replacements = await Promise.allSettled([propose(first.id), propose(first.id)]);
       assert.equal(replacements.filter(result => result.status === 'fulfilled').length, 1);
       assert.equal((await rows()).filter(row => ['pending','confirmed'].includes(row.status)).length, 1);

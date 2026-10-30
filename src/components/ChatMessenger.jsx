@@ -7,6 +7,7 @@ import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/s
 import { resolveChatBuyerId } from "../supabase/articleContext";
 import ChatPickupAgreement from "./ChatPickupAgreement";
 import { CHAT_MESSAGE_FIELDS, listenMarketSignals, mergeChatMessages, readChatMessages, singleFlight } from "./marketSignals.js";
+import { trackChatViewport } from './chatViewport.js';
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -334,6 +335,11 @@ export default function ChatMessenger({
 
   const endRef = useRef(null);
   const listRef = useRef(null);
+  const overlayRef = useRef(null);
+  useEffect(() => {
+    if (!isOpen || !overlayRef.current) return;
+    return trackChatViewport(overlayRef.current);
+  },[isOpen]);
   const userCacheRef = useRef(new Map());
 
   const articuloId = useMemo(
@@ -407,7 +413,8 @@ export default function ChatMessenger({
 
   const scrollToBottom = useCallback((smooth = true) => {
     try {
-      endRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "end" });
+      const list = listRef.current;
+      list?.scrollTo({top:list.scrollHeight,behavior:smooth ? 'smooth' : 'auto'});
     } catch {
       // ignore
     }
@@ -793,7 +800,7 @@ export default function ChatMessenger({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex">
+    <div ref={overlayRef} className="marketplace-chat-overlay fixed inset-0 z-[9999] flex">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-black/40" aria-label="Cerrar chat" />
 
       <div role="dialog" aria-modal="true" aria-label="Conversación" className="marketplace-surface marketplace-chat relative ml-auto h-full w-full max-w-xl bg-white shadow-2xl border-l border-gray-200 flex flex-col">
@@ -994,7 +1001,7 @@ export default function ChatMessenger({
 
         {isOpen && !['CONNECTING', 'SUBSCRIBED'].includes(connectionStatus) && <p role="status" className="shrink-0 bg-amber-50 px-4 py-2 text-xs text-amber-800">Reconectando el chat. Los mensajes guardados se recuperarán al volver la conexión.</p>}
         {/* Pickup stays above the composer, independent of message scrolling. */}
-        <div className="shrink-0 border-t border-gray-100 bg-white">
+        <div className="chat-bottom-panel border-t border-gray-100 bg-white">
           {chatRow?.id && !meBlocked && (
             <div data-chat-pickup className="max-h-[45dvh] overflow-y-auto overscroll-contain">
               <ChatPickupAgreement
@@ -1002,6 +1009,7 @@ export default function ChatMessenger({
                 key={`${chatRow.id}_${userId}`}
                 chatId={chatRow.id}
                 userId={userId}
+                sellerId={chatRow.seller_id}
                 canAct={!readOnly && chatRow.status === "open" && estado === "reservado"}
               />
             </div>
@@ -1015,7 +1023,7 @@ export default function ChatMessenger({
                 : "Este chat está en solo lectura. No se pueden enviar más mensajes."}
             </div>
           ) : (
-            <div className="flex items-end gap-2">
+            <div className="chat-composer-row flex items-end gap-2">
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}

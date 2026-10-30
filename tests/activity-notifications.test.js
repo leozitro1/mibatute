@@ -81,6 +81,7 @@ test('server activity records recipient-only events atomically and retains a bou
       insert into public.usuarios(id) select id from auth.users;
     `);
     await db.exec(await readFile(new URL('../supabase/migrations/2026-10-08-pickup-agreements.sql', import.meta.url), 'utf8'));
+    await db.exec(await readFile(new URL('../supabase/migrations/2026-10-30-pickup-seller-place.sql', import.meta.url), 'utf8'));
     const migration = await readFile(new URL('../supabase/migrations/2026-10-08-activity-notifications.sql', import.meta.url), 'utf8');
     await db.exec(migration);
     const asUser = async uid => {
@@ -94,7 +95,7 @@ test('server activity records recipient-only events atomically and retains a bou
       await asUser(owner);
     };
     const rows = async () => (await db.query('select * from public.activity_notifications order by created_at,id')).rows;
-    const propose = async replace => (await db.query("select to_jsonb(public.propose_chat_pickup($1,'2099-01-01','09:00','11:00',$2)) as row", [chat,replace || null])).rows[0].row;
+    const propose = async replace => (await db.query("select to_jsonb(public.propose_chat_pickup($1,'2099-01-01','09:00','11:00',$2,'Parque principal')) as row", [chat,replace || null])).rows[0].row;
     const respond = async (id, action) => db.query('select public.respond_chat_pickup($1,$2)', [id,action]);
 
     await t.test('proposal, confirmation, rejection, cancellation and replacement notify only the counterpart', async () => {

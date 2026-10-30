@@ -188,3 +188,12 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - Campo de escritura del chat a 16 px únicamente en móvil para evitar zoom al abrir el teclado del iPhone. Escritorio conserva su tamaño.
 - Barra naranja exclusiva de la app móvil con Actualizar ahora. Cada build publica un identificador estático; comprobaciones visibles cada diez minutos y al volver, con mínimo un minuto entre consultas. No recarga automáticamente y no consulta Supabase. La primera versión que incorpora este mecanismo requiere una recarga inicial.
 - 343 pruebas, compilación y lint de los módulos nuevos aprobados, diff sin errores. Sin pruebas en navegador local ni capturas. Commit/push en main y publicación autorizados en el proyecto Vercel habitual; pagos, registro, SMTP y revisión jurídica conservan su estado anterior.
+
+## Tercera publicación autorizada del 30 de octubre: chat y recogidas
+
+- Chat móvil adaptado al espacio visible al abrir el teclado, sin bloquear el zoom manual. Se corrige la prioridad de la fuente de 16 px; el campo y Enviar permanecen juntos y con más margen inferior. El desplazamiento de mensajes actúa únicamente sobre su lista.
+- Solo el vendedor/donante puede crear o reemplazar una propuesta de recogida. Lugar libre obligatorio, de hasta 200 caracteres, visible en el acuerdo y su historial. El comprador ve el bloque después de existir una propuesta; conserva confirmación, rechazo y cancelación.
+- Formulario de recogida con más altura al abrirse, acciones fijas sobre el cuadro del chat y campos Desde/Hasta en filas separadas en teléfonos. Escritorio conserva los horarios en dos columnas.
+- Los artículos reservados se excluyen de la fila principal de destacados, sin retirar su condición de destacado ni cambiar la lista general.
+- Migración `2026-10-30-pickup-seller-place.sql` aplicada en producción. Se conservan los acuerdos anteriores sin lugar y sus confirmaciones. La firma anterior pasa por las mismas validaciones, sin permitir eludirlas. Huellas verificadas: nueva función `23709af01138676f23c124a316cafc8b`, firma anterior `2477f99c073c143b324e3399228c8401`. Verificadas columna, acceso anónimo bloqueado y escrituras directas revocadas; no se crean acuerdos de prueba en producción.
+- 348 pruebas y compilación aprobadas; lint de módulos de recogida/viewport sin errores y diff correcto. Sin navegador local ni capturas. Publicación autorizada en main y el proyecto Vercel habitual, sin push ni cambios a pagos, registro o SMTP.
