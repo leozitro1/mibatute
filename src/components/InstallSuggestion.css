@@ -1,12 +1,24 @@
 .install-suggestion { border-bottom: 1px solid #dce6d6; background: #f0f5eb; color: #354a3a; }
 .install-suggestion-row { display: flex; align-items: center; gap: 8px; max-width: 1023px; margin: auto; padding: 4px 12px; }
 .install-suggestion-row > img { width: 32px; height: 32px; flex-shrink: 0; object-fit: contain; }
-.install-suggestion-row > p { flex: 1; min-width: 0; font-size: 13px; line-height: 1.4; font-weight: 600; }
+.install-suggestion-copy { flex: 1; min-width: 0; padding-block: 6px; }
+.install-suggestion-copy > p { font-size: 13px; line-height: 1.4; font-weight: 600; }
+.install-suggestion-copy > span { display: block; margin-top: 2px; font-size: 11px; line-height: 1.4; color: #63705f; }
 .install-suggestion-help { min-height: 44px; max-width: 100px; padding: 6px; font-size: 12px; line-height: 1.4; color: #2d5a27; text-decoration: underline; text-underline-offset: 3px; }
 .install-suggestion-close { display: inline-flex; align-items: center; justify-content: center; color: #596b51; }
 .install-suggestion button:focus-visible { outline: 2px solid #2d5a27; outline-offset: 2px; }
 .install-suggestion-steps { max-width: 1023px; margin: auto; padding: 0 16px 12px; font-size: 13px; line-height: 1.6; }
-.install-suggestion-steps > ol { list-style: decimal; padding-left: 20px; }
+.install-suggestion-platform { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid #dce6d6; }
+.install-suggestion-platform > svg { flex-shrink: 0; color: #2d5a27; }
+.install-suggestion-browser { margin: 5px 0 10px; font-size: 12px; color: #63705f; }
+.install-suggestion-steps > ol { display: grid; gap: 8px; list-style: none; padding: 0; }
+.install-suggestion-steps li { display: grid; grid-template-columns: 36px minmax(0,1fr); align-items: start; gap: 10px; padding: 10px; border: 1px solid #dce6d6; border-radius: 12px; background: #fff; }
+.install-step-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 9px; background: #f0f5eb; color: #2d5a27; }
+.install-suggestion-steps li strong { display: block; font-size: 13px; line-height: 1.4; font-weight: 600; }
+.install-suggestion-steps li p { margin-top: 3px; font-size: 12px; line-height: 1.6; color: #63705f; }
+.install-suggestion-steps li p > svg { display: inline-block; vertical-align: middle; }
+.install-suggestion-finish { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; line-height: 1.5; }
+.install-suggestion-finish > img { width: 24px; height: 24px; flex-shrink: 0; object-fit: contain; }
 @media (min-width: 1024px), (display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui) {
   .install-suggestion { display: none; }
 }

@@ -59,6 +59,51 @@ async function fixture(existingExtension = false) {
   }
 }
 
+test('the app opts into ten mobile rows without changing other clients or bypassing filters and RLS', async () => {
+  const {db,page}=await fixture();
+  try {
+    await db.exec('reset role');
+    await db.exec(await migration('2026-10-16-home-desktop-page-size'));
+    await db.exec(`update public.articulos set is_featured=false;
+      insert into public.articulos(id,owner_id,title,category,estado_producto)
+      select ('00000000-0000-0000-0000-'||lpad(n::text,12,'0'))::uuid,'${owner}','Sillón','Hogar',8 from generate_series(17,76) n;
+      insert into public.articulos(id,owner_id,title) values ('${id(1000)}','${owner}','Private');
+      create function public.market_reuse_impact() returns jsonb language sql stable as 'select ''{}''::jsonb';`);
+    await db.exec('set role anon');
+    const oldMobile=await page({layout:'mobile'}),oldDesktop=await page({desktopPageSize:12});
+    await db.exec('reset role');
+    const sql=await migration('2026-10-30-mobile-app-page-size');
+    await db.exec(sql);await db.exec(sql);
+    await db.exec('set role anon');
+    for (const [filters,before] of [[{layout:'mobile'},oldMobile],[{desktopPageSize:12},oldDesktop]]) {
+      const {reuseImpact,...after}=await page(filters);
+      assert.deepEqual(after,before);assert.deepEqual(reuseImpact,{});
+    }
+    const app={layout:'mobile',mobilePageRows:10,sort:'newest'};
+    const pages=await Promise.all([1,2,3,4].map(number=>page(app,number)));
+    assert.deepEqual(pages.map(result=>result.ids.length),[20,20,20,16]);
+    const ids=pages.flatMap(result=>result.ids);
+    assert.equal(new Set(ids).size,76);assert.equal(ids.includes(id(1000)),false);
+    assert.equal(pages[0].pageCount,4);assert.equal((await page(app,999)).page,4);
+    assert.equal((await page({...app,search:'inexistente'})).total,0);
+    for(const mobilePageRows of [100000,'invalid',-1,0]) assert.equal((await page({...app,mobilePageRows})).ids.length,8);
+    assert.equal((await page({desktopPageSize:12,mobilePageRows:10})).ids.length,12);
+    await db.exec('reset role');
+    await db.exec('update public.articulos set is_featured=true where id in ('+[1,2,3,4,5].map(n=>`'${id(n)}'`).join(',')+')');
+    await db.exec('set role anon');
+    const first=await page(app);
+    assert.equal(first.ids.length,17);
+    const mixed=[];
+    for(let number=1;number<=first.pageCount;number++)mixed.push(...(await page(app,number)).ids);
+    assert.equal(mixed.length,76);assert.equal(new Set(mixed).size,76);
+    assert.equal((await page({...app,kind:'destacado'})).ids.length,5);
+    await db.exec('reset role');
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
+    await db.exec('set role authenticated');
+    assert.equal((await page({...app,hideOwn:true})).total,8);
+  } finally {await db.close();}
+});
+
 test('desktop can request twelve articles without gaps, duplicates or changing mobile pagination', async () => {
   const { db, page } = await fixture();
   try {

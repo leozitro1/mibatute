@@ -1,8 +1,22 @@
 .navbar-publish-mobile-label { display: none; }
 .navbar-account-actions { display: contents; }
 .mobile-app-nav, .navbar-mobile-balance { display: none; }
+.navbar-profile-identity { display: none; }
 
 @media (display-mode: standalone) and (max-width: 1023px) {
+  .navbar-profile .navbar-brand, .navbar-profile .navbar-search-region { display: none; }
+  .navbar-profile-identity { display: block; grid-column: 1; grid-row: 1; min-width: 0; }
+  .navbar-profile-identity .profile-identity-group { display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: center; column-gap: 10px; }
+  .navbar-profile-identity .profile-identity { display: contents; }
+  .navbar-profile-identity .profile-identity > .group { grid-column: 1; grid-row: 1 / 3; }
+  .navbar-profile-identity .profile-avatar { width: 48px; height: 48px; border-width: 2px; }
+  .navbar-profile-identity .profile-identity label { padding: 4px; }
+  .navbar-profile-identity .profile-identity label svg { width: 12px; height: 12px; }
+  .navbar-profile-identity h2 { font-size: 14px; line-height: 1.3; }
+  .navbar-profile-identity .profile-identity p { display: none; }
+  .navbar-profile-identity .profile-reputation { grid-column: 2; gap: 1px; margin: 0; }
+  .navbar-profile-identity .profile-reputation > span { font-size: 13px; line-height: 1.3; }
+  .navbar-profile-identity .profile-reputation > span:last-child { font-size: 10px; font-weight: 400; margin-left: 4px; }
   .navbar-layout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
   .navbar-brand { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; }
   .navbar-actions { display: contents; }
@@ -10,8 +24,8 @@
   .navbar-account-actions { display: flex; grid-column: 2; grid-row: 1; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
   .navbar-search-region { grid-column: 1 / -1; grid-row: 2; }
   .navbar-mobile-balance { display: inline-flex; align-items: center; gap: 5px; padding: 8px 4px; color: #596b51; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .marketplace-shell { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
-  .mobile-app-nav { position: fixed; inset: auto 0 0; z-index: 40; display: grid; grid-template-columns: 1fr minmax(128px, 1.4fr) 1fr; align-items: center; gap: 12px; height: calc(72px + env(safe-area-inset-bottom)); padding: 8px 16px max(8px, env(safe-area-inset-bottom)); border-top: 1px solid #dfe6da; background: #fff; box-shadow: 0 -4px 20px #152b240a; }
+  .marketplace-shell { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+  .mobile-app-nav { position: fixed; inset: auto 0 0; z-index: 40; display: grid; grid-template-columns: 1fr minmax(128px, 1.4fr) 1fr; align-items: center; gap: 12px; height: calc(80px + env(safe-area-inset-bottom)); padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid #dfe6da; background: #fff; box-shadow: 0 -4px 20px #152b240a; }
   .mobile-app-nav > button { display: inline-flex; align-items: center; justify-content: center; justify-self: center; min-width: 48px; min-height: 48px; border-radius: 12px; color: #63705f; }
   .mobile-app-nav > button[aria-current="page"] { background: #edf3e7; color: #2d5a27; }
   .mobile-app-nav .mobile-app-publish { width: 100%; gap: 6px; padding: 10px 12px; border-radius: 14px; background: #2d5a27; color: #fff; font-size: 14px; font-weight: 600; }

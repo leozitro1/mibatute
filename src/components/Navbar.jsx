@@ -236,6 +236,8 @@ export default function Navbar({
   onMarkAllNotificationsRead,
   onNotificationsOpen,
   isProfile = false,
+  profileHeaderRef,
+  mobileCatalogHome = false,
   realtimeStatus = "CONNECTING",
 }) {
   const { ACTIVE_COLOMBIA_DATA } = useLocations();
@@ -450,8 +452,9 @@ export default function Navbar({
       {user && !['CONNECTING', 'SUBSCRIBED'].includes(realtimeStatus) && <p role="status" className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-800">
         {realtimeStatus === 'RECOVERING' ? 'Actualizando tus avisos…' : 'Reconectando tus notificaciones…'}
       </p>}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <nav className={`bg-white border-b border-gray-200 sticky top-0 z-50${isProfile ? ' navbar-profile' : ''}${mobileCatalogHome ? ' navbar-mobile-catalog' : ''}`}>
         <div className="navbar-layout max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap xl:flex-nowrap items-center justify-between gap-2 sm:gap-4">
+          {isProfile && <div ref={profileHeaderRef} className="navbar-profile-identity" />}
           <button
             type="button"
             className="navbar-brand flex shrink-0 items-center gap-2 sm:gap-3 cursor-pointer"
@@ -713,10 +716,9 @@ export default function Navbar({
       </nav>
 
       <nav className="mobile-app-nav" aria-label="Navegación de la app">
-        <button type="button" onClick={user ? onProfileClick : onLoginClick}
-          aria-label={user ? 'Perfil' : 'Ingresar'} title={user ? 'Perfil' : 'Ingresar'}
-          aria-current={user && isProfile ? 'page' : undefined}>
-          <User size={24} aria-hidden="true" />
+        <button type="button" onClick={isProfile ? handleLogoClick : user ? onProfileClick : onLoginClick}
+          aria-label={isProfile ? 'Inicio' : user ? 'Perfil' : 'Ingresar'} title={isProfile ? 'Inicio' : user ? 'Perfil' : 'Ingresar'}>
+          {isProfile ? <Home size={24} aria-hidden="true" /> : <User size={24} aria-hidden="true" />}
         </button>
         <button type="button" className="mobile-app-publish" onClick={handlePublish} disabled={publishDisabled}
           aria-label={`Publicar: ${publishTitle}`} title={publishTitle}>

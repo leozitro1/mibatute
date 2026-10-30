@@ -6,7 +6,7 @@ import './ProductDetailDesign.css';
 import './ProductCondition.css';
 import { productCondition } from './productCondition.js';
 import { articleSize } from "../data/articleSizes.js";
-import { compactGalleryOnScroll } from './productGallery.js';
+import { compactGalleryOnScroll, galleryAfterGesture } from './productGallery.js';
 import ArticleShareButton from './ArticleShareButton.jsx';
 import ArticlePhotoViewer from './ArticlePhotoViewer.jsx';
 import { donationStatus } from '../supabase/donationApplications.js';
@@ -154,6 +154,7 @@ export default function ProductDetail({
   const [compactGallery, setCompactGallery] = useState(false);
   const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
   const informationRef = useRef(null);
+  const galleryGesture = useRef(null);
 
   const expandGallery = () => {
     informationRef.current?.scrollTo({ top: 0, behavior: 'instant' });
@@ -164,6 +165,13 @@ export default function ProductDetail({
     if (!window.matchMedia('(max-width: 767px)').matches) return;
     const top = event.currentTarget.scrollTop;
     setCompactGallery(current => compactGalleryOnScroll(current, top));
+  };
+
+  const finishGalleryGesture = (deltaY, onGallery) => {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    const top = informationRef.current?.scrollTop || 0;
+    if (compactGallery && !galleryAfterGesture(true,deltaY,top,onGallery)) expandGallery();
+    else setCompactGallery(current => galleryAfterGesture(current,deltaY,top,onGallery));
   };
 
   const [checkingApplied, setCheckingApplied] = useState(false);
@@ -677,11 +685,27 @@ export default function ProductDetail({
       onClick={safeClose}
     >
       <div
-        className="product-detail bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col md:flex-row animate-in zoom-in duration-200"
+        className="product-detail relative bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col md:flex-row animate-in zoom-in duration-200"
         data-compact-gallery={compactGallery}
         role="dialog" aria-modal="true" aria-labelledby={detailTitleId}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={event => {
+          galleryGesture.current = event.touches.length === 1 ? {x:event.touches[0].clientX,y:event.touches[0].clientY,onGallery:!!event.target.closest('.product-detail-gallery')} : null;
+        }}
+        onTouchEnd={event => {
+          const start = galleryGesture.current;galleryGesture.current = null;
+          const touch = event.changedTouches[0];
+          if (!start || !touch) return;
+          const dy = touch.clientY-start.y;
+          if (Math.abs(dy) > Math.abs(touch.clientX-start.x)) finishGalleryGesture(dy,start.onGallery);
+        }}
+        onTouchCancel={() => {galleryGesture.current = null;}}
+        onWheel={event => finishGalleryGesture(Math.sign(-event.deltaY)*40,!!event.target.closest('.product-detail-gallery'))}
       >
+        <button onClick={safeClose} aria-label="Cerrar publicación" title="Cerrar publicación"
+          className="product-detail-close site-icon-close inline-flex items-center justify-center absolute top-4 right-4 z-30 bg-white/90 p-2 rounded-full shadow-lg" type="button">
+          <X size={20} />
+        </button>
         {/* IZQUIERDA */}
         <div className="product-detail-gallery md:w-1/2 bg-gray-100 relative flex flex-col">
           <div className="product-detail-photo relative flex-1 min-h-[260px]">
@@ -730,21 +754,11 @@ export default function ProductDetail({
                 onClick={expandGallery}
                 aria-label="Ampliar foto del artículo"
                 title="Ampliar foto del artículo"
-                className="md:hidden absolute top-4 left-4 z-30 bg-white/90 p-2 rounded-full shadow-lg"
+                className="md:hidden absolute top-4 left-4 z-30 inline-flex items-center justify-center w-11 h-11 bg-white/90 p-2 rounded-full shadow-lg"
               >
                 <Expand size={20} />
               </button>
             )}
-
-            <button
-              onClick={safeClose}
-              aria-label="Cerrar publicación"
-              title="Cerrar publicación"
-              className="site-icon-close inline-flex items-center justify-center md:hidden absolute top-4 right-4 z-30 bg-white/80 p-2 rounded-full shadow-lg"
-              type="button"
-            >
-              <X size={20} />
-            </button>
 
             {/* overlay si no disponible o si en revisión */}
             {(!isAvailable || isUnderReview) && (
@@ -812,9 +826,6 @@ export default function ProductDetail({
             {(item.isFeatured || item.is_featured) && <span className="product-detail-featured">Destacado</span>}
             </div>
 
-            <button onClick={safeClose} aria-label="Cerrar publicación" title="Cerrar publicación" className="site-icon-close inline-flex items-center justify-center hidden md:flex p-1 hover:bg-gray-100 rounded-full" type="button">
-              <X size={24} className="text-gray-400" />
-            </button>
           </div>
 
           {/* ✅ AVISO EN REVISION */}

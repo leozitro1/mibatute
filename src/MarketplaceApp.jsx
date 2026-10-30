@@ -12,6 +12,8 @@ import FilterSection from "./components/FilterSection";
 import ProductCard from "./components/ProductCard";
 import usePublicationClock from './components/usePublicationClock.js';
 import useDetailScroll from './components/useDetailScroll.js';
+import useMobileApp from './components/useMobileApp.js';
+import MobileCatalogTools from './components/MobileCatalogTools.jsx';
 import { createListingCache } from './components/listingCache.js';
 import { readNotificationHistory, writeNotificationHistory, mergeNotificationHistory,
   markNotificationHistoryRead, markNotificationBellRead, NOTIFICATION_STATE_LIMIT } from './components/notificationHistory.js';
@@ -181,14 +183,7 @@ function resolveInterestedMax(item) {
 
 export default function MarketplaceApp() {
   const { ACTIVE_COLOMBIA_DATA: COLOMBIA_DATA } = useLocations();
-  // Production uses the approved design; local development keeps the comparison.
-  const [designPreview, setDesignPreview] = useState(() => !import.meta.env.DEV || new URLSearchParams(window.location.search).get('design') !== 'actual');
-  const changeDesign = (value) => {
-    setDesignPreview(value);
-    const url = new URL(window.location.href);
-    url.searchParams.set('design', value ? 'propuesta' : 'actual');
-    window.history.replaceState(window.history.state, '', url);
-  };
+  const mobileApp = useMobileApp();
   const publicationNow = usePublicationClock();
   const [products, setProducts] = useState([]);
 
@@ -199,6 +194,7 @@ export default function MarketplaceApp() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   const [currentView, setCurrentView] = useState("home"); // home | profile | how-it-works
+  const [mobileProfileHeader, setMobileProfileHeader] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const sharedArticleRef = useRef(sharedArticleId(window.location.href));
   const [sharedArticleError, setSharedArticleError] = useState("");
@@ -262,9 +258,9 @@ export default function MarketplaceApp() {
     search: debouncedSearch, searchMode, category: selectedCategory, subcategory: selectedSubcategory,
     city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive, minCondition,
     hideOwn: !!currentUser?.id && hiddenAdsOwnerId === currentUser.id, sort: sortOrder, featuredSeed,
-    layout: mobileCatalog ? 'mobile' : 'desktop', desktopPageSize: 12,
+    layout: mobileCatalog || mobileApp ? 'mobile' : 'desktop', desktopPageSize: 12, mobilePageRows: mobileApp ? 10 : 4,
   }), [debouncedSearch, searchMode, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
-    quickTipo, onlyActive, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id, mobileCatalog]);
+    quickTipo, onlyActive, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id, mobileCatalog, mobileApp]);
   const homeFilterKey = JSON.stringify([homeFilters, currentUser?.id]);
   useEffect(() => {
     if (homeBusy || homeError || searchTerm !== debouncedSearch || currentView !== 'home' || document.visibilityState !== 'visible') return;
@@ -1372,6 +1368,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   const handleProfileClick = () => {
     if (!currentUser) return setIsAuthOpen(true);
+    setProfileNotificationTarget(null);
     setCurrentView("profile");
   };
 
@@ -1650,12 +1647,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       <Route
         path="/"
         element={
-          <div className={`marketplace-shell min-h-screen bg-[#F5F5F5]${designPreview ? ' mb-design-preview' : ''}`} data-realtime-state={realtimeStatus} data-realtime-revision={realtimeRevision}>
-            {import.meta.env.DEV && <div className="design-comparison" role="group" aria-label="Comparar diseño local">
-              <span>Vista local</span>
-              <button type="button" aria-pressed={!designPreview} onClick={() => changeDesign(false)}>Actual</button>
-              <button type="button" aria-pressed={designPreview} onClick={() => changeDesign(true)}>Propuesta</button>
-            </div>}
+          <div className="marketplace-shell min-h-screen bg-[#F5F5F5] mb-design-preview" data-realtime-state={realtimeStatus} data-realtime-revision={realtimeRevision}>
             <InstallSuggestion />
             <Navbar
               onSearch={setSearchTerm}
@@ -1674,6 +1666,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               notifProfileCount={notifProfileCount}
               notifChatCount={notifChatCount}
               isProfile={currentView === "profile"}
+              mobileCatalogHome={mobileApp && currentView === 'home'}
+              profileHeaderRef={setMobileProfileHeader}
               notifications={historyUidRef.current === currentUser?.id ? notifications.map(item=>({...item,read:item.read||!!item.bellRead})) : []}
               onNotificationsOpen={() => { if (!realtimeReadyRef.current) loadNotifications({ reuseCached: true }); }}
               realtimeStatus={realtimeStatus}
@@ -1758,9 +1752,20 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
             <main className="marketplace-main max-w-7xl mx-auto px-4 py-8">
               <Suspense fallback={<div role="status" className="py-12 text-center">Cargando...</div>}>
               {currentView === "home" && (
-                <div className="animate-in fade-in duration-500">
+                <div className={`animate-in fade-in duration-500${mobileApp ? ' mobile-app-catalog' : ''}`}>
+                  {mobileApp && <MobileCatalogTools search={searchTerm} onSearch={setSearchTerm}
+                    value={{category:selectedCategory,subcategory:selectedSubcategory,city:selectedCity,locality:selectedLocality,
+                      kind:quickTipo,onlyActive,minCondition,sort:sortOrder,hideOwn:!!currentUser?.id && hiddenAdsOwnerId === currentUser.id,searchMode}}
+                    onChange={next => {
+                      setSelectedCategory(next.category);setSelectedSubcategory(next.subcategory);setExpandedCategory(null);
+                      setSelectedCity(next.city);setSelectedLocality(next.locality);setQuickTipo(next.kind);
+                      setOnlyActive(next.onlyActive);setMinCondition(next.minCondition);setConditionDraft(next.minCondition);
+                      setSortOrder(next.sort);setHiddenAdsOwnerId(next.hideOwn ? currentUser?.id : null);setSearchMode(next.searchMode);
+                    }}
+                    categories={CATEGORY_TREE} cities={COLOMBIA_DATA} signedIn={!!currentUser?.id}
+                    onSubmitSearch={() => listingRef.current?.scrollIntoView({behavior:'smooth',block:'start'})} />}
                   {/* Mostrar banner solo cuando NO hay búsqueda (evita que se atraviese entre la barra y resultados) */}
-                  {searchTerm.trim() === "" && (
+                  {searchTerm.trim() === "" && (!mobileApp || (selectedCategory === 'Todo' && quickTipo === 'todo' && selectedLocality === 'Todas' && !minCondition && !onlyActive)) && (
                     <div className="rounded-3xl">
                       <HeroBanner sponsorFilters={{city:selectedCity,locality:selectedLocality,category:selectedCategory}} onLearnMore={() => setCurrentView("how-it-works")} />
 
@@ -1828,8 +1833,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                                       : "bg-white text-gray-600 border-gray-200 hover:border-forest-green"
                                   }`}
                                 >
-                                  {designPreview && <CategoryIcon category={cat.key} />}
-                                  <span className="min-w-0 flex-1 break-words">{designPreview ? cat.key : cat.label}</span>
+                                  <CategoryIcon category={cat.key} />
+                                  <span className="min-w-0 flex-1 break-words">{cat.key}</span>
                                   <ChevronDown size={16} className={`shrink-0 transition-transform motion-reduce:transition-none ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
                                 </button>
 
@@ -1969,7 +1974,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                       </div>
                       <div className="home-catalog-sponsors order-3 min-w-0 lg:mt-6">
                         <SponsorCarousel sponsorFilters={{city:selectedCity,locality:selectedLocality,category:selectedCategory}} />
-                        {designPreview && <SocialBar />}
+                        <SocialBar />
                       </div>
                     </aside>
 
@@ -1993,7 +1998,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                               type="button"
                               aria-pressed={hiddenAdsOwnerId === currentUser.id}
                               onClick={() => setHiddenAdsOwnerId(hiddenAdsOwnerId === currentUser.id ? null : currentUser.id)}
-                              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:border-forest-green hover:text-forest-green transition"
+                              className="home-own-filter inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:border-forest-green hover:text-forest-green transition"
                             >
                               {hiddenAdsOwnerId === currentUser.id ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}
                               {hiddenAdsOwnerId === currentUser.id ? "Mostrar mis anuncios" : "Ocultar mis anuncios"}
@@ -2002,7 +2007,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                         </div>
                       </div>
 
-                      {searchTerm.trim() && <div role="group" aria-label="Modo de búsqueda" className="mb-4 inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-gray-200 bg-white p-1">
+                      {searchTerm.trim() && <div role="group" aria-label="Modo de búsqueda" className="home-search-mode mb-4 inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-gray-200 bg-white p-1">
                         {[['related', 'Relacionados'], ['specific', 'Específica']].map(([value, label]) => (
                           <button key={value} type="button" aria-pressed={searchMode === value}
                             onClick={() => setSearchMode(value)}
@@ -2108,6 +2113,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
               {currentView === "profile" && (
                 <UserProfile
+                  mobileHeaderTarget={mobileProfileHeader}
                   notificationTarget={profileNotificationTarget}
                   user={currentUser}
                   myProducts={myProducts}

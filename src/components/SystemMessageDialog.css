@@ -34,7 +34,12 @@
   .system-message-dialog { height: 100%; max-width: none; max-height: 100%; border: 0; border-radius: 0; }
   .system-message-header { flex-shrink: 0; padding-top: max(16px, env(safe-area-inset-top)); }
   .system-message-content { flex: 1; }
-  .system-message-actions { flex-shrink: 0; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .system-message-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; flex-shrink: 0; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); }
+  .system-message-actions > div { display: contents; }
+  .system-message-actions > div > button:first-child { grid-column: 1 / -1; }
   .system-message-dialog .system-message-close { width: 44px; height: 44px; }
-  .system-message-actions button { min-height: 44px; }
+  .system-message-actions button { min-height: 52px; padding: 12px 14px; gap: 8px; border: 1px solid #dfe6da; border-radius: 10px; background: #fff; font-size: 14px; font-weight: 600; line-height: 1.4; }
+  .system-message-actions button > svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .system-message-actions .system-message-delete { border-color: #ecd9d4; background: #fff6f3; }
+  .system-message-actions .system-message-done { width: 100%; min-width: 0; margin-left: 0; border-color: #2d5a27; background: #2d5a27; }
 }

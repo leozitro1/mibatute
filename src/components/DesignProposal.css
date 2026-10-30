@@ -1,24 +1,4 @@
-/* Reversible local proposal. All visual changes stay behind the preview class. */
-.design-comparison {
-  position: fixed;
-  z-index: 60;
-  bottom: 18px;
-  right: 24px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px;
-  border: 1px solid #dce3dc;
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 6px 30px #1633201a;
-  color: #526056;
-  font-size: 12px;
-}
-.design-comparison > span { padding: 0 10px; }
-.design-comparison button { min-height: 44px; padding: 0 16px; border-radius: 9px; cursor: pointer; }
-.design-comparison button[aria-pressed="true"] { background: #234d36; color: white; font-weight: 600; }
-.design-comparison button:focus-visible { outline: 2px solid #234d36; outline-offset: 2px; }
+/* Approved marketplace design. */
 .mb-design-preview { background: #f7f8f5; color: #26392e; }
 .mb-design-preview > nav { border-color: #e4e9e2; }
 .mb-design-preview > nav input { background: #f7f8f5; border-color: #e3e8e1; border-radius: 12px; }
@@ -123,7 +103,6 @@
   .mb-design-preview [data-testid="home-listings"] { gap: 20px; }
 }
 @media (max-width: 767px) {
-  .design-comparison { bottom: 10px; right: 10px; left: 10px; justify-content: center; }
   .mb-design-preview > main { padding: 16px 12px 96px; }
   .mb-design-preview [aria-label="Banner principal"] { border-radius: 16px; }
   .mb-design-preview [aria-label="Banner principal"] h2 { letter-spacing: -.5px; font-size: 28px; }

@@ -1,11 +1,19 @@
-import {useCallback,useEffect,useRef,useState} from 'react';
-import {MessageCircle,RefreshCw,LockKeyhole,ArrowLeft,ArrowRight} from 'lucide-react';
+import {useCallback,useEffect,useId,useRef,useState} from 'react';
+import {MessageCircle,RefreshCw,LockKeyhole,ArrowLeft,ArrowRight, CircleHelp} from 'lucide-react';
 import {supabase} from '../supabase/supabaseClient';
 import {listenMarketSignals} from './marketSignals.js';
+import useMobileApp from './useMobileApp.js';
 
 export default function UserConversationInbox({userId,isActive,onOpenChat}){
  const [page,setPage]=useState(1),[data,setData]=useState({rows:[],hasMore:false}),[busy,setBusy]=useState(false),[error,setError]=useState(''),[opening,setOpening]=useState(null);
  const [onlyOpen,setOnlyOpen]=useState(true);
+ const mobileApp=useMobileApp(),helpId=useId();
+ const [helpOpen,setHelpOpen]=useState(false);
+ useEffect(()=>{
+  if(!helpOpen)return;
+  const timer=setTimeout(()=>setHelpOpen(false),10000);
+  return()=>clearTimeout(timer);
+ },[helpOpen]);
  const filterKey=JSON.stringify([userId,page,onlyOpen]);
  const sequence=useRef(0),loaded=useRef(null),[revision,setRevision]=useState(0);
  const load=useCallback(async()=>{
@@ -40,7 +48,12 @@ export default function UserConversationInbox({userId,isActive,onOpenChat}){
   finally{setOpening(null);}
  };
  return <section className="user-conversations" aria-label="Conversaciones de ventas y rescates">
-  <div className="user-conversations-heading"><div className="user-conversations-intro"><h3>Conversaciones de usuarios</h3><p>Chats de ventas y rescates. Desmarca el filtro para ver también pendientes y cerrados. Los cerrados son de solo lectura; al eliminar el artículo desaparecen sus chats.</p></div><div className="user-conversations-tools"><label className="user-conversations-open-filter"><input type="checkbox" checked={onlyOpen} onChange={event=>{sequence.current++;loaded.current=null;setOnlyOpen(event.target.checked);setPage(1);}}/>Solo chats abiertos</label><button type="button" onClick={load} disabled={busy} title="Actualizar conversaciones" aria-label="Actualizar conversaciones"><RefreshCw size={17} className={busy?'animate-spin':''}/></button></div></div>
+  <div className={`user-conversations-heading${mobileApp?' user-conversations-heading-mobile':''}`}><div className="user-conversations-intro">
+   <h3 className={mobileApp?'user-conversations-title':undefined}>{mobileApp?'Conversaciones':'Conversaciones de usuarios'}
+    {mobileApp&&<button type="button" className="user-conversations-help-button" aria-label="Ayuda sobre conversaciones de usuarios" aria-expanded={helpOpen} aria-controls={helpId} onClick={()=>setHelpOpen(value=>!value)}><CircleHelp size={19} aria-hidden="true"/></button>}
+   </h3>
+   <p id={helpId} hidden={mobileApp&&!helpOpen} className={mobileApp?'user-conversations-help':undefined}>Chats de ventas y rescates. Desmarca el filtro para ver también pendientes y cerrados. Los cerrados son de solo lectura; al eliminar el artículo desaparecen sus chats.</p>
+  </div><div className="user-conversations-tools"><label className="user-conversations-open-filter"><input type="checkbox" aria-label="Solo chats abiertos" checked={onlyOpen} onChange={event=>{sequence.current++;loaded.current=null;setOnlyOpen(event.target.checked);setPage(1);}}/>{mobileApp?'Abiertos':'Solo chats abiertos'}</label><button type="button" onClick={load} disabled={busy} title="Actualizar conversaciones" aria-label="Actualizar conversaciones"><RefreshCw size={17} className={busy?'animate-spin':''}/></button></div></div>
   {error&&<p role="alert" className="text-red-700">{error}</p>}
   {busy?<p role="status">Cargando conversaciones…</p>:rows.length? <ul className="user-conversations-list">{rows.map(row=>{
    const closed=row.chat_status==='closed'||row.article_status==='entregado';

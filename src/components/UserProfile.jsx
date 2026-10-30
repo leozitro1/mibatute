@@ -1,4 +1,5 @@
 import StyledSelect from "./StyledSelect.jsx";
+import ProfileIdentityPlacement from './ProfileIdentityPlacement.jsx';
 // src/components/UserProfile.jsx
 import { createReadCache, listenMarketSignals } from "./marketSignals.js";
 import { useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
@@ -884,6 +885,7 @@ async function fetchProfileFallback(userId) {
 }
 
 export default function UserProfile({
+  mobileHeaderTarget,
   notificationTarget,
   user,
   myProducts = [],
@@ -915,6 +917,8 @@ export default function UserProfile({
     changeInboxTab(next);event.currentTarget.parentElement.querySelector(`[data-inbox-tab="${next}"]`)?.focus();
   };
   const [personalDetailsOpen, setPersonalDetailsOpen] = useState(false);
+  const [creditDetailsOpen, setCreditDetailsOpen] = useState(false);
+  const creditDetailsId = useId();
   useEffect(() => {
     if (!notificationTarget) return;
     if (['publicaciones', 'rescates', 'buzon'].includes(notificationTarget.tab)) setActiveTab(notificationTarget.tab);
@@ -2383,10 +2387,12 @@ export default function UserProfile({
 
       <div className="profile-layout grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-8">
         {/* IZQUIERDA */}
-        <div className="lg:col-span-1 min-w-0 space-y-6">
+        <div className={`profile-personal-column lg:col-span-1 min-w-0 space-y-6${personalDetailsOpen || isEditing ? '' : ' profile-personal-collapsed'}`}>
           <section className="profile-personal overflow-hidden lg:rounded-lg lg:border lg:border-gray-200 lg:bg-white" aria-label="Datos de mi cuenta">
             <div className="hidden lg:block h-24 bg-forest-green" />
             <div className="profile-personal-body lg:px-6 lg:pb-6">
+              <ProfileIdentityPlacement target={mobileHeaderTarget}>
+              <div className="profile-identity-group">
               <div className="profile-identity relative lg:-mt-12 mb-3 flex items-center gap-4 lg:justify-center">
                 <div className="relative group">
                   <img
@@ -2422,7 +2428,14 @@ export default function UserProfile({
                   </label>
                 </div>
                 <div className="min-w-0 flex-1 lg:hidden">
-                  <h2 className="text-lg font-bold text-gray-900 break-words">{profile.nombre || 'Mi perfil'}</h2>
+                  <h2 className="text-lg font-bold text-gray-900 break-words">
+                    <button type="button" className="profile-name-toggle" onClick={() => setPersonalDetailsOpen(open => !open)}
+                      aria-expanded={personalDetailsOpen || isEditing} aria-controls="profile-personal-details"
+                      title="Mostrar u ocultar datos personales">
+                      <span>{profile.nombre || 'Mi perfil'}</span>
+                      <ChevronDown size={16} className={personalDetailsOpen || isEditing ? 'rotate-180' : ''} aria-hidden="true" />
+                    </button>
+                  </h2>
                   <p className="mt-1 text-sm text-gray-500 break-words">{[profile.ciudad, profile.localidad].filter(Boolean).join(' · ')}</p>
                 </div>
               </div>
@@ -2440,9 +2453,11 @@ export default function UserProfile({
                 </div>
               )}
 
+              </div>
+              </ProfileIdentityPlacement>
               <button type="button" onClick={() => setPersonalDetailsOpen(open => !open)}
                 aria-expanded={personalDetailsOpen || isEditing} aria-controls="profile-personal-details"
-                className="lg:hidden flex min-h-11 w-full items-center justify-between gap-3 border-y border-gray-200 py-3 text-sm font-semibold text-gray-700">
+                className="profile-personal-details-toggle lg:hidden flex min-h-11 w-full items-center justify-between gap-3 border-y border-gray-200 py-3 text-sm font-semibold text-gray-700">
                 Datos personales
                 <ChevronDown size={18} className={personalDetailsOpen || isEditing ? 'rotate-180' : ''} aria-hidden="true" />
               </button>
@@ -2639,20 +2654,27 @@ export default function UserProfile({
 
           {/* ── CAJA DE CRÉDITOS ── */}
           <section className="profile-credits border-y border-gray-200 py-4" aria-label="Créditos de mi cuenta">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center shrink-0 text-forest-green">
+            <div className="profile-credits-summary flex flex-wrap items-center gap-3">
+              <div className="profile-credits-icon w-10 h-10 flex items-center justify-center shrink-0 text-forest-green">
                 <CircleDollarSign size={24} strokeWidth={1.5} aria-hidden="true" />
               </div>
-              <div className="flex-1 min-w-[140px]">
+              <div className="profile-credits-balance flex-1 min-w-[140px]">
                 <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">{isUserBlocked ? 'Créditos bloqueados' : 'Saldo de créditos'}</p>
                 <p className="text-2xl font-black text-gray-800">
                   <CreditBalanceValue value={cuposSaldo}/>
                   <span className="text-sm font-semibold text-gray-400 ml-1">crédito{cuposSaldo !== 1 ? "s" : ""}</span>
                 </p>
-                <p className="text-[11px] text-gray-400 mt-0.5">{isUserBlocked ? 'El saldo se conserva, pero no puede utilizarse mientras la cuenta esté bloqueada.' : 'Los créditos sirven para destacar, solicitar donaciones adicionales o reservar compras adicionales. Los destacados no son reembolsables.'}</p>
-                {!isUserBlocked && <p className="mt-2 text-xs text-forest-green">Desde $2.500 COP, menos que muchos cafés. Recargar es opcional y nos ayuda a mantener MiBatute funcionando.</p>}
-                {donacionLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{donacionLimit.heldCredits} crédito{donacionLimit.heldCredits === 1 ? '' : 's'} retenido{donacionLimit.heldCredits === 1 ? '' : 's'} en solicitudes pendientes. El saldo muestra los disponibles.</p>}
-                {purchaseLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{purchaseLimit.heldCredits} crédito{purchaseLimit.heldCredits === 1 ? '' : 's'} retenido{purchaseLimit.heldCredits === 1 ? '' : 's'} en compras adicionales.</p>}
+                <button type="button" className="profile-credits-toggle" aria-expanded={creditDetailsOpen} aria-controls={creditDetailsId}
+                  aria-label={creditDetailsOpen ? 'Ocultar información de créditos' : 'Mostrar información de créditos'}
+                  onClick={() => setCreditDetailsOpen(open => !open)}>
+                  <ChevronDown size={18} className={creditDetailsOpen ? 'rotate-180' : ''} aria-hidden="true" />
+                </button>
+                <div id={creditDetailsId} className={`profile-credits-details${creditDetailsOpen ? ' is-open' : ''}`}>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{isUserBlocked ? 'El saldo se conserva, pero no puede utilizarse mientras la cuenta esté bloqueada.' : 'Los créditos sirven para destacar, solicitar donaciones adicionales o reservar compras adicionales. Los destacados no son reembolsables.'}</p>
+                  {!isUserBlocked && <p className="mt-2 text-xs text-forest-green">Desde $2.500 COP, menos que muchos cafés. Recargar es opcional y nos ayuda a mantener MiBatute funcionando.</p>}
+                  {donacionLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{donacionLimit.heldCredits} crédito{donacionLimit.heldCredits === 1 ? '' : 's'} retenido{donacionLimit.heldCredits === 1 ? '' : 's'} en solicitudes pendientes. El saldo muestra los disponibles.</p>}
+                  {purchaseLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{purchaseLimit.heldCredits} crédito{purchaseLimit.heldCredits === 1 ? '' : 's'} retenido{purchaseLimit.heldCredits === 1 ? '' : 's'} en compras adicionales.</p>}
+                </div>
               </div>
               <button
                 type="button"
@@ -2758,7 +2780,7 @@ export default function UserProfile({
                   </div>
                   <div role="tabpanel" id={`${inboxTabId}-system-panel`} aria-labelledby={`${inboxTabId}-system-tab`} hidden={inboxTab!=='system'} className="profile-inbox-panel">
                   {/* ── Mensajes del sistema ──────────────────────────── */}
-                  <div className="flex items-center justify-between gap-3"><h3 className="text-xs font-bold text-gray-500">Mensajes de MiBatute</h3><button type="button" aria-label="Actualizar buzón" title="Actualizar buzón" disabled={sysMsgsLoading} onClick={loadSysMsgs} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40"><RefreshCw size={16} className={sysMsgsLoading?'animate-spin':''} /></button></div>
+                  <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-xs font-bold text-gray-500">Mensajes de MiBatute</h3><button type="button" aria-label="Actualizar buzón" title="Actualizar buzón" disabled={sysMsgsLoading} onClick={loadSysMsgs} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40"><RefreshCw size={16} className={sysMsgsLoading?'animate-spin':''} /></button></div>
                   {sysMsgsLoading ? (
                     <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm mb-3">
                       <Loader2 size={14} className="animate-spin text-gray-400" />
@@ -3028,7 +3050,7 @@ export default function UserProfile({
                           </div>
 
                           <div className="profile-article-side">
-                            <span className="profile-article-date text-[10px] text-gray-400 font-medium">{formatDate(art)}</span>
+                            <span className="profile-article-date profile-publication-date text-[10px] text-gray-400 font-medium">{formatDate(art)}</span>
                           <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start ${isEntregado ? "[&>button:not([data-rating-action])]:opacity-50" : ""}`}>
                             {canRate && (
                               <ProfileRatingAction
@@ -3193,7 +3215,8 @@ export default function UserProfile({
                             </div>
                             ) : null}
                           </fieldset>
-                            <div className="profile-article-metrics">
+                            <div className="profile-article-metrics profile-publication-metrics">
+                              <span className="profile-publication-created text-gray-400 font-medium" title="Fecha de creación de la publicación">{formatDate(art)}</span>
                               <PublicationViews article={art}/>
                               <PublicationCountdown article={art} now={publicationNow}/>
                             </div>
@@ -3373,7 +3396,7 @@ export default function UserProfile({
                           </div>
 
                           <div className="profile-article-side">
-                            <span className="profile-article-date text-[10px] text-gray-400 font-medium">
+                            <span className="profile-article-date profile-rescue-date text-[10px] text-gray-400 font-medium">
                               {isVenta ? "Compra / contacto" : "Postulado"}: {formatDateTime(r?.created_at) || "Sin fecha"}
                             </span>
                           <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 shrink-0 flex items-center gap-2 ${isEntregadoRescate ? "[&>button:not([data-rating-action])]:opacity-50" : ""}`}>
@@ -3441,7 +3464,10 @@ export default function UserProfile({
                               )}
                             </button>
                           </fieldset>
-                            <div className="profile-article-metrics">
+                            <div className="profile-article-metrics profile-rescue-metrics">
+                              <span className="profile-rescue-created text-gray-400 font-medium" title={isVenta ? 'Fecha de compra / contacto' : 'Fecha de postulación'}>
+                                {formatDateTime(r?.created_at) || 'Sin fecha'}
+                              </span>
                               <PublicationCountdown article={art} now={publicationNow}/>
                             </div>
                           </div>

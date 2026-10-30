@@ -1,3 +1,8 @@
+.product-detail-close { min-width: 44px; min-height: 44px; }
+@media (min-width: 768px) {
+  .product-detail-header { padding-right: 48px; }
+}
+
 @media (max-width: 767px) {
   .product-detail {
     height: 90vh;

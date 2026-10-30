@@ -1,0 +1,51 @@
+.mobile-catalog-tools { margin-bottom: 16px; color: #354a3a; }
+.mobile-catalog-search { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 4px 5px 4px 14px; border: 1px solid #cbd8c4; border-radius: 14px; background: white; box-shadow: 0 2px 8px #234d3608; }
+.mobile-catalog-search:focus-within { outline: 2px solid #527749; outline-offset: 2px; }
+.mobile-catalog-search > svg { flex-shrink: 0; color: #63785a; }
+.mobile-catalog-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 16px; color: #253d2e; }
+.mobile-catalog-search input::-webkit-search-cancel-button { appearance: none; }
+.mobile-catalog-search button { display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 10px; }
+.mobile-catalog-search button[type='submit'] { background: #2d5a27; color: white; }
+.mobile-catalog-location { display: flex; align-items: center; gap: 5px; min-height: 40px; max-width: 100%; font-size: 12px; color: #64705e; text-align: left; }
+.mobile-catalog-location span { min-width: 0; overflow-wrap: anywhere; }
+.mobile-catalog-location svg { flex-shrink: 0; }
+.mobile-catalog-kinds { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 4px; padding: 4px; background: #e9eee5; border-radius: 12px; }
+.mobile-catalog-kinds button { min-height: 40px; padding: 6px; border-radius: 9px; font-size: 13px; font-weight: 600; color: #64705e; }
+.mobile-catalog-kinds button[aria-pressed='true'] { background: white; color: #2d5a27; box-shadow: 0 1px 5px #234d3612; }
+.mobile-catalog-categories { display: flex; gap: 8px; overflow-x: auto; overscroll-behavior-x: contain; padding-block: 12px 8px; scrollbar-width: thin; }
+.mobile-catalog-categories button { display: flex; align-items: center; gap: 6px; flex-shrink: 0; min-height: 44px; padding: 8px 12px; border: 1px solid #dfe6d9; border-radius: 24px; background: white; font-size: 12px; white-space: nowrap; }
+.mobile-catalog-categories button[aria-pressed='true'] { border-color: #527749; background: #edf3e7; color: #2d5a27; }
+.mobile-catalog-subcategories { position: relative; display: flex; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 8px; margin-bottom: 4px; scrollbar-width: thin; }
+.mobile-catalog-subcategories button { flex-shrink: 0; min-height: 44px; padding: 8px 12px; border: 1px solid #dfe6d9; border-radius: 10px; background: #f5f7f1; color: #64705e; font-size: 12px; white-space: nowrap; }
+.mobile-catalog-subcategories button[aria-pressed='true'] { border-color: #2d5a27; background: #2d5a27; color: white; font-weight: 600; }
+.mobile-catalog-actions { display: flex; align-items: center; gap: 10px; }
+.mobile-catalog-filter-button { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 8px 12px; background: white; border: 1px solid #dfe6d9; border-radius: 10px; font-size: 13px; font-weight: 600; }
+.mobile-catalog-filter-button > span { min-width: 19px; padding: 2px 5px; border-radius: 20px; background: #edf3e7; color: #2d5a27; font-size: 10px; }
+.mobile-catalog-actions > span { flex: 1; font-size: 11px; color: #74806f; }
+.mobile-catalog-clear { min-height: 44px; font-size: 12px; color: #526747; text-decoration: underline; }
+.mobile-catalog-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.mobile-catalog-chips button { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; max-width: 100%; padding: 6px 10px; background: #edf3e7; border-radius: 8px; font-size: 11px; text-align: left; overflow-wrap: anywhere; }
+.mobile-catalog-chips svg { flex-shrink: 0; }
+.mobile-catalog-tools button:focus-visible, .mobile-catalog-sheet :is(button,select,input):focus-visible { outline: 2px solid #527749; outline-offset: 3px; }
+.mobile-catalog-sheet { position: fixed; inset: auto 0 0; width: 100%; max-width: 640px; max-height: 90dvh; margin: 0 auto; padding: 0; border: 1px solid #dfe6d9; border-radius: 22px 22px 0 0; background: #fff; color: #354a3a; overflow: hidden; }
+.mobile-catalog-sheet::backdrop { background: #16251a80; }
+.mobile-catalog-sheet > form { display: flex; flex-direction: column; max-height: 90dvh; }
+.mobile-catalog-sheet header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; padding: 20px 16px 16px; border-bottom: 1px solid #e8ede3; }
+.mobile-catalog-sheet h2 { font-size: 17px; line-height: 1.3; font-weight: 600; color: #253d2e; }
+.mobile-catalog-sheet header p { margin-top: 4px; font-size: 12px; color: #74806f; }
+.mobile-catalog-sheet header button { display: grid; place-items: center; flex-shrink: 0; min-width: 44px; min-height: 44px; border-radius: 50%; background: #f5f7f1; }
+.mobile-catalog-sheet-body { display: grid; gap: 18px; overflow-y: auto; overscroll-behavior: contain; padding: 20px 16px; min-height: 0; }
+.mobile-catalog-sheet-body > label { display: grid; gap: 7px; font-size: 13px; font-weight: 500; }
+.mobile-catalog-sheet select { width: 100%; min-width: 0; min-height: 48px; padding: 10px 12px; border: 1px solid #dfe6d9; border-radius: 10px; font-size: 16px; background: #fafbf8; }
+.mobile-catalog-sheet input[type='range'] { width: 100%; height: 44px; accent-color: #2d5a27; }
+.mobile-catalog-sheet-body > .mobile-catalog-check { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.mobile-catalog-check input { width: 22px; height: 22px; accent-color: #2d5a27; }
+.mobile-catalog-sheet footer { display: flex; flex-shrink: 0; gap: 12px; padding: 12px 16px max(16px,env(safe-area-inset-bottom)); border-top: 1px solid #e8ede3; }
+.mobile-catalog-sheet footer button { min-height: 48px; padding: 10px 16px; border: 1px solid #dfe6d9; border-radius: 10px; font-size: 14px; font-weight: 600; }
+.mobile-catalog-sheet footer button[type='submit'] { flex: 1; background: #2d5a27; border-color: #2d5a27; color: white; }
+
+@media (display-mode: standalone) and (max-width: 1023px) {
+  .navbar-mobile-catalog .navbar-search-region { display: none; }
+  .mobile-app-catalog .home-catalog aside > div:first-child { display: none; }
+  .mobile-app-catalog .home-search-mode, .mobile-app-catalog .home-own-filter { display: none; }
+}

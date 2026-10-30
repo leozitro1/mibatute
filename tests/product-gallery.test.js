@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compactGalleryOnScroll } from '../src/components/productGallery.js';
+import { compactGalleryOnScroll, galleryAfterGesture } from '../src/components/productGallery.js';
 
 test('a short listing stays compact when the larger information pane clamps scroll to zero', () => {
   const contentHeight = 470, expandedPane = 340, compactPane = 560;
@@ -13,6 +13,19 @@ test('a short listing stays compact when the larger information pane clamps scro
     compact = compactGalleryOnScroll(compact, position);
     assert.equal(compact, true, 'layout adjustments and Safari bounce must not expand the photo');
   }
+});
+
+test('reverse gestures expand only at the top; reading, taps and layout clamping do not cause a rebound', () => {
+  assert.equal(galleryAfterGesture(true,80,120),true);
+  assert.equal(galleryAfterGesture(true,80,0),false);
+  assert.equal(galleryAfterGesture(true,0,0),true);
+  assert.equal(galleryAfterGesture(true,12,-8),true);
+  assert.equal(galleryAfterGesture(false,-80,0,true),true);
+  assert.equal(galleryAfterGesture(false,-80,0,false),false);
+  let compact=galleryAfterGesture(true,80,0);
+  assert.equal(compactGalleryOnScroll(compact,0),false);
+  compact=galleryAfterGesture(compact,-80,0,true);
+  assert.equal(compactGalleryOnScroll(compact,0),true);
 });
 
 test('long listings stay compact while reading and explicit expansion resets the state', () => {
