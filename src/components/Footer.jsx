@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import ContactButton from './ContactButton.jsx';
 import './Footer.css';
 
-export default function Footer({ onHowItWorks }) {
+export default function Footer({ onHowItWorks, hideBrand = false }) {
   const today = new Date();
   const date = today.toLocaleDateString('es-CO', {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Bogota',
@@ -13,13 +13,13 @@ export default function Footer({ onHowItWorks }) {
     <footer className="site-footer mt-8 border-t border-gray-200 bg-white">
       <div className="site-footer-content mx-auto max-w-7xl px-4 py-4">
         <div className="flex flex-col items-center gap-2">
-          <Link to="/" className="inline-flex w-fit items-center gap-2" aria-label="MiBatute, ir al inicio">
+          {!hideBrand && <Link to="/" className="inline-flex w-fit items-center gap-2" aria-label="MiBatute, ir al inicio">
             <img src="/logo.png" alt="" width="32" height="32" className="h-8 w-8 object-contain" />
             <span>
               <span className="block text-lg font-extrabold text-gray-900">Mi<span className="text-forest-green">Batute</span></span>
               <span className="block text-xs text-gray-500">mi basura, tu tesoro</span>
             </span>
-          </Link>
+          </Link>}
           <nav aria-label="Enlaces del pie de página" className="site-footer-nav w-full">
             <div className="site-footer-links flex w-full flex-wrap items-center justify-center gap-x-6 gap-y-1 px-1">
             <Link className={linkClass} to="/terminos">Términos y condiciones</Link>

@@ -2183,10 +2183,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               {currentView === "how-it-works" && <HowItWorks reuseImpact={homePage.reuseImpact} onBack={() => setCurrentView("home")} />}
               </Suspense>
             </main>
-            <Footer onHowItWorks={() => {
+            {!(mobileApp && currentView === 'profile') && <Footer hideBrand={mobileApp && currentView === 'home'} onHowItWorks={() => {
               setCurrentView("how-it-works");
               window.scrollTo(0, 0);
-            }} />
+            }} />}
 
             <DeferredPanel active={isAuthOpen}>
             <AuthModal
