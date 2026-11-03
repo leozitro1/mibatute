@@ -1,0 +1,11 @@
+.rescate-request-summary { margin:4px 0 20px;padding:16px;border:1px solid #dfe6d9;border-radius:10px;background:#f8faf6; }
+.rescate-request-summary h3 { color:#345737;font-size:14px;font-weight:600; }
+.rescate-request-summary > p { margin-top:6px;color:#69756a;font-size:13px;line-height:1.6; }
+.rescate-request-summary[data-tone="pending"] { border-left:3px solid #bb9144; }
+.rescate-request-summary[data-tone="success"] { border-left:3px solid #26734d; }
+.rescate-request-message { margin-top:12px;padding-top:12px;border-top:1px solid #e1e7dc; }
+.rescate-request-message h4 { font-size:12px;font-weight:600;color:#63705f; }
+.rescate-request-message p { margin-top:4px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere; }
+.product-detail .rescate-detail-actions { display:flex;flex-wrap:wrap;justify-content:stretch;gap:8px;width:100%;margin-top:14px;padding-top:12px;border-top:1px solid #e1e7dc; }
+.product-detail .rescate-detail-actions > button { display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:1 1 auto;min-height:44px;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600; }
+.product-detail .rescate-detail-actions > button svg { flex-shrink:0; }

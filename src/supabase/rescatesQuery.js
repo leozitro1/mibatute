@@ -1,4 +1,4 @@
-export const RESCATE_ARTICLE_COLUMNS = `id,title,mode,estado,status,city,locality,price,
+export const RESCATE_ARTICLE_COLUMNS = `id,title,description,category,subcategory,estado_producto,size_class,location_reference,mode,estado,status,city,locality,price,
   owner_id,usuario_id,buyer_id,ganador_id,winner_id,recipient_id,
   image_url,imagen_url_principal,imagenes,delivered_at,updated_at,created_at,
   articulo_imagenes(id,url,position)`;

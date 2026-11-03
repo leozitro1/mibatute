@@ -333,6 +333,7 @@ export async function publishArticle({ formData, files, user, useCredit = false,
     if (payload[k] === undefined) delete payload[k];
   }
 
+  if (!payload.location_reference) return {success:false,error:"Escribe el barrio o una referencia general de ubicación."};
   if (payload.location_reference.length > 100) return {success:false,error:"La referencia de ubicación debe tener máximo 100 caracteres."};
   if (!requestId) return { success: false, error: "Falta el identificador de publicacion. Reabre el formulario." };
   // Upload first: failed images never create a publication or consume a credit.
@@ -624,6 +625,7 @@ export async function updateArticle(articleId, formData = {}, file = null, {imag
     const title = (formData.titulo ?? formData.title ?? "").trim();
     const description = (formData.descripcion ?? formData.description ?? "").trim();
     const locationReference = String(formData.location_reference ?? formData.locationReference ?? "").trim();
+    if (!locationReference) return {success:false,error:"Escribe el barrio o una referencia general de ubicación."};
     if (locationReference.length > 100) return {success:false,error:"La referencia de ubicación debe tener máximo 100 caracteres."};
     const category = formData.categoria ?? formData.category;
     const subcategory = formData.subcategoria ?? formData.subcategory;

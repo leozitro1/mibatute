@@ -11,3 +11,9 @@ Migración `2026-11-03-article-location-reference.sql` aplicada solo en Supabase
 ## Publicación autorizada
 
 El responsable autorizó commit y deploy después de la revisión. La etiqueta «Barrio o cerca de:» se conserva solo en el formulario: en el anuncio, resumen y chat se muestra la referencia sin prefijo. Migración aplicada en producción con PostgreSQL 17.6 y verificaciones de funciones, permisos, límite, índice y RLS correctas; ver el registro general de despliegue.
+
+## Referencia obligatoria — ajuste local posterior
+
+A petición del responsable, el campo pasa a obligatorio en creación y edición, tanto móvil como web. Rechaza vacío o solo espacios con HTML, validación de pasos, servicio y guardia de servidor. La nueva migración required-location-reference se aplicó únicamente en local: conserva anuncios anteriores y no bloquea sus reservas, cancelaciones, moderación o entregas por tener referencia vacía; requiere completarla al modificar contenido editorial. Cinco pruebas dirigidas y compilación correctas por terminal. Pendiente revisión y autorización de commit/deploy.
+
+La referencia obligatoria quedó autorizada para publicación con las fichas de perfil/rescates. Su guardia se actualizó en producción y coincide con la probada localmente, conservando permisos, RLS y operaciones de estado para anuncios anteriores.

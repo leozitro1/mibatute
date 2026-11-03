@@ -1,47 +1,14 @@
 // src/components/ManageArticleModal.jsx
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { X, Users, MessageCircle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Users, MessageCircle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import './TransactionActions.css';
+import ProductDetail from './ProductDetail.jsx';
 import { listenMarketSignals } from "./marketSignals.js";
 import ApplicantRow from './ApplicantRow.jsx';
 import SaleSafetyButton from './SaleSafetyButton.jsx';
 import { supabase } from "../supabase/supabaseClient";
 import { transitionSale } from "../supabase/saleTransaction";
 import { obtenerPostulaciones } from '../supabase/solicitudesService';
-
-const FALLBACK_SVG =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(`
-  <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
-    <rect width="100%" height="100%" fill="#f3f4f6"/>
-    <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle"
-      fill="#6b7280" font-family="Arial" font-size="14">
-      Sin imagen
-    </text>
-  </svg>
-`);
-
-function getThumb(item) {
-  if (typeof item?.imagen_url_principal === "string" && item.imagen_url_principal.trim()) {
-    return item.imagen_url_principal.trim();
-  }
-  if (typeof item?.imagen_url === "string" && item.imagen_url.trim()) {
-    return item.imagen_url.trim();
-  }
-  if (typeof item?.image_url === "string" && item.image_url.trim()) return item.image_url.trim();
-
-  if (Array.isArray(item?.imagenes) && item.imagenes.length) {
-    const first = item.imagenes[0];
-    if (typeof first === "string" && first.trim()) return first.trim();
-  }
-
-  if (Array.isArray(item?.articulo_imagenes) && item.articulo_imagenes.length) {
-    const first = item.articulo_imagenes[0];
-    if (first?.url && String(first.url).trim()) return String(first.url).trim();
-  }
-
-  return FALLBACK_SVG;
-}
 
 function normEstado(v) {
   const s = String(v || "").toLowerCase().trim();
@@ -88,10 +55,10 @@ export default function ManageArticleModal({
   isOpen,
   onClose,
   article,
+  user,
   onOpenChat, // opcional
   onCancelSaleSuccess, // opcional: para refrescar lista (ej: load())
 }) {
-  const titleId = useId();
   const dialogRef = useRef(null);
   useEffect(() => {
     if (!isOpen) return;
@@ -447,72 +414,10 @@ export default function ManageArticleModal({
   const winnerNombre = winnerVisible?.nombre || "Ganador";
   const winnerFoto = winnerVisible?.foto_url || "";
 
-  return (
-    <div className="marketplace-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
-        onKeyDown={e => {
-          if (e.key === 'Escape' && !savingWinner) onClose?.();
-          if (e.key !== 'Tab') return;
-          const controls = [...e.currentTarget.querySelectorAll('button:not(:disabled), [href], input, [tabindex="0"]')];
-          const first = controls[0];
-          const last = controls.at(-1);
-          if (e.shiftKey && (document.activeElement === first || document.activeElement === e.currentTarget)) { e.preventDefault(); last?.focus(); }
-          else if (!e.shiftKey && (document.activeElement === last || document.activeElement === e.currentTarget)) { e.preventDefault(); first?.focus(); }
-        }}
-        className="marketplace-surface marketplace-modal flex max-h-[min(760px,calc(100dvh-32px))] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl outline-none">
-        {/* HEADER */}
-        <div className="shrink-0 p-4 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              {!isVenta ? (
-                <p className="mb-3 text-xs font-semibold text-gray-500">
-                  POSTULACIONES
-                </p>
-              ) : (
-                <p className="mb-3 text-xs font-semibold text-gray-500">
-                  GESTIÓN
-                </p>
-              )}
-
-              <div className="flex items-center gap-4">
-                <img
-                  src={getThumb(article)}
-                  onError={(e) => {
-                    if (e.currentTarget.dataset.fallbackApplied) return;
-                    e.currentTarget.dataset.fallbackApplied = "1";
-                    e.currentTarget.src = FALLBACK_SVG;
-                  }}
-                  className="h-14 w-14 shrink-0 rounded-md border border-gray-100 object-cover"
-                  alt={titulo}
-                />
-
-                <div className="min-w-0">
-                  <h2 id={titleId} className="break-words text-lg font-bold leading-6 text-gray-900">{titulo}</h2>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {isVenta ? 'Venta' : 'Donación'} · {estado}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={savingWinner}
-              aria-label={isVenta ? 'Cerrar gestión' : 'Cerrar postulaciones'}
-              title="Cerrar"
-              className="site-icon-close inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-md text-gray-500 transition hover:bg-gray-100 disabled:opacity-40"
-            >
-              <X size={20} />
-            </button>
-          </div>
-          {!isVenta && !winnerId && <div className="mt-4 flex items-center gap-2 border-t border-gray-100 pt-3 text-sm font-medium text-gray-700" aria-live="polite"><Users size={16} className="text-gray-400" />{loading ? 'Cargando postulaciones...' : `${postulados.length} ${postulados.length === 1 ? 'postulación' : 'postulaciones'}`}<span className="ml-auto text-xs font-normal text-gray-400">Más recientes primero</span></div>}
-        </div>
-
-        <div className="border-t border-gray-200" />
-
-        {/* BODY */}
-        <div className={`min-h-0 overflow-y-auto overscroll-contain ${!isVenta && !winnerId ? '' : 'p-4 sm:p-6'}`} data-management-body>
+  const managementContent = (
+    <section className="mt-5 border-t border-gray-200 pt-5" aria-label={isVenta ? 'Reserva de la venta' : 'Postulaciones'} data-management-body>
+      <h3 className="mb-3 text-sm font-semibold text-gray-700">{isVenta ? 'Reserva de la venta' : 'Postulaciones'}</h3>
+      {!isVenta && !winnerId && <p className="mb-3 text-xs text-gray-500" aria-live="polite">{loading ? 'Cargando postulaciones…' : `${postulados.length} ${postulados.length === 1 ? 'postulación' : 'postulaciones'}`}</p>}
           {isVenta ? (
             <div>
               {buyerId && (isReservado || isEntregado) && (
@@ -606,9 +511,10 @@ export default function ManageArticleModal({
 
               {winnerId ? (
                 <div>
-                  <div className="bg-green-50 border border-green-100 rounded-2xl p-4">
+                  <div className="donation-management-status bg-green-50 border border-green-100 rounded-2xl p-4">
                     <p className="text-sm font-black text-green-800 uppercase">
-                      {isEntregado ? "Entregado ✅" : "Seleccionado ✅"}
+                      <span className="donation-mobile-label">{isEntregado ? "Entregado ✅" : "Seleccionado ✅"}</span>
+                      <span className="donation-desktop-label">{isEntregado ? "Donación entregada" : "Reservado para entrega"}</span>
                     </p>
                     <p className="text-xs text-green-700 mt-1">
                       {isEntregado
@@ -617,7 +523,7 @@ export default function ManageArticleModal({
                     </p>
                   </div>
 
-                  <div className="p-4 bg-white rounded-3xl border border-gray-100">
+                  <div className="donation-management-recipient p-4 bg-white rounded-3xl border border-gray-100">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-50 border border-gray-200 shrink-0 flex items-center justify-center">
                         {winnerFoto ? (
@@ -642,25 +548,29 @@ export default function ManageArticleModal({
                       </div>
                     </div>
 
-                    <div className="mt-4 space-y-2">
+                    <div className="donation-management-actions mt-4 space-y-2">
                       <button
                         onClick={handleOpenChatDonacion}
                         disabled={savingWinner}
-                        className="w-full bg-forest-green text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
+                        className="donation-action-chat w-full bg-forest-green text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
                         type="button"
                         title={isEntregado ? "Ver historial (solo lectura)" : "Abrir chat con el ganador"}
                       >
-                        {isEntregado ? "Abrir chat (ver historial)" : "Abrir chat con ganador"}
+                        <MessageCircle size={16} aria-hidden="true" className="donation-desktop-icon" />
+                        <span className="donation-mobile-label">{isEntregado ? "Abrir chat (ver historial)" : "Abrir chat con ganador"}</span>
+                        <span className="donation-desktop-label">{isEntregado ? "Ver historial" : "Abrir chat"}</span>
                       </button>
 
                       {isEntregado ? null : (
                         <button
                           onClick={marcarEntregado}
                           disabled={savingWinner}
-                          className="w-full bg-gray-900 text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
+                          className="donation-action-deliver w-full bg-gray-900 text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
                           type="button"
                         >
-                          {savingWinner ? "Guardando..." : "Entregado (cerrar)"}
+                          <CheckCircle2 size={16} aria-hidden="true" className="donation-desktop-icon" />
+                          <span className="donation-mobile-label">{savingWinner ? "Guardando..." : "Entregado (cerrar)"}</span>
+                          <span className="donation-desktop-label">{savingWinner ? "Guardando…" : "Marcar entregado"}</span>
                         </button>
                       )}
 
@@ -668,10 +578,12 @@ export default function ManageArticleModal({
                         <button
                           onClick={cancelarEntrega}
                           disabled={savingWinner}
-                          className="w-full bg-red-600 text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
+                          className="donation-action-cancel w-full bg-red-600 text-white text-[11px] font-black py-3 rounded-2xl uppercase disabled:opacity-50"
                           type="button"
                         >
-                          {savingWinner ? "Cancelando..." : "Cancelar entrega (volver a disponible)"}
+                          <XCircle size={16} aria-hidden="true" className="donation-desktop-icon" />
+                          <span className="donation-mobile-label">{savingWinner ? "Cancelando..." : "Cancelar entrega (volver a disponible)"}</span>
+                          <span className="donation-desktop-label">{savingWinner ? "Cancelando…" : "Cancelar entrega"}</span>
                         </button>
                       )}
                     </div>
@@ -696,9 +608,16 @@ export default function ManageArticleModal({
               )}
             </div>
           )}
-        </div>
-
-      </div>
-    </div>
+    </section>
   );
+  return <ProductDetail item={article} user={user} isOpen={isOpen} onClose={onClose}
+    managementContent={managementContent} closeDisabled={savingWinner} surfaceRef={dialogRef}
+    onSurfaceKeyDown={event => {
+      if (event.key === 'Escape' && !savingWinner) onClose?.();
+      if (event.key !== 'Tab') return;
+      const controls = [...event.currentTarget.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]')];
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === event.currentTarget)) {event.preventDefault();last?.focus();}
+      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === event.currentTarget)) {event.preventDefault();first?.focus();}
+    }} />;
 }

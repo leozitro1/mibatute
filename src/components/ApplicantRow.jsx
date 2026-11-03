@@ -25,9 +25,9 @@ export default function ApplicantRow({ applicant, busy, onChoose, onReject }) {
             <button type="button" aria-expanded={expanded} aria-controls={messageId} onClick={() => setExpanded(value => !value)} className="inline-flex min-h-9 items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-forest-green">
               {expanded ? 'Ver menos' : 'Ver más'}{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
-            <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-              <button type="button" disabled={busy} onClick={() => onReject(applicant.id)} aria-label={`Rechazar a ${name}`} title="Rechazar solicitud" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-40"><Ban size={15} aria-hidden="true" />Rechazar</button>
-              <button type="button" disabled={busy} onClick={() => onChoose(applicant)} aria-label={`Elegir a ${name}`} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md bg-forest-green px-3 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-40"><Check size={15} aria-hidden="true" />Elegir</button>
+            <div className="grid w-full grid-cols-2 gap-2 lg:flex lg:w-auto lg:flex-wrap lg:items-center lg:justify-end">
+              <button type="button" disabled={busy} onClick={() => onReject(applicant.id)} aria-label={`Rechazar a ${name}`} title="Rechazar solicitud" className="inline-flex w-full min-w-0 min-h-11 items-center justify-center gap-1.5 rounded-md bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-40 lg:w-auto"><Ban size={15} aria-hidden="true" />Rechazar</button>
+              <button type="button" disabled={busy} onClick={() => onChoose(applicant)} aria-label={`Elegir a ${name}`} className="inline-flex w-full min-w-0 min-h-11 items-center justify-center gap-1.5 rounded-md bg-forest-green px-3 text-xs font-semibold text-white hover:brightness-110 disabled:opacity-40 lg:w-auto"><Check size={15} aria-hidden="true" />Elegir</button>
             </div>
           </div>
         </div>

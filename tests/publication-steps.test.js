@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { publicationStepError } from '../src/components/publicationSteps.js';
-const data=()=>({selectedMode:'venta',formData:{title:'Licuadora para repuestos',price:500000,category:'Hogar',subcategory:'Electrodomésticos',conditionScore:3,description:'El motor no enciende. El vaso está completo.',city:'Bogotá',locality:'Suba'},files:[{}],categories:[{key:'Hogar',subs:['Electrodomésticos']}]});
+const data=()=>({selectedMode:'venta',formData:{title:'Licuadora para repuestos',price:500000,category:'Hogar',subcategory:'Electrodomésticos',conditionScore:3,description:'El motor no enciende. El vaso está completo.',city:'Bogotá',locality:'Suba',locationReference:'Cerca al parque'},files:[{}],categories:[{key:'Hogar',subs:['Electrodomésticos']}]});
 
 test('publication steps require an explicit choice and cropped photos; failed steps do not mutate the draft',()=>{
  const draft=data(),before=structuredClone(draft);

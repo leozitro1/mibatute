@@ -47,6 +47,7 @@ export function validatePublicationText(title,description,rules=[]){
 }
 
 export function locationReferenceIssue(value='',rules=[]) {
+ if(!String(value||'').trim())return 'Escribe el barrio o una referencia general de ubicación.';
  if(String(value||'').length>100)return 'La referencia de ubicación debe tener máximo 100 caracteres.';
  return publicationTextIssue(value,rules);
 }

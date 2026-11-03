@@ -141,8 +141,14 @@ export default function ProductDetail({
   onSubcategoryClick,
   staffPreview = false,
   onOpenOwner,
+  managementContent = null,
+  requestContent = null,
+  closeDisabled = false,
+  surfaceRef,
+  onSurfaceKeyDown,
 }) {
   const detailTitleId = useId();
+  const requestPreview = !!requestContent;
   const publicationNow = usePublicationClock();
 
   const [message, setMessage] = useState("");
@@ -341,7 +347,7 @@ export default function ProductDetail({
     if (!isOpen) return;
     if (!item) return;
 
-    if (staffPreview || isUnderReview) {
+    if (staffPreview || requestPreview || isUnderReview) {
       setCheckingApplied(false);
       setHasApplied(false);
       setHasBeenRejected(false);
@@ -416,7 +422,7 @@ export default function ProductDetail({
     return () => {
       alive = false;
     };
-  }, [isOpen, item?.id, user?.id, ownerId, isGift, isAvailable, articuloId, isUnderReview, staffPreview]);
+  }, [isOpen, item?.id, user?.id, ownerId, isGift, isAvailable, articuloId, isUnderReview, staffPreview, requestPreview]);
 
   // Cargar reputación del vendedor
   useEffect(() => {
@@ -491,7 +497,7 @@ export default function ProductDetail({
   if (!isOpen || !item) return null;
 
   const safeClose = () => {
-    if (isSubmitting || reportSending) return;
+    if (isSubmitting || reportSending || closeDisabled) return;
     onClose?.();
   };
 
@@ -687,7 +693,10 @@ export default function ProductDetail({
       <div
         className="product-detail relative bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col md:flex-row animate-in zoom-in duration-200"
         data-compact-gallery={compactGallery}
-        role="dialog" data-mobile-back-block={!!message.trim() || isSubmitting || reportSending} aria-modal="true" aria-labelledby={detailTitleId}
+        data-owner-management={!!managementContent && isOwner}
+        data-request-detail={requestPreview}
+        ref={surfaceRef} tabIndex={managementContent || requestPreview ? -1 : undefined} onKeyDown={onSurfaceKeyDown}
+        role="dialog" data-mobile-back-block={!!message.trim() || isSubmitting || reportSending || closeDisabled} aria-modal="true" aria-labelledby={detailTitleId}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={event => {
           galleryGesture.current = event.touches.length === 1 ? {x:event.touches[0].clientX,y:event.touches[0].clientY,onGallery:!!event.target.closest('.product-detail-gallery')} : null;
@@ -702,7 +711,7 @@ export default function ProductDetail({
         onTouchCancel={() => {galleryGesture.current = null;}}
         onWheel={event => finishGalleryGesture(Math.sign(-event.deltaY)*40,!!event.target.closest('.product-detail-gallery'))}
       >
-        <button data-mobile-back onClick={safeClose} aria-label="Cerrar publicación" title="Cerrar publicación"
+        <button data-mobile-back disabled={closeDisabled} onClick={safeClose} aria-label="Cerrar publicación" title="Cerrar publicación"
           className="product-detail-close site-icon-close inline-flex items-center justify-center absolute top-4 right-4 z-30 bg-white/90 p-2 rounded-full shadow-lg" type="button">
           <X size={20} />
         </button>
@@ -933,6 +942,9 @@ export default function ProductDetail({
             </p>
           </div>
 
+          {isOwner && managementContent}
+          {requestContent}
+
           {staffPreview && <p className="product-detail-staff-note">Vista de revisión · Las reservas y postulaciones se realizan desde el mercado.</p>}
 
           {/* VENDEDOR */}
@@ -990,7 +1002,7 @@ export default function ProductDetail({
             </div>}
           </div>
 
-          {isOwner && (
+          {isOwner && !managementContent && (
             <div className="mt-4 bg-orange-50 border border-orange-100 p-4 rounded-2xl">
               <p className="text-orange-600 text-xs font-bold text-center italic">
                 Esta es tu publicación. Puedes editarla desde tu perfil.
@@ -998,7 +1010,7 @@ export default function ProductDetail({
             </div>
           )}
 
-          {!isAvailable && !isUnderReview && (
+          {!managementContent && !requestPreview && !isAvailable && !isUnderReview && (
             <div className="mt-4 bg-gray-50 border border-gray-100 rounded-2xl p-4">
               <p className="text-sm text-gray-600 font-bold">
                 Este artículo está <span className="uppercase">{isExpired ? "vencido" : estadoNorm}</span>.
@@ -1021,7 +1033,7 @@ export default function ProductDetail({
             </div>
           )}
 
-          {!staffPreview && isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
+          {!requestPreview && !staffPreview && isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
             <div className="mt-6 space-y-4 border-t pt-6">
               {checkingApplied ? (
                 <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl">
@@ -1148,7 +1160,7 @@ export default function ProductDetail({
             </div>
           )}
 
-          {!staffPreview && !isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
+          {!requestPreview && !staffPreview && !isGift && isAvailable && !isOwner && !isUnderReview && !isPausado && (
             <div className="mt-auto space-y-3 pt-6 border-t">
               {purchaseCreditQuote ? (
                 <div className="space-y-3 text-sm text-gray-700">
@@ -1176,7 +1188,7 @@ export default function ProductDetail({
             </div>
           )}
 
-          {!staffPreview && canSeeChat && (
+          {!managementContent && !requestPreview && !staffPreview && canSeeChat && (
             <div className="mt-8 animate-in slide-in-from-bottom-4 space-y-3">
               <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
                 <p className="text-sm font-bold text-gray-700">Chat privado habilitado ✅</p>

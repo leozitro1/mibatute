@@ -9,10 +9,10 @@ import {filterProfileItems,DEFAULT_PROFILE_FILTERS} from '../src/components/prof
 const id=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 const migration=name=>readFile(new URL(`../supabase/migrations/${name}.sql`,import.meta.url),'utf8');
 
-test('reference is optional, bounded, validated like publication text, restored for editing and searchable in profile',()=>{
+test('reference is required, bounded, validated like publication text, restored for editing and searchable in profile',()=>{
  assert.equal(getEditableArticle().locationReference,'');
  assert.equal(getEditableArticle({location_reference:'Hayuelos'}).locationReference,'Hayuelos');
- assert.equal(locationReferenceIssue(''),null);assert.equal(locationReferenceIssue('Cerca al centro comercial Hayuelos'),null);
+ assert.match(locationReferenceIssue(''),/Escribe el barrio/);assert.match(locationReferenceIssue('   '),/Escribe el barrio/);assert.equal(locationReferenceIssue('Cerca al centro comercial Hayuelos'),null);
  assert.match(locationReferenceIssue('x'.repeat(101)),/100/);
  assert.match(locationReferenceIssue('Contacto 3001234567'),/contacto/);
  assert.match(locationReferenceIssue('prueba@example.com'),/correo/);
@@ -77,5 +77,18 @@ test('reference saves with publishing and photo reorder, indexes on the same doc
   assert.equal((await db.query("select id from articulos where home_search_document @@ to_tsquery('public.article_search','fontibón & hayue:*')")).rows.length,1);
   await db.exec('reset role');
   assert.equal((await db.query("select count(*) n from pg_indexes where indexname='articulos_home_search_gin'")).rows[0].n,1);
+  const required=await migration('2026-11-03-required-location-reference');await db.exec(required);await db.exec(required);
+  await as(1);
+  for(const location_reference of ['', '   ']) {
+   await assert.rejects(publish(30,{location_reference}),/Escribe el barrio/);
+   await assert.rejects(save({location_reference}),/Escribe el barrio/);
+  }
+  assert.equal((await publish(31)).article.location_reference,'Cerca al centro comercial Hayuelos');
+  await db.exec('reset role');
+  assert.equal((await db.query('select count(*) n from article_publication_credits where article_id=$1',[id(30)])).rows[0].n,0);
+  await db.query('update articulos set status=$1 where id=$2',['reservado',id(9)]);
+  await assert.rejects(db.query('update articulos set title=$1 where id=$2',['Nuevo título',id(9)]),/Escribe el barrio/);
+  await db.query('update articulos set title=$1,location_reference=$2 where id=$3',['Nuevo título','Cerca al parque',id(9)]);
+  await assert.rejects(db.query('update articulos set location_reference=$1 where id=$2',[' ',id(9)]),/Escribe el barrio/);
  }finally{await db.close();}
 });

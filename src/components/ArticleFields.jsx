@@ -168,8 +168,8 @@ export default function ArticleFields({ formData, setFormData, categories, disab
             </div>
 
             <div>
-              <label htmlFor={`${fieldId}-location-reference`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Barrio o cerca de: <span className="font-normal normal-case">(opcional)</span></label>
-              <input id={`${fieldId}-location-reference`} type="text" maxLength={100}
+              <label htmlFor={`${fieldId}-location-reference`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Barrio o cerca de: <span className="font-normal normal-case">(obligatorio)</span></label>
+              <input id={`${fieldId}-location-reference`} type="text" required maxLength={100}
                 value={formData.locationReference || ''} disabled={disabled}
                 onChange={event => setFormData(previous => ({...previous,locationReference:event.target.value}))}
                 placeholder="Ej.: cerca al centro comercial Hayuelos"

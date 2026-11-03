@@ -19,7 +19,7 @@ test('shared location reads coalesce, cache for five minutes and retain last goo
   assert.equal(calls, 1); assert.equal(updates, 1);
   await catalog.refresh(); assert.equal(calls, 1);
   assert.deepEqual(catalog.getSnapshot().LOCATIONS['Ciudad nueva'], ['Centro']);
-  const draft = { selectedMode: 'donacion', formData: { city: 'Ciudad nueva', locality: 'Centro' }, locations: catalog.getSnapshot().LOCATIONS };
+  const draft = { selectedMode: 'donacion', formData: { locationReference: 'Cerca al parque', city: 'Ciudad nueva', locality: 'Centro' }, locations: catalog.getSnapshot().LOCATIONS };
   assert.equal(publicationStepError(3, draft), '');
   assert.match(publicationStepError(3, { ...draft, formData: { ...draft.formData, locality: 'Suba' } }), /localidad/);
   bad = true; clock += 300001;

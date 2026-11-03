@@ -2,13 +2,14 @@ import StyledSelect from "./StyledSelect.jsx";
 import ProfileIdentityPlacement from './ProfileIdentityPlacement.jsx';
 // src/components/UserProfile.jsx
 import { createReadCache, listenMarketSignals } from "./marketSignals.js";
-import { useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
 import { getProfile, updateProfile } from "../supabase/profileService";
 import { notifyCreditBalance } from './creditBalance.js';
 import { accountCreditStatus } from '../supabase/donationApplications.js';
 import './UserProfile.css';
 import './TransactionActions.css';
 import CreditBalanceValue from './CreditBalanceValue.jsx';
+import RescateArticleDetail from './RescateArticleDetail.jsx';
 import WompiTopupDialog from './WompiTopupDialog.jsx';
 import SupportInbox from './SupportInbox.jsx';
 import SaleSafetyButton from './SaleSafetyButton.jsx';
@@ -38,7 +39,6 @@ import {
   RefreshCw,
   Bell,
   AlertTriangle,
-  Eye,
   X,
   XCircle,
   Inbox,
@@ -88,15 +88,7 @@ const FALLBACK_SVG =
     </svg>
 `);
 
-function formatMoney(value) {
-  try {
-    const n = Number(value);
-    if (!isFinite(n)) return String(value ?? "");
-    return n.toLocaleString("es-CO", { style: "currency", currency: "COP" });
-  } catch {
-    return String(value ?? "");
-  }
-}
+
 
 function getThumb(item) {
   if (
@@ -989,8 +981,7 @@ export default function UserProfile({
   const [calificarLoading, setCalificarLoading] = useState(false);
   const [yaCalifique, setYaCalifique] = useState(new Set()); // articuloIds ya calificados
 
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewArt, setPreviewArt] = useState(null);
+  const [previewRescateId, setPreviewRescateId] = useState(null);
 
   const [cancelandoId, setCancelandoId] = useState(null);
 
@@ -3013,12 +3004,7 @@ export default function UserProfile({
                             if (isUserBlocked) return alert(blockedUserMsg());
                             if (isReview) return alert(revisionBlockMsg(titulo));
 
-                            if (isVenta) {
-                              abrirGestion(art);
-                              return;
-                            }
-
-                            abrirSolicitudesDeArticulo(art);
+                            abrirGestion(art);
                           }}
                         >
                           <img
@@ -3345,11 +3331,73 @@ export default function UserProfile({
                         ? unreadByArticulo.get(String(articuloId)) === true
                         : false;
 
+                      const renderActions = (detail = false) => (
+                          <fieldset onClick={event => event.stopPropagation()} disabled={isUserBlocked} data-profile-actions className={`${detail ? "rescate-detail-actions" : ""} min-w-0 shrink-0 flex items-center gap-2 ${isEntregadoRescate ? "[&>button:not([data-rating-action]):not([data-sale-safety])]:opacity-50" : ""}`}>
+                            {canRate && (
+                              <ProfileRatingAction
+                                rated={yaCalifique.has(String(articuloId))}
+                                onClick={() => {
+                                  if (detail) setPreviewRescateId(null);
+                                  setCalificarModal({ reviewedId: art.owner_id, articuloId, rol: "ganador" });
+                                  setCalificarEstrellas(0);
+                                }}
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isUserBlocked) return alert(blockedUserMsg());
+                                if (isReview) return alert(revisionBlockMsg(titulo));
+                                verMensajesRescate(r);
+                              }}
+                              disabled={isUserBlocked || cargandoChatRescate === articuloId || isDeletingMine || !canOpenMsgsRescate}
+                              className="relative bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
+                              aria-label="Ver mensajes"
+                              title={isEntregadoRescate ? "Ver historial del chat" : canOpenMsgsRescate ? "Abrir chat" : "Chat disponible al confirmar la reserva"}
+                            >
+                              {hasUnread ? (
+                                <span aria-hidden="true" className="profile-unread-dot absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
+                              ) : null}
+                              {cargandoChatRescate === articuloId ? (
+                                <Loader2 className="animate-spin" size={16} />
+                              ) : (
+                                <MessageCircle size={16} />
+                              )}
+                              {detail && <span>{isEntregadoRescate ? "Historial del chat" : "Abrir chat"}</span>}
+                            </button>
+
+                            {isVenta && (r._chatId || isBuyer || hasChatBuyer) && <SaleSafetyButton articleId={articuloId} chatId={r._chatId || null} title={titulo} iconOnly={!detail} disabled={isUserBlocked}
+                              className="inline-flex items-center justify-center bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
+                              onUpdated={result => { if (result.article) { onArticuloReservado?.(result.article); setRescatesReload(value => value + 1); } }} />}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isUserBlocked) return alert(blockedUserMsg());
+                                if (isReview) return alert(revisionBlockMsg(titulo));
+                                eliminarRescate(r);
+                              }}
+                              disabled={pendingRating || isDeletingMine || isReview || isUserBlocked || rejectedDonation || (isVenta && isBuyer && isRescateSaleLocked(r))}
+                              className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50"
+                              aria-label={isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
+                              title={pendingRating ? "Califica la transacción antes de eliminar" : isVenta && isBuyer && isRescateSaleLocked(r) ? "Compra aprobada: se conserva hasta siete días después de la entrega" : isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
+                            >
+                              {isDeletingMine ? (
+                                <Loader2 className="animate-spin" size={16} />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
+                              {detail && <span>{isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : isEntregadoRescate || rejectedRescate ? "Quitar del historial" : "Retirar solicitud"}</span>}
+                            </button>
+                          </fieldset>
+                      );
                       return (
+                        <Fragment key={r?.id || `${articuloId}-${r?.created_at}`}>
                         <div
                           key={r?.id || `${r?.articulo_id}-${r?.created_at}`}
                           data-profile-article-id={articuloId}
                           tabIndex={-1}
+                          onClick={() => setPreviewRescateId(`${user.id}:${articuloId}`)}
                           className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition focus:outline-2 focus:outline-forest-green focus:outline-offset-2 ${
                             isEntregadoRescate
                               ? "bg-gray-50 border-gray-200 [&>img]:opacity-50 [&>[data-profile-content]>:not([data-rating-notice])]:opacity-50"
@@ -3361,7 +3409,7 @@ export default function UserProfile({
                                 ? "bg-green-50 border-green-200 ring-1 ring-green-200"
                                 : "bg-white border-gray-100"
                           } ${
-                            isEntregadoRescate || rejectedRescate ? "cursor-default" : fueReservadoYCancelado ? "cursor-default" : isReview || isUserBlocked ? "opacity-80" : "hover:shadow-md"
+                            isReview || isUserBlocked ? "opacity-80 cursor-pointer" : "cursor-pointer hover:shadow-md"
                           }`}
                         >
                           <img
@@ -3377,7 +3425,7 @@ export default function UserProfile({
 
                           <div data-profile-content className="flex-1 min-w-0">
                             {pendingRating && <p data-rating-notice className="profile-rating-notice">Calificación pendiente</p>}
-                            <h4 className="font-bold text-gray-800 truncate">{titulo}</h4>
+                            <h4 className="font-bold text-gray-800 truncate"><button type="button" className="block w-full text-left truncate" aria-label={`Ver artículo: ${titulo}`}>{titulo}</button></h4>
 
                             <div className="profile-article-labels flex flex-wrap items-center gap-2 mt-1">
                               {!rejectedRescate && <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-xl ${statusUI.cls}`}>
@@ -3433,75 +3481,7 @@ export default function UserProfile({
                             <span className="profile-article-date profile-rescue-date text-[10px] text-gray-400 font-medium">
                               {isVenta ? "Compra / contacto" : "Postulado"}: {formatDateTime(r?.created_at) || "Sin fecha"}
                             </span>
-                          <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 shrink-0 flex items-center gap-2 ${isEntregadoRescate ? "[&>button:not([data-rating-action]):not([data-sale-safety])]:opacity-50" : ""}`}>
-                            {canRate && (
-                              <ProfileRatingAction
-                                rated={yaCalifique.has(String(articuloId))}
-                                onClick={() => {
-                                  setCalificarModal({ reviewedId: art.owner_id, articuloId, rol: "ganador" });
-                                  setCalificarEstrellas(0);
-                                }}
-                              />
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (isUserBlocked) return alert(blockedUserMsg());
-                                if (isReview) return alert(revisionBlockMsg(titulo));
-                                verMensajesRescate(r);
-                              }}
-                              disabled={isUserBlocked || cargandoChatRescate === articuloId || isDeletingMine || !canOpenMsgsRescate}
-                              className="relative bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
-                              aria-label="Ver mensajes"
-                              title={isEntregadoRescate ? "Ver historial del chat" : canOpenMsgsRescate ? "Abrir chat" : "Chat disponible al confirmar la reserva"}
-                            >
-                              {hasUnread ? (
-                                <span aria-hidden="true" className="profile-unread-dot absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
-                              ) : null}
-                              {cargandoChatRescate === articuloId ? (
-                                <Loader2 className="animate-spin" size={16} />
-                              ) : (
-                                <MessageCircle size={16} />
-                              )}
-                            </button>
-
-                            {isVenta && (r._chatId || isBuyer || hasChatBuyer) && <SaleSafetyButton articleId={articuloId} chatId={r._chatId || null} title={titulo} iconOnly disabled={isUserBlocked}
-                              className="inline-flex items-center justify-center bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
-                              onUpdated={result => { if (result.article) { onArticuloReservado?.(result.article); setRescatesReload(value => value + 1); } }} />}
-
-                            {!isVenta ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPreviewArt(art);
-                                  setPreviewOpen(true);
-                                }}
-                                className="bg-gray-100 text-gray-700 p-3 rounded-2xl hover:bg-gray-200 transition"
-                                aria-label="Ver publicación"
-                              >
-                                <Eye size={16} />
-                              </button>
-                            ) : null}
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (isUserBlocked) return alert(blockedUserMsg());
-                                if (isReview) return alert(revisionBlockMsg(titulo));
-                                eliminarRescate(r);
-                              }}
-                              disabled={pendingRating || isDeletingMine || isReview || isUserBlocked || rejectedDonation || (isVenta && isBuyer && isRescateSaleLocked(r))}
-                              className="bg-red-100 text-red-700 p-3 rounded-2xl hover:bg-red-600 hover:text-white transition disabled:opacity-50"
-                              aria-label={isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
-                              title={pendingRating ? "Califica la transacción antes de eliminar" : isVenta && isBuyer && isRescateSaleLocked(r) ? "Compra aprobada: se conserva hasta siete días después de la entrega" : isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : "Eliminar de Mis Rescates"}
-                            >
-                              {isDeletingMine ? (
-                                <Loader2 className="animate-spin" size={16} />
-                              ) : (
-                                <Trash2 size={16} />
-                              )}
-                            </button>
-                          </fieldset>
+                          {renderActions()}
                             <div className="profile-article-metrics profile-rescue-metrics">
                               <span className="profile-rescue-created text-gray-400 font-medium" title={isVenta ? 'Fecha de compra / contacto' : 'Fecha de postulación'}>
                                 {formatDateTime(r?.created_at) || 'Sin fecha'}
@@ -3510,6 +3490,10 @@ export default function UserProfile({
                             </div>
                           </div>
                         </div>
+                        {previewRescateId === `${user.id}:${articuloId}` && <RescateArticleDetail
+                          row={r} user={user} actions={renderActions(true)} busy={isDeletingMine}
+                          onClose={() => setPreviewRescateId(null)} />}
+                        </Fragment>
                       );
                     })
                   )}
@@ -3586,6 +3570,7 @@ export default function UserProfile({
             <ManageArticleModal
               isOpen={!!managingProduct}
               article={managingProduct}
+              user={user}
               onClose={() => setManagingProduct(null)}
             />
           )}
@@ -3737,83 +3722,7 @@ export default function UserProfile({
         </div>
       ) : null}
 
-      {/* Modal previsualización */}
-      {previewOpen && previewArt ? (
-        <div
-          className="marketplace-overlay fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => {
-            setPreviewOpen(false);
-            setPreviewArt(null);
-          }}
-        >
-          <div
-            className="marketplace-surface marketplace-modal w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-4 border-b">
-              <div className="font-black text-gray-800 truncate pr-3">Previsualización</div>
-              <button
-                type="button"
-                className="site-icon-close inline-flex items-center justify-center p-2 rounded-xl hover:bg-gray-100 transition"
-                onClick={() => {
-                  setPreviewOpen(false);
-                  setPreviewArt(null);
-                }}
-                aria-label="Cerrar"
-              >
-                <X size={18} />
-              </button>
-            </div>
 
-            <div className="p-4 grid md:grid-cols-2 gap-4">
-              <div className="rounded-3xl overflow-hidden bg-black relative aspect-square">
-                <img
-                  src={getThumb(previewArt)}
-                  alt={previewArt?.titulo || previewArt?.title || "publicación"}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  onError={(e) => {
-                    if (e.currentTarget.dataset.fallbackApplied) return;
-                    e.currentTarget.dataset.fallbackApplied = "1";
-                    e.currentTarget.src = FALLBACK_SVG;
-                  }}
-                />
-              </div>
-
-              <div className="min-w-0">
-                <div className="text-xs font-black uppercase tracking-widest text-gray-500">
-                  {getTipoPublicacion(previewArt)}
-                </div>
-                <div className="text-xl font-black text-gray-900 mt-1 break-words">
-                  {previewArt?.titulo || previewArt?.title || "Sin título"}
-                </div>
-
-                <div className="mt-2 text-sm text-gray-600">
-                  {(previewArt?.ciudad || previewArt?.city || "") +
-                    (previewArt?.localidad || previewArt?.locality ? `, ${previewArt?.localidad || previewArt?.locality}` : "")}
-                </div>
-
-                {isVentaArticulo(previewArt) && (previewArt?.precio || previewArt?.price) ? (
-                  <div className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-emerald-50 border border-emerald-100">
-                    <span className="text-xs font-black uppercase text-emerald-800">Precio</span>
-                    <span className="text-base font-black text-emerald-900">
-                      {formatMoney(previewArt?.precio ?? previewArt?.price)}
-                    </span>
-                  </div>
-                ) : null}
-
-                <div className="mt-3">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    Descripción
-                  </div>
-                  <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
-                    {previewArt?.descripcion || previewArt?.description || "Sin descripción"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

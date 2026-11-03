@@ -2283,6 +2283,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
             <ManageArticleModal
               isOpen={isManageOpen}
               article={manageArticle}
+              user={currentUser}
               onClose={() => {
                 setIsManageOpen(false);
                 setManageArticle(null);
