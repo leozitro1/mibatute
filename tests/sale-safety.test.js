@@ -121,14 +121,55 @@ test('sale safety: cancellation, declarations, review and credit conservation',a
    for(const table of ['sale_change_permits','sale_reservations','sale_buyer_blocks','sale_disputes','sale_dispute_holds'])await assert.rejects(db.query(`select * from public.${table}`),/permission/);
    await asUser(other);await assert.rejects(status(10,state.chat),/reserva/);
   });
+  await t.test('simple cancellation ignores old declarations, creates no case and settles seller credit only once',async()=>{
+   await reset();for(let n=10;n<16;n++)await change(n,'reserve',true);
+   const state=await status(15);await asUser(seller);await change(15,'approve_chat');
+   await asUser(buyer);await act(state,'declare_payment');
+   await db.exec('reset role');
+   await db.exec(await migration('2026-11-03-simple-sale-cancellation'));
+   await db.exec(await migration('2026-11-03-simple-sale-cancellation'));
+   await asUser(seller);const result=await act(state,'cancel','');
+   assert.equal(result.article.status,'disponible');assert.equal(result.article.buyer_id,null);
+   assert.equal((await db.query('select status from public.chats where id=$1',[state.chat])).rows[0].status,'closed');assert.equal(result.state.active,false);
+   assert.equal(result.state.paused,false);assert.equal(result.state.caseStatus,null);
+   await assert.rejects(act(state,'cancel'),/terminó/);
+   await asUser(buyer);const slots=(await db.query('select public.sale_purchase_status() r')).rows[0].r;
+   assert.equal(slots.balance,5);assert.equal(slots.heldCredits,0);
+   for(const action of ['declare_payment','payment_problem','review_cancellation'])await assert.rejects(act(state,action),/Solo está disponible/);
+   await db.exec('reset role');
+   assert.equal((await db.query('select count(*) n from public.sale_disputes')).rows[0].n,0);
+   assert.equal((await db.query('select count(*) n from public.chat_reports')).rows[0].n,0);
+   assert.equal((await db.query('select count(*) n from public.sale_dispute_holds')).rows[0].n,0);
+   assert.equal((await db.query("select has_function_privilege('anon','public.sale_safety_action(uuid,uuid,text,text)','execute') allowed")).rows[0].allowed,false);
+  });
+  await t.test('old review holds remain protected and cannot be cancelled as an ordinary reservation',async()=>{
+   await reset();await change(10,'reserve');const state=await status(10);
+   await db.exec('reset role');
+   await db.query('insert into public.sale_dispute_holds values($1,$2)',[id(10),JSON.stringify({status:'reservado',buyer_id:buyer})]);
+   await asUser(seller);await assert.rejects(act(state,'cancel',''),/revisión anterior/);
+   assert.equal((await status(10)).active,true);
+  });
+  await t.test('simple buyer cancellation preserves credit rules and guards against other users, stale rounds and delivered sales',async()=>{
+   await reset();for(let n=10;n<16;n++)await change(n,'reserve',true);
+   const state=await status(15);await asUser(other);await assert.rejects(act(state,'cancel',''),/ajena/);
+   await asUser(buyer);await assert.rejects(act(state,'cancel','x'.repeat(501)),/500/);
+   await act(state,'cancel','');
+   const slots=(await db.query('select public.sale_purchase_status() r')).rows[0].r;
+   assert.equal(slots.balance,4);assert.equal(slots.heldCredits,0);
+   await change(15,'reserve',true);const fresh=await status(15);
+   await assert.rejects(act(state,'cancel',''),/terminó/);assert.equal((await status(15)).active,true);
+   await asUser(seller);await change(15,'approve_chat');await change(15,'deliver');
+   await assert.rejects(act(fresh,'cancel',''),/terminó/);
+  });
  }finally{await db.close();}
 });
 
 test('sale safety client validates reason and pins actions to the viewed reservation',async()=>{
  const state={chat:'chat',reservation:'round'};
- await assert.rejects(saleSafetyAction({},state,'cancel','corto'),/8 a 500/);
+ await assert.rejects(saleSafetyAction({},state,'cancel','x'.repeat(501)),/500/);
+ for(const action of ['declare_payment','payment_problem','review_cancellation'])await assert.rejects(saleSafetyAction({},state,action),/Solo está disponible/);
  await assert.rejects(saleSafetyAction({},null,'cancel','Un motivo correcto'),/Actualiza/);
  const client={rpc:async(name,args)=>{assert.equal(name,'sale_safety_action');assert.equal(args.p_reservation,'round');return {data:{state,notice:'Confirmado'}};}};
- assert.equal((await saleSafetyAction(client,state,'cancel','Un motivo correcto')).notice,'Confirmado');
+ assert.equal((await saleSafetyAction(client,state,'cancel','')).notice,'Confirmado');
  await assert.rejects(saleSafetyStatus({rpc:async()=>({data:{}})},'article'),/comprobar/);
 });

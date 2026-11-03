@@ -6,3 +6,7 @@
 .sale-safety-dialog-heading p {margin:6px 0 0;font-size:12px;overflow-wrap:anywhere;color:#6b7280;}
 .sale-safety-dialog-content {min-height:0;overflow-y:auto;overscroll-behavior:contain;}
 .sale-safety-dialog footer {display:flex;justify-content:flex-end;padding:12px 20px;border-top:1px solid #edf0ea;}
+
+@media(max-width:1023px) {
+  .sale-safety-dialog textarea { font-size:16px !important; }
+}

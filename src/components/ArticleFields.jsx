@@ -2,7 +2,7 @@ import ArticleSizeField from "./ArticleSizeField.jsx";
 import StyledSelect from "./StyledSelect.jsx";
 import { useId } from "react";
 import useLocations from "../data/useLocations.js";
-import {publicationTextIssue,PUBLICATION_CONTACT_NOTICE} from './articleValidation.js';
+import {publicationTextIssue,locationReferenceIssue,PUBLICATION_CONTACT_NOTICE} from './articleValidation.js';
 import usePublicationRules from './usePublicationRules.js';
 
 import { productCondition } from "./productCondition.js";
@@ -22,6 +22,7 @@ export default function ArticleFields({ formData, setFormData, categories, disab
   const condition = productCondition(formData.conditionScore) || productCondition(8);
   const rules=usePublicationRules();
   const titleError=publicationTextIssue(formData.title,rules);
+  const referenceError=locationReferenceIssue(formData.locationReference,rules);
   const descError=publicationTextIssue(formData.description,rules);
   return <div className="space-y-4">
             <p id={`${fieldId}-contact-policy`} className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">{PUBLICATION_CONTACT_NOTICE}</p>
@@ -133,7 +134,7 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                 <label htmlFor={`${fieldId}-city`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Ciudad</label>
                 <StyledSelect id={`${fieldId}-city`}
                   value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value, locality: "" })}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value, locality: "", locationReference: "" })}
                   className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
                   disabled={disabled}
                 >
@@ -151,7 +152,7 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                 <label htmlFor={`${fieldId}-locality`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Localidad</label>
                 <select id={`${fieldId}-locality`}
                   value={formData.locality}
-                  onChange={(e) => setFormData({ ...formData, locality: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, locality: e.target.value, locationReference: "" })}
                   className="w-full border-2 border-gray-100 rounded-xl p-3 outline-none"
                   disabled={disabled || !formData.city}
                 >
@@ -164,6 +165,18 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div>
+              <label htmlFor={`${fieldId}-location-reference`} className="block text-[10px] font-black text-gray-400 uppercase mb-1">Barrio o cerca de: <span className="font-normal normal-case">(opcional)</span></label>
+              <input id={`${fieldId}-location-reference`} type="text" maxLength={100}
+                value={formData.locationReference || ''} disabled={disabled}
+                onChange={event => setFormData(previous => ({...previous,locationReference:event.target.value}))}
+                placeholder="Ej.: cerca al centro comercial Hayuelos"
+                aria-describedby={`${fieldId}-reference-help${referenceError?' '+fieldId+'-reference-error':''}`} aria-invalid={!!referenceError}
+                className="article-location-reference w-full border-2 border-gray-100 rounded-xl p-3 outline-none focus:border-forest-green" />
+              <p id={`${fieldId}-reference-help`} className="mt-1 text-xs text-gray-500">Máximo 100 caracteres. Usa una referencia general, evita escribir tu dirección exacta.</p>
+              {referenceError&&<p id={`${fieldId}-reference-error`} role="status" className="mt-1 text-xs text-red-700">{referenceError}</p>}
             </div>
 
             </>}

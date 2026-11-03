@@ -6,9 +6,9 @@ export async function saleSafetyStatus(client, articleId, chatId = null) {
 }
 export async function saleSafetyAction(client, state, action, reason = '') {
   if (!state?.reservation || !state?.chat) throw new Error('Actualiza la reserva antes de continuar.');
-  if (!['cancel', 'declare_payment', 'payment_problem', 'review_cancellation'].includes(action)) throw new Error('Acción inválida.');
+  if (action !== 'cancel') throw new Error('Solo está disponible la cancelación de reservas.');
   const detail = String(reason).trim();
-  if (action !== 'declare_payment' && (detail.length < 8 || detail.length > 500)) throw new Error('Escribe un motivo de 8 a 500 caracteres.');
+  if (detail.length > 500) throw new Error('El motivo no puede superar 500 caracteres.');
   const { data, error } = await client.rpc('sale_safety_action', {
     p_chat: state.chat, p_reservation: state.reservation, p_action: action, p_reason: detail,
   });

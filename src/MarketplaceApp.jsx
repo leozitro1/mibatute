@@ -1065,7 +1065,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     const pageIds = [...new Set([...pageData.ids, ...pageData.featuredIds, ...(sharedId ? [sharedId] : [])])];
     // ✅ Solo columnas necesarias para el listado — sin select("*")
     const columns = `article_view_totals(view_count),id, titulo, title, mode, tipo, estado, status, size_class,
-         city, locality, description,
+         city, locality, location_reference, description,
          price, interested_count, usuario_id, owner_id, buyer_id,
          ganador_id, winner_id, recipient_id,
          reserved_at, delivered_at, updated_at, created_at,

@@ -45,3 +45,8 @@ export function validatePublicationText(title,description,rules=[]){
  if(String(title||'').length>160)return 'El título debe tener máximo 160 caracteres.';
  return publicationTextIssue(title,rules)||publicationTextIssue(description,rules);
 }
+
+export function locationReferenceIssue(value='',rules=[]) {
+ if(String(value||'').length>100)return 'La referencia de ubicación debe tener máximo 100 caracteres.';
+ return publicationTextIssue(value,rules);
+}

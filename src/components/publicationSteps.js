@@ -1,11 +1,11 @@
 import { LOCATIONS } from '../data/locations.js';
-import {validatePublicationText} from './articleValidation.js';
+import {validatePublicationText,locationReferenceIssue} from './articleValidation.js';
 
 export const PUBLICATION_STEPS = [
   { label:'Tipo', title:'¿Quieres vender o donar?', hint:'Elige cómo quieres darle otra oportunidad a tu artículo.' },
   { label:'Fotos', title:'Muéstralo tal como está', hint:'Agrega entre 1 y 4 fotos reales. La primera será la portada. No incluyas datos de contacto.' },
   { label:'Artículo', title:'Cuéntanos qué vas a publicar', hint:'Describe su estado con honestidad, especialmente si tiene daños o sirve para repuestos.' },
-  { label:'Ubicación', title:'¿Dónde se puede recoger?', hint:'Solo publicamos la ciudad y localidad. La dirección exacta se acuerda después por el chat.' },
+  { label:'Ubicación', title:'¿Dónde se puede recoger?', hint:'Publicamos ciudad, localidad y la referencia general que agregues. La dirección exacta se acuerda después por el chat.' },
   { label:'Revisión', title:'Revisa antes de publicar', hint:'Comprueba las fotos, los datos y si tu publicación requiere un crédito.' },
 ];
 
@@ -24,6 +24,7 @@ export function publicationStepError(step,{selectedMode,formData,files,categorie
   if(step===3){
     if(!locations[formData.city])return 'Selecciona una ciudad.';
     if(!locations[formData.city].includes(formData.locality))return 'Selecciona una localidad de esa ciudad.';
+    return locationReferenceIssue(formData.locationReference,rules)||'';
   }
   return '';
 }

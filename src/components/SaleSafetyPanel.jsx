@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { ShieldCheck, RefreshCw } from 'lucide-react';
+import { PackageCheck, RefreshCw } from 'lucide-react';
 import { supabase } from '../supabase/supabaseClient';
 import { listenMarketSignals, singleFlight } from './marketSignals.js';
 import { saleSafetyAction, saleSafetyStatus } from '../supabase/saleSafety';
@@ -55,28 +55,22 @@ export default function SaleSafetyPanel({ articleId, chatId = null, onUpdated })
     finally { working.current = false; if (active.current) setBusy(false); }
   };
   const open = action => { setForm(action); setReason(''); setError(''); setNotice(''); };
-  return <section className="mx-4 my-3 rounded-xl border border-[#dce6d7] bg-[#f7f9f5] p-3 text-xs text-gray-600" aria-label="Seguridad de la reserva">
-    <div className="flex items-center justify-between gap-2"><strong className="flex items-center gap-1.5 text-[#315b28]"><ShieldCheck size={15} />Seguridad de la venta</strong><button type="button" className={button} disabled={busy} onClick={refresh} aria-label="Actualizar estado de la reserva"><RefreshCw size={13} /></button></div>
+  return <section className="mx-4 my-3 rounded-xl border border-[#dce6d7] bg-[#f7f9f5] p-3 text-xs text-gray-600" aria-label="Estado de la reserva">
+    <div className="flex items-center justify-between gap-2"><strong className="flex items-center gap-1.5 text-[#315b28]"><PackageCheck size={15} />Estado de la reserva</strong><button type="button" className={button} disabled={busy} onClick={refresh} aria-label="Actualizar estado de la reserva"><RefreshCw size={13} /></button></div>
     {!state && !error && <p className="mt-2" role="status">Comprobando reserva…</p>}
     {state && <>
-      {state.paymentDeclaredAt && <p className="mt-2">El comprador declaró un pago. Es una declaración sin verificar, no una confirmación de MiBatute.</p>}
-      {state.caseStatus === 'open' && <p className="mt-2 font-semibold text-amber-800">Caso en revisión por administración.{state.paused ? ' La publicación está pausada.' : ''}</p>}
+      <p className="mt-2">{state.active ? 'Esta reserva está activa.' : state.paused ? 'Existe una revisión anterior pendiente. Contacta a MiBatute desde el buzón.' : 'Esta reserva ha finalizado.'}</p>
       {state.cancelReason && <p className="mt-2">Motivo de cancelación: {state.cancelReason}</p>}
-      {state.resolution && <p className="mt-2">Respuesta de administración: {state.resolution}</p>}
-      {state.blocked && <p className="mt-2">Este comprador no puede reservar de nuevo esta publicación. Puede solicitar revisión.</p>}
-      {state.caseStatus !== 'open' && <div className="mt-3 flex flex-wrap gap-2">
-        {state.active && <button type="button" className={button} disabled={busy} onClick={() => open('cancel')}>Cancelar reserva</button>}
-        {state.isBuyer && state.active && !state.paymentDeclaredAt && <button type="button" className={button} disabled={busy} onClick={() => open('declare_payment')}>Ya pagué</button>}
-        {state.isBuyer && state.caseStatus !== 'resolved' && <button type="button" className={button} disabled={busy} onClick={() => open('payment_problem')}>Pagué y necesito revisión</button>}
-        {state.isBuyer && state.blocked && state.caseStatus !== 'resolved' && <button type="button" className={button} disabled={busy} onClick={() => open('review_cancellation')}>Revisar cancelación</button>}
-      </div>}
-      {state.caseStatus === 'open' && state.caseKind === 'cancellation' && state.isBuyer && <button type="button" className={`${button} mt-3`} disabled={busy} onClick={() => open('payment_problem')}>También necesito informar un pago</button>}
+      {state.blocked && <p className="mt-2">Este comprador no puede reservar de nuevo esta publicación.</p>}
+      {state.active && !form && <button type="button" className={`${button} mt-3`} disabled={busy} onClick={() => open('cancel')}>Cancelar reserva</button>}
       {form && <form onSubmit={submit} className="mt-3 space-y-2">
-        <p>{form === 'cancel' ? 'Indica por qué cancelas. Si hay un pago declarado, se abrirá una revisión. Si cancela el vendedor sin pago declarado, el artículo vuelve a estar disponible y este comprador queda bloqueado para esta publicación.' : form === 'declare_payment' ? 'Confirma únicamente si ya realizaste el pago. MiBatute no lo verifica, no recibe ese dinero y no garantiza su devolución. Ante un problema, solicita revisión.' : form === 'payment_problem' ? 'Explica el pago y el problema. No incluyas claves ni datos bancarios. Administración revisará las declaraciones y el historial; no se confirma ni devuelve dinero automáticamente.' : 'Explica por qué solicitas revisar la cancelación. El bloqueo se mantiene hasta la decisión de administración.'}</p>
-        {form !== 'declare_payment' && <><label className="block font-semibold" htmlFor={id}>Motivo</label><textarea id={id} value={reason} onChange={event => setReason(event.target.value)} required minLength={8} maxLength={500} rows={3} className="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm" /><p className="text-right">{reason.length}/500</p></>}
-        <div className="flex flex-wrap gap-2"><button type="submit" className={button} disabled={busy}>{busy ? 'Guardando…' : 'Confirmar'}</button><button type="button" className={button} disabled={busy} onClick={() => setForm('')}>Volver</button></div>
+        <p>¿Quieres cancelar la reserva? El artículo volverá a estar disponible.{state.isBuyer && ' Si utilizaste un crédito para reservar, no se devuelve al retirarte.'}</p>
+        <label className="block font-semibold" htmlFor={id}>Motivo (opcional)</label>
+        <textarea id={id} value={reason} onChange={event => setReason(event.target.value)} maxLength={500} rows={3} className="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm" />
+        <div className="flex flex-wrap gap-2"><button type="submit" className={button} disabled={busy}>{busy ? 'Cancelando…' : 'Sí, cancelar reserva'}</button><button type="button" className={button} disabled={busy} onClick={() => setForm('')}>Volver</button></div>
       </form>}
     </>}
+    <p className="mt-3">Acuerda el pago y la entrega con la otra persona. MiBatute no recibe ni verifica los pagos entre usuarios.</p>
     {notice && <p className="mt-2" role="status">{notice}</p>}
     {error && <p className="mt-2 text-red-700" role="alert">{error}</p>}
   </section>;

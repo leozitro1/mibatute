@@ -2200,7 +2200,7 @@ export default function UserProfile({
     const isPurchase = isVentaArticulo(art) && String(art.buyer_id || "") === String(user.id);
     const isActivePurchase = isPurchase && normEstado(art.estado || art.status) === "reservado";
     if (isPurchase && isRescateSaleLocked(rescate)) {
-      return alert("Para cancelar una compra aprobada, usa el botón de candado «Seguridad de la venta». El historial se conserva para revisión.");
+      return alert("Para cancelar esta compra, abre el botón «Reserva» y confirma la cancelación.");
     }
     if (isPurchase && normEstado(art.estado || art.status) === "entregado") {
       return alert("La compra entregada se conserva en tu historial.");

@@ -16,7 +16,7 @@ import { PUBLICATION_STEPS, publicationStepError } from "./publicationSteps.js";
 import "./PublishModal.css";
 import { notifyCreditBalance } from "./creditBalance.js";
 import { photoFitZoom, photoCropDrawRect } from "./photoCropGeometry.js";
-import {validatePublicationText} from './articleValidation.js';
+import {validatePublicationText,locationReferenceIssue} from './articleValidation.js';
 import {cachedPublicationRules} from '../supabase/publicationRules.js';
 
 // ✅ regla social: tope máximo para ventas
@@ -108,6 +108,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     price: "",
     city: currentCity || "",
     locality: "",
+    locationReference: "",
     description: "",
     conditionScore: 8, // 1-10
     sizeClass: "",
@@ -234,6 +235,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         ...prev,
         city: currentCity || prev.city || "",
         locality: "",
+        locationReference: "",
         mode: modeNorm2,
         category: safeCategory,
         subcategory: safeSub,
@@ -270,6 +272,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       price: "",
       city: currentCity || "",
       locality: "",
+      locationReference: "",
       description: "",
       conditionScore: 8,
       sizeClass: "",
@@ -441,6 +444,9 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       return;
     }
 
+    const referenceError = locationReferenceIssue(formData.locationReference,cachedPublicationRules());
+    if (referenceError) {setStep(3);setStepError(referenceError);return;}
+
     publicationSubmitLock.current = true;
     setIsSubmitting(true);
 
@@ -454,6 +460,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         precio: modeNorm3 === "venta" && formData.price ? Number(formData.price) : null,
         ciudad: formData.city,
         localidad_es: formData.locality,
+        location_reference: (formData.locationReference || "").trim(),
         descripcion: formData.description,
         estado_producto: Number(formData.conditionScore) || 8,
         size_class: formData.sizeClass || null,
@@ -468,6 +475,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
         price: modeNorm3 === "venta" && formData.price ? Number(formData.price) : null,
         city: formData.city,
         locality: formData.locality,
+        location_reference: (formData.locationReference || "").trim(),
         description: formData.description,
         estado_producto: Number(formData.conditionScore) || 8,
         size_class: formData.sizeClass || null,
@@ -582,7 +590,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
               <div className="publish-review-photos">{previews.map((src,index)=><img key={src} src={src} alt={`Foto ${index+1} del artículo`}/>)}</div>
               <div className="publish-review-line"><span>{selectedMode==='venta'?'Venta':'Donación'}</span><button type="button" onClick={()=>goToStep(0)}>Cambiar tipo</button></div>
               <h4>{formData.title}</h4><strong className="publish-review-price">{selectedMode==='venta'?new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(formData.price)):'Gratis'}</strong>
-              <dl><dt>Categoría</dt><dd>{formData.category} · {formData.subcategory}</dd><dt>Estado</dt><dd>{formData.conditionScore}/10 · {productCondition(formData.conditionScore)?.label}</dd><dt>Tamaño</dt><dd>{articleSize(formData.sizeClass)?.label || "Sin especificar"}</dd><dt>Ubicación</dt><dd>{formData.city}, {formData.locality}</dd></dl>
+              <dl><dt>Categoría</dt><dd>{formData.category} · {formData.subcategory}</dd><dt>Estado</dt><dd>{formData.conditionScore}/10 · {productCondition(formData.conditionScore)?.label}</dd><dt>Tamaño</dt><dd>{articleSize(formData.sizeClass)?.label || "Sin especificar"}</dd><dt>Ubicación</dt><dd>{formData.city}, {formData.locality}{formData.locationReference?.trim() && <span className="block mt-1">{formData.locationReference.trim()}</span>}</dd></dl>
               <p className="publish-review-description">{formData.description}</p>
               <div className="publish-review-edit"><button type="button" onClick={()=>goToStep(1)}>Editar fotos</button><button type="button" onClick={()=>goToStep(2)}>Editar artículo</button><button type="button" onClick={()=>goToStep(3)}>Editar ubicación</button></div>
             </section>

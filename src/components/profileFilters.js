@@ -51,7 +51,7 @@ export function filterProfileItems(items, filters, {
     return { row: rescates ? { ...row, articulo: article } : article, article, status, sale,
       hasUnread, hasChat, hasRequests, pending, isFeatured, ratingOrder, index };
   }).filter(item => {
-    if (term && !normalize(item.article.title || item.article.titulo).includes(term)) return false;
+    if (term && !normalize([item.article.title || item.article.titulo,item.article.city || item.article.ciudad,item.article.locality || item.article.localidad_es,item.article.location_reference].filter(Boolean).join(' ')).includes(term)) return false;
     if (filters.status !== 'todos' && (filters.status === 'pendiente' ? !item.pending : item.status !== filters.status)) return false;
     if (filters.type !== 'todos' && item.sale !== (filters.type === 'venta')) return false;
     if (filters.featured && !item.isFeatured) return false;

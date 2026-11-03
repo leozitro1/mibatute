@@ -4,6 +4,7 @@ export function getEditableArticle(article = {}) {
     title: article.title || article.titulo || "",
     description: article.description || article.descripcion || "",
     city: article.city || article.ciudad || "",
+    locationReference: article.location_reference || "",
     locality: article.locality || article.localidad_es || "",
     category: article.category || article.categoria || "",
     subcategory: article.subcategory || article.subcategoria || "",

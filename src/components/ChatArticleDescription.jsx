@@ -45,7 +45,7 @@ export default function ChatArticleDescription({article,onClose}) {
         <dl className="chat-article-facts">
           <div><dt>Estado</dt><dd>{status}</dd></div>
           {condition && <div><dt>Estado del producto</dt><dd>{condition.label} · {condition.score}/10</dd></div>}
-          <div><dt><MapPin size={15} aria-hidden="true" />Localidad</dt><dd>{locality || 'No informada'}{city && <span>{city}</span>}</dd></div>
+          <div><dt><MapPin size={15} aria-hidden="true" />Localidad</dt><dd>{locality || 'No informada'}{city && <span>{city}</span>}{article?.location_reference && <span>{article.location_reference}</span>}</dd></div>
         </dl>
         <h3>Descripción</h3>
         <p>{description || 'Este artículo no tiene descripción.'}</p>

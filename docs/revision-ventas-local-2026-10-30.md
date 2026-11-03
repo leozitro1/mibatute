@@ -31,3 +31,12 @@ También se corrige el arranque público sin sesión: el estado inicial nulo de 
 ## Ajuste posterior de interfaz — solo local
 
 A petición del responsable, el panel deja de mostrarse dentro del chat. Un botón de candado «Seguridad» abre una ventana independiente en la gestión de la venta y en las listas de publicaciones/compras. El historial de conversaciones conserva el candado para ventas pendientes, canceladas y entregadas, con la conversación exacta para evitar confundir reservas. La ventana se carga y consulta solamente al pulsar; cerrar por Escape devuelve el foco y no cierra la gestión que estaba debajo. No cambia permisos, cobros ni migraciones. Compilación, lint de módulos nuevos/gestión/chat/historial y 17 pruebas dirigidas aprobados por terminal; sin navegador local, capturas, commit ni deploy para este ajuste.
+
+
+## Simplificación solicitada el 3 de noviembre — solo local
+
+El flujo de participantes queda limitado a cancelar con confirmación y motivo opcional de hasta 500 caracteres. Se retiran «Ya pagué», problemas de pago y revisión de cancelaciones tanto de la interfaz como de la RPC; una declaración antigua ya no convierte una cancelación nueva en disputa. El artículo vuelve a disponible y se conservan los avisos de cancelación, el cierre del chat, el bloqueo previo cuando cancela el vendedor y la liquidación de créditos existentes. No recibe ni verifica pagos externos.
+
+Migración `2026-11-03-simple-sale-cancellation.sql` aplicada únicamente a Supabase local. No borra ni resuelve casos históricos; sus pausas y herramientas de personal se conservan. Pruebas de declaración antigua sin disputa nueva, motivo opcional, permisos, reserva antigua/ajena, venta entregada y créditos liquidados una sola vez. Pendiente revisión local y autorización de commit/deploy para producción.
+
+La simplificación fue autorizada para publicación tras la revisión local. La migración se aplicó en producción junto con la referencia de ubicación; funciones y permisos verificados. Registro de validación y entrega en docs/despliegue-pruebas-funcionales.md.

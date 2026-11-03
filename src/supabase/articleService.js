@@ -228,7 +228,7 @@ export async function getArticleWithImages(articleId) {
   // ✅ OPT: columnas explícitas en vez de * (evita traer todo el row en cada edit)
   const { data, error } = await queryArticlesWithCondition(
       `article_view_totals(view_count),id,titulo,title,mode,tipo,estado,status,size_class,
-       city,locality,categoria,category,subcategoria,subcategory,
+       city,locality,location_reference,categoria,category,subcategoria,subcategory,
        description,price,
        owner_id,usuario_id,buyer_id,ganador_id,winner_id,recipient_id,
        image_url,imagen_url_principal,imagenes,is_featured,
@@ -319,6 +319,7 @@ export async function publishArticle({ formData, files, user, useCredit = false,
     price: mode === "venta" ? Number(formData?.precio ?? formData?.price ?? 0) : 0,
     city: formData?.ciudad ?? formData?.city ?? null,
     locality: formData?.localidad_es ?? formData?.locality ?? null,
+    location_reference: String(formData?.location_reference ?? formData?.locationReference ?? "").trim(),
     // ✅ Destacado (compatibilidad de columnas)
     is_featured: false,
     description: String(formData?.descripcion ?? formData?.description ?? "").trim(),
@@ -332,6 +333,7 @@ export async function publishArticle({ formData, files, user, useCredit = false,
     if (payload[k] === undefined) delete payload[k];
   }
 
+  if (payload.location_reference.length > 100) return {success:false,error:"La referencia de ubicación debe tener máximo 100 caracteres."};
   if (!requestId) return { success: false, error: "Falta el identificador de publicacion. Reabre el formulario." };
   // Upload first: failed images never create a publication or consume a credit.
   // The final RPC stores primary images and the debit in one database transaction.
@@ -621,6 +623,8 @@ export async function updateArticle(articleId, formData = {}, file = null, {imag
     }
     const title = (formData.titulo ?? formData.title ?? "").trim();
     const description = (formData.descripcion ?? formData.description ?? "").trim();
+    const locationReference = String(formData.location_reference ?? formData.locationReference ?? "").trim();
+    if (locationReference.length > 100) return {success:false,error:"La referencia de ubicación debe tener máximo 100 caracteres."};
     const category = formData.categoria ?? formData.category;
     const subcategory = formData.subcategoria ?? formData.subcategory;
     const condition = formData.estado_producto == null ? null : Number(formData.estado_producto);
@@ -633,6 +637,7 @@ export async function updateArticle(articleId, formData = {}, file = null, {imag
     if(imageOrder){
       const saved=await savePhotoOrder(supabase,articleId,imageOrder,{title,description,category,subcategory,mode,price,
         city:formData.ciudad??formData.city,locality:formData.localidad_es??formData.locality,
+        location_reference:locationReference,
         size_class:formData.sizeClass || null,
         ...(condition!==null?{estado_producto:condition}:{})});
       if(!saved.success||!file)return saved;
@@ -644,6 +649,7 @@ export async function updateArticle(articleId, formData = {}, file = null, {imag
       subcategory, subcategoria: subcategory, mode, tipo: mode, price,
       city: formData.ciudad ?? formData.city,
       locality: formData.localidad_es ?? formData.locality,
+      location_reference: locationReference,
       is_featured: !!formData.is_featured,
       size_class: formData.sizeClass || null,
       ...(condition !== null ? { estado_producto: condition } : {}),

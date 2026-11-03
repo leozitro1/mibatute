@@ -904,7 +904,7 @@ export default function ProductDetail({
           <div className="product-detail-location-row">
             <div className="product-detail-location flex items-center gap-2 text-gray-500 text-sm">
               <MapPin size={16} className="text-forest-green" />
-              <span className="font-bold">{locationText}</span>
+              <span className="font-bold">{locationText}{item?.location_reference && <span className="block mt-1 text-xs font-normal break-words">{item.location_reference}</span>}</span>
             </div>
             <div className="product-detail-countdown">
               {(isOwner||staffPreview)&&<PublicationViews article={item}/>}
