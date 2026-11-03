@@ -2,7 +2,7 @@ import StyledSelect from "./StyledSelect.jsx";
 import { publicContactText } from './contactText.js';
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, MapPin, User, Home, ChevronDown, LogOut, Bell, X, Plus, Coins, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
+import { Search, MapPin, User, Home, ChevronDown, LogOut, Bell, X, Plus, Coins, Settings, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
 import './Navbar.css';
 import useLocations from "../data/useLocations.js";
 import { supabase } from "../supabase/supabaseClient";
@@ -11,6 +11,8 @@ import { CREDIT_BALANCE_CHANGED } from './creditBalance.js';
 import useLocalAppNotices from './useLocalAppNotices.js';
 import { LocalNoticeBanner, LocalNoticeSettings } from './LocalAppNotices.jsx';
 import AppUpdateBanner from './AppUpdateBanner.jsx';
+import MobileAppSettings from './MobileAppSettings.jsx';
+import useMobileTextSize from './useMobileTextSize.js';
 
 const logoMiBatute = "/logo.png";
 
@@ -227,6 +229,7 @@ export default function Navbar({
   onPublishClick,
   user,
   onProfileClick,
+  onCreditsClick,
   onLoginClick,
   onLogout,
   onGoHome,
@@ -368,6 +371,8 @@ export default function Navbar({
 
   const msgBtnRef = useRef(null);
   const [openNotifs, setOpenNotifs] = useState(false);
+  const [settingsOpen,setSettingsOpen] = useState(false);
+  const mobileText = useMobileTextSize(appMode);
   const localNotices = useLocalAppNotices({uid:user?.id,active:appMode && !isBlocked && !user?.is_blocked && !user?.bloqueado,items:notifications,activeChatId});
   const [markingNotifications,setMarkingNotifications]=useState(false);
   const [notificationMarkError,setNotificationMarkError]=useState('');
@@ -733,15 +738,25 @@ export default function Navbar({
           aria-label={isProfile ? 'Inicio' : user ? 'Perfil' : 'Ingresar'} title={isProfile ? 'Inicio' : user ? 'Perfil' : 'Ingresar'}>
           {isProfile ? <Home size={24} aria-hidden="true" /> : <User size={24} aria-hidden="true" />}
         </button>
+        <button type="button" onClick={user ? () => onCreditsClick?.(creditBalance) : onLoginClick} disabled={isBlocked}
+          aria-label="Créditos: recargar e historial de recargas" title="Créditos y recargas">
+          <Coins size={24} aria-hidden="true" />
+        </button>
         <button type="button" className="mobile-app-publish" onClick={handlePublish} disabled={publishDisabled}
           aria-label={`Publicar: ${publishTitle}`} title={publishTitle}>
           <Plus size={22} aria-hidden="true" /><span>Publicar</span>
+        </button>
+        <button type="button" className="mobile-app-settings" onClick={() => {setOpenNotifs(false);setSettingsOpen(true);}} aria-label="Configuración" title="Configuración">
+          <Settings size={24} aria-hidden="true" />
         </button>
         <button type="button" onClick={user ? () => setShowLogoutConfirm(true) : handleLogoClick}
           aria-label={user ? 'Salir' : 'Inicio'} title={user ? 'Salir' : 'Inicio'}>
           {user ? <LogOut size={23} aria-hidden="true" /> : <Home size={24} aria-hidden="true" />}
         </button>
       </nav>
+
+      {settingsOpen && appMode && <MobileAppSettings textSize={mobileText.size} onTextSize={mobileText.setSize}
+        notices={localNotices} userId={user?.id} onLogin={onLoginClick} onClose={() => setSettingsOpen(false)} />}
 
       {showLogoutConfirm && (
         <div className="marketplace-overlay fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">

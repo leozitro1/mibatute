@@ -8,7 +8,7 @@ import { AttentionDot } from '../staff/StaffAttention.jsx';
 const date=value=>new Date(value).toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bogota'});
 const newList={rows:[],total:0,page:1,pages:1,next_thread_at:null};
 
-export default function SupportInbox({client=supabase,isStaff=false,managedRealtime=false,isActive=true,userId,query='',revision=0,targetThreadId=null,targetVersion=null,onSeen,onRemoved,onActivity,onAccessExpired}) {
+export default function SupportInbox({client=supabase,isStaff=false,managedRealtime=false,isActive=true,userId,query='',revision=0,targetThreadId=null,targetVersion=null,onSeen,onRemoved,onActivity,onAccessExpired,heading}) {
   const [caseStatus,setCaseStatus]=useState('all');
   const [list,setList]=useState(newList),[pageSelection,setPageSelection]=useState({query,status:'all',page:1}),[refresh,setRefresh]=useState(0),[threadRefresh,setThreadRefresh]=useState(0);
   const status=isStaff?caseStatus:'all';
@@ -127,7 +127,7 @@ export default function SupportInbox({client=supabase,isStaff=false,managedRealt
     <div className="support-actions"><button type="button" className="support-button" disabled={sending} onClick={()=>setDeleteTarget(null)}>Cancelar</button><button type="button" className="support-button support-delete" disabled={sending} onClick={()=>remove(deleteTarget)}><Trash2 size={16} />{sending?'Eliminando…':'Confirmar eliminación'}</button></div>
   </div>;
   return <section className={`support-inbox ${isStaff?'support-inbox--staff':''}`} aria-label={isStaff?'Buzón de soporte':'Conversaciones con MiBatute'}>
-    <div className="support-heading"><div><h2>{isStaff?'Mensajes de usuarios':'Contacta a MiBatute'}</h2><p>{isStaff?'Admin y superadmin comparten estas conversaciones.':'Una conversación nueva cada 24 horas. Puedes responder en los hilos existentes.'}</p></div>
+    <div className="support-heading"><div><h2>{heading || (isStaff?'Mensajes de usuarios':'Contacta a MiBatute')}</h2><p>{isStaff?'Admin y superadmin comparten estas conversaciones.':'Una conversación nueva cada 24 horas. Puedes responder en los hilos existentes.'}</p></div>
       <button type="button" className="support-icon-button" onClick={()=>invalidate()} disabled={loading||sending} aria-label="Actualizar conversaciones" title="Actualizar conversaciones"><RefreshCw size={17} /></button>
     </div>
     {isStaff&&!activeId&&<div className="support-status-filter" role="group" aria-label="Estado de los casos">

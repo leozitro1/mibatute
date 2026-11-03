@@ -1,0 +1,8 @@
+.sale-safety-dialog {position:fixed;inset:0;margin:auto;height:fit-content;width:min(540px,calc(100vw - 24px));max-height:calc(100dvh - 32px);padding:0;border:1px solid #dce6d7;border-radius:16px;background:#fff;color:#374151;box-shadow:0 24px 70px #15231930;}
+.sale-safety-dialog::backdrop {background:#14231875;}
+.sale-safety-dialog-surface {display:flex;flex-direction:column;max-height:calc(100dvh - 34px);}
+.sale-safety-dialog-heading {display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid #edf0ea;}
+.sale-safety-dialog-heading h2 {display:flex;align-items:center;gap:8px;margin:0;font-size:16px;font-weight:700;color:#315b28;}
+.sale-safety-dialog-heading p {margin:6px 0 0;font-size:12px;overflow-wrap:anywhere;color:#6b7280;}
+.sale-safety-dialog-content {min-height:0;overflow-y:auto;overscroll-behavior:contain;}
+.sale-safety-dialog footer {display:flex;justify-content:flex-end;padding:12px 20px;border-top:1px solid #edf0ea;}

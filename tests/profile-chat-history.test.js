@@ -2,7 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
+import {userChatType} from '../src/components/userChatType.js';
 const id=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
+
+test('chat type is relative to the participant and distinguishes donations from paid transactions',()=>{
+ const row={buyer_id:'buyer',seller_id:'seller',mode:'venta'};
+ assert.deepEqual(userChatType(row,'buyer'),{key:'purchases',label:'Compra'});
+ assert.deepEqual(userChatType(row,'seller'),{key:'sales',label:'Venta'});
+ assert.deepEqual(userChatType({...row,mode:'donacion'},'buyer'),{key:'donations',label:'Rescate'});
+ assert.deepEqual(userChatType({...row,mode:'donacion'},'seller'),{key:'donations',label:'Donación'});
+ assert.equal(userChatType(row,'unrelated'),null);
+});
 
 test('profile chat history is participant-only, paginated, includes closed chats and hides deleted articles',async()=>{
  const db=new PGlite();
@@ -53,5 +63,35 @@ test('profile chat history is participant-only, paginated, includes closed chats
   await db.exec(`update usuarios set ban_until=now()+interval '1 day' where id='${id(2)}'`);
   await asUser(2);await assert.rejects(read(),/cuenta/);await assert.rejects(filtered(),/cuenta/);
   await db.exec('reset role;set role anon');await assert.rejects(read(),/permission/);
+  await db.exec(`reset role;update usuarios set ban_until=null;delete from chats;delete from articulos;
+   insert into articulos values('${id(100)}','Artículo de venta','venta','reservado',null,null),('${id(101)}','Artículo de donación','donacion','reservado',null,null);
+   insert into chats select md5(('purchase-'||n)::text)::uuid,'${id(100)}','${id(1)}','${id(2)}','open',now()-n*interval '1 second' from generate_series(1,13) n;
+   insert into chats select md5(('sale-'||n)::text)::uuid,'${id(100)}','${id(2)}','${id(1)}','open',now()-(n+20)*interval '1 second' from generate_series(1,3) n;
+   insert into chats values('${id(300)}','${id(100)}','${id(2)}','${id(1)}','closed',now()),
+    ('${id(301)}','${id(101)}','${id(1)}','${id(2)}','open',now()),
+    ('${id(302)}','${id(101)}','${id(2)}','${id(1)}','open',now()),
+    ('${id(303)}','${id(100)}','${id(2)}','${id(3)}','open',now());`);
+  const typeSql=await readFile(new URL('../supabase/migrations/2026-11-03-profile-chat-type-filter.sql',import.meta.url),'utf8');
+  await db.exec(typeSql);await db.exec(typeSql);
+  const byType=async(kind='all',page=1,openOnly=true)=>(await db.query('select profile_chat_history($1,$2,$3) result',[page,openOnly,kind])).rows[0].result;
+  await asUser(1);
+  const purchases=await byType('purchases');assert.equal(purchases.rows.length,12);assert.equal(purchases.hasMore,true);
+  assert.ok(purchases.rows.every(row=>row.buyer_id===id(1)&&row.mode==='venta'));
+  const second=await byType('purchases',2);assert.equal(second.rows.length,1);assert.equal(second.hasMore,false);
+  assert.ok(!new Set(purchases.rows.map(row=>row.chat_id)).has(second.rows[0].chat_id));
+  assert.equal((await byType('sales')).rows.length,3);assert.equal((await byType('sales',1,false)).rows.length,4);
+  assert.ok((await byType('sales')).rows.every(row=>row.seller_id===id(1)));
+  const donations=await byType('donations');assert.equal(donations.rows.length,2);assert.ok(donations.rows.every(row=>row.mode==='donacion'));
+  assert.equal((await byType()).rows.length,12);assert.equal((await byType('all',2)).rows.length,6);
+  assert.doesNotMatch(JSON.stringify(await byType()),/private@|Mensaje privado|email|body/);
+  assert.equal((await read()).hasMore,true,'Legacy one-argument API stays available');
+  assert.equal((await filtered()).hasMore,true,'Legacy two-argument API stays available');
+  for(const kind of [null,'buyer','invalid'])await assert.rejects(byType(kind),/válido/);
+  await assert.rejects(byType('all',0),/válida/);await assert.rejects(byType('all',1,null),/válido/);
+  await asUser(2);assert.equal((await byType('sales',2)).rows.length,1,'Seller sees the same purchases as sales');
+  await asUser(4);assert.deepEqual((await byType()).rows,[]);
+  await db.exec(`reset role;update usuarios set is_blocked=true where id='${id(1)}'`);
+  await asUser(1);await assert.rejects(byType(),/cuenta/);
+  await db.exec('reset role;set role anon');await assert.rejects(byType(),/permission/);
  }finally{await db.close();}
 });

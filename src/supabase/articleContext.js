@@ -23,6 +23,18 @@ export function resolveChatBuyerId({ article, chat, userId, otherUserId }) {
     || null;
 }
 
+export function chatParticipantRole({chat,article,participantId}) {
+  if (!participantId) return null;
+  const id = String(participantId);
+  if (chat?.seller_id && id === String(chat.seller_id)) return 'seller';
+  if (chat?.buyer_id && id === String(chat.buyer_id)) return 'buyer';
+  if (chat?.seller_id && chat?.buyer_id) return null;
+  const owner = article?.owner_id || article?.usuario_id || article?.seller_id;
+  if (owner && id === String(owner)) return 'seller';
+  const buyer = resolveChatBuyerId({article,chat});
+  return buyer && id === String(buyer) ? 'buyer' : null;
+}
+
 export async function readNotificationChatContext(client, { chatId, articleId, userId }) {
   const { data, error } = await client.rpc('notification_chat_context', { p_chat_id: chatId });
   if (error) throw new Error(error.code === 'PGRST202' || error.code === '42883'

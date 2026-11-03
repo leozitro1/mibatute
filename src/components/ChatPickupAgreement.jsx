@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { CalendarClock, Check, X, Plus, RefreshCw, Ban } from "lucide-react";
+import { CalendarClock, Check, X, Plus, RefreshCw, Ban, ChevronDown } from "lucide-react";
 import { supabase } from "../supabase/supabaseClient";
 import { singleFlight } from "./marketSignals.js";
 import { bogotaDate, formatPickupSlot, pickupStatusLabel, validatePickupSlot, validatePickupPlace } from "./pickupAgreement";
@@ -13,6 +13,7 @@ export default function ChatPickupAgreement({ chatId, userId, sellerId, canAct, 
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState(null);
+  const [expanded, setExpanded] = useState(false);
   const [replaceConsent, setReplaceConsent] = useState(false);
   const alive = useRef(false);
   const request = useRef(0);
@@ -121,14 +122,18 @@ export default function ChatPickupAgreement({ chatId, userId, sellerId, canAct, 
     });
   };
 
-  if (!canPropose && rows.length === 0) return null;
-
   return (
-    <section aria-label="Acuerdo de recogida" aria-busy={busy} className="border-b border-gray-100 bg-white px-4 py-3 text-gray-800">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <section aria-label="Acuerdo de recogida" aria-busy={busy} data-pickup-empty={!canPropose && !displayed} className="border-b border-gray-100 bg-white px-4 py-3 text-gray-800">
+      <button type="button" className="pickup-mobile-toggle" aria-expanded={expanded} aria-controls={`${id}-content`} onClick={() => setExpanded(value => !value)}>
+        <CalendarClock size={17} aria-hidden="true" /><span>Recogida</span>
+        {displayed && <span className="pickup-toggle-status">{pickupStatusLabel[displayed.status]}</span>}
+        <ChevronDown size={18} aria-hidden="true" className={expanded ? 'rotate-180' : ''} />
+      </button>
+      <div className="pickup-desktop-heading flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold"><CalendarClock size={17} aria-hidden="true" />Recogida</h3>
         <span className="text-xs text-gray-500">Hora de Bogota</span>
       </div>
+      <div id={`${id}-content`} className="pickup-content" data-expanded={expanded}>
       {displayed ? (
         <div className="mt-2" aria-live="polite">
           <p className="text-sm break-words">{formatPickupSlot(displayed)}</p>
@@ -183,15 +188,7 @@ export default function ChatPickupAgreement({ chatId, userId, sellerId, canAct, 
         <p role="alert" className="min-w-0 break-words text-xs text-red-700">{error}</p>
         <button type="button" className="shrink-0 p-1 hover:bg-gray-100 rounded" aria-label="Actualizar recogida" title="Actualizar recogida" onClick={load} disabled={busy}><RefreshCw size={16} /></button>
       </div>}
-      {rows.some(row => row !== displayed) && <details className="mt-3 text-xs">
-        <summary className="cursor-pointer py-1 text-gray-600">Historial reciente</summary>
-        <ul className="mt-1 divide-y divide-gray-100">
-          {rows.filter(row => row !== displayed).map(row => <li key={row.id} className="py-2 break-words">
-            {formatPickupSlot(row)} <span className="text-gray-500">· {pickupStatusLabel[row.status]}</span>
-            {row.pickup_place && <p className="mt-1 break-words">Lugar: {row.pickup_place}</p>}
-          </li>)}
-        </ul>
-      </details>}
+      </div>
     </section>
   );
 }

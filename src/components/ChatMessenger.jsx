@@ -4,9 +4,9 @@ import { Flag, ShieldCheck, X } from 'lucide-react';
 import { supabase } from "../supabase/supabaseClient";
 import { submitChatReport } from '../supabase/reports.js';
 import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/solicitudesService";
-import { resolveChatBuyerId } from "../supabase/articleContext";
-import SaleSafetyPanel from './SaleSafetyPanel.jsx';
+import { resolveChatBuyerId, chatParticipantRole } from "../supabase/articleContext";
 import ChatPickupAgreement from "./ChatPickupAgreement";
+import ChatArticleDescription from './ChatArticleDescription.jsx';
 import { CHAT_MESSAGE_FIELDS, listenMarketSignals, mergeChatMessages, readChatMessages, singleFlight } from "./marketSignals.js";
 import { trackChatViewport } from './chatViewport.js';
 
@@ -307,10 +307,10 @@ export default function ChatMessenger({
   otherUserFallbackName = "Usuario",
   onSeenChange,
   onActivityChange,
-  onSaleChange,
 }) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [showArticleDescription,setShowArticleDescription] = useState(false);
   const sendingRef = useRef(false);
   const [connectionStatus, setConnectionStatus] = useState("CONNECTING");
   const messagesRef = useRef([]);
@@ -405,6 +405,8 @@ export default function ChatMessenger({
   const lookupBuyerId = useMemo(() => {
     return resolveChatBuyerId({ article, chat: chatRow, userId, otherUserId });
   }, [article, chatRow, userId, otherUserId]);
+  const otherRole = chatParticipantRole({chat:chatRow || chat,article,participantId:resolvedOtherUserId})
+    || (!resolvedOtherUserId ? (role === 'buyer' ? 'seller' : role === 'seller' ? 'buyer' : null) : null);
 
   const otherName = useMemo(() => {
     if (otherUserLoading) return "Cargando...";
@@ -459,6 +461,7 @@ export default function ChatMessenger({
     if (!isOpen) return;
 
     setText("");
+    setShowArticleDescription(false);
     setMessages([]);
     setOtherUser(null);
     setOtherUserLoading(false);
@@ -805,12 +808,13 @@ export default function ChatMessenger({
     <div ref={overlayRef} className="marketplace-chat-overlay fixed inset-0 z-[9999] flex">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-black/40" aria-label="Cerrar chat" />
 
-      <div role="dialog" aria-modal="true" aria-label="Conversación" className="marketplace-surface marketplace-chat relative ml-auto h-full w-full max-w-xl bg-white shadow-2xl border-l border-gray-200 flex flex-col">
+      <div role="dialog" data-mobile-back-block={!!text.trim() || sending || showReport} aria-modal="true" aria-label="Conversación" className="marketplace-surface marketplace-chat relative ml-auto h-full w-full max-w-xl bg-white shadow-2xl border-l border-gray-200 flex flex-col">
         {/* HEADER */}
         <div className="marketplace-chat-header sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={onClose}
+            data-mobile-back
             className="h-10 px-3 rounded-2xl bg-gray-100 hover:bg-gray-200 text-xs font-black uppercase"
           >
             Volver
@@ -834,7 +838,7 @@ export default function ChatMessenger({
           <div className="min-w-0 flex-1">
             <p className="font-black text-gray-900 truncate">{otherName}</p>
             <p className="text-[10px] font-black uppercase text-gray-400">
-              {estado} {chatClosed ? "· chat cerrado" : ""} {role === 'buyer' ? '· Comprador' : role === 'seller' ? '· Vendedor' : ''}
+              {estado} {chatClosed ? "· chat cerrado" : ""} {otherRole === 'buyer' ? '· Comprador' : otherRole === 'seller' ? '· Vendedor' : ''}
             </p>
           </div>
 
@@ -861,7 +865,8 @@ export default function ChatMessenger({
             />
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-black uppercase text-gray-400">Artículo</p>
-              <p className="font-black text-gray-900 truncate">{title}</p>
+              <button type="button" className="chat-article-link font-black text-gray-900 truncate" aria-label={`Ver detalle de ${title}`}
+                title="Ver detalle del artículo" onClick={() => setShowArticleDescription(true)}>{title}</button>
               <p className="text-xs text-gray-600 mt-1">
                 {chatClosed ? 'Conversación finalizada' : isEntregado ? "Transacción cerrada" : estado === "reservado" ? "Reserva activa" : "Disponible"}
               </p>
@@ -1006,10 +1011,6 @@ export default function ChatMessenger({
         <div className="chat-bottom-panel border-t border-gray-100 bg-white">
           {chatRow?.id && !meBlocked && (
             <div data-chat-pickup className="max-h-[45dvh] overflow-y-auto overscroll-contain">
-              {String(article?.mode || article?.tipo || '').toLowerCase() === 'venta' && <SaleSafetyPanel
-                key={`safety-${chatRow.id}`} articleId={articuloId} chatId={chatRow.id}
-                onUpdated={result => { if (result.chat) setChatRow(result.chat); onSaleChange?.(result); }}
-              />}
               <ChatPickupAgreement
                 onActivityChange={onActivityChange}
                 key={`${chatRow.id}_${userId}`}
@@ -1055,6 +1056,8 @@ export default function ChatMessenger({
         </div>
         </div>
       </div>
+
+      {showArticleDescription && <ChatArticleDescription article={article} onClose={() => setShowArticleDescription(false)} />}
 
       {/* MODAL DENUNCIA CHAT */}
       {showReport && (

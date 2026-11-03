@@ -11,9 +11,11 @@ import './TransactionActions.css';
 import CreditBalanceValue from './CreditBalanceValue.jsx';
 import WompiTopupDialog from './WompiTopupDialog.jsx';
 import SupportInbox from './SupportInbox.jsx';
+import SaleSafetyButton from './SaleSafetyButton.jsx';
 import UserConversationInbox from './UserConversationInbox.jsx';
 import ContactButton from './ContactButton.jsx';
 import SystemMessageDialog from './SystemMessageDialog.jsx';
+import useMobileApp from './useMobileApp.js';
 import { publicContactText } from './contactText.js';
 import {
   Camera,
@@ -907,14 +909,21 @@ export default function UserProfile({
 }) {
   const publicationNow = usePublicationClock();
   const [activeTab, setActiveTab] = useState("publicaciones"); // ✅ ahora inicia en Buzón
-  const [inboxTab,setInboxTab]=useState('system');
+  const mobileInbox = useMobileApp();
+  const [inboxTab,setInboxTab]=useState(() => mobileInbox ? 'users' : 'system');
+  const selectedInboxTab = mobileInbox && inboxTab === 'conversations' ? 'system' : inboxTab;
+  const systemInboxActive = selectedInboxTab === 'system';
+  const supportInboxActive = mobileInbox ? systemInboxActive : inboxTab === 'conversations';
+  const inboxTabs = mobileInbox
+    ? [['users','Chats de usuarios',MessageSquare,inboxCategoryCounts.users],['system','Sistema',Bell,inboxCategoryCounts.system + inboxCategoryCounts.conversations]]
+    : [['users','Conversaciones de usuarios',MessageSquare,inboxCategoryCounts.users],['system','Avisos del sistema',Bell,inboxCategoryCounts.system],['conversations','Conversaciones del sistema',MessageCircle,inboxCategoryCounts.conversations]];
   const inboxTabId=useId();
   const changeInboxTab=tab=>{setInboxTab(tab);setSysMsgModal(null);};
   const inboxTabKey=event=>{
     if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
     event.preventDefault();
-    const tabs=['system','conversations','users'];
-    const next=event.key==='Home'?tabs[0]:event.key==='End'?tabs.at(-1):tabs[(tabs.indexOf(inboxTab)+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length];
+    const tabs=inboxTabs.map(([tab]) => tab);
+    const next=event.key==='Home'?tabs[0]:event.key==='End'?tabs.at(-1):tabs[(tabs.indexOf(selectedInboxTab)+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length];
     changeInboxTab(next);event.currentTarget.parentElement.querySelector(`[data-inbox-tab="${next}"]`)?.focus();
   };
   const [personalDetailsOpen, setPersonalDetailsOpen] = useState(false);
@@ -1877,28 +1886,28 @@ export default function UserProfile({
   // ✅ sysMsgs: solo se carga cuando el usuario abre "buzon" (lazy)
   const openedSystemNotificationRef = useRef(null);
   useEffect(() => {
-    if (activeTab !== 'buzon' || inboxTab!=='system' || notificationTarget?.receiptKind==='support' || !notificationTarget?.receiptId
+    if (activeTab !== 'buzon' || !systemInboxActive || notificationTarget?.receiptKind==='support' || !notificationTarget?.receiptId
       || openedSystemNotificationRef.current === notificationTarget) return;
     const message = sysMsgs.find(item => String(item.receipt_id) === String(notificationTarget.receiptId));
     if (!message) return;
     openedSystemNotificationRef.current = notificationTarget;
     setSysMsgModal({ ...message, read_at: message.read_at || new Date().toISOString() });
     if (!message.read_at) markReceipt(message.receipt_id, 'read', message.receipt_kind);
-  }, [notificationTarget, activeTab, inboxTab, sysMsgs, markReceipt]);
+  }, [notificationTarget, activeTab, systemInboxActive, sysMsgs, markReceipt]);
 
   useEffect(() => {
     if (!user?.id) return;
-    if (activeTab !== "buzon" || inboxTab!=="system") return;
+    if (activeTab !== "buzon" || !systemInboxActive) return;
     if (sysMsgsCargadosRef.current && loadedInboxRevisionRef.current===inboxRevisionRef.current) return;
     loadSysMsgs();
-  }, [user?.id, activeTab, inboxTab, loadSysMsgs]);
+  }, [user?.id, activeTab, systemInboxActive, loadSysMsgs]);
 
   useEffect(()=>{
-    if(activeTab==='buzon'&&inboxTab==='system'&&notificationTarget?.receiptKind!=='support'&&notificationTarget?.receiptId&&openedSystemNotificationRef.current!==notificationTarget&&sysMsgsCargadosRef.current
+    if(activeTab==='buzon'&&systemInboxActive&&notificationTarget?.receiptKind!=='support'&&notificationTarget?.receiptId&&openedSystemNotificationRef.current!==notificationTarget&&sysMsgsCargadosRef.current
       &&!sysMsgs.some(message=>String(message.receipt_id)===String(notificationTarget.receiptId)))loadSysMsgs();
     // A notification click may request a new body even when this tab was already loaded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[notificationTarget,activeTab,inboxTab,loadSysMsgs]);
+  },[notificationTarget,activeTab,systemInboxActive,loadSysMsgs]);
 
   // ✅ Sin polling — refs para leer estado sin dependencias reactivas
   const publicationsRef = useRef([]);
@@ -1920,12 +1929,12 @@ export default function UserProfile({
         const rescIds = rescatesRef.current.map((r) => String(r?.articulo_id || getArticuloId(r?.articulo) || "")).filter(Boolean);
         const allIds = [...new Set([...pubIds, ...rescIds])];
         if (allIds.length) await loadUnreadRef.current?.(allIds);
-        if (activeTab === "buzon" && inboxTab === "system" && sysMsgsCargadosRef.current) await loadSysMsgs();
+        if (activeTab === "buzon" && systemInboxActive && sysMsgsCargadosRef.current) await loadSysMsgs();
       } catch {}
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [user?.id, activeTab, inboxTab, loadSysMsgs]);
+  }, [user?.id, activeTab, systemInboxActive, loadSysMsgs]);
 
 
 
@@ -2191,7 +2200,7 @@ export default function UserProfile({
     const isPurchase = isVentaArticulo(art) && String(art.buyer_id || "") === String(user.id);
     const isActivePurchase = isPurchase && normEstado(art.estado || art.status) === "reservado";
     if (isPurchase && isRescateSaleLocked(rescate)) {
-      return alert("Para cancelar una compra aprobada, abre su chat desde Buzón → Conversaciones de usuarios. El historial se conserva para revisión.");
+      return alert("Para cancelar una compra aprobada, usa el botón de candado «Seguridad de la venta». El historial se conserva para revisión.");
     }
     if (isPurchase && normEstado(art.estado || art.status) === "entregado") {
       return alert("La compra entregada se conserva en tu historial.");
@@ -2752,7 +2761,8 @@ export default function UserProfile({
               <button
                 onClick={() => {
                   setActiveTab("buzon");
-                  if(inboxTab==='system'&&sysMsgsCargadosRef.current&&loadedInboxRevisionRef.current!==inboxRevisionRef.current)loadSysMsgs();
+                  if (mobileInbox && activeTab !== 'buzon') changeInboxTab('users');
+                  else if(systemInboxActive&&sysMsgsCargadosRef.current&&loadedInboxRevisionRef.current!==inboxRevisionRef.current)loadSysMsgs();
                 }}
                 className={`flex-1 py-4 text-sm font-bold transition flex items-center justify-center gap-2 ${
                   activeTab === "buzon"
@@ -2776,24 +2786,22 @@ export default function UserProfile({
               {activeTab === "buzon" && (
                 <>
                   <div className="profile-inbox-tabs" role="tablist" aria-label="Secciones del buzón">
-                    {[['system','Avisos del sistema',Bell,inboxCategoryCounts.system],['conversations','Conversaciones del sistema',MessageCircle,inboxCategoryCounts.conversations],['users','Conversaciones de usuarios',MessageSquare,inboxCategoryCounts.users]].map(([tab,label,Icon,count])=>(
-                      <button key={tab} type="button" role="tab" id={`${inboxTabId}-${tab}-tab`} aria-controls={`${inboxTabId}-${tab}-panel`} aria-selected={inboxTab===tab} tabIndex={inboxTab===tab?0:-1} data-inbox-tab={tab} onKeyDown={inboxTabKey} onClick={()=>changeInboxTab(tab)}>
+                    {inboxTabs.map(([tab,label,Icon,count])=>(
+                      <button key={tab} type="button" role="tab" id={`${inboxTabId}-${tab}-tab`} aria-controls={`${inboxTabId}-${tab}-panel`} aria-selected={selectedInboxTab===tab} tabIndex={selectedInboxTab===tab?0:-1} data-inbox-tab={tab} onKeyDown={inboxTabKey} onClick={()=>changeInboxTab(tab)}>
                         <Icon size={16} aria-hidden="true" /><span>{label}</span>{count>0&&<span className="profile-inbox-count" aria-label={`${count} sin leer`}>{count}</span>}
                       </button>
                     ))}
                   </div>
-                  <div role="tabpanel" id={`${inboxTabId}-users-panel`} aria-labelledby={`${inboxTabId}-users-tab`} hidden={inboxTab!=='users'} className="profile-inbox-panel">
-                    <UserConversationInbox key={user.id} userId={user.id} isActive={inboxTab==='users'} onOpenChat={onOpenChat}/>
+                  <div role="tabpanel" id={`${inboxTabId}-users-panel`} aria-labelledby={`${inboxTabId}-users-tab`} hidden={selectedInboxTab!=='users'} className="profile-inbox-panel">
+                    <UserConversationInbox key={user.id} userId={user.id} isActive={selectedInboxTab==='users'} onOpenChat={onOpenChat}/>
                   </div>
-                  <div role="tabpanel" id={`${inboxTabId}-conversations-panel`} aria-labelledby={`${inboxTabId}-conversations-tab`} hidden={inboxTab!=='conversations'} className="profile-inbox-panel">
-                  <SupportInbox key={user.id} userId={user.id} isActive={inboxTab==='conversations'}
-                    targetThreadId={notificationTarget?.receiptKind==='support'?notificationTarget.receiptId:null} targetVersion={notificationTarget}
-                    onRemoved={threadId=>onInboxReceiptChange?.(user.id,threadId,'delete','support')}
-                    onSeen={(threadId,throughAt)=>onInboxReceiptChange?.(user.id,threadId,'read','support',throughAt)} />
-                  </div>
-                  <div role="tabpanel" id={`${inboxTabId}-system-panel`} aria-labelledby={`${inboxTabId}-system-tab`} hidden={inboxTab!=='system'} className="profile-inbox-panel">
+                  <div role={mobileInbox ? 'tabpanel' : undefined} id={mobileInbox ? `${inboxTabId}-system-panel` : undefined}
+                    aria-labelledby={mobileInbox ? `${inboxTabId}-system-tab` : undefined} hidden={mobileInbox && !systemInboxActive}
+                    className={mobileInbox ? 'profile-inbox-panel profile-inbox-system-group' : undefined}>
+                  <div role={mobileInbox ? undefined : 'tabpanel'} id={mobileInbox ? undefined : `${inboxTabId}-system-panel`}
+                    aria-labelledby={mobileInbox ? undefined : `${inboxTabId}-system-tab`} hidden={!systemInboxActive} className="profile-inbox-panel">
                   {/* ── Mensajes del sistema ──────────────────────────── */}
-                  <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-xs font-bold text-gray-500">Mensajes de MiBatute</h3><button type="button" aria-label="Actualizar buzón" title="Actualizar buzón" disabled={sysMsgsLoading} onClick={loadSysMsgs} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40"><RefreshCw size={16} className={sysMsgsLoading?'animate-spin':''} /></button></div>
+                  <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-xs font-bold text-gray-500">{mobileInbox ? 'Avisos del sistema' : 'Mensajes de MiBatute'}</h3><button type="button" aria-label="Actualizar buzón" title="Actualizar buzón" disabled={sysMsgsLoading} onClick={loadSysMsgs} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40"><RefreshCw size={16} className={sysMsgsLoading?'animate-spin':''} /></button></div>
                   {sysMsgsLoading ? (
                     <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm mb-3">
                       <Loader2 size={14} className="animate-spin text-gray-400" />
@@ -2890,6 +2898,15 @@ export default function UserProfile({
                       </p>
                     </div>
                   )}
+                  </div>
+                  <div role={mobileInbox ? undefined : 'tabpanel'} id={`${inboxTabId}-conversations-panel`}
+                    aria-labelledby={mobileInbox ? undefined : `${inboxTabId}-conversations-tab`} hidden={!supportInboxActive} className="profile-inbox-panel">
+                  <SupportInbox key={user.id} userId={user.id} isActive={supportInboxActive}
+                    heading={mobileInbox ? 'Conversaciones del sistema' : undefined}
+                    targetThreadId={notificationTarget?.receiptKind==='support'?notificationTarget.receiptId:null} targetVersion={notificationTarget}
+                    onRemoved={threadId=>onInboxReceiptChange?.(user.id,threadId,'delete','support')}
+                    onSeen={(threadId,throughAt)=>onInboxReceiptChange?.(user.id,threadId,'read','support',throughAt)} />
+                  </div>
                   </div>
                 </>
               )}
@@ -3064,7 +3081,7 @@ export default function UserProfile({
 
                           <div className="profile-article-side">
                             <span className="profile-article-date profile-publication-date text-[10px] text-gray-400 font-medium">{formatDate(art)}</span>
-                          <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start ${isEntregado ? "[&>button:not([data-rating-action])]:opacity-50" : ""}`}>
+                          <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start ${isEntregado ? "[&>button:not([data-rating-action]):not([data-sale-safety])]:opacity-50" : ""}`}>
                             {canRate && (
                               <ProfileRatingAction
                                 rated={yaCalifique.has(String(currentId))}
@@ -3098,6 +3115,10 @@ export default function UserProfile({
                                 <MessageCircle size={16} />
                               )}
                             </button>
+
+                            {isVenta && (hasBuyer || hasChatOwner) && <SaleSafetyButton articleId={currentId} title={titulo} iconOnly disabled={isUserBlocked}
+                              className="inline-flex items-center justify-center bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
+                              onUpdated={result => { if (result.article) onArticuloReservado?.(result.article); }} />}
 
                             {/* Botón ⭐ Destacar: oculto si ya hay ganador o está entregado */}
                             {!isEntregado && !isVencido && !hasWinner && (() => {
@@ -3412,7 +3433,7 @@ export default function UserProfile({
                             <span className="profile-article-date profile-rescue-date text-[10px] text-gray-400 font-medium">
                               {isVenta ? "Compra / contacto" : "Postulado"}: {formatDateTime(r?.created_at) || "Sin fecha"}
                             </span>
-                          <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 shrink-0 flex items-center gap-2 ${isEntregadoRescate ? "[&>button:not([data-rating-action])]:opacity-50" : ""}`}>
+                          <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 shrink-0 flex items-center gap-2 ${isEntregadoRescate ? "[&>button:not([data-rating-action]):not([data-sale-safety])]:opacity-50" : ""}`}>
                             {canRate && (
                               <ProfileRatingAction
                                 rated={yaCalifique.has(String(articuloId))}
@@ -3443,6 +3464,10 @@ export default function UserProfile({
                                 <MessageCircle size={16} />
                               )}
                             </button>
+
+                            {isVenta && (r._chatId || isBuyer || hasChatBuyer) && <SaleSafetyButton articleId={articuloId} chatId={r._chatId || null} title={titulo} iconOnly disabled={isUserBlocked}
+                              className="inline-flex items-center justify-center bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
+                              onUpdated={result => { if (result.article) { onArticuloReservado?.(result.article); setRescatesReload(value => value + 1); } }} />}
 
                             {!isVenta ? (
                               <button

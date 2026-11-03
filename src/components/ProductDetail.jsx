@@ -687,7 +687,7 @@ export default function ProductDetail({
       <div
         className="product-detail relative bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col md:flex-row animate-in zoom-in duration-200"
         data-compact-gallery={compactGallery}
-        role="dialog" aria-modal="true" aria-labelledby={detailTitleId}
+        role="dialog" data-mobile-back-block={!!message.trim() || isSubmitting || reportSending} aria-modal="true" aria-labelledby={detailTitleId}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={event => {
           galleryGesture.current = event.touches.length === 1 ? {x:event.touches[0].clientX,y:event.touches[0].clientY,onGallery:!!event.target.closest('.product-detail-gallery')} : null;
@@ -702,7 +702,7 @@ export default function ProductDetail({
         onTouchCancel={() => {galleryGesture.current = null;}}
         onWheel={event => finishGalleryGesture(Math.sign(-event.deltaY)*40,!!event.target.closest('.product-detail-gallery'))}
       >
-        <button onClick={safeClose} aria-label="Cerrar publicación" title="Cerrar publicación"
+        <button data-mobile-back onClick={safeClose} aria-label="Cerrar publicación" title="Cerrar publicación"
           className="product-detail-close site-icon-close inline-flex items-center justify-center absolute top-4 right-4 z-30 bg-white/90 p-2 rounded-full shadow-lg" type="button">
           <X size={20} />
         </button>

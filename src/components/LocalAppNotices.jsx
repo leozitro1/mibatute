@@ -3,11 +3,9 @@ import { Bell, X } from 'lucide-react';
 import { LOCAL_NOTICE_TEXT } from './localAppNotices.js';
 import './LocalAppNotices.css';
 
-export function LocalNoticeSettings({controller}) {
+export function LocalNoticeSettings({controller,inline=false}) {
   const {badge,banners,count,support,request,updatePreferences,enableBadge,previewBanner} = controller;
-  return <details className="local-notice-settings">
-    <summary>Avisos en este dispositivo</summary>
-    <div>
+  const content = <div>
       <label><span>Avisos mientras usas la app</span><input type="checkbox" checked={banners} onChange={event => updatePreferences({banners:event.target.checked})} /></label>
       <p>Solicitudes nuevas, aceptaciones y mensajes. Los mensajes muestran una vista previa del texto recibido.</p>
       <button type="button" disabled={!banners} onClick={previewBanner}>Probar aviso</button>
@@ -19,8 +17,9 @@ export function LocalNoticeSettings({controller}) {
       </> : <p>Este navegador no permite modificar el contador del ícono. Puedes usar los avisos dentro de la app.</p>}
       <p>Funcionan mientras la app está activa. Al cerrarla, no llegan avisos nuevos; no activamos envío push.</p>
       {request?.error && <p role="alert">{request.error}</p>}
-    </div>
-  </details>;
+    </div>;
+  return inline ? <div className="local-notice-settings local-notice-settings-inline">{content}</div> :
+    <details className="local-notice-settings"><summary>Avisos en este dispositivo</summary>{content}</details>;
 }
 
 export function LocalNoticeBanner({notice,onClose,onView}) {

@@ -44,7 +44,7 @@ test('combines title, type, status and featured filters without mutating input',
 });
 
 test('requests include gifts already assigned, pending requests exclude them and sales', () => {
-  const options = { posts: new Map([['a', true], ['b', true], ['c', true]]) };
+  const options = { posts: new Map([['a', true], ['b', true], ['c', true]]), now: Date.parse('2026-09-05T12:00:00Z') };
   assert.deepEqual(ids(filterProfileItems(articles, filters({ activity: 'requests' }), options)), ['c', 'b']);
   assert.deepEqual(ids(filterProfileItems(articles, filters({ activity: 'pending' }), options)), ['b']);
 });
@@ -76,7 +76,7 @@ test('rescue requests preserve metadata and separate pending from closed or assi
     { id: 'r3', articulo: { ...articles[1], id: 'd' }, _source: 'chats', _chatStatus: 'closed' },
     { id: 'r4', articulo: articles[0], _source: 'compras' },
   ];
-  const options = { rescates: true };
+  const options = { rescates: true, now: Date.parse('2026-09-05T12:00:00Z') };
   assert.deepEqual(ids(filterProfileItems(rows, filters({ activity: 'requests' }), options)), ['r2', 'r1', 'r3']);
   const pending = filterProfileItems(rows, filters({ status: 'pendiente' }), options);
   assert.deepEqual(ids(pending), ['r1']);

@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {CreditCard,X,RefreshCw,ExternalLink} from 'lucide-react';
+import {CreditCard,Coins,X,RefreshCw,ExternalLink} from 'lucide-react';
 import {loadWompiWidget,sandboxWidgetOptions} from './wompiWidget.js';
 import WompiTopupHistory from './WompiTopupHistory.jsx';
 import ContactButton from './ContactButton.jsx';
@@ -7,10 +7,12 @@ import {supabase} from '../supabase/supabaseClient';
 import {PAID_TOPUPS_ENABLED,LOCAL_WOMPI_SANDBOX} from '../config/availability.js';
 import {WOMPI_MERCHANT_NOTICE} from '../config/paymentMerchant.js';
 import {CREDIT_PACKS,formatCOP} from '../config/creditPricing.js';
+import {CREDIT_BALANCE_CHANGED} from './creditBalance.js';
 
-export default function WompiTopupDialog({onClose,onConfirmed,reference=null,transactionId=null}) {
+export default function WompiTopupDialog({onClose,onConfirmed,reference=null,transactionId=null,accountCredits=null}) {
  const enabled=PAID_TOPUPS_ENABLED||LOCAL_WOMPI_SANDBOX;
  const [credits,setCredits]=useState(1),[data,setData]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [balance,setBalance]=useState(accountCredits?.balance ?? null),[balanceError,setBalanceError]=useState('');
  const confirmed=useRef(onConfirmed),mounted=useRef(false),confirmation=useRef(null);
  const verification=useRef({reference,transactionId});
  confirmed.current=onConfirmed;
@@ -26,10 +28,33 @@ export default function WompiTopupDialog({onClose,onConfirmed,reference=null,tra
  const refresh=useCallback(async()=>{
   setBusy(true);setError('');
   try{const result=await request();if(!mounted.current)return;setData(result);
+   if(Number.isFinite(result.balance))setBalance(result.balance);
    if(result.order?.state==='approved'&&confirmation.current!==result.order.reference){confirmation.current=result.order.reference;confirmed.current?.(result.balance);}
   }catch(err){if(mounted.current)setError(err.message);}finally{if(mounted.current)setBusy(false);}
  },[request]);
  useEffect(()=>{mounted.current=true;if(enabled)refresh();return()=>{mounted.current=false;};},[enabled,refresh]);
+ useEffect(()=>{
+  if(!accountCredits?.id)return;
+  let active=true,version=0;
+  const changed=({detail})=>{
+   if(detail?.uid!==accountCredits.id||!Number.isFinite(detail.saldo)||detail.saldo<0)return;
+   version++;setBalance(detail.saldo);setBalanceError('');
+  };
+  window.addEventListener(CREDIT_BALANCE_CHANGED,changed);
+  // Reuse the navbar balance; only read if its initial load was unavailable.
+  if(!Number.isFinite(accountCredits.balance)){
+   const initialVersion=version;
+   void (async()=>{
+    try{
+     const {data:row,error:readError}=await supabase.from('cupos').select('saldo').eq('usuario_id',accountCredits.id).maybeSingle();
+     if(!active||version!==initialVersion)return;
+     if(readError)throw readError;
+     setBalance(Number(row?.saldo ?? 0));
+    }catch{if(active&&version===initialVersion)setBalanceError('No se pudo consultar tu saldo. Cierra y vuelve a abrir esta ventana para reintentar.');}
+   })();
+  }
+  return()=>{active=false;window.removeEventListener(CREDIT_BALANCE_CHANGED,changed);};
+ },[accountCredits]);
  useEffect(()=>{const close=event=>{if(event.key==='Escape')onClose();};document.addEventListener('keydown',close);return()=>document.removeEventListener('keydown',close);},[onClose]);
  const prepare=async()=>{
   setBusy(true);setError('');
@@ -58,9 +83,13 @@ export default function WompiTopupDialog({onClose,onConfirmed,reference=null,tra
   <section role="dialog" aria-modal="true" aria-labelledby="wompi-topup-title" className="marketplace-surface marketplace-modal relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg bg-white p-5 shadow-xl" onClick={event=>event.stopPropagation()}>
    <button type="button" aria-label="Cerrar recarga" onClick={onClose} className="site-icon-close inline-flex items-center justify-center absolute right-2 top-2 h-11 w-11 text-gray-500"><X size={20}/></button>
    <CreditCard size={24} className="mb-3 text-forest-green" aria-hidden="true"/>
-   <h2 id="wompi-topup-title" className="pr-9 text-lg font-black text-gray-800">Recargar créditos</h2>
+   <h2 id="wompi-topup-title" className="pr-9 text-lg font-black text-gray-800">{accountCredits?'Mis créditos':'Recargar créditos'}</h2>
+   {accountCredits&&<div className="my-4 rounded-2xl border border-green-100 bg-green-50 p-4">
+    <p className="flex items-center gap-2 text-sm font-semibold text-green-900"><Coins size={20} aria-hidden="true"/>Créditos disponibles</p>
+    {balanceError?<p role="alert" className="mt-2 text-sm text-red-700">{balanceError}</p>:<p role="status" className="mt-2 text-3xl font-black text-green-900">{balance===null?'Consultando…':balance}</p>}
+   </div>}
    <p className="mt-3 rounded-xl border border-[#e1e7dc] bg-[#f8faf5] p-3 text-xs leading-relaxed text-[#596b51]"><strong className="font-semibold">Identificación del pago.</strong> {WOMPI_MERCHANT_NOTICE}</p>
-   {!enabled?<p className="my-4 text-sm text-gray-600">Puedes consultar tu saldo en el perfil. Para recibir ayuda con una recarga, contacta a MiBatute.</p>:<>
+   {!enabled?<p className="my-4 text-sm text-gray-600">{accountCredits?'Para recibir ayuda con una recarga, contacta a MiBatute.':'Puedes consultar tu saldo en el perfil. Para recibir ayuda con una recarga, contacta a MiBatute.'}</p>:<>
     {LOCAL_WOMPI_SANDBOX&&<p className="my-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900"><strong>Sandbox: prueba sin dinero real.</strong> Usa únicamente los datos de prueba de Wompi. Los créditos de esta prueba solo afectan la base local.</p>}
     {error&&<p role="alert" className="my-3 text-sm text-red-700">{error}</p>}
     {approved?<div role="status" className="my-4 rounded-xl bg-green-50 p-4 text-green-900"><strong>Recarga confirmada</strong><p className="mt-2 text-sm">{data.order.credits} créditos abonados. Saldo actual: {data.balance}.</p><button type="button" onClick={()=>{verification.current={reference:null,transactionId:null};setData(null);setError('');}} className="mt-4 min-h-11 w-full rounded-xl bg-forest-green px-4 py-3 text-sm font-semibold text-white">Hacer otra recarga</button></div>:<>

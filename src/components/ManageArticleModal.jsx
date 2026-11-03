@@ -4,7 +4,7 @@ import { X, Users, MessageCircle, CheckCircle2, XCircle, Loader2 } from 'lucide-
 import './TransactionActions.css';
 import { listenMarketSignals } from "./marketSignals.js";
 import ApplicantRow from './ApplicantRow.jsx';
-import SaleSafetyPanel from './SaleSafetyPanel.jsx';
+import SaleSafetyButton from './SaleSafetyButton.jsx';
 import { supabase } from "../supabase/supabaseClient";
 import { transitionSale } from "../supabase/saleTransaction";
 import { obtenerPostulaciones } from '../supabase/solicitudesService';
@@ -550,7 +550,7 @@ export default function ManageArticleModal({
                 </div>
               ) : !isReservado ? (
                 <div className="border-l-2 border-gray-200 bg-gray-50 p-3">
-                  <p className="text-sm font-bold text-gray-700">Este artículo aún no está reservado.</p>
+                  <p className="text-sm font-bold text-gray-700">{estado === "en_revision" ? "La venta está en revisión." : "Este artículo aún no está reservado."}</p>
                   <p className="text-xs text-gray-500 mt-1">
                     Cuando alguien lo reserve, aquí podrás abrir el chat, marcar entregado o cancelar la venta.
                   </p>
@@ -586,12 +586,15 @@ export default function ManageArticleModal({
                     {savingWinner ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}
                     {savingWinner ? "Guardando..." : "Marcar entregado"}
                   </button>
+                  <SaleSafetyButton articleId={articuloId} title={titulo} disabled={savingWinner} onUpdated={async result => {
+                    if (result.article) await onCancelSaleSuccess?.(result.article);
+                  }} />
                   </div>
                 </div>
               )}
-              {buyerId && <SaleSafetyPanel articleId={articuloId} onUpdated={async result => {
+              {buyerId && !isReservado && <div className="mt-3 flex justify-end"><SaleSafetyButton articleId={articuloId} title={titulo} onUpdated={async result => {
                 if (result.article) await onCancelSaleSuccess?.(result.article);
-              }} />}
+              }} /></div>}
             </div>
           ) : (
             <div>

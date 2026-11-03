@@ -2,7 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
-import { donationNotificationTarget, isSaleArticle, readArticleContext, readNotificationChatContext, resolveChatBuyerId, validateTransactionChat } from '../src/supabase/articleContext.js';
+import { donationNotificationTarget, isSaleArticle, readArticleContext, readNotificationChatContext, resolveChatBuyerId, validateTransactionChat, chatParticipantRole } from '../src/supabase/articleContext.js';
+
+test('chat header identifies the named counterpart, preserving historical participant roles',()=>{
+  const chat={seller_id:'seller',buyer_id:'buyer'};
+  const article={owner_id:'seller',buyer_id:'buyer'};
+  assert.equal(chatParticipantRole({chat,article,participantId:'seller'}),'seller','Buyer sees seller under the counterpart name');
+  assert.equal(chatParticipantRole({chat,article,participantId:'buyer'}),'buyer','Seller sees buyer under the counterpart name');
+  assert.equal(chatParticipantRole({chat,article:{owner_id:'new-owner',buyer_id:'new-buyer'},participantId:'buyer'}),'buyer');
+  assert.equal(chatParticipantRole({chat,article:{owner_id:'new-owner'},participantId:'new-owner'}),null);
+  assert.equal(chatParticipantRole({article:{owner_id:'donor',ganador_id:'recipient'},participantId:'recipient'}),'buyer');
+  assert.equal(chatParticipantRole({}),null);
+});
 
 test('empty legacy type cannot turn a sale into a donation', () => {
   assert.equal(isSaleArticle({ mode: 'venta', tipo: '' }), true);

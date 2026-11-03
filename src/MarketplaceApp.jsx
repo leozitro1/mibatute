@@ -13,6 +13,7 @@ import ProductCard from "./components/ProductCard";
 import usePublicationClock from './components/usePublicationClock.js';
 import useDetailScroll from './components/useDetailScroll.js';
 import useMobileApp from './components/useMobileApp.js';
+import useMobileBackGesture from './components/useMobileBackGesture.js';
 import MobileCatalogTools from './components/MobileCatalogTools.jsx';
 import { createListingCache } from './components/listingCache.js';
 import { readNotificationHistory, writeNotificationHistory, mergeNotificationHistory,
@@ -194,6 +195,18 @@ export default function MarketplaceApp() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   const [currentView, setCurrentView] = useState("home"); // home | profile | how-it-works
+  const mobileViewHistory = useRef(['home']);
+  useEffect(() => {
+    const history = mobileViewHistory.current;
+    if (currentView === 'home') mobileViewHistory.current = ['home'];
+    else if (history.at(-1) !== currentView) history.push(currentView);
+  }, [currentView]);
+  const goBackOnMobile = useCallback(() => {
+    const history = mobileViewHistory.current;
+    if (history.length > 1) history.pop();
+    setCurrentView(history.at(-1) || 'home');
+  }, []);
+  useMobileBackGesture(mobileApp && window.location.pathname === '/', currentView !== 'home' ? goBackOnMobile : null);
   const [mobileProfileHeader, setMobileProfileHeader] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const sharedArticleRef = useRef(sharedArticleId(window.location.href));
@@ -285,6 +298,7 @@ export default function MarketplaceApp() {
 
   // ✅ Chat global
   const [chatOpen, setChatOpen] = useState(null);
+  const [mobileCreditsUser, setMobileCreditsUser] = useState(null);
   const [wompiReturn,setWompiReturn]=useState(()=>{
     const query=new URLSearchParams(window.location.search);
     return query.get('wompi_return')==='1'?{reference:query.get('reference'),transactionId:query.get('id')}:null;
@@ -1376,6 +1390,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   };
 
   const handleLogout = async () => {
+    setMobileCreditsUser(null);
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -1658,6 +1673,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               onPublishClick={handlePublishClick}
               user={currentUser}
               onProfileClick={handleProfileClick}
+              onCreditsClick={balance => {
+                if (!currentUser) return setIsAuthOpen(true);
+                if (!isUserBlocked) setMobileCreditsUser({id:currentUser.id,balance});
+              }}
               onLoginClick={() => setIsAuthOpen(true)}
               onLogout={handleLogout}
               onGoHome={() => setCurrentView("home")}
@@ -2315,12 +2334,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               role={chatOpen?.role}
               errorMessage={chatOpen?.errorMessage}
               onSeenChange={markChatSeen}
-              onSaleChange={result => {
-                if (result.article) {
-                  applyArticleUpdate(result.article);
-                  setChatOpen(previous => previous ? { ...previous, article: { ...previous.article, ...result.article }, chat: result.chat || previous.chat } : previous);
-                }
-              }}
             />
             </DeferredPanel>
           </div>
@@ -2329,6 +2342,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
       {['/terminos','/privacidad','/pagos','/cookies','/datos-personales','/normas'].map(path=><Route key={path} path={path} element={<Terms key={path} path={path}/>} />)}
       </Routes>
+      {mobileApp && mobileCreditsUser && mobileCreditsUser.id === currentUser?.id && !isUserBlocked && !wompiReturn &&
+        <WompiReturnDialog key={`mobile-credits-${mobileCreditsUser.id}`} accountCredits={mobileCreditsUser} onClose={() => setMobileCreditsUser(null)}
+          onConfirmed={balance => notifyCreditBalance(currentUser.id,balance)} />}
       {wompiReturn&&<WompiReturnDialog reference={wompiReturn.reference} transactionId={wompiReturn.transactionId}
         onConfirmed={balance=>notifyCreditBalance(currentUser?.id,balance)} onClose={()=>{
           const url=new URL(window.location.href);for(const key of ['wompi_return','reference','id'])url.searchParams.delete(key);
