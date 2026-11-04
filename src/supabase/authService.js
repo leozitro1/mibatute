@@ -59,7 +59,7 @@ export const ensureUsuarioRow = async (user, extraData = {}) => {
 
 export const registerUser = async (email, password, extraData = {}) => {
   const acceptance=extraData.legal_acceptance;
-  if(!registrationAcceptance(true,true,true)||acceptance?.terms_version!==LEGAL_VERSION||acceptance?.privacy_version!==LEGAL_VERSION||acceptance?.adult_confirmed!==true||acceptance?.review_status!==registrationAcceptance(true,true,true)?.review_status)return {success:false,error:'Revisa y acepta las condiciones, la autorización de datos y la mayoría de edad.'};
+  if(!registrationAcceptance(true,true,true)||acceptance?.terms_version!==LEGAL_VERSION||acceptance?.privacy_version!==LEGAL_VERSION||acceptance?.terms_accepted!==true||acceptance?.privacy_accepted!==true||acceptance?.adult_confirmed!==true||acceptance?.review_status!==registrationAcceptance(true,true,true)?.review_status)return {success:false,error:'Revisa y acepta las condiciones, la autorización de datos y la mayoría de edad.'};
   const cleanEmail = String(email || "").trim();
   const cleanPassword = String(password || "");
 

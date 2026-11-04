@@ -7,3 +7,9 @@
   .site-footer-links { width: max-content; min-width: 100%; flex-wrap: nowrap; justify-content: flex-start; column-gap: 20px; padding: 6px; }
   .site-footer-links > * { flex-shrink: 0; white-space: nowrap; }
 }
+
+.site-footer .legal-operator { margin:16px auto;max-width:900px;font-size:12px;overflow-wrap:anywhere; }
+.site-footer .legal-operator h2 { font-weight:600;margin-bottom:8px; }
+.site-footer .legal-operator dl { display:grid;gap:6px; }
+.site-footer .legal-operator dl > div { display:grid;grid-template-columns:minmax(130px,1fr) 2fr;gap:12px; }
+@media(max-width:500px) { .site-footer .legal-operator dl > div { grid-template-columns:1fr;gap:0; } }

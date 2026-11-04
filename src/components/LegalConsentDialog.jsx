@@ -25,7 +25,7 @@ export default function LegalConsentDialog({userId,onLogout}){
   <h2 id="legal-renewal-title">Revisa las políticas de MiBatute</h2><p>Solicitamos tu elección expresa. El uso anterior de la cuenta no se registra como una aceptación de esta versión.</p>
   {status.version&&status.version!==LEGAL_VERSION&&<p role="alert">Hay una versión más reciente. Actualiza la página para revisarla.</p>}
   <label><input type="checkbox" checked={terms} onChange={event=>setTerms(event.target.checked)} disabled={busy}/> Acepto los <a href="/terminos" target="_blank" rel="noopener noreferrer">términos y condiciones</a>.</label>
-  <label><input type="checkbox" checked={privacy} onChange={event=>setPrivacy(event.target.checked)} disabled={busy}/> Autorizo los tratamientos necesarios explicados en <a href="/privacidad" target="_blank" rel="noopener noreferrer">Privacidad</a>. No incluye publicidad comercial.</label>
+  <label><input type="checkbox" checked={privacy} onChange={event=>setPrivacy(event.target.checked)} disabled={busy}/> Autorizo los tratamientos necesarios explicados en <a href="/privacidad" target="_blank" rel="noopener noreferrer">Privacidad</a>. Incluye el alojamiento de la base principal de Supabase en Estados Unidos (us-east-1), descrito en Privacidad. No autoriza publicidad comercial ni destinos internacionales sin identificar.</label>
   <label><input type="checkbox" checked={adult} onChange={event=>setAdult(event.target.checked)} disabled={busy}/> Confirmo que tengo 18 años o más.</label>
   <p>Si no deseas autorizar, puedes <a href="/datos-personales">solicitar revisión o cierre y supresión</a>, o <ContactButton className="underline" subject="Revisión de políticas">contactar por correo</ContactButton>.</p>
   {error&&<p role="alert">{error}</p>}

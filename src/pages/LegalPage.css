@@ -21,3 +21,9 @@
 .legal-sources { border-top:1px solid #dfe5d9;padding-top:20px; }.legal-sources p { font-size:12px; }
 @media(max-width:500px) { .legal-document { padding:20px 16px 32px; }.legal-document p { font-size:14px; }.legal-operator dl > div { grid-template-columns:1fr;gap:0; }.legal-operator { padding:16px; } }
 .legal-document .support-message h3,.legal-document .support-message h4 { font-size:14px;font-weight:600;margin-top:10px; }
+
+.legal-table-scroll { overflow-x:auto; }
+.legal-notice ul { padding-left:20px;list-style:disc; }
+.legal-table-scroll table { width:100%;border-collapse:collapse;font-size:13px;line-height:1.6; }
+.legal-table-scroll caption { text-align:left;margin-bottom:12px; }
+.legal-table-scroll :is(th,td) { text-align:left;vertical-align:top;border:1px solid #dfe5d9;padding:10px; }

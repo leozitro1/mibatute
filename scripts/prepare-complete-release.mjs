@@ -1,7 +1,7 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import {LEGAL_VERSION,LEGAL_OPERATOR} from '../src/legal/config.js';
 import {policies} from '../src/legal/policies.js';
-const names=['2026-10-19-legal-foundation.sql','2026-10-19-data-rights-workflow.sql','2026-10-19-support-closure-preview.sql','2026-10-19-testing-registration.sql'];
+const names=['2026-10-19-legal-foundation.sql','2026-10-19-data-rights-workflow.sql','2026-10-19-support-closure-preview.sql','2026-10-19-testing-registration.sql','2026-11-04-explicit-legal-choices.sql'];
 const parts=[];
 for(const name of names){
  const source=(await readFile(new URL(`../supabase/migrations/${name}`,import.meta.url),'utf8')).trim();

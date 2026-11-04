@@ -153,3 +153,49 @@ test('test signup remains open and captures only explicit draft choices without 
   await as(10);const status=await rpc('legal_consent_status');assert.equal(status.version,null);await assert.rejects(db.query('select * from legal_consents'),/permission denied/);
  }finally{await db.close();}
 });
+
+test('explicit consent choices reject missing flags, preserve historical uncertainty and record server evidence',async()=>{
+ const {db,as,rpc}=await fixture();try{
+  const version='2026-10-19.1';
+  const documents={version,operator:{name:'Operador de prueba',entityType:'natural',nit:'TEST-NIT',address:'Dirección de prueba',phone:'TEST',email:'test@example.com',dataEmail:'datos@example.com'},policies:{'/terminos':{},'/privacidad':{},'/pagos':{}}};
+  await db.query('update legal_releases set documents=$1,enabled=true where version=$2',[documents,version]);
+  await as(1);await rpc('accept_legal_release',[version,true,true,true]);await db.exec('reset role');
+  const sql=await readFile(new URL('../supabase/migrations/2026-11-04-explicit-legal-choices.sql',import.meta.url),'utf8');
+  await db.exec(sql);await db.exec(sql);
+  const legacy=(await db.query('select * from legal_consents where user_id=$1',[id(1)])).rows[0];
+  assert.equal(legacy.terms_accepted,null);assert.equal(legacy.privacy_accepted,null);
+  await as(1);assert.equal((await rpc('legal_consent_status')).required,true);
+  await db.exec('reset role');await assert.rejects(db.query('insert into wompi_topups(usuario_id,credits) values($1,2)',[id(1)]),/acepta/);await as(1);
+  await assert.rejects(rpc('accept_legal_release',[version,true,false,true]),/autorizaciones/);
+  await rpc('accept_legal_release',[version,true,true,true]);assert.equal((await rpc('legal_consent_status')).required,false);
+  await db.exec('reset role');const renewed=(await db.query('select * from legal_consents where user_id=$1',[id(1)])).rows[0];
+  assert.equal(renewed.source,'renewal');assert.equal(renewed.terms_accepted,true);assert.equal(renewed.privacy_accepted,true);assert.equal(renewed.terms_version,version);assert.equal(renewed.privacy_version,version);
+  await as(1);await rpc('accept_legal_release',[version,true,true,true]);await db.exec('reset role');
+  assert.equal((await db.query('select accepted_at from legal_consents where user_id=$1',[id(1)])).rows[0].accepted_at.getTime(),renewed.accepted_at.getTime());
+  const acceptance={terms_version:version,privacy_version:version,adult_confirmed:true};
+  await assert.rejects(db.query('insert into auth.users(id,raw_user_meta_data) values($1,$2)',[id(20),{legal_acceptance:acceptance}]),/aceptar/);
+  acceptance.terms_accepted=true;acceptance.privacy_accepted=true;
+  await db.query('insert into auth.users(id,raw_user_meta_data) values($1,$2)',[id(20),{legal_acceptance:acceptance}]);
+  const proof=(await db.query('select * from legal_consents where user_id=$1',[id(20)])).rows[0];
+  assert.equal(proof.terms_accepted,true);assert.equal(proof.privacy_accepted,true);assert.equal(proof.adult_confirmed,true);assert.equal(proof.terms_version,version);assert.equal(proof.privacy_version,version);assert.ok(proof.accepted_at);assert.equal(proof.source,'registration');
+ }finally{await db.close();}
+});
+
+test('testing capture keeps all three choices and final release requires NIT and data contact',async()=>{
+ const {db}=await fixture({strict:false});try{
+  await db.exec(await readFile(new URL('../supabase/migrations/2026-10-19-testing-registration.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/2026-11-04-explicit-legal-choices.sql',import.meta.url),'utf8'));
+  const version='draft-explicit-fixture';
+  await db.query('insert into legal_releases(version,documents,published_at) values($1,$2,clock_timestamp())',[version,{version,reviewStatus:'draft',policies:{}}]);
+  const acceptance={terms_version:version,privacy_version:version,terms_accepted:true,privacy_accepted:true,adult_confirmed:true,review_status:'draft'};
+  await db.query('insert into auth.users(id,raw_user_meta_data) values($1,$2)',[id(30),{legal_acceptance:acceptance}]);
+  const proof=(await db.query('select * from legal_consents where user_id=$1',[id(30)])).rows[0];
+  assert.equal(proof.source,'testing');assert.equal(proof.terms_accepted,true);assert.equal(proof.privacy_accepted,true);assert.equal(proof.adult_confirmed,true);assert.equal(proof.terms_version,version);assert.equal(proof.privacy_version,version);assert.ok(proof.accepted_at);
+  await db.query('insert into auth.users(id,raw_user_meta_data) values($1,$2)',[id(31),{legal_acceptance:{...acceptance,privacy_accepted:false}}]);
+  assert.equal((await db.query('select count(*)::int n from legal_consents where user_id=$1',[id(31)])).rows[0].n,0);
+  const operator={name:'Prueba',entityType:'natural',address:'Prueba',phone:'Prueba',email:'test@example.com'};
+  for(const data of [operator,{...operator,nit:'TEST'},{...operator,dataEmail:'data@example.com'}]){
+   await assert.rejects(db.query('insert into legal_releases(version,documents,enabled) values($1,$2,true)',['new-final',{version:'new-final',operator:data,policies:{'/terminos':{},'/privacidad':{},'/pagos':{}}}]),/Faltan/);
+  }
+ }finally{await db.close();}
+});

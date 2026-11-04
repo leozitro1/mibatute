@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import LegalOperator from './LegalOperator.jsx';
 import ContactButton from './ContactButton.jsx';
 import './Footer.css';
 
@@ -32,9 +33,11 @@ export default function Footer({ onHowItWorks, hideBrand = false }) {
             <ContactButton className={linkClass}>Contacto</ContactButton>
             <ContactButton className={linkClass} subject="Ayuda y PQR">Ayuda y PQR</ContactButton>
             <Link className={linkClass} to="/normas">Consejos de seguridad</Link>
+            <a className={linkClass} href="https://www.sic.gov.co/" target="_blank" rel="noopener noreferrer">Superintendencia de Industria y Comercio</a>
             </div>
           </nav>
         </div>
+        <LegalOperator/>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 border-t border-gray-100 pt-3 text-center text-xs text-gray-500">
           <span>© {today.getFullYear()} MiBatute. Reutilizar es cuidar.</span>
           <time dateTime={today.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}>{date}</time>
