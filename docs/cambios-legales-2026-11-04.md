@@ -1,8 +1,8 @@
 # Secciones modificadas de MiBatute
 
-Versión 2026-11-04.1 · 4 de noviembre de 2026 · Preparación local para revisión.
+Versión 2026-11-04.1 · 4 de noviembre de 2026 · Publicado como borrador para revisión.
 
-No es una versión definitiva: el usuario indicó como responsable provisional a Edgar Ortiz D, persona natural, con RUT informado 795715624. Se transcriben los datos sin inferir el nombre completo ni separar un dígito de verificación. Faltan completar la identificación y la evidencia contractual/destinos. Las cifras nuevas de conservación son decisiones propuestas en esta revisión, no plazos legales generales ni tareas de borrado implementadas. No se ha certificado cumplimiento ni efectuado publicación.
+No es una versión definitiva: el usuario indicó como responsable provisional a Edgar Ortiz D, persona natural, con RUT informado 795715624. Se transcriben los datos sin inferir el nombre completo ni separar un dígito de verificación. Faltan completar la identificación y la evidencia contractual/destinos. Las cifras nuevas de conservación son decisiones propuestas en esta revisión, no plazos legales generales ni tareas de borrado implementadas. La publicación del borrador no certifica cumplimiento ni aprobación jurídica.
 
 ## Resultado por punto solicitado
 
@@ -13,7 +13,7 @@ No es una versión definitiva: el usuario indicó como responsable provisional a
 | 3. Conservación | Matriz completa propuesta y procedimiento de supresión; ejecución, fundamentos y ciclos de proveedores por validar. No se activan borrados. |
 | 4. Contenido | Lista ejemplificativa, cláusula general, denuncias/retiro y papel de portal con obligaciones propias. La obligación de identificación de oferentes requiere comprobar captura completa; documento de identidad hoy corresponde a verificación opcional. |
 | 5. Menores | Declaración obligatoria diferenciada de verificación documental; suspensión inmediata y supresión sin dilación en sistemas activos, con gestión de proveedores y excepciones legales mínimas. |
-| 6. Consentimiento | Cliente y migración preparados para tres elecciones, usuario, dos versiones y reloj del servidor. Pruebas en PostgreSQL aislado; migración no instalada en bases operativas. No se inventan elecciones históricas. |
+| 6. Consentimiento | Cliente publicado y migración instalada en producción para tres elecciones, usuario, dos versiones y reloj del servidor. Pruebas en PostgreSQL aislado y ocho comprobaciones de producción aprobadas. No se inventan elecciones históricas. |
 | 7. Estado | Fecha y versión actualizadas. Se mantiene borrador porque los puntos 1 y 2 no están resueltos. |
 | 8. Otros | Reembolsos, plazos de datos y reclamación de consumo, Cookies y enlace a la SIC. No se acredita recepción del correo, operación diaria ni ejecución de reembolsos con editar el texto. |
 
@@ -154,16 +154,20 @@ No se permiten armas, explosivos, drogas ilícitas, explotación sexual, product
 
 La migración 2026-11-04-explicit-legal-choices.sql añade terms_accepted, privacy_accepted, terms_version y privacy_version. Las filas históricas quedan sin esas nuevas pruebas; una renovación expresa registra las elecciones y la fecha real. Los reintentos no cambian una aceptación completa. El consentimiento de pruebas conserva source=testing. No se instala un bloqueo estricto de registro ni se habilitan recargas.
 
-Antes de una futura publicación, instalar la migración y registrar el snapshot exacto de la versión en legal_releases. La matriz forma parte del snapshot. Si esta versión se registra como borrador, una publicación definitiva necesitará otro número: no puede reutilizarse una versión inmutable. prepare-complete-release.mjs incluye la nueva migración; no se ha ejecutado contra bases operativas.
+La migración y el snapshot exacto de esta versión están instalados en producción. La matriz forma parte del snapshot. Esta versión quedó registrada como borrador; una publicación definitiva necesitará otro número: no puede reutilizarse una versión inmutable. prepare-complete-release.mjs incluye la nueva migración; para esta entrega se ejecutó únicamente la transacción puntual revisada.
 
 La matriz no implementa tareas automáticas ni valida técnicamente los plazos. La atención debe abarcar Auth, perfiles, copias en reportes, imágenes/CDN, historiales y respaldos. La identificación completa de oferentes y la operación humana de solicitudes necesitan comprobarse antes del lanzamiento.
 
 Guía y fuentes de proveedores: [guia-responsable-y-proveedores.md](guia-responsable-y-proveedores.md). Conservación contable: [Ley 962, artículo 28](https://cancilleria.gov.co/normograma/compilacion/docs/ley_0962_2005.htm), aplicable a libros y papeles del comerciante; no justifica conservar cuentas o chats completos durante diez años.
 
-## Preparación de publicación del borrador
+## Historial de preparación de publicación del borrador
 
 El usuario autorizó publicar los cambios como borrador y revisar los pendientes. Se añadió una lista visible en las páginas legales con identificación incompleta, contratos/destinos, conservación/supresión, operación de atención y revisión definitiva. Las 391 pruebas de la suite pasaron; compilación, lint de los módulos revisados y diff correctos. Vercel tiene sesión válida en el proyecto habitual. Supabase CLI devolvió falta de token de acceso: no se aplicó la migración ni el snapshot y no se realizó el despliegue. La transacción puntual está preparada en `/tmp/mibatute-draft-legal-release-20261104.sql`, con comprobaciones para conservar el registro de pruebas y rechazar versiones conflictivas. Hace falta autenticar Supabase antes de publicar el conjunto; los documentos siguen siendo borrador.
 
 ### Continuación tras acceso web a Supabase
 
-La sesión del navegador permitió aplicar la transacción en producción. Se verificaron las seis funciones contra sus definiciones probadas, el snapshot exacto de la versión, cero versiones definitivas habilitadas, registro de pruebas abierto, cuatro campos nuevos de evidencia, RLS y escrituras directas denegadas: ocho resultados verdaderos. El bloqueo de acceso CLI registrado arriba queda resuelto mediante el editor SQL web autorizado. La migración y el snapshot ya están instalados en producción; la publicación del frontend continúa a continuación.
+La sesión del navegador permitió aplicar la transacción en producción. Se verificaron las seis funciones contra sus definiciones probadas, el snapshot exacto de la versión, cero versiones definitivas habilitadas, registro de pruebas abierto, cuatro campos nuevos de evidencia, RLS y escrituras directas denegadas: ocho resultados verdaderos. El bloqueo de acceso CLI registrado arriba queda resuelto mediante el editor SQL web autorizado. La migración y el snapshot ya están instalados en producción; el frontend también quedó publicado en https://www.mibatute.com con la versión 2026-11-04.1.
+
+### Publicación verificada
+
+Despliegue Vercel `dpl_8R6u5CgQx1XAtu5GkETSvW8EJ7xC`, estado READY, enlazado a https://www.mibatute.com. Las seis rutas legales respondieron HTTP 200. Verificados en los recursos publicados: versión, nombre, dirección, teléfono, región us-east-1 y lista visible de pendientes. El endpoint de checkout confirma configured=false. Los documentos conservan el estado de borrador y las recargas siguen deshabilitadas.
