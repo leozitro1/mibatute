@@ -206,8 +206,9 @@
 .user-conversation-placeholder {display:flex;align-items:center;justify-content:center;color:#64815b;}
 .user-conversation-copy {display:grid;gap:4px;min-width:0;flex:1;}
 .user-conversation-copy strong {font-size:14px;overflow-wrap:anywhere;}.user-conversation-copy > span,.user-conversation-copy small {font-size:12px;color:#647060;}
+.user-conversation-card > .chat-retention-countdown {margin-left:auto;max-width:none;flex-shrink:0;color:#526747;background:#f0f4ec;border:1px solid #dfe6d9;border-radius:8px;padding:6px 9px;font-size:11px;font-weight:500;line-height:1.5;white-space:nowrap;text-align:right;}
 .user-conversation-state {display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:5px;font-size:12px;color:#315e2c;max-width:110px;}
-.user-conversation-state > span {display:block;width:100%;text-align:right;font-weight:600;margin-top:4px;}.user-conversation-state.is-closed {color:#647060;}
+.user-conversation-state-label {display:inline-flex;align-items:center;gap:5px;}.user-conversation-mobile-state {display:none;}.user-conversation-state > .user-conversation-open-label {display:block;width:100%;text-align:right;font-weight:600;margin-top:4px;}.user-conversation-state.is-closed {color:#647060;}
 .user-conversations-empty {display:flex;flex-direction:column;align-items:center;gap:14px;padding:36px 14px;text-align:center;color:#647060;font-size:14px;}
 .user-conversations-pages {display:flex;align-items:center;justify-content:center;gap:18px;margin-top:20px;font-size:13px;color:#52634d;}
 .user-conversations button:disabled {opacity:.5;cursor:default;}
@@ -266,3 +267,20 @@
 /* Independent security button stays inside the card, before the chat state. */
 .user-conversations-list li > .user-conversation-security {display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex-shrink:0;padding:0;border:1px solid #dfe6d9;border-radius:12px;color:#315b28;background:#f0f4ec;}
 .user-conversations-list li > .user-conversation-security svg {flex-shrink:0;}
+
+@media(max-width:639px) {
+ .user-conversations-list {gap:14px;}
+ .user-conversations-list .user-conversation-card {display:grid;grid-template-columns:minmax(0,1fr) 60px;gap:8px;padding:10px;align-items:center;}
+ .user-conversations-list .user-conversation-main {grid-column:1;grid-row:1;align-items:center;gap:10px;}
+ .user-conversations-list img,.user-conversation-placeholder {width:46px;height:46px;}
+ .user-conversation-copy {gap:3px;}
+ .user-conversation-copy strong,.user-conversation-copy > span {display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.5;}
+ .user-conversation-copy small {display:block;min-width:0;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+ .user-conversation-mobile-state {display:inline;}
+ .user-conversation-card > .chat-retention-countdown {grid-column:1;grid-row:2;margin:0;max-width:100%;padding:5px 6px;font-size:10px;justify-self:start;text-align:left;overflow:hidden;text-overflow:ellipsis;}
+ .user-conversations-list li > .user-conversation-security {grid-column:2;grid-row:1;justify-self:end;}
+ .user-conversation-status-button {grid-column:2;grid-row:2;min-height:44px;}
+ .user-conversation-state {font-size:11px;max-width:90px;}
+ .user-conversation-state > .user-conversation-state-label {display:none;}
+ .user-conversation-state > .user-conversation-open-label {margin:0;white-space:nowrap;}
+}

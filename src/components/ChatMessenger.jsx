@@ -7,6 +7,8 @@ import { detectarContenidoNoPermitido, enmascararContenido } from "../supabase/s
 import { resolveChatBuyerId, chatParticipantRole } from "../supabase/articleContext";
 import ChatPickupAgreement from "./ChatPickupAgreement";
 import ChatArticleDescription from './ChatArticleDescription.jsx';
+import ChatRetentionNotice from './ChatRetentionNotice.jsx';
+import useChatRetentionClock from './useChatRetentionClock.js';
 import { CHAT_MESSAGE_FIELDS, listenMarketSignals, mergeChatMessages, readChatMessages, singleFlight } from "./marketSignals.js";
 import { trackChatViewport } from './chatViewport.js';
 
@@ -359,6 +361,23 @@ export default function ChatMessenger({
 
   const chatPending = chatRow?.status === "pending";
   const readOnly = isEntregado || estado === "en_revision" || chatClosed || chatPending || meBlocked;
+  const retentionNow = useChatRetentionClock(isOpen && (isEntregado || chatClosed));
+  const [retention,setRetention] = useState(null);
+  useEffect(()=>{
+    if(!isOpen||!chatRow?.id)return;
+    let active=true;
+    const chatId=chatRow.id;
+    const refresh=singleFlight(async()=>{
+      const {data,error}=await supabase.rpc('chat_retention_status',{p_chat:chatId});
+      if(active)setRetention({chatId,...(!error?data:{error:true})});
+    });
+    const visible=()=>{if(document.visibilityState==='visible')refresh();};
+    refresh();document.addEventListener('visibilitychange',visible);
+    const stop=listenMarketSignals(signal=>{
+      if(signal.uid===userId&&(signal.kind==='reconnect'||signal.chat?.id===chatId||signal.article?.id===articuloId))refresh();
+    });
+    return()=>{active=false;stop();document.removeEventListener('visibilitychange',visible);};
+  },[isOpen,chatRow?.id,userId,articuloId,isEntregado,chatClosed,showReport]);
 
   const title = useMemo(() => article?.titulo || article?.title || "Chat", [article]);
 
@@ -578,7 +597,7 @@ export default function ChatMessenger({
       if (!row?.id) {
         if (!String(uiError || "").trim()) {
           setUiError(
-            "Este chat no existe o no tienes permiso (RLS). Si el comprador eliminó la solicitud, el chat se borra automáticamente."
+            "Este chat no existe o no tienes permiso. Pudo eliminarse al vencer su plazo de conservación o al retirar la publicación."
           );
         }
       } else {
@@ -850,6 +869,7 @@ export default function ChatMessenger({
           ) : null}
         </div>
 
+        {retention?.chatId===chatRow?.id&&<ChatRetentionNotice status={retention} now={retentionNow}/>}
         {/* CARD ARTÍCULO */}
         <div className="px-4 pt-4">
           <div className="marketplace-chat-article rounded-3xl border border-gray-100 bg-gray-50 p-4 flex gap-3">
@@ -918,7 +938,7 @@ export default function ChatMessenger({
               Este chat ya no existe o no tienes permiso.
               <br />
               <span className="text-xs font-bold text-gray-400">
-                (Si el comprador eliminó la solicitud, el chat se borra automáticamente).
+                El chat pudo eliminarse al vencer su plazo de conservación o al retirar la publicación.
               </span>
 
               <div className="mt-4">

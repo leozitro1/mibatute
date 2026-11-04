@@ -3,7 +3,7 @@ import { CREDIT_PACKS_DESCRIPTION } from '../config/creditPricing.js';
 
 export const retentionMatrix=[
  ['Cuentas inactivas','24 meses desde el último acceso; aviso 30 días antes del cierre','Cerrar y suprimir o anonimizar perfil y autenticación; resolver primero saldos y operaciones abiertas.'],
- ['Chats y mensajes de artículos','Hasta 90 días desde entrega, cancelación o cierre de la operación','Eliminar mensajes, lecturas y acuerdos de recogida; pueden eliminarse antes al retirar una publicación.'],
+ ['Chats y mensajes de artículos','30 días desde entrega, cancelación o cierre definitivo de la operación','Eliminar el chat, mensajes, lecturas y acuerdos de recogida. Los chats ya cerrados conservan como inicio la fecha registrada de cierre o entrega; una solicitud pendiente o revisión temporal no lo inicia. El borrado se aplaza mientras exista un reporte o caso de venta abierto. Pueden eliminarse antes al retirar la publicación. La ejecución automática requiere activación expresa en cada entorno; no elimina de inmediato copias de respaldo.'],
  ['Calificaciones','Mientras la cuenta esté activa; al cierre se anonimiza o elimina','Eliminar texto e identificadores al cerrar la cuenta; solo conservar agregados irreversiblemente anónimos.'],
  ['Soporte y PQR comunes','180 días desde el cierre definitivo','Suprimir mensajes y adjuntos; si hay controversia, separar únicamente la evidencia necesaria.'],
  ['Solicitudes de datos personales','24 meses desde la respuesta final','Conservar radicado y evidencia mínima de atención; eliminar documentos de identidad una vez comprobados.'],
