@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import LegalOperator from './LegalOperator.jsx';
 import ContactButton from './ContactButton.jsx';
 import './Footer.css';
 
@@ -25,6 +24,7 @@ export default function Footer({ onHowItWorks, hideBrand = false }) {
             <div className="site-footer-links flex w-full flex-wrap items-center justify-center gap-x-6 gap-y-1 px-1">
             <Link className={linkClass} to="/terminos">Términos y condiciones</Link>
             <Link className={linkClass} to="/privacidad">Privacidad</Link>
+            <Link className={linkClass} to="/privacidad#responsable">Responsable de MiBatute</Link>
             <Link className={linkClass} to="/pagos">Pagos y devoluciones</Link>
             <Link className={linkClass} to="/cookies">Cookies y preferencias</Link>
             <Link className={linkClass} to="/datos-personales">Solicitudes de datos</Link>
@@ -37,7 +37,6 @@ export default function Footer({ onHowItWorks, hideBrand = false }) {
             </div>
           </nav>
         </div>
-        <LegalOperator/>
         <div className="mt-2 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 border-t border-gray-100 pt-3 text-center text-xs text-gray-500">
           <span>© {today.getFullYear()} MiBatute. Reutilizar es cuidar.</span>
           <time dateTime={today.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}>{date}</time>

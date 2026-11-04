@@ -1,4 +1,5 @@
 import test from "node:test";
+import process from "node:process";
 import assert from "node:assert/strict";
 import handler from "../api/imagekit-delete.js";
 
@@ -10,7 +11,7 @@ test("ImageKit deletion authenticates and rejects another owner's files", async 
   const calls = [];
   let owner = "other-user";
   globalThis.fetch = async (url, init = {}) => {
-    calls.push({ url: String(url), method: init.method });
+    calls.push({ url: String(url), method: init.method, signal: init.signal });
     if (String(url).includes("/auth/v1/user")) return Response.json({ id: "test-user" });
     if (String(url).endsWith("/details")) return Response.json({ filePath: `/mibatute/articulos/${owner}/foto.webp` });
     return new Response(null, { status: 204 });
@@ -23,11 +24,17 @@ test("ImageKit deletion authenticates and rejects another owner's files", async 
   };
   const req = { method: "POST", headers: { authorization: "Bearer test-token" }, body: { fileIds: ["file-1"] } };
   try {
+    for (const authorization of [undefined, '', 'Basic test-token', 'Bearer ', 'Bearer token extra']) {
+      assert.equal((await run({ ...req, headers: { authorization } })).status, 401);
+    }
+    assert.equal((await run({ ...req, body: { fileIds: ['../invalid'] } })).status, 400);
+    assert.equal(calls.length, 0, 'Invalid requests must not call Supabase or ImageKit');
     assert.equal((await run(req)).status, 403);
     assert.equal(calls.some(c => c.method === "DELETE"), false);
     owner = "test-user";
     assert.equal((await run(req)).status, 200);
     assert.equal(calls.filter(c => c.method === "DELETE").length, 1);
+    assert.equal(calls.filter(c => c.url.includes('api.imagekit.io')).every(c => c.signal instanceof AbortSignal), true);
     assert.equal((await run({ ...req, body: { fileIds: ["../invalid"] } })).status, 400);
   } finally {
     globalThis.fetch = original;

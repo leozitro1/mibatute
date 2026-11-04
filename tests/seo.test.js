@@ -37,6 +37,9 @@ test('the build emits initial route metadata and a sitemap excluding private pag
     assert.equal((sitemap.match(/<loc>/g) || []).length, 1);
     assert.ok(sitemap.includes(`<loc>${SITE_URL}/</loc>`));
     assert.match(await readFile(new URL('robots.txt', root), 'utf8'), /Sitemap: https:\/\/www.mibatute.com\/sitemap.xml/);
-    assert.ok(config.headers.every(rule => rule.headers.some(header => header.key === 'X-Robots-Tag' && header.value.includes('noindex'))));
+    for (const source of ['/gestion/:path*', '/auth/callback', '/reset-password']) {
+      assert.ok(config.headers.some(rule => rule.source === source && rule.headers.some(header => header.key === 'X-Robots-Tag' && header.value.includes('noindex'))));
+    }
+    assert.ok(!config.headers.filter(rule => rule.source === '/(.*)').some(rule => rule.headers.some(header => header.key === 'X-Robots-Tag' && header.value.includes('noindex'))));
   } finally { await rm(temp, { recursive: true, force: true }); }
 });

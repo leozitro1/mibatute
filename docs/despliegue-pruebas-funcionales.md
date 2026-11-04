@@ -251,3 +251,15 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - Cuatro migraciones chat-retention, chat-retention-preview, chat-retention-closure-dates y chat-retention-scheduler instaladas en una sola transacción en el proyecto de producción habitual. Se verificó la definición previa de la API; nueve comprobaciones posteriores positivas: ocho funciones idénticas a local, RLS, permisos privados, API de participantes, ejecutor restringido, calendario y controles. La instalación no ejecutó la limpieza ni activó borrados: chat_retention_settings.enabled=false en producción. Activación pendiente de instrucción expresa separada.
 - Borrador legal 2026-11-04.3 registrado sin sobrescribir versiones anteriores, sin habilitar revisión jurídica ni atribuir consentimientos históricos. Pagos reales, registro y SMTP conservan su configuración.
 - 399 pruebas, compilación y lint de módulos nuevos/modificados sin errores nuevos. Validación por terminal y administración SQL remota; sin navegador local ni capturas. Commit y despliegue autorizados en main y el proyecto Vercel habitual, sin push.
+
+## Activación posterior: limpieza diaria de chats
+
+- Por instrucción expresa del responsable, limpieza de chats activada en producción. El calendario de quince minutos se sustituyó por una ejecución diaria a las 23:59 Colombia (`59 4 * * *` UTC). Un único trabajo activo, sin consultas periódicas desde la página ni dependencia de usuarios conectados.
+- Verificados los cuerpos de borrado y aplazamiento antes del cambio; comprobación posterior: control habilitado, un único trabajo, calendario diario correcto y trabajo activo. Activación registrada en auditoría; no se ejecutó borrado manual. Reportes y casos abiertos conservan su protección. No requiere otro despliegue de frontend.
+
+## Entrega de seguridad del 4 de noviembre de 2026
+
+- Autorizados commit y despliegue en main y en el proyecto Vercel habitual. Cabeceras globales contra incrustación y confusión de contenido, política de referencia y CSP básica; firmas ImageKit sin caché, rechazo temprano de peticiones inválidas y esperas acotadas en borrado. No añade proveedores, consultas periódicas ni funciones de pago.
+- Aplicada en producción únicamente `2026-11-04-revoke-client-truncate.sql`. Verificación: cero tablas con TRUNCATE de cliente, defaults de postgres sin ese permiso, 61 tablas con RLS, edición de perfil y acceso de servidor conservados, MFA y abono Wompi sin cambios. Sin vaciar tablas ni probar escrituras de usuarios.
+- Se incluyen los ajustes pendientes del pie legal: enlace al responsable dentro de Privacidad y datos en un bloque desplegable. Se conserva el calendario diario ya documentado sin ejecutarlo de nuevo. Registro habilitado y recargas reales deshabilitadas.
+- 402 pruebas aprobadas, compilación correcta y lint de archivos funcionales modificados sin errores. Los límites de subida de ImageKit y los defaults gestionados por supabase_admin siguen documentados como pendientes; esta entrega no los da por resueltos.

@@ -1,9 +1,11 @@
 import crypto from "node:crypto";
+import process from "node:process";
 import { createClient } from "@supabase/supabase-js";
 
 function sendJson(res, status, body) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
+  res.setHeader("Cache-Control", "no-store");
   res.end(JSON.stringify(body));
 }
 
@@ -24,7 +26,7 @@ export default async function handler(req, res) {
   }
 
   const authHeader = req.headers.authorization || "";
-  const accessToken = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : "";
+  const accessToken = typeof authHeader === "string" ? authHeader.match(/^Bearer (\S+)$/i)?.[1] : "";
 
   if (!accessToken) {
     return sendJson(res, 401, { error: "No autenticado." });
@@ -32,7 +34,7 @@ export default async function handler(req, res) {
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${accessToken}` } },
-    auth: { persistSession: false },
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
   const { data, error } = await supabase.auth.getUser(accessToken);
