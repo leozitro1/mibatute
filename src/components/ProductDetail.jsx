@@ -1,6 +1,7 @@
+import { AccountVerificationBadge } from './AccountVerification.jsx';
 // src/components/ProductDetail.jsx
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { X, MapPin, ShieldCheck, Lock, Flag, BadgeCheck, Expand, CircleHelp, Package } from "lucide-react";
+import { X, MapPin, Lock, Flag, BadgeCheck, Expand, CircleHelp, Package } from "lucide-react";
 import './ProductDetail.css';
 import './ProductDetailDesign.css';
 import './ProductCondition.css';
@@ -966,10 +967,7 @@ export default function ProductDetail({
 
             <div className="min-w-0 flex-1">
               {staffPreview&&onOpenOwner&&ownerId?<button type="button" className="product-detail-owner-link" title="Abrir ficha del vendedor" onClick={()=>onOpenOwner({id:ownerId,nombre:ownerNameRaw||ownerName})}>{ownerName}</button>:<p className="text-sm font-black text-gray-800 truncate">{ownerName}</p>}
-              <div className="flex items-center gap-1 text-[10px] text-gray-500 font-bold uppercase">
-                <ShieldCheck size={12} className="text-forest-green" />
-                Vendedor verificado
-              </div>
+              {isOpen&&<AccountVerificationBadge userId={ownerId} />}
               {ownerReputacion !== null && (
                 <div className="flex items-center gap-0.5 mt-1">
                   {[1,2,3,4,5].map(s => (

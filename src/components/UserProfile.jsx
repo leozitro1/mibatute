@@ -1,3 +1,4 @@
+import AccountVerification, { AccountVerificationBadge } from './AccountVerification.jsx';
 import StyledSelect from "./StyledSelect.jsx";
 import ProfileIdentityPlacement from './ProfileIdentityPlacement.jsx';
 // src/components/UserProfile.jsx
@@ -2454,17 +2455,20 @@ export default function UserProfile({
               </div>
 
               {/* \u2b50 Reputación propia */}
-              {miReputacion && (
-                <div className="profile-reputation flex flex-wrap items-center lg:justify-center gap-1 mb-3">
+                <div className="profile-reputation flex flex-col items-start lg:items-center gap-1 mb-3">
+                  <AccountVerificationBadge userId={user.id} refreshKey={notificationTarget?.receiptId} showStatus/>
+                  {miReputacion&&<div className="flex flex-wrap items-center gap-1 lg:justify-center">
+                  <span className="inline-flex items-center gap-1">
                   {[1,2,3,4,5].map(s => (
                     <span key={s} className={`text-xl ${s <= Math.round(miReputacion.promedio) ? "text-yellow-400" : "text-gray-200"}`}>★</span>
                   ))}
+                  </span>
                   <span className="text-xs font-black text-gray-500 ml-1">
                     {miReputacion.promedio > 0 ? miReputacion.promedio.toFixed(1) : "Sin calificaciones"}
                     {miReputacion.total > 0 && <span className="font-normal text-gray-400"> ({miReputacion.total})</span>}
                   </span>
+                  </div>}
                 </div>
-              )}
 
               </div>
               </ProfileIdentityPlacement>
@@ -2658,6 +2662,7 @@ export default function UserProfile({
                   </p>
                 ) : null}
               </form>
+              <AccountVerification key={user.id} userId={user.id} disabled={isUserBlocked} refreshKey={notificationTarget?.receiptId}/>
             </div>
           </section>
         </div>

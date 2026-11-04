@@ -1,0 +1,17 @@
+.account-verification{margin-top:1.25rem;border-top:1px solid #e5e7eb;padding-top:1.25rem;font-size:.875rem;color:#4b5563;overflow-wrap:anywhere}
+.account-verification h3{display:flex;align-items:center;gap:.5rem;color:#1f4b3f;font-weight:800}
+.account-verification p{margin:.6rem 0;line-height:1.5}
+.account-verification form{display:grid;gap:.65rem;margin-top:1rem}
+.account-verification label{font-weight:600}
+.account-verification input:not([type=checkbox]){width:100%;min-width:0;border:1px solid #d1d5db;border-radius:.75rem;padding:.75rem;background:white;color:#111827}
+.verification-button{min-height:44px;padding:.7rem 1rem;border-radius:.75rem;background:#1f4b3f;color:white;font-weight:700}
+.verification-button:disabled{opacity:.5;cursor:not-allowed}
+.verification-consent{display:block;font-size:.75rem;line-height:1.5}
+.verification-consent input{margin-right:.5rem;vertical-align:middle}
+.verification-consent a{text-decoration:underline}
+.verification-error{color:#b91c1c}
+.verification-public-badge{display:inline-flex;align-items:center;gap:.25rem;color:#1f4b3f;font-size:10px;font-weight:700;text-transform:uppercase}
+.verification-public-badge--gold{flex-shrink:0;color:#c4a34f}
+.verification-review-list{display:grid;gap:1rem;margin:1rem 0}
+.verification-review-list article{border:1px solid #e5e7eb;border-radius:1rem;padding:1rem;min-width:0;overflow-wrap:anywhere}
+.verification-review-list textarea{width:100%;min-height:90px;margin:.5rem 0;border:1px solid #d1d5db;border-radius:.5rem;padding:.7rem}

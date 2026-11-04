@@ -4,6 +4,11 @@ import {CREDIT_UNIT_PRICE_COP,formatCOP} from '../config/creditPricing.js';
 const SITE = 'https://www.mibatute.com/';
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const content = {
+ account_verified: {
+  label:'Verificación de tu cuenta', action:'Ver mi cuenta en MiBatute',
+  next:'Ya puedes ver la insignia de cuenta verificada en tu perfil y junto a tus artículos. También encontrarás este aviso en las notificaciones y en tu buzón. La aprobación corresponde a una revisión manual de MiBatute y no garantiza las operaciones entre usuarios.',
+  tip:'MiBatute no te pedirá contraseñas, códigos del autenticador ni pagos para conservar esta insignia. No compartas tu cédula por el chat.',
+ },
  published: {
   label:'Tu publicación', action:'Ver mi publicación en MiBatute',
   next:'Revisa que las fotos, el estado del artículo y la ubicación sean correctos. Las personas interesadas podrán contactarte desde la plataforma.',
@@ -82,6 +87,7 @@ ${promotion?`<table role="presentation" width="100%" cellpadding="0" cellspacing
 
 // Fictitious examples only; never read real accounts to generate a preview.
 export const EMAIL_PREVIEWS = [
+ {kind:'account_verified',title:'Tu cuenta fue verificada',detail:'El equipo de MiBatute aprobó la revisión manual de tu cuenta. Tu perfil y tus artículos ya pueden mostrar la insignia de cuenta verificada.'},
  {kind:'published',title:'Publicación creada',detail:'Tu publicación «Bicicleta urbana» se creó en MiBatute. Consulta su estado en tu cuenta.'},
  {kind:'request',title:'Nueva solicitud de donación',detail:'Hay una nueva postulación para «Escritorio de madera». Revísala en MiBatute.'},
  {kind:'request',title:'Nueva solicitud de compra',detail:'Hay una nueva solicitud para «Bicicleta urbana». Revísala en MiBatute.'},

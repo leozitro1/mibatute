@@ -231,7 +231,7 @@ export default function MarketplaceApp() {
   const [selectedLocality, setSelectedLocality] = useState("Todas");
 
   const [quickTipo, setQuickTipo] = useState("todo"); // todo | donacion | venta | destacado
-  const [onlyActive, setOnlyActive] = useState(false);
+  const [onlyVerified, setOnlyVerified] = useState(false);
   const [minCondition, setMinCondition] = useState(0);
   const [conditionDraft, setConditionDraft] = useState(0);
   const [hiddenAdsOwnerId, setHiddenAdsOwnerId] = useState(null);
@@ -269,11 +269,11 @@ export default function MarketplaceApp() {
 
   const homeFilters = useMemo(() => ({
     search: debouncedSearch, searchMode, category: selectedCategory, subcategory: selectedSubcategory,
-    city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive, minCondition,
+    city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive: false, onlyVerified, minCondition,
     hideOwn: !!currentUser?.id && hiddenAdsOwnerId === currentUser.id, sort: sortOrder, featuredSeed,
-    layout: mobileCatalog || mobileApp ? 'mobile' : 'desktop', desktopPageSize: 12, mobilePageRows: mobileApp ? 10 : 4,
+    layout: mobileCatalog || mobileApp ? 'mobile' : 'desktop', desktopPageSize: 12, mobilePageRows: mobileApp ? 10 : 4, mobileUniformGrid: true,
   }), [debouncedSearch, searchMode, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
-    quickTipo, onlyActive, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id, mobileCatalog, mobileApp]);
+    quickTipo, onlyVerified, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id, mobileCatalog, mobileApp]);
   const homeFilterKey = JSON.stringify([homeFilters, currentUser?.id]);
   useEffect(() => {
     if (homeBusy || homeError || searchTerm !== debouncedSearch || currentView !== 'home' || document.visibilityState !== 'visible') return;
@@ -1103,7 +1103,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     if (ownerIds.length) {
       const { data: owners, error: ownersErr } = await supabase
         .from("usuarios_publicos")
-        .select("id,nombre,foto_url")
+        .select("id,nombre,foto_url,account_verified")
         .in("id", ownerIds);
 
       if (ownersErr) console.log("Error cargando usuarios_publicos:", ownersErr);
@@ -1583,7 +1583,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       if (estadoActual === "pausado") return false;
 
       if (estadoActual === "entregado") return false;
-      if (onlyActive && estadoActual === "reservado") return false;
+      if (onlyVerified && item.owner_public?.account_verified !== true) return false;
 
       if (quickTipo === "destacado") {
         // ✅ Muestra SOLO los artículos marcados como destacados
@@ -1615,7 +1615,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     selectedLocality,
     getActiveUid,
     quickTipo,
-    onlyActive,
+    onlyVerified,
     hiddenAdsOwnerId,
     sortOrder,
     homePage.ids,
@@ -1780,17 +1780,17 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                 <div className={`animate-in fade-in duration-500${mobileApp ? ' mobile-app-catalog' : ''}`}>
                   {mobileApp && <MobileCatalogTools search={searchTerm} onSearch={setSearchTerm}
                     value={{category:selectedCategory,subcategory:selectedSubcategory,city:selectedCity,locality:selectedLocality,
-                      kind:quickTipo,onlyActive,minCondition,sort:sortOrder,hideOwn:!!currentUser?.id && hiddenAdsOwnerId === currentUser.id,searchMode}}
+                      kind:quickTipo,onlyVerified,minCondition,sort:sortOrder,hideOwn:!!currentUser?.id && hiddenAdsOwnerId === currentUser.id,searchMode}}
                     onChange={next => {
                       setSelectedCategory(next.category);setSelectedSubcategory(next.subcategory);setExpandedCategory(null);
                       setSelectedCity(next.city);setSelectedLocality(next.locality);setQuickTipo(next.kind);
-                      setOnlyActive(next.onlyActive);setMinCondition(next.minCondition);setConditionDraft(next.minCondition);
+                      setOnlyVerified(next.onlyVerified);setMinCondition(next.minCondition);setConditionDraft(next.minCondition);
                       setSortOrder(next.sort);setHiddenAdsOwnerId(next.hideOwn ? currentUser?.id : null);setSearchMode(next.searchMode);
                     }}
                     categories={CATEGORY_TREE} cities={COLOMBIA_DATA} signedIn={!!currentUser?.id}
                     onSubmitSearch={() => listingRef.current?.scrollIntoView({behavior:'smooth',block:'start'})} />}
                   {/* Mostrar banner solo cuando NO hay búsqueda (evita que se atraviese entre la barra y resultados) */}
-                  {searchTerm.trim() === "" && (!mobileApp || (selectedCategory === 'Todo' && quickTipo === 'todo' && selectedLocality === 'Todas' && !minCondition && !onlyActive)) && (
+                  {searchTerm.trim() === "" && (!mobileApp || (selectedCategory === 'Todo' && quickTipo === 'todo' && selectedLocality === 'Todas' && !minCondition && !onlyVerified)) && (
                     <div className="rounded-3xl">
                       <HeroBanner sponsorFilters={{city:selectedCity,locality:selectedLocality,category:selectedCategory}} onLearnMore={() => setCurrentView("how-it-works")} />
 
@@ -1940,7 +1940,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
                       <FilterSection id="publication-filters" title="Tipo de publicación"
                         icon={<SlidersHorizontal size={18} className="shrink-0 text-forest-green" aria-hidden="true" />}
-                        summary={`${PUBLICATION_TYPES.find(type => type.key === quickTipo)?.label} / ${onlyActive ? 'Solo activas' : 'Incluye reservadas'}`}>
+                        summary={`${PUBLICATION_TYPES.find(type => type.key === quickTipo)?.label} / ${onlyVerified ? 'Solo cuentas verificadas' : 'Todas las cuentas'}`}>
                         <div className="space-y-4">
                           <div role="radiogroup" aria-label="Tipo de publicación" className="grid grid-cols-2 gap-2">
                             {PUBLICATION_TYPES.map(type => (
@@ -1956,10 +1956,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                             ))}
                           </div>
                           <label className="flex min-h-11 items-center justify-between gap-3 border-t border-gray-200 pt-3 cursor-pointer">
-                            <span className="text-sm font-semibold text-gray-700">Solo activas</span>
+                            <span className="text-sm font-semibold text-gray-700">Solo cuentas verificadas</span>
                             <span className="relative inline-flex shrink-0">
-                              <input type="checkbox" role="switch" checked={onlyActive}
-                                onChange={event => setOnlyActive(event.target.checked)}
+                              <input type="checkbox" role="switch" checked={onlyVerified}
+                                onChange={event => setOnlyVerified(event.target.checked)}
                                 className="peer sr-only" />
                               <span aria-hidden="true" className="h-6 w-11 rounded-full bg-gray-300 transition peer-checked:bg-forest-green peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-forest-green" />
                               <span aria-hidden="true" className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5 motion-reduce:transition-none" />
@@ -2005,7 +2005,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
                     <div className="home-catalog-results order-2 min-w-0 lg:w-3/4">
                       <FeaturedTicker
-                        key={JSON.stringify([searchTerm.trim().toLowerCase(), selectedCategory, selectedSubcategory, selectedCity, selectedLocality, quickTipo, onlyActive, hiddenAdsOwnerId, currentUser?.id])}
+                        key={JSON.stringify([searchTerm.trim().toLowerCase(), selectedCategory, selectedSubcategory, selectedCity, selectedLocality, quickTipo, onlyVerified, hiddenAdsOwnerId, currentUser?.id])}
                         items={featuredProducts}
                         category={selectedCategory}
                         onItemClick={setSelectedProduct}
@@ -2085,6 +2085,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       price={item.price || 0}
       image={resolvedImage}
       isFeatured={item.isFeatured || false}
+      ownerVerified={item.owner_public?.account_verified===true}
       status={item.estado || item.status || "disponible"}
       estadoProducto={typeof item?.estado_producto === "number" ? item.estado_producto : (item?.estado_producto ? Number(item.estado_producto) : null)}
       interestedCount={interestedCount}

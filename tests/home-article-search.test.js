@@ -9,6 +9,49 @@ const other = '22222222-2222-2222-2222-222222222222';
 const id = index => `00000000-0000-0000-0000-${String(index).padStart(12, '0')}`;
 const migration = name => readFile(new URL(`../supabase/migrations/${name}.sql`, import.meta.url), 'utf8');
 
+test('verified-account catalog filter runs before counts, featured selection and pagination under RLS',async()=>{
+ const {db,page}=await fixture();
+ try{
+  await db.exec('reset role');
+  await db.exec(`create table public.usuarios(id uuid primary key,is_blocked boolean default false,bloqueado boolean default false,ban_until timestamptz);
+   create table public.account_verifications(user_id uuid primary key,status text);
+   insert into usuarios(id) values('${owner}'),('${other}');
+   insert into account_verifications values('${owner}','approved'),('${other}','pending');
+   revoke all on account_verifications from public,anon,authenticated;
+   create function public.market_reuse_impact() returns jsonb language sql stable as 'select ''{}''::jsonb';`);
+  const verification=await migration('2026-11-04-account-verification');
+  const start=verification.indexOf('create or replace function public.account_is_verified(');
+  await db.exec(verification.slice(start,verification.indexOf('$$;',start)+3));
+  await db.exec(await migration('2026-10-30-mobile-app-page-size'));
+  const filter=await migration('2026-11-04-home-verified-accounts');
+  await db.exec(filter);await db.exec(filter);
+  await db.exec(await migration('2026-11-04-mobile-uniform-grid'));
+  await db.exec('set role anon');
+  assert.equal((await page({onlyActive:false})).total,16);
+  const filters={onlyVerified:true,onlyActive:false,sort:'newest'};
+  for(const layout of ['desktop','mobile']){
+   const result=await page({...filters,layout,desktopPageSize:12,mobilePageRows:10,mobileUniformGrid:true});
+   assert.equal(result.total,8);
+   assert.ok([...result.ids,...result.featuredIds].every(value=>Number(value.slice(-12))%2===1));
+  }
+  assert.equal((await page({...filters,locality:'Chapinero'})).total,3);
+  await assert.rejects(db.exec('select * from account_verifications'),/permission denied/);
+  await db.exec('reset role');await db.query('update articulos set estado_producto=8 where id=$1',[id(7)]);
+  await db.exec('set role anon');assert.equal((await page({...filters,minCondition:8,search:'sillon'})).total,1);
+  await db.exec("reset role;update account_verifications set status='approved'");await db.exec('set role anon');
+  const first=await page(filters),second=await page(filters,2);
+  assert.equal(first.total,16);assert.equal(first.pageCount,2);assert.equal(first.ids.length,9);assert.equal(second.ids.length,7);
+  assert.equal(new Set([...first.ids,...second.ids]).size,16);
+  await db.exec('reset role');await db.query("update account_verifications set status='rejected' where user_id=$1",[owner]);
+  await db.exec('set role anon');assert.equal((await page(filters)).total,8);
+  await db.exec('reset role');await db.query('update usuarios set is_blocked=true where id=$1',[other]);
+  await db.exec('set role anon');assert.equal((await page(filters)).total,0);
+  await db.exec('reset role');await db.query('update usuarios set is_blocked=false where id=$1',[other]);
+  await db.query("update articulos set title='Private' where id=$1",[id(2)]);
+  await db.exec('set role anon');assert.equal((await page(filters)).total,7,'verification never bypasses article RLS');
+ }finally{await db.close();}
+});
+
 async function fixture(existingExtension = false) {
   const db = new PGlite({ extensions: { unaccent } });
   try {
@@ -101,6 +144,20 @@ test('the app opts into ten mobile rows without changing other clients or bypass
     await db.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
     await db.exec('set role authenticated');
     assert.equal((await page({...app,hideOwn:true})).total,8);
+    await db.exec('reset role');
+    const uniformMigration=await migration('2026-11-04-mobile-uniform-grid');
+    await db.exec(uniformMigration);await db.exec(uniformMigration);
+    await db.exec('set role anon');
+    assert.deepEqual(await page(app),first,'legacy pagination remains available');
+    const uniform={...app,mobileUniformGrid:true};
+    const uniformPages=await Promise.all([1,2,3,4].map(number=>page(uniform,number)));
+    assert.deepEqual(uniformPages.map(result=>result.ids.length),[20,20,20,16]);
+    assert.equal(new Set(uniformPages.flatMap(result=>result.ids)).size,76);
+    assert.ok(uniformPages.every(result=>result.total===76&&result.pageCount===4));
+    assert.equal((await page({...uniform,kind:'destacado'})).ids.length,5);
+    assert.equal((await page({...uniform,search:'inexistente'})).total,0);
+    assert.equal((await page({layout:'mobile',mobileUniformGrid:true})).ids.length,8);
+    assert.equal((await page({desktopPageSize:12,mobileUniformGrid:true})).ids.length,12);
   } finally {await db.close();}
 });
 

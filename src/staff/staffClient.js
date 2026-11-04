@@ -17,6 +17,7 @@ export const STAFF_SECTIONS = [
   { id:'articles',label:'Publicaciones',permission:'moderation',icon:'package' },
   { id:'reports',label:'Reportes',permission:'reports',icon:'flag' },
   { id:'users',label:'Usuarios',permission:'users',icon:'users' },
+  { id:'verifications',label:'Verificación de cuentas',permission:'users',icon:'shield' },
   { id:'sponsors',label:'Patrocinadores',permission:'sponsors',icon:'megaphone' },
   { id:'locations',label:'Ciudades y localidades',permission:'team',icon:'map' },
   { id:'statistics',label:'Estadísticas',permission:'team',icon:'chart' },

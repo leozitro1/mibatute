@@ -16,10 +16,15 @@ for(let page=1;!account;page++) {
 if(!account?.app_metadata?.local_fixture)throw new Error('Solo se pueden restablecer cuentas de prueba locales existentes.');
 const membership=checked(await client.from('staff_accounts').select('role,active').eq('user_id',account.id).single());
 if(!membership.active)throw new Error('La cuenta del equipo no esta activa.');
+const {user:before}=checked(await client.auth.admin.getUserById(account.id));
 const password=`Local-${randomBytes(18).toString('base64url')}`;
 checked(await client.auth.admin.updateUserById(account.id,{password}));
 const {user}=checked(await client.auth.admin.getUserById(account.id));
 const factors=value=>(value.factors||[]).map(item=>`${item.id}:${item.status}`).sort();
-if(JSON.stringify(factors(user))!==JSON.stringify(factors(account)))throw new Error('Los factores no coinciden tras el cambio.');
+if(JSON.stringify(factors(user))!==JSON.stringify(factors(before)))throw new Error('Los factores no coinciden tras el cambio.');
 checked(await client.from('staff_sessions').update({revoked_at:new Date().toISOString()}).eq('user_id',account.id));
+const loginClient=createClient(config.API_URL,config.ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+const login=checked(await loginClient.auth.signInWithPassword({email,password}));
+if(login.user.id!==account.id)throw new Error('La cuenta del acceso no coincide.');
+checked(await loginClient.auth.signOut({scope:'local'}));
 console.log(`Cuenta local: ${email}\nContrasena temporal: ${password}\nRol y autenticador conservados. Sesiones del panel revocadas.`);

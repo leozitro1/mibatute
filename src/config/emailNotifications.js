@@ -1,4 +1,5 @@
 export const EMAIL_EVENTS = [
+  ['account_verified', 'Cuenta verificada', 'Confirmación después de aprobar manualmente la verificación de cuenta.'],
   ['published', 'Publicación creada', 'Confirmación para quien publica.'],
   ['request', 'Nueva solicitud', 'Aviso al vendedor o donante al recibir una solicitud.'],
   ['sale', 'Venta finalizada', 'Aviso al vendedor y comprador cuando se marca como entregada. Cada destinatario consume un correo.'],

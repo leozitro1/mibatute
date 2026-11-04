@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {EMAIL_PREVIEWS,renderActivityEmail} from '../src/email/templates.js';
 
 test('every transactional email has matching HTML and plain text, context-specific safety and a canonical destination',()=>{
- assert.equal(EMAIL_PREVIEWS.length,10);
+ assert.equal(EMAIL_PREVIEWS.length,11);
  for(const example of EMAIL_PREVIEWS){
   const {subject,text,html}=renderActivityEmail(example);
   assert.equal(subject,`MiBatute · ${example.title}`);
@@ -45,3 +45,10 @@ test('only paid top-up emails identify MITRIAPP without treating it as the legal
  assert.match(purchase.text,/recarga de créditos de MiBatute/);
  for(const item of EMAIL_PREVIEWS.filter(item=>item.kind!=='credits_purchase'))assert.doesNotMatch(renderActivityEmail(item).text,/MITRIAPP/);
 });
+
+ test('account approval email explains the badge without including private document fields',()=>{
+ const item=EMAIL_PREVIEWS.find(item=>item.kind==='account_verified');
+ const email=renderActivityEmail({...item,document_number:'123456789',issue_date:'2005-01-01'});
+ assert.match(email.text,/revisión manual/);assert.match(email.text,/notificaciones/);assert.match(email.html,/insignia/);
+ assert.doesNotMatch(email.text+email.html,/123456789|2005-01-01/);
+ });

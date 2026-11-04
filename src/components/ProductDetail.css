@@ -4,6 +4,32 @@
 }
 
 @media (max-width: 767px) {
+  .product-detail-owner {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .product-detail-owner .product-detail-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin-left: 0;
+    padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .product-detail-owner .product-detail-actions > * {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .product-detail-owner .article-share-button {
+    width: 100%;
+  }
+
+  .product-detail-owner .product-detail-actions > button {
+    justify-content: center;
+  }
+
   .product-detail {
     height: 90vh;
     height: 90dvh;

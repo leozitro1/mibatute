@@ -2,6 +2,7 @@
 import { MapPin, Lock, Users, BadgeCheck, Clock } from "lucide-react";
 import { productCondition } from './productCondition.js';
 import { cardImageUrl } from '../imagekit/imageUrls.js';
+import VerificationMark from './VerificationMark.jsx';
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -109,6 +110,7 @@ export default function ProductCard({
 
   image, // string | string[] | [{url}]
   isFeatured,
+  ownerVerified = false,
   status = "disponible",
 
   // ✅ nuevos (para mostrar interesados)
@@ -243,7 +245,7 @@ export default function ProductCard({
         </span>
 
         {isFeatured && (
-          <span className="absolute top-2 right-2 bg-treasure-gold text-black px-2 py-1 rounded text-[10px] font-bold uppercase">
+          <span className="product-card-featured absolute top-2 right-2 bg-treasure-gold text-black px-2 py-1 rounded text-[10px] font-bold uppercase">
             Destacado
           </span>
         )}
@@ -297,7 +299,7 @@ export default function ProductCard({
       </div>
 
       <div className={`product-card-body flex min-h-0 flex-1 flex-col p-4 ${isReserved || isReviewing ? 'opacity-70' : ''}`}>
-        <h3 className="font-bold text-gray-800 truncate">{title || "Sin título"}</h3>
+        <div className="flex min-w-0 items-center gap-1.5"><h3 className="min-w-0 flex-1 font-bold text-gray-800 truncate">{title || "Sin título"}</h3><VerificationMark verified={ownerVerified} compact/></div>
         <p className="mt-1 h-4 truncate text-[11px] text-gray-400" title={category || undefined}>
           {category || ''}
         </p>
