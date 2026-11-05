@@ -1,4 +1,6 @@
 import StyledSelect from "../components/StyledSelect.jsx";
+import AuthCaptcha from '../components/AuthCaptcha.jsx';
+import { captchaOptions } from '../security/turnstile.js';
 import { createElement, lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, ShieldX, Inbox, Package, Flag, Users, Megaphone, History, Menu, X, LogOut,
@@ -39,6 +41,7 @@ function IconButton({label,icon,onClick,disabled,danger=false}) {
 }
 
 export default function StaffConsole({ requireMaster=false }) {
+  const captchaRef = useRef(null);
   const { COLOMBIA_DATA } = useLocations();
   const [stage,setStage]=useState('loading');
   const [account,setAccount]=useState(null);
@@ -178,11 +181,14 @@ export default function StaffConsole({ requireMaster=false }) {
     gateInFlight.current=true;setBusy(true);setError('');
     try {
       const email=staffEmail(login,requireMaster);
-      const result=await staffClient.auth.signInWithPassword({email,password});
+      const result=await staffClient.auth.signInWithPassword({email,password,options:captchaOptions(captchaRef.current?.takeToken())});
       setPassword('');if(result.error)throw result.error;
       await prepareGate(credentialMode.current==='change');
-    } catch {await leave('No se pudo ingresar. Comprueba tus credenciales y permisos.');}
-    finally {gateInFlight.current=false;setBusy(false);}
+    } catch(err) {
+      if(err.code==='captcha_required'||err.code==='captcha_failed'||err.status===429)setError(err.code==='captcha_failed'?'Renueva la verificación de seguridad.':err.message);
+      else await leave('No se pudo ingresar. Comprueba tus credenciales y permisos.');
+    }
+    finally {captchaRef.current?.reset();gateInFlight.current=false;setBusy(false);}
   };
   const enroll=async()=>{
     if(gateInFlight.current)return;gateInFlight.current=true;setBusy(true);setError('');
@@ -211,12 +217,13 @@ export default function StaffConsole({ requireMaster=false }) {
     gateInFlight.current=true;setBusy(true);setError('');setNotice('');
     try {
       const {error:recoveryError}=await staffClient.auth.resetPasswordForEmail(staffEmail(login,requireMaster),{
+        ...captchaOptions(captchaRef.current?.takeToken()),
         redirectTo:`${window.location.origin}${window.location.pathname}?recovery=1`,
       });
       if(recoveryError)throw recoveryError;
       setNotice('Si la cuenta existe, recibirás un enlace en su correo.');
-    } catch {setError('No se pudo enviar el enlace. Espera un momento e intenta de nuevo.');}
-    finally {gateInFlight.current=false;setBusy(false);}
+    } catch(err) {setError(err.code==='captcha_required'||err.status===429?err.message:'No se pudo enviar el enlace. Espera un momento e intenta de nuevo.');}
+    finally {captchaRef.current?.reset();gateInFlight.current=false;setBusy(false);}
   };
   const openPasswordChange=async()=>{
     const {data:sessionData}=await staffClient.auth.getSession();
@@ -300,6 +307,7 @@ export default function StaffConsole({ requireMaster=false }) {
       <h1>{stage==='login'?'Iniciar sesión':stage==='forgot'?'Recuperar contraseña':stage==='confirm'?'Confirmar identidad':stage==='reset'?'Nueva contraseña':stage==='enroll'?'Configurar segundo factor':'Verificar acceso'}</h1>
       {error&&<p role="alert" className="staff-error">{error}</p>}
       {notice&&<p role="status" className="mt-4 text-sm text-forest-green">{notice}</p>}
+      {['login','confirm','forgot'].includes(stage)&&<AuthCaptcha key={stage} ref={captchaRef} />}
       {stage==='forgot'?<form onSubmit={requestRecovery}>
         <label htmlFor="staff-recovery-email">Correo o usuario</label><input id="staff-recovery-email" autoComplete="username" value={login} onChange={event=>setLogin(event.target.value)} required disabled={busy} />
         <button type="submit" className="staff-button staff-button-primary" disabled={busy||!!notice}><LockKeyhole size={17} />Enviar enlace</button>

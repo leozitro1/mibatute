@@ -3,6 +3,8 @@ import StyledSelect from "./StyledSelect.jsx";
 import { useEffect, useRef, useState } from "react";
 import {LEGAL_READY,registrationAcceptance} from '../legal/config.js';
 import { X, Mail, Lock, User, Phone } from "lucide-react";
+import AuthCaptcha from './AuthCaptcha.jsx';
+import { captchaOptions } from '../security/turnstile.js';
 
 // ✅ Registro/Login (tu servicio)
 import { registerUser, loginUser } from "../supabase/authService";
@@ -68,6 +70,7 @@ async function syncUsuariosFromAuthUser(authUser, fallbackForm = {}) {
 }
 
 export default function AuthModal({ isOpen, onClose, onLogin }) {
+  const captchaRef = useRef(null);
   const { LOCATIONS } = useLocations();
   const [isRegister, setIsRegister] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -202,7 +205,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
         location: localidad,
       };
 
-      const result = await registerUser(emailClean, password.trim(), extraData);
+      const result = await registerUser(emailClean, password.trim(), extraData, captchaRef.current?.takeToken());
 
       if (!result) {
         alert("Error inesperado: no hubo respuesta del servidor.");
@@ -247,8 +250,9 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
       }
     } catch (err) {
       console.error("REGISTER ERROR:", err);
-      alert("No se pudo registrar. Intenta de nuevo.");
+      alert(err?.code === 'captcha_required' ? err.message : "No se pudo registrar. Intenta de nuevo.");
     } finally {
+      captchaRef.current?.reset();
       setIsSubmitting(false);
     }
   };
@@ -260,8 +264,8 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
     setIsSubmitting(true);
 
     try {
-      const result = await loginUser(email.trim(), password.trim());
-      if (!result?.success) throw new Error(result?.error || "No se pudo iniciar sesión");
+      const result = await loginUser(email.trim(), password.trim(), captchaRef.current?.takeToken());
+      if (!result?.success) throw Object.assign(new Error(result?.error || "No se pudo iniciar sesión"), { code: result?.code, status: result?.status });
 
       try {
         const { data } = await supabase.auth.getUser();
@@ -289,7 +293,11 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
       console.error("LOGIN ERROR:", err);
 
       const msg = String(err?.message || "").toLowerCase();
-      if (msg.includes("invalid") || msg.includes("credentials")) {
+      if (err?.code === 'captcha_required' || err?.code === 'captcha_failed') {
+        alert('Completa o renueva la verificación de seguridad antes de continuar.');
+      } else if (err?.status === 429 || err?.code === 'over_request_rate_limit') {
+        alert(msg.includes('espera') ? err.message : 'Demasiados intentos. Espera un minuto antes de reintentar.');
+      } else if (msg.includes("invalid") || msg.includes("credentials")) {
         alert("Correo o contraseña incorrectos.");
       } else if (msg.includes("email not confirmed")) {
         alert("Debes confirmar tu correo antes de iniciar sesión.");
@@ -299,6 +307,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
         alert("No se pudo iniciar sesión. Intenta de nuevo.");
       }
     } finally {
+      captchaRef.current?.reset();
       setIsSubmitting(false);
     }
   };
@@ -316,6 +325,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(emailClean, {
+        ...captchaOptions(captchaRef.current?.takeToken()),
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
@@ -326,6 +336,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
       console.error("resetPasswordForEmail error:", err);
       alert(err?.message || "No se pudo enviar el correo. Intenta de nuevo.");
     } finally {
+      captchaRef.current?.reset();
       setIsSubmitting(false);
     }
   };
@@ -348,18 +359,23 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
       const { error } = await supabase.auth.resend({
         type: "signup",
         email: emailClean,
-        options: { emailRedirectTo },
+        options: { emailRedirectTo, ...captchaOptions(captchaRef.current?.takeToken()) },
       });
 
       if (error) throw error;
 
-      alert("Listo ✅ Te reenviamos el correo. Revisa bandeja y SPAM.");
+      alert("Si la cuenta requiere activación, recibirás un correo. Revisa bandeja y SPAM.");
       setResendCooldown(60);
     } catch (e) {
       console.error("RESEND ERROR:", e);
 
       const msg = String(e?.message || "").toLowerCase();
       const status = e?.status || e?.code;
+
+      if (e?.code === 'captcha_required' || e?.code === 'captcha_failed') {
+        alert('Completa o renueva la verificación de seguridad antes de continuar.');
+        return;
+      }
 
       if (status === 429 || msg.includes("too many requests")) {
         alert("Demasiados intentos seguidos. Espera 1-5 minutos y vuelve a intentar.");
@@ -369,6 +385,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
 
       alert("No se pudo reenviar el correo.\nVerifica el correo o intenta registrarte de nuevo.");
     } finally {
+      captchaRef.current?.reset();
       setIsSubmitting(false);
     }
   };
@@ -396,6 +413,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
           </div>
 
           {/* ===================== FORGOT PASSWORD ===================== */}
+          {isOpen && <AuthCaptcha key={`${mode}:${isRegister}`} ref={captchaRef} />}
           {mode === "forgot" ? (
             <form className="space-y-4" onSubmit={handleForgotPassword}>
               <p className="text-sm text-gray-600 font-bold">
@@ -418,9 +436,9 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
 
               {forgotSent ? (
                 <div className="bg-green-50 border border-green-100 rounded-2xl p-3">
-                  <p className="text-sm font-black text-green-800">✅ Enlace enviado</p>
+                  <p className="text-sm font-black text-green-800">Solicitud recibida</p>
                   <p className="text-xs text-green-800 font-bold mt-1">
-                    Revisa tu correo (y spam). Abre el enlace para cambiar tu contraseña.
+                    Si la cuenta existe, recibirás un enlace. Revisa tu correo y spam.
                   </p>
                 </div>
               ) : null}

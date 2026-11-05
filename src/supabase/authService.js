@@ -1,6 +1,7 @@
 // src/supabase/authService.js
 import {LEGAL_VERSION,registrationAcceptance} from '../legal/config.js';
 import { supabase } from "./supabaseClient";
+import { captchaOptions } from '../security/turnstile.js';
 
 /**
  * ✅ Garantiza que exista fila en public.usuarios con id = auth.uid().
@@ -57,7 +58,7 @@ export const ensureUsuarioRow = async (user, extraData = {}) => {
   return { success: true };
 };
 
-export const registerUser = async (email, password, extraData = {}) => {
+export const registerUser = async (email, password, extraData = {}, captchaToken) => {
   const acceptance=extraData.legal_acceptance;
   if(!registrationAcceptance(true,true,true)||acceptance?.terms_version!==LEGAL_VERSION||acceptance?.privacy_version!==LEGAL_VERSION||acceptance?.terms_accepted!==true||acceptance?.privacy_accepted!==true||acceptance?.adult_confirmed!==true||acceptance?.review_status!==registrationAcceptance(true,true,true)?.review_status)return {success:false,error:'Revisa y acepta las condiciones, la autorización de datos y la mayoría de edad.'};
   const cleanEmail = String(email || "").trim();
@@ -77,6 +78,7 @@ export const registerUser = async (email, password, extraData = {}) => {
     email: cleanEmail,
     password: cleanPassword,
     options: {
+      ...captchaOptions(captchaToken),
       emailRedirectTo,
       // ✅ guardamos en user_metadata (incluye compat con localidad_es)
       data: { nombre, movil, ciudad, localidad, localidad_es: localidad,legal_acceptance:acceptance },
@@ -114,13 +116,14 @@ export const registerUser = async (email, password, extraData = {}) => {
   return { success: true, user, session, needsEmailConfirmation: false };
 };
 
-export const loginUser = async (email, password) => {
+export const loginUser = async (email, password, captchaToken) => {
   const { data, error } = await supabase.auth.signInWithPassword({
     email: String(email || "").trim(),
     password: String(password || ""),
+    options: captchaOptions(captchaToken),
   });
 
-  if (error) return { success: false, error: error.message };
+  if (error) return { success: false, error: error.message, code: error.code, status: error.status };
 
   // ✅ Ya hay sesión, aquí sí se puede asegurar fila en usuarios
   const ensured = await ensureUsuarioRow(data.user, {});

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { authFetchFor } from './authRequestGuard.js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -77,6 +78,7 @@ if (!supabaseUrl || !supabaseKey) {
 export const supabase =
   isSupabaseConfigured
     ? createClient(supabaseUrl, supabaseKey, {
+        global: { fetch: authFetchFor(supabaseUrl) },
         auth: {
           persistSession: true,
           autoRefreshToken: true,

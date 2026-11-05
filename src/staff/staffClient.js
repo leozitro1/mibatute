@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
+import { authFetchFor } from '../supabase/authRequestGuard.js';
 
 export const staffClient = createClient(import.meta.env.VITE_SUPABASE_URL,import.meta.env.VITE_SUPABASE_ANON_KEY,{
+  global: { fetch: authFetchFor(import.meta.env.VITE_SUPABASE_URL) },
   auth: { storageKey:'mb-staff-auth',persistSession:true,autoRefreshToken:true,detectSessionInUrl:false },
 });
 
