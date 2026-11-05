@@ -1,5 +1,12 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Publicación autorizada del 5 de noviembre: presupuesto de consultas y métricas
+
+- Migraciones catalog-query-budget y global-metric-budgets aplicadas juntas al proyecto Supabase habitual. Cuatro funciones originales comparadas y nueve comprobaciones posteriores positivas: cuerpos exactos, permisos/RLS, reservador privado y tres presupuestos correctos. MFA, créditos y cuota de subidas intactos. Sin visitas, métricas ni operaciones de prueba en producción.
+- Catálogo con filtros acotados; métricas con 300 unidades por minuto y 10.000 por día de Colombia para cada tipo, compartidas por toda la web. Tres contadores privados y rechazo inmediato ante contención. Puede omitir estadísticas; no bloquea navegación/publicaciones ni constituye un techo de facturación.
+- Plazos de red compartidos para imágenes, listas vacías rechazadas, DELETE omitido para archivos ausentes y Bearer de correo validado antes de consultar. Sin nuevos servicios, RPC de cliente ni cron; la reserva añade trabajo corto dentro de la RPC existente.
+- 433 pruebas, compilación y lint aprobados; concurrencia real en base PostgreSQL temporal retirada. Commit y despliegue autorizados en main y el Vercel habitual, sin push ni pruebas de navegador. Editor SQL remoto usado únicamente para administración autorizada. Detalles y huellas en revision-consumo-2026-11-05.md.
+
 Decisión del responsable: trabajar en la rama main y en la carpeta habitual, publicar en el mismo proyecto de Vercel y en https://www.mibatute.com. Publicar el conjunto completo de los cambios autorizados tras probarlos. No crear ramas, checkouts alternativos o entregas parciales que oculten funcionalidades, salvo petición explícita.
 
 ## Entrega completa del 19 de octubre de 2026

@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import process from "node:process";
 import { Buffer } from "node:buffer";
+import { createBudgetFetch } from '../server/requestBudget.js';
 
 export default async function handler(req, res) {
   const reply = (status, body) => res.status(status).json(body);
@@ -17,11 +18,12 @@ export default async function handler(req, res) {
   const token = typeof authHeader === "string" ? authHeader.match(/^Bearer (\S+)$/i)?.[1] : "";
   if (!token) return reply(401, { error: "Sesion invalida." });
   const fileIds = req.body?.fileIds;
-  if (!Array.isArray(fileIds) || fileIds.length > 4 || fileIds.some(id => typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,200}$/.test(id))) {
+  if (!Array.isArray(fileIds) || fileIds.length < 1 || fileIds.length > 4 || fileIds.some(id => typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,200}$/.test(id))) {
     return reply(400, { error: "Imagenes invalidas." });
   }
+  const requestFetch = createBudgetFetch({ timeoutMs: 20000 });
   const client = createClient(url, key, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { headers: { Authorization: `Bearer ${token}` }, fetch: requestFetch },
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data, error } = await client.auth.getUser(token);
@@ -30,17 +32,19 @@ export default async function handler(req, res) {
   try {
     // Validate every file before deleting any of them.
     const ids = [...new Set(fileIds)];
+    const existing = [];
     for (const id of ids) {
-      const details = await fetch(`https://api.imagekit.io/v1/files/${id}/details`, { headers, signal: AbortSignal.timeout(10000) });
+      const details = await requestFetch(`https://api.imagekit.io/v1/files/${id}/details`, { headers, signal: AbortSignal.timeout(10000) });
       if (details.status === 404) continue;
       if (!details.ok) throw new Error("No se pudo verificar la imagen en ImageKit.");
       const file = await details.json();
       if (!file.filePath?.startsWith(`/mibatute/articulos/${data.user.id}/`)) {
         return reply(403, { error: "No tienes permiso para eliminar esta imagen." });
       }
+      existing.push(id);
     }
-    for (const id of ids) {
-      const result = await fetch(`https://api.imagekit.io/v1/files/${id}`, { method: "DELETE", headers, signal: AbortSignal.timeout(10000) });
+    for (const id of existing) {
+      const result = await requestFetch(`https://api.imagekit.io/v1/files/${id}`, { method: "DELETE", headers, signal: AbortSignal.timeout(10000) });
       if (!result.ok && result.status !== 404) throw new Error("No se pudo eliminar la imagen de ImageKit. Intenta nuevamente.");
     }
     return reply(200, { success: true });

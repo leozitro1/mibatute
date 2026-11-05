@@ -14,7 +14,8 @@ export default async function handler(req,res){
  if(req.method==='GET'&&process.env.EMAIL_NOTIFICATIONS_ENABLED!=='true')return send(res,200,{configured:false,sent:0});
  const url=process.env.SUPABASE_URL||process.env.VITE_SUPABASE_URL;
  const anon=process.env.SUPABASE_ANON_KEY||process.env.VITE_SUPABASE_ANON_KEY;
- const token=(req.headers.authorization||'').replace(/^Bearer /,'');
+ const authHeader=req.headers.authorization;
+ const token=typeof authHeader==='string'?authHeader.match(/^Bearer (\S+)$/i)?.[1]:'';
  const cron=req.method==='GET'&&same(token,process.env.CRON_SECRET);
  if(!cron){
   if(req.method!=='POST'||!token||!url||!anon)return send(res,401,{error:'Acceso no autorizado.'});

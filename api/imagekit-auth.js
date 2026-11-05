@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { imageUploadPolicy } from '../src/imagekit/uploadPolicy.js';
 import { signImageKitUpload } from '../server/imagekitUploadToken.js';
 import { reserveImageUpload } from '../src/imagekit/uploadQuota.js';
+import { createBudgetFetch } from '../server/requestBudget.js';
 
 function sendJson(res, status, body) {
   res.statusCode = status;
@@ -42,7 +43,7 @@ export default async function handler(req, res) {
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    global: { headers: { Authorization: `Bearer ${accessToken}` }, fetch: createBudgetFetch() },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 

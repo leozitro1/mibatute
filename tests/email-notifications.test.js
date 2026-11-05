@@ -100,9 +100,12 @@ test('quota failure and network ambiguity stop the batch without retries or leak
   assert.equal(calls,1);assert.equal(result.failed,1);assert.equal(client.finished[0].p_state,mode==='quota'?'failed':'uncertain');
  }
 });
-test('dispatch endpoint rejects unauthenticated callers before any provider call',async()=>{
+test('dispatch endpoint rejects unauthenticated or malformed callers before any database or provider call',async t=>{
+ t.mock.method(globalThis,'fetch',()=>{throw new Error('Malformed requests must not make outbound calls');});
  let body,status;const res={setHeader(){},end(value){body=JSON.parse(value);status=this.statusCode;}};
- await handler({method:'POST',headers:{}},res);assert.equal(status,401);assert.equal(body.error,'Acceso no autorizado.');
+ for(const authorization of [undefined,'','Basic invalid','Bearer ','Bearer token extra',['Bearer token']]){
+  await handler({method:'POST',headers:{authorization}},res);assert.equal(status,401);assert.equal(body.error,'Acceso no autorizado.');
+ }
 });
 
 test('inactive scheduled dispatch exits successfully without provider or database work',async()=>{

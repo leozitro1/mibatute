@@ -102,6 +102,38 @@ async function fixture(existingExtension = false) {
   }
 }
 
+test('catalog rejects oversized filters before evaluating search and preserves the latest query, grants and RLS', async () => {
+  const { db, page } = await fixture();
+  try {
+    await db.exec('reset role');
+    await db.exec(await migration('2026-10-13-home-random-order'));
+    await db.exec(await migration('2026-10-16-home-desktop-page-size'));
+    await db.exec("create function public.market_reuse_impact() returns jsonb language sql stable as 'select ''{}''::jsonb'");
+    await db.exec(await migration('2026-10-30-mobile-app-page-size'));
+    await db.exec('create function public.account_is_verified(uuid) returns boolean language sql stable as $$select true$$');
+    await db.exec(await migration('2026-11-04-home-verified-accounts'));
+    await db.exec(await migration('2026-11-04-mobile-uniform-grid'));
+    await db.exec('set role anon');
+    const filters = { search: 'sillón', featuredSeed: 'seed', onlyVerified: true, layout: 'mobile', mobilePageRows: 10, mobileUniformGrid: true };
+    const before = await page(filters);
+    await db.exec('reset role');
+    const guard = await migration('2026-11-05-catalog-query-budget');
+    await db.exec(guard); await db.exec(guard);
+    const metadata = (await db.query("select p.prosecdef, l.lanname, has_function_privilege('anon',p.oid,'EXECUTE') as anon_execute from pg_proc p join pg_language l on l.oid=p.prolang where p.oid='public.home_article_page(jsonb,integer)'::regprocedure")).rows[0];
+    assert.equal(metadata.prosecdef, false); assert.equal(metadata.lanname, 'plpgsql'); assert.equal(metadata.anon_execute, true);
+    await db.exec('set role anon');
+    assert.deepEqual(await page(filters), before);
+    for (const invalid of [[], 'bad', { search: 'x'.repeat(201) }, { featuredSeed: 'x'.repeat(81) }, { city: 'x'.repeat(101) }, { search: [] }, { unrelated: 'x'.repeat(4096) }]) {
+      await assert.rejects(page(invalid), error => error.code === '22023');
+    }
+    assert.equal((await page({ search: 's'.repeat(200), featuredSeed: 'x'.repeat(80) })).total, 0);
+    await db.exec("reset role;update articulos set title='Private' where id='00000000-0000-0000-0000-000000000001';set role anon");
+    assert.equal((await page({ onlyActive: false })).total, 15);
+    await db.exec('set role authenticated');
+    assert.equal((await page({ onlyActive: false })).total, 15);
+  } finally { await db.close(); }
+});
+
 test('the app opts into ten mobile rows without changing other clients or bypassing filters and RLS', async () => {
   const {db,page}=await fixture();
   try {
