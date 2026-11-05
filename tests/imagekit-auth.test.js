@@ -16,15 +16,23 @@ test('ImageKit V2 signs only bounded raster uploads in the verified user folder 
   const original = globalThis.fetch;
   let calls = 0;
   let valid = false;
+  let quota = { allowed: true };
+  let quotaStatus = 200;
+  let quotaCalls = 0;
   const userId = '00000000-0000-4000-8000-000000000001';
   const metadata = { folder: `/mibatute/articulos/${userId}`, fileSize: 1234, fileType: 'image/webp' };
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (url, request) => {
     calls++;
+    if (String(url).includes('/rpc/reserve_image_upload')) {
+      quotaCalls++;
+      assert.equal(request.headers.get('Authorization'), 'Bearer valid-token');
+      return Response.json(quota, { status: quotaStatus });
+    }
     return valid ? Response.json({ id: userId }) : Response.json({ message: 'Invalid token' }, { status: 401 });
   };
   const run = async (authorization, body = metadata, method = 'POST') => {
     const headers = {};
-    const res = { setHeader(key, value) { headers[key] = value; }, end(value) { this.body = JSON.parse(value); } };
+    const res = { headers, setHeader(key, value) { headers[key] = value; }, end(value) { this.body = JSON.parse(value); } };
     await handler({ method, headers: { authorization }, body }, res);
     assert.equal(headers['Cache-Control'], 'no-store');
     return res;
@@ -79,6 +87,24 @@ test('ImageKit V2 signs only bounded raster uploads in the verified user folder 
     const profile = await run('Bearer valid-token', { ...metadata, folder: `/mibatute/perfiles/${userId}`, fileType: 'image/jpeg' });
     assert.equal(profile.body.uploadParameters.checks, '"file.mime" = "image/jpeg" AND "file.size" <= 3145728');
     assert.notEqual(profile.body.token, accepted.body.token);
+    assert.equal(quotaCalls, 2, 'Only valid owned uploads reserve quota');
+    for (const limit of ['burst', 'daily', 'profile']) {
+      quota = { allowed: false, limit, retryAfter: 600, retryAt: new Date(Date.now() + 600000).toISOString() };
+      const limited = await run('Bearer valid-token');
+      assert.equal(limited.statusCode, 429);
+      assert.equal(limited.headers['Retry-After'], '600');
+      assert.equal(limited.body.retryAt, quota.retryAt);
+      assert.equal(limited.body.code, 'IMAGE_UPLOAD_LIMIT');
+      assert.match(limited.body.error, /hora de Colombia/);
+      assert.equal(limited.body.token, undefined);
+      assert.equal(limited.body.uploadParameters, undefined);
+    }
+    quotaStatus = 503;
+    quota = { message: 'Unavailable', code: 'PGRST202' };
+    assert.equal((await run('Bearer valid-token')).statusCode, 503);
+    quotaStatus = 200;
+    quota = {};
+    assert.equal((await run('Bearer valid-token')).statusCode, 503, 'Unexpected RPC results never bypass quota');
   } finally {
     globalThis.fetch = original;
     for (const name of names) {

@@ -17,7 +17,7 @@ Estado: validado en local y contra ImageKit real mediante un despliegue aislado,
 
 Se conserva una autorización y una subida directa por imagen, con la misma validación de sesión existente. No se añaden consultas SQL, paso de archivos por Vercel, contadores en base de datos, tareas periódicas, SDK o servicios de pago. No se habilitan extensiones de IA ni transformaciones nuevas. Las respuestas de autorización conservan `Cache-Control: no-store`.
 
-Esto **no impone una cuota diaria ni un rate limit persistente por cuenta**. Un usuario podría seguir solicitando muchas autorizaciones válidas. Tampoco bloquea por sí solo a cuentas sancionadas en tablas de la aplicación; ese control debe estudiarse sin prometer que ya está implementado.
+La entrega de firmas V2 por sí sola **no impone una cuota diaria ni un rate limit persistente por cuenta**. Posteriormente se implementó y probó ese control, incluyendo bloqueos, y se autorizó su publicación: [límites y estado de publicación](limites-subidas-local-2026-11-05.md). Su migración ya está aplicada y verificada en producción; la API de esta entrega activa el control al desplegarse.
 
 ## Dependencias
 

@@ -2,6 +2,7 @@ import process from "node:process";
 import { createClient } from "@supabase/supabase-js";
 import { imageUploadPolicy } from '../src/imagekit/uploadPolicy.js';
 import { signImageKitUpload } from '../server/imagekitUploadToken.js';
+import { reserveImageUpload } from '../src/imagekit/uploadQuota.js';
 
 function sendJson(res, status, body) {
   res.statusCode = status;
@@ -52,6 +53,13 @@ export default async function handler(req, res) {
 
   if (policy.ownerId !== data.user.id) {
     return sendJson(res, 403, { error: "Solo puedes subir imágenes a tu propia carpeta." });
+  }
+  try {
+    await reserveImageUpload(supabase, policy.scope);
+  } catch (error) {
+    if (error.retryAfter) res.setHeader('Retry-After', String(error.retryAfter));
+    return sendJson(res, error.status || 503, { error: error.message, code: error.code,
+      retryAt: error.retryAt, retryAfter: error.retryAfter });
   }
   const authorization = signImageKitUpload({
     folder: req.body.folder,

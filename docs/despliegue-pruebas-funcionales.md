@@ -271,3 +271,11 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - Firmas de cinco minutos vinculadas a carpeta propia, nombre único, prohibición de sobrescritura y comprobaciones de MIME/tamaño. POST sustituye al firmador GET anterior; las pestañas antiguas deben recargarse. Subida directa conservada, sin consultas SQL ni tareas periódicas adicionales. No implementa una cuota diaria de firmas.
 - Correcciones compatibles de dependencias con `npm audit fix --ignore-scripts`, sin `--force` y sin cambiar los rangos de package.json: de 14 dependencias con avisos a cero vulnerabilidades conocidas en el análisis del árbol resultante.
 - Validación: 404 pruebas, compilación correcta y lint de APIs, firmador, transporte y pruebas modificados sin errores. ImageKit V2 sigue identificado como beta por su proveedor. Wompi real, registro y SMTP conservan su configuración.
+
+
+## Publicación autorizada del 5 de noviembre: cuota de imágenes
+
+- Máximo por cuenta de 20 autorizaciones de imagen en diez minutos y 120 en veinticuatro horas; fotos nuevas de perfil con máximo de cuatro en veinticuatro horas, compartiendo la cuota general. Ventanas móviles, bloqueo de cuentas suspendidas y reserva atómica entre instancias antes de firmar. No altera precios ni créditos.
+- Migración image-upload-limits aplicada primero al proyecto Supabase habitual. Metadatos confirmados: cuerpo exacto `44a9c3080cb917a9b449936dfb44cc8e`, permisos directos de cliente revocados, RPC solo autenticada, RLS, arrays acotados y eliminación por cascada. Ahora 62 tablas públicas con RLS; cero permisos de TRUNCATE de cliente. MFA y abono de créditos conservan sus huellas anteriores. Sin crear reservas de prueba en producción.
+- API deniega sin firma con HTTP 429 y fecha de reintento; falla cerrada ante errores de cuota. Una RPC adicional por solicitud válida de carpeta propia y un registro acotado por cuenta, sin nuevos servicios ni tareas periódicas. Los intentos aceptados cuentan aunque no se complete la subida; los denegados no prolongan espera.
+- 411 pruebas y compilación aprobadas; lint de módulos modificados y diff correctos. Tres pruebas adicionales de concurrencia real PostgreSQL pasaron en base temporal retirada. Publicación autorizada en main y el proyecto Vercel habitual, sin push, pruebas de navegador local ni cambios en pagos reales, SMTP o registro.

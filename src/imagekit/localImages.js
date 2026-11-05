@@ -1,4 +1,6 @@
 import { supabase } from '../supabase/supabaseClient';
+import { imageUploadPolicy } from './uploadPolicy.js';
+import { reserveImageUpload } from './uploadQuota.js';
 
 export const useLocalImages = import.meta.env.DEV && import.meta.env.VITE_LOCAL_SERVICES === 'true';
 
@@ -11,6 +13,8 @@ function requireLocalBackend() {
 
 export async function uploadLocalImage({ file, folder, fileName }) {
   requireLocalBackend();
+  const policy = imageUploadPolicy({ folder, fileSize: file.size, fileType: file.type });
+  await reserveImageUpload(supabase, policy.scope);
   const path = `${folder.replace(/^\/+|\/+$/g, '')}/${crypto.randomUUID()}-${fileName}`;
   const bucket = supabase.storage.from('local-images');
   const { error } = await bucket.upload(path, file, { contentType: file.type });

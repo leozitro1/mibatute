@@ -11,5 +11,5 @@ export function imageUploadPolicy({ folder, fileSize, fileType } = {}) {
   if (!Number.isSafeInteger(fileSize) || fileSize < 1 || fileSize > maxBytes) {
     throw new Error(`La imagen debe pesar entre 1 byte y ${maxBytes / 1024 / 1024} MB.`);
   }
-  return { ownerId: match[2], extension: IMAGE_UPLOAD_TYPES[fileType], maxBytes };
+  return { ownerId: match[2], scope: match[1], extension: IMAGE_UPLOAD_TYPES[fileType], maxBytes };
 }

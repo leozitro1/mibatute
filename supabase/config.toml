@@ -106,6 +106,7 @@ sql_paths = [
   "./migrations/2026-10-16-permanent-user-block.sql",
   "./migrations/2026-10-16-market-realtime.sql",
   "./local-storage.sql",
+  "./migrations/2026-11-05-image-upload-limits.sql",
 ]
 
 [db.network_restrictions]
