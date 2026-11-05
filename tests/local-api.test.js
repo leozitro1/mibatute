@@ -22,7 +22,7 @@ async function request(url, method, body = '') {
 test('local Vercel adapter routes known endpoints and rejects invalid JSON', async () => {
   assert.equal((await request('/api/imagekit-delete', 'POST', '{')).status, 400);
   assert.equal((await request('/api/imagekit-delete', 'POST', 'x'.repeat(16385))).status, 413);
-  assert.equal((await request('/api/imagekit-auth', 'POST')).status, 405);
+  assert.equal((await request('/api/imagekit-auth', 'GET')).status, 405);
   assert.equal((await request('/unknown', 'GET')).result, 'next');
 });
 

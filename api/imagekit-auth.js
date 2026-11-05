@@ -1,6 +1,7 @@
-import crypto from "node:crypto";
 import process from "node:process";
 import { createClient } from "@supabase/supabase-js";
+import { imageUploadPolicy } from '../src/imagekit/uploadPolicy.js';
+import { signImageKitUpload } from '../server/imagekitUploadToken.js';
 
 function sendJson(res, status, body) {
   res.statusCode = status;
@@ -10,9 +11,9 @@ function sendJson(res, status, body) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    return sendJson(res, 405, { error: "Method not allowed" });
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return sendJson(res, 405, { error: "Recarga la página para subir imágenes con la autorización actualizada." });
   }
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -32,6 +33,13 @@ export default async function handler(req, res) {
     return sendJson(res, 401, { error: "No autenticado." });
   }
 
+  let policy;
+  try {
+    policy = imageUploadPolicy(req.body || {});
+  } catch (error) {
+    return sendJson(res, 400, { error: error.message });
+  }
+
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${accessToken}` } },
     auth: { persistSession: false, autoRefreshToken: false },
@@ -42,15 +50,20 @@ export default async function handler(req, res) {
     return sendJson(res, 401, { error: "Sesión inválida." });
   }
 
-  const token = crypto.randomUUID();
-  const expire = Math.floor(Date.now() / 1000) + 10 * 60;
-  const signature = crypto.createHmac("sha1", imagekitPrivateKey).update(`${token}${expire}`).digest("hex");
+  if (policy.ownerId !== data.user.id) {
+    return sendJson(res, 403, { error: "Solo puedes subir imágenes a tu propia carpeta." });
+  }
+  const authorization = signImageKitUpload({
+    folder: req.body.folder,
+    fileType: req.body.fileType,
+    extension: policy.extension,
+    maxBytes: policy.maxBytes,
+    publicKey: imagekitPublicKey,
+    privateKey: imagekitPrivateKey,
+  });
 
   return sendJson(res, 200, {
-    token,
-    expire,
-    signature,
-    publicKey: imagekitPublicKey,
+    ...authorization,
     urlEndpoint: imagekitUrlEndpoint.replace(/\/+$/, ""),
   });
 }

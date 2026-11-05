@@ -26,9 +26,9 @@ Las cabeceras globales se aplicarán mediante Vercel después de publicar; Vite 
 ## Pendientes concretos
 
 1. Se completó una primera comparación de metadatos de producción y se retiró el permiso TRUNCATE tras autorización: [resultados y verificación](seguridad-produccion-2026-11-04.md). La revisión es acotada; no certifica todo el esquema.
-2. Fortalecer subidas directas de ImageKit: actualmente la firma V1 cubre `token` y `expire`; la carpeta y el contenido se envían desde el navegador. No considerar esa firma una autorización de carpeta, tipo, tamaño o cuota. Revisar firma de parámetros completos y controles del proveedor antes de afirmar que las subidas están restringidas en servidor. Mover todos los archivos por Vercel podría aumentar tráfico y ejecución; no se hizo.
+2. Se preparó el refuerzo de subidas con firma V2, carpeta propia y controles de contenido, conservando la subida directa, y se validó contra ImageKit real antes de la publicación autorizada: [estado y resultados](seguridad-subidas-2026-11-05.md). Esto no impone una cuota por cuenta.
 3. Definir límites persistentes contra abuso para firmas y APIs sensibles. Un contador en memoria de una función serverless no protege de forma fiable entre instancias. No se contrató almacenamiento ni un servicio de pago.
-4. Revisar dependencias con un análisis de vulnerabilidades actualizado; esta revisión no incluye `npm audit` ni demuestra ausencia de vulnerabilidades de paquetes.
+4. El 5 de noviembre se realizó `npm audit` y se aplicaron correcciones compatibles; el árbol resultante informó cero vulnerabilidades conocidas. Validación y alcance en el informe de subidas; actualización incluida en la entrega autorizada de esa fecha.
 5. Completar CSP para scripts y conexiones tras inventariar y probar todos los orígenes. La política básica añadida no es una defensa completa contra XSS.
 6. Comprobar MFA/configuración de las cuentas de proveedores y protección de registro/inicio de sesión en Supabase. El MFA del personal dentro de la aplicación no protege por sí solo Vercel, DNS o ImageKit.
 
