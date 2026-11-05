@@ -270,17 +270,36 @@
 
 @media(max-width:639px) {
  .user-conversations-list {gap:14px;}
- .user-conversations-list .user-conversation-card {display:grid;grid-template-columns:minmax(0,1fr) 60px;gap:8px;padding:10px;align-items:center;}
+ .user-conversations-list .user-conversation-card {display:grid;grid-template-columns:minmax(0,1fr) 44px auto;gap:6px;padding:10px;align-items:center;}
+ .user-conversations-list .user-conversation-card:not(:has(> .user-conversation-security)) {grid-template-columns:minmax(0,1fr) auto;}
  .user-conversations-list .user-conversation-main {grid-column:1;grid-row:1;align-items:center;gap:10px;}
  .user-conversations-list img,.user-conversation-placeholder {width:46px;height:46px;}
  .user-conversation-copy {gap:3px;}
  .user-conversation-copy strong,.user-conversation-copy > span {display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.5;}
  .user-conversation-copy small {display:block;min-width:0;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
  .user-conversation-mobile-state {display:inline;}
- .user-conversation-card > .chat-retention-countdown {grid-column:1;grid-row:2;margin:0;max-width:100%;padding:5px 6px;font-size:10px;justify-self:start;text-align:left;overflow:hidden;text-overflow:ellipsis;}
+ .user-conversation-card > .chat-retention-countdown {grid-column:1 / -1;grid-row:2;margin:0;max-width:100%;padding:5px 6px;font-size:10px;justify-self:start;text-align:left;overflow:hidden;text-overflow:ellipsis;}
  .user-conversations-list li > .user-conversation-security {grid-column:2;grid-row:1;justify-self:end;}
- .user-conversation-status-button {grid-column:2;grid-row:2;min-height:44px;}
- .user-conversation-state {font-size:11px;max-width:90px;}
+ .user-conversations-list .user-conversation-status-button {grid-column:-2 / -1;grid-row:1;justify-self:end;display:flex;align-items:center;justify-content:center;min-width:64px;min-height:44px;padding:8px;border:1px solid #c9d8bf;border-radius:9px;background:#f0f4ec;color:#315e2c;}
+ .user-conversations-list .user-conversation-status-button:hover {background:#e5eddc;border-color:#9bb18e;}
+ .user-conversation-state {font-size:11px;max-width:90px;color:inherit;}
  .user-conversation-state > .user-conversation-state-label {display:none;}
- .user-conversation-state > .user-conversation-open-label {margin:0;white-space:nowrap;}
+ .user-conversation-state > .user-conversation-open-label {margin:0;white-space:nowrap;text-align:center;}
 }
+
+.user-profile .profile-transaction-copy { display:block;min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere;font-family:inherit;font-size:12px;font-weight:400;line-height:1.5;letter-spacing:normal;text-transform:none;color:#63705f; }
+.user-profile .profile-transaction-copy > span { font-weight:500; }
+.user-profile [data-profile-article-id]:has(> .profile-transaction-copy) { flex-wrap:wrap; }
+.user-profile [data-profile-article-id] > .profile-transaction-copy { grid-column:1 / -1;flex-basis:100%;width:100%;margin:0; }
+.user-profile .profile-rescue-message { white-space:pre-wrap; }
+
+@media(max-width:639px) {
+ .user-chat-type-filters { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;min-width:0;overflow:visible; }
+ .user-chat-type-filters button { min-width:0;padding:8px 4px;font-size:11px;line-height:1.4;white-space:normal;overflow-wrap:anywhere; }
+}
+@media(max-width:399px) {
+ .user-chat-type-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .user-chat-type-filters button { font-size:12px; }
+}
+
+.user-profile .profile-transaction-copy > .profile-buyer-name { color:#34483a; }

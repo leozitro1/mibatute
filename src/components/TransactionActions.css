@@ -17,7 +17,7 @@
 }
 
 .donation-desktop-label, .donation-desktop-icon { display:none; }
-@media(min-width:1024px) {
+/* Selected donation actions share the same design on desktop and mobile. */
   .product-detail[data-owner-management="true"] .donation-mobile-label { display:none; }
   .product-detail[data-owner-management="true"] .donation-desktop-label { display:inline; }
   .product-detail[data-owner-management="true"] .donation-desktop-icon { display:block;flex-shrink:0; }
@@ -32,11 +32,11 @@
   .product-detail[data-owner-management="true"] .donation-management-actions > .donation-action-chat:hover:not(:disabled) { border-color:#26734d;background:#f3f8f4; }
   .product-detail[data-owner-management="true"] .donation-management-actions > .donation-action-deliver:hover:not(:disabled) { background:#1d603e; }
   .product-detail[data-owner-management="true"] .donation-management-actions > .donation-action-cancel:hover:not(:disabled) { background:#fff1f0; }
-}
 
 @media(max-width:1023px) {
-  .product-detail[data-owner-management="true"] .sale-management-actions,
-  .product-detail[data-owner-management="true"] .donation-management-actions { display:grid;grid-template-columns:minmax(0,1fr);gap:8px; }
+  .product-detail[data-owner-management="true"] .sale-management-actions { display:grid;grid-template-columns:minmax(0,1fr);gap:8px; }
+  .product-detail[data-owner-management="true"] .donation-management-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .product-detail[data-owner-management="true"] .donation-management-actions > .donation-action-chat { grid-column:1 / -1; }
   .product-detail[data-owner-management="true"] .sale-management-actions .profile-delivery-chat { grid-column:auto; }
   .product-detail[data-owner-management="true"] :is(.sale-management-actions,.donation-management-actions) > button {
     display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;min-width:0;min-height:48px;margin:0;padding:12px;line-height:1.4;

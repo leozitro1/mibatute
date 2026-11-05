@@ -3026,11 +3026,6 @@ export default function UserProfile({
                           <div data-profile-content className="flex-1 min-w-0">
                             {pendingRating && <p data-rating-notice className="profile-rating-notice">Calificación pendiente</p>}
                             <h4 className="font-bold text-gray-800 truncate">{titulo}</h4>
-                            {isVenta && hasBuyer && art.buyer_public?.nombre && (
-                              <p className="mt-1 truncate text-xs font-semibold text-gray-600">
-                                {isEntregado ? "Comprado por" : "Reservado por"} {art.buyer_public.nombre}
-                              </p>
-                            )}
 
                             <div className="profile-article-labels flex flex-wrap items-center gap-2 mt-1">
                               <span
@@ -3246,6 +3241,11 @@ export default function UserProfile({
                               <PublicationCountdown article={art} now={publicationNow}/>
                             </div>
                           </div>
+                            {isVenta && hasBuyer && art.buyer_public?.nombre && (
+                              <p className="profile-transaction-copy" title={`${isEntregado ? "Comprado por" : "Reservado por"} ${art.buyer_public.nombre}`}>
+                                {isEntregado ? "Comprado por" : "Reservado por"} <span className="profile-buyer-name">{art.buyer_public.nombre}</span>
+                              </p>
+                            )}
                         </div>
                       );
                     })
@@ -3450,11 +3450,6 @@ export default function UserProfile({
                                 </span>
                               )}
 
-                              {isVenta && r?._chatStatus === "pending" && (
-                                <span className="text-xs font-semibold text-amber-800">
-                                  Para hablar con el vendedor, él debe aprobar la compra.
-                                </span>
-                              )}
 
                               {rejectedSale && (
                                 <span className="text-xs font-semibold text-gray-600">
@@ -3474,12 +3469,6 @@ export default function UserProfile({
                             {rejectedSale && <p className="mt-1 text-xs text-gray-500">Se retira de Mis Rescates 24 horas después de la cancelación.</p>}
                             {rejectedDonation && <p className="mt-1 text-xs text-gray-500">Desaparece en 24 horas desde el rechazo. Hasta entonces no puedes volver a postularte.</p>}
 
-                            {r?.justificacion ? (
-                              <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                                <span className="font-black text-gray-700">Tu mensaje:</span>{" "}
-                                {r.justificacion}
-                              </p>
-                            ) : null}
                           </div>
 
                           <div className="profile-article-side">
@@ -3494,6 +3483,16 @@ export default function UserProfile({
                               <PublicationCountdown article={art} now={publicationNow}/>
                             </div>
                           </div>
+                              {isVenta && r?._chatStatus === "pending" && (
+                                <p className="profile-transaction-copy" title="Para hablar con el vendedor, él debe aprobar la compra.">
+                                  Para hablar con el vendedor, él debe aprobar la compra.
+                                </p>
+                              )}
+                          {r?.justificacion ? (
+                            <p className="profile-transaction-copy profile-rescue-message">
+                              <span>Tu mensaje:</span>{" "}{r.justificacion}
+                            </p>
+                          ) : null}
                         </div>
                         {previewRescateId === `${user.id}:${articuloId}` && <RescateArticleDetail
                           row={r} user={user} actions={renderActions(true)} busy={isDeletingMine}

@@ -292,3 +292,11 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - Resultado: commit funcional 5bab290 desplegado, dpl_FYV1tNpf97LnuiE1mmiiL6Rh4oyh READY y alias www.mibatute.com. HTTP 200 en catálogo y rutas legales. CAPTCHA de Supabase aún no guardado: formulario Turnstile preparado para que el responsable pegue directamente el secreto y compruebe el widget. Verificación automática del archivo separado de CAPTCHA incompleta por nombres de compilación distintos; no se declara prueba real del desafío ni protección activa de la API.
 
 - Activación final: el responsable confirmó el widget y guardó directamente el secreto. Supabase conserva Turnstile activo tras recarga, sin cambios pendientes. Una sola petición de acceso con email ficticio y sin CAPTCHA obtuvo HTTP 400/captcha_failed por ausencia de token. Sin correos, cuentas de prueba ni escrituras de usuarios. El paso manual anterior está completado; no se declara prueba positiva de inicio de sesión real. No requiere otro despliegue.
+
+## Publicación autorizada del 5 de noviembre: perfil y gestión móvil
+
+- Textos de reserva y mensajes de rescates con tipografía del perfil, a todo el ancho de la tarjeta y sin recortes; nombre del comprador con mayor contraste.
+- Filtros del buzón ajustados al ancho móvil, con dos columnas en teléfonos pequeños. Ver chat permanece arriba y al extremo derecho, con borde y fondo verde suave, solo en móvil.
+- Campo de solicitud de donación a 16 px en móvil para evitar ampliación automática al enfocar, sin desactivar el zoom manual. Gestión de donación seleccionada con el diseño actual también en móvil: chat arriba y entregar/cancelar juntos debajo.
+- Compilación y catorce pruebas existentes de filtros, paginación y avisos de rescates aprobadas por terminal; diff sin errores. Sin navegador local ni capturas. No requiere migraciones ni cambios de datos en producción. Las diez solicitudes ficticias preparadas para revisar el diseño permanecen exclusivamente en local.
+- Commit y deploy autorizados en main y el proyecto Vercel habitual. Sin push. Registro, CAPTCHA, SMTP, pagos y calendario de conservación conservan su configuración.
