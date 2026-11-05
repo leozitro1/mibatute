@@ -307,7 +307,6 @@ export default function StaffConsole({ requireMaster=false }) {
       <h1>{stage==='login'?'Iniciar sesión':stage==='forgot'?'Recuperar contraseña':stage==='confirm'?'Confirmar identidad':stage==='reset'?'Nueva contraseña':stage==='enroll'?'Configurar segundo factor':'Verificar acceso'}</h1>
       {error&&<p role="alert" className="staff-error">{error}</p>}
       {notice&&<p role="status" className="mt-4 text-sm text-forest-green">{notice}</p>}
-      {['login','confirm','forgot'].includes(stage)&&<AuthCaptcha key={stage} ref={captchaRef} />}
       {stage==='forgot'?<form onSubmit={requestRecovery}>
         <label htmlFor="staff-recovery-email">Correo o usuario</label><input id="staff-recovery-email" autoComplete="username" value={login} onChange={event=>setLogin(event.target.value)} required disabled={busy} />
         <button type="submit" className="staff-button staff-button-primary" disabled={busy||!!notice}><LockKeyhole size={17} />Enviar enlace</button>
@@ -329,6 +328,7 @@ export default function StaffConsole({ requireMaster=false }) {
         <button type="submit" className="staff-button staff-button-primary" disabled={busy||code.length!==6}>{busy?<Loader2 size={17} className="animate-spin" />:<Check size={17} />} Verificar</button>
       </form>}
       <div className="mt-6 flex justify-between items-center gap-3 text-sm text-gray-500"><Link to="/">Volver a MiBatute</Link>{stage!=='login'&&<button type="button" onClick={()=>{setNotice('');leave();}} disabled={busy}>{stage==='forgot'?'Volver al ingreso':'Salir'}</button>}</div>
+      {['login','confirm','forgot'].includes(stage)&&<AuthCaptcha key={stage} ref={captchaRef} />}
     </section>
   </main>;
 

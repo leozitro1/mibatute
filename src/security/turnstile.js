@@ -39,7 +39,7 @@ export function createCaptchaWidget(container, { siteKey, onMessage, load = load
     if (!active) return;
     api = loaded;
     id = api.render(container, {
-      sitekey: siteKey, language: 'es', size: 'flexible',
+      sitekey: siteKey, language: 'es', size: 'flexible', theme: 'light',
       retry: 'never', 'refresh-expired': 'manual', 'refresh-timeout': 'manual', 'response-field': false,
       callback: value => { if (active) { token = { value, expiresAt: now() + 290000 }; onMessage(''); } },
       'expired-callback': () => invalidate('La verificación venció. Renuévala para continuar.'),

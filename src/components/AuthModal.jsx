@@ -413,7 +413,6 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
           </div>
 
           {/* ===================== FORGOT PASSWORD ===================== */}
-          {isOpen && <AuthCaptcha key={`${mode}:${isRegister}`} ref={captchaRef} />}
           {mode === "forgot" ? (
             <form className="space-y-4" onSubmit={handleForgotPassword}>
               <p className="text-sm text-gray-600 font-bold">
@@ -665,6 +664,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }) {
               </p>
             </>
           )}
+          <AuthCaptcha key={`${mode}:${isRegister}`} ref={captchaRef} />
         </div>
       </div>
     </div>
