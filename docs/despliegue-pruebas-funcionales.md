@@ -324,3 +324,17 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - Etiqueta Reservado con verde suave, borde e icono de reloj, sin desenfoque de la foto. Probar aviso mantiene Configuración abierta y dibuja la vista previa dentro del diálogo móvil.
 - 443 pruebas y compilación aprobadas. ESLint correcto en helpers/componentes limpios; sin avisos nuevos respecto a HEAD en MarketplaceApp, UserProfile y PublishModal, que conservan incidencias anteriores. Sin navegador local ni capturas.
 - Commit y deploy de todos los pendientes autorizados en main y el proyecto Vercel habitual. Sin migraciones, cambios de datos, pruebas de publicación reales, cambios de credenciales o configuración de pagos.
+
+
+## Preparado en local el 6 de noviembre: pausa por sanción y chats de lectura
+
+- Migraciones sanction-publication-pause y suspended-chat-readonly aplicadas juntas en una transacción únicamente al contenedor supabase_db_mibatute. Siete verificaciones locales positivas: filtro del catálogo, RLS restrictivo, tres guardias, cuatro consultas privadas de chat, protección de escritura, función de trigger no invocable y señal del catálogo. Sin cambios de usuarios, mensajes o estados de publicaciones en esa aplicación.
+- Pausa efectiva por is_blocked/bloqueado/ban_until: excluye antes de búsqueda, destacados, totales y paginación; solicitudes y compras nuevas se rechazan en servidor. Se conservan estados manuales, reservas, entregas, vencimientos y créditos; la disponibilidad anterior vuelve al expirar o retirar la suspensión, sin cron ni escrituras masivas. Señales del catálogo agrupan una recarga autorizada por los datos del servidor. Perfil identifica publicaciones disponibles como Pausada por sanción.
+- La suspensión temporal permite listar y leer chats propios; conserva la prohibición de cuentas bloqueadas permanentemente y la privacidad entre participantes. Envío, edición y acciones de entrega permanecen deshabilitados durante la suspensión. Al terminar, solo los chats abiertos de transacciones reservadas recuperan escritura; no se reabren chats cerrados ni se cambia la conservación.
+- 450 pruebas aprobadas, compilación correcta, helpers/componentes revisados sin errores de lint y sin avisos nuevos en los archivos grandes con incidencias previas. Sin navegador local ni capturas; no se aplicó nada a producción y no hay commit ni deploy de este conjunto.
+
+## Publicación autorizada del 6 de noviembre: pausa por sanción y chats de lectura
+
+- El responsable autorizó commit y deploy en main y el proyecto Vercel habitual. Ambas migraciones aplicadas juntas en una transacción al Supabase habitual mediante su editor SQL, tras consultar las cinco funciones instaladas; sin escrituras de prueba ni cambios de estados de usuarios, publicaciones o mensajes.
+- Verificados RLS restrictivo, tres guardias de solicitudes, protección de escritura de mensajes, señal del catálogo y permisos privados de triggers. Las siete funciones de chat y protección coinciden exactamente con las validadas localmente. El catálogo conserva su definición instalada completa salvo el filtro previsto: al retirar únicamente ese fragmento recupera su MD5 anterior 243d9b9d8c0aaf8cb7cff7216cf5fc76; nueva huella a6962d24bb19a68e8348ea4a90570fcb.
+- Se mantienen las 450 pruebas aprobadas, compilación correcta y diff sin errores. Sin navegador local, capturas, push ni cambios de pagos, registro, CAPTCHA o SMTP. Revisión funcional real a cargo del responsable.

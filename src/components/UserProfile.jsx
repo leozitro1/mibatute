@@ -7,6 +7,7 @@ import { Fragment, useEffect, useId, useMemo, useRef, useState, useCallback } fr
 import { getProfile, updateProfile } from "../supabase/profileService";
 import { notifyCreditBalance } from './creditBalance.js';
 import { accountCreditStatus } from '../supabase/donationApplications.js';
+import { accountMarketPaused } from '../supabase/accountProfile.js';
 import './UserProfile.css';
 import './TransactionActions.css';
 import CreditBalanceValue from './CreditBalanceValue.jsx';
@@ -244,6 +245,7 @@ function badgeUIByStatus(value = "") {
       cls: "article-reserved-badge",
     };
   }
+  if (s === 'sancionado') return { Icon:Pause, label:'Pausada por sanción', cls:'bg-[#f0f3eb] text-[#63705a] ring-1 ring-[#dce5d4]' };
   if (s === "entregado") {
     return {
       Icon: BadgeCheck,
@@ -2792,7 +2794,8 @@ export default function UserProfile({
                     ))}
                   </div>
                   <div role="tabpanel" id={`${inboxTabId}-users-panel`} aria-labelledby={`${inboxTabId}-users-tab`} hidden={selectedInboxTab!=='users'} className="profile-inbox-panel">
-                    <UserConversationInbox key={user.id} userId={user.id} isActive={selectedInboxTab==='users'} onOpenChat={onOpenChat}/>
+                    <UserConversationInbox key={user.id} userId={user.id} isActive={selectedInboxTab==='users'} onOpenChat={onOpenChat}
+                      suspended={Date.parse(user.ban_until)>publicationNow}/>
                   </div>
                   <div role={mobileInbox ? 'tabpanel' : undefined} id={mobileInbox ? `${inboxTabId}-system-panel` : undefined}
                     aria-labelledby={mobileInbox ? `${inboxTabId}-system-tab` : undefined} hidden={mobileInbox && !systemInboxActive}
@@ -2970,7 +2973,8 @@ export default function UserProfile({
                         !isUserBlocked &&
                         (isVenta ? hasBuyer || hasChatOwner : hasChatOwner || hasWinner);
 
-                      const statusUI = badgeUIByStatus(isVencido ? 'vencido' : estado);
+                      const statusUI = badgeUIByStatus(isVencido ? 'vencido'
+                        : accountMarketPaused(user, publicationNow) && !isEntregado && !isReservado ? 'sancionado' : estado);
                       const tipoUI = badgeUIByTipo(tipo);
 
                       const isDeletingThis =

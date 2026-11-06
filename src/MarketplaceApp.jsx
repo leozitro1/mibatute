@@ -41,7 +41,7 @@ import { queryArticlesWithCondition } from "./supabase/articleQuery";
 import { CATEGORY_TREE } from "./data/categories.js";
 import useLocations from "./data/useLocations.js";
 import { supabase } from "./supabase/supabaseClient";
-import { readAccountProfile, publicationAccessError } from './supabase/accountProfile.js';
+import { readAccountProfile, publicationAccessError, articleOwnerMarketPaused } from './supabase/accountProfile.js';
 import { searchMetric } from './analytics/metrics.js';
 import { recordMarketMetric } from './analytics/publicMetrics.js';
 
@@ -1138,7 +1138,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     if (ownerIds.length) {
       const { data: owners, error: ownersErr } = await supabase
         .from("usuarios_publicos")
-        .select("id,nombre,foto_url,account_verified")
+        .select("id,nombre,foto_url,account_verified,is_blocked,bloqueado,ban_until")
         .in("id", ownerIds);
 
       if (ownersErr) console.log("Error cargando usuarios_publicos:", ownersErr);
@@ -1384,22 +1384,28 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   useEffect(() => {
     if (currentView !== 'home') return;
-    let active = true, joined = false;
+    let active = true, joined = false, refreshTimer;
     const channel = supabase.channel(catalogTopic(selectedCity, selectedCategory))
       .on('broadcast', { event: 'catalog_changed' }, ({ payload }) => {
-        // Public broadcasts are advisory only. Authoritative data is read on click.
+        // Broadcasts are advisory. Sanctions trigger a coalesced authoritative refresh.
         if (!active || !payload?.id || !['INSERT', 'UPDATE', 'DELETE'].includes(payload.action)) return;
         catalogVersionRef.current++;
         listingCacheRef.current.clear();
         setCatalogChanged(true);
+        if (payload.owner_state_changed === true) {
+          clearTimeout(refreshTimer);
+          refreshTimer = setTimeout(() => {
+            if (active) void load({ refreshPersonal:true }).catch(error => console.warn('No se pudo actualizar la disponibilidad:',error));
+          },250);
+        }
       }).subscribe(status => {
         if (active && status === 'SUBSCRIBED') {
           if (joined) { listingCacheRef.current.clear(); setCatalogChanged(true); }
           joined = true;
         }
       });
-    return () => { active = false; supabase.removeChannel(channel); };
-  }, [currentView, selectedCity, selectedCategory]);
+    return () => { active = false; clearTimeout(refreshTimer); supabase.removeChannel(channel); };
+  }, [currentView, selectedCity, selectedCategory, load]);
 
   useEffect(() => {
     notificationRefreshRef.current = { uid: null, at: 0, pending: null };
@@ -1617,6 +1623,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
     const base = products.filter((item) => {
       if (!homePage.ids.includes(item.id)) return false;
+      if (articleOwnerMarketPaused(item, currentUser, publicationNow)) return false;
       if (isPublicationExpired(item, publicationNow)) return false;
       const estadoActual = normEstado(item?.estado || item?.status || "");
       const tipo = normTipo(item?.mode || item?.tipo || "");
@@ -1665,15 +1672,17 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     sortOrder,
     homePage.ids,
     publicationNow,
+    currentUser,
   ]);
 
   // ✅ Artículos destacados (filtrados por búsqueda/categoría/ciudad igual que la lista principal)
   const featuredProducts = useMemo(() => {
     return products.filter(p => homePage.featuredIds.includes(p.id) && p.isFeatured
+      && !articleOwnerMarketPaused(p, currentUser, publicationNow)
       && !isPublicationExpired(p, publicationNow)
       && ![p.estado, p.status].some(value => normEstado(value || "") === "reservado")
       && normEstado(p.estado || p.status || "") !== "entregado");
-  }, [products, homePage.featuredIds, publicationNow]);
+  }, [products, homePage.featuredIds, publicationNow, currentUser]);
 
   const totalPages = homePage.pageCount ?? Math.max(1, Math.ceil(homePage.total / 12));
   const changeHomePage = page => {
@@ -2374,6 +2383,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               isOpen={!!chatOpen}
               onClose={() => setChatOpen(null)}
               userId={currentUser?.id}
+              suspended={Date.parse(currentUser?.ban_until) > publicationNow}
               chat={chatOpen?.chat}
               article={chatOpen?.article}
               otherUserId={chatOpen?.otherUserId}

@@ -8,7 +8,7 @@ import { USER_CHAT_FILTERS, userChatType } from './userChatType.js';
 import ChatRetentionNotice from './ChatRetentionNotice.jsx';
 import useChatRetentionClock from './useChatRetentionClock.js';
 
-export default function UserConversationInbox({userId,isActive,onOpenChat}){
+export default function UserConversationInbox({userId,isActive,onOpenChat,suspended=false}){
  const [page,setPage]=useState(1),[data,setData]=useState({rows:[],hasMore:false}),[busy,setBusy]=useState(false),[error,setError]=useState(''),[opening,setOpening]=useState(null);
  const [onlyOpen,setOnlyOpen]=useState(true);
  const [kind,setKind]=useState('all');
@@ -72,9 +72,10 @@ export default function UserConversationInbox({userId,isActive,onOpenChat}){
     sequence.current++;loaded.current=null;setError('');setKind(filter.key);setPage(1);
    }}>{filter.label}</button>)}
   </div>
+  {suspended&&<p role="status">Durante la suspensión puedes consultar tus conversaciones en modo de solo lectura.</p>}
   {error&&<p role="alert" className="text-red-700">{error}</p>}
   {waiting?<p role="status">Cargando conversaciones…</p>:rows.length? <ul className="user-conversations-list">{rows.map(row=>{
-   const closed=row.chat_status==='closed'||['entregado','delivered'].includes(row.article_status);
+   const closed=suspended||row.chat_status==='closed'||['entregado','delivered'].includes(row.article_status);
    const pending=row.chat_status==='pending';
    const stateLabel=closed?'Solo lectura':pending?'Pendiente':row.article_status==='en_revision'?'En revisión':'Abierta';
    return <li key={row.chat_id} className="user-conversation-card"><button className="user-conversation-main" type="button" onClick={()=>open(row)} disabled={!!opening}>

@@ -11,6 +11,7 @@ import ChatRetentionNotice from './ChatRetentionNotice.jsx';
 import useChatRetentionClock from './useChatRetentionClock.js';
 import { CHAT_MESSAGE_FIELDS, listenMarketSignals, mergeChatMessages, readChatMessages, singleFlight } from "./marketSignals.js";
 import { trackChatViewport } from './chatViewport.js';
+import { transactionChatReadOnly } from './chatAvailability.js';
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -300,6 +301,7 @@ export default function ChatMessenger({
   isOpen,
   onClose,
   userId,
+  suspended = false,
   article,
   chat,
   otherUserId,
@@ -360,7 +362,7 @@ export default function ChatMessenger({
   }, [chatRow?.status]);
 
   const chatPending = chatRow?.status === "pending";
-  const readOnly = isEntregado || estado === "en_revision" || chatClosed || chatPending || meBlocked;
+  const readOnly = transactionChatReadOnly(estado, chatRow?.status, { suspended, blocked:meBlocked });
   const retentionNow = useChatRetentionClock(isOpen && (isEntregado || chatClosed));
   const [retention,setRetention] = useState(null);
   useEffect(()=>{
@@ -1046,6 +1048,7 @@ export default function ChatMessenger({
             <div className="text-center text-xs font-bold text-gray-500">
               {meBlocked
                 ? "Tu cuenta está bloqueada. No puedes enviar mensajes."
+                : suspended ? 'Tu cuenta está suspendida. Puedes leer la conversación; podrás escribir cuando termine la sanción si la transacción sigue activa.'
                 : chatPending ? "Para hablar con el vendedor, él debe aprobar la compra."
                 : "Este chat está en solo lectura. No se pueden enviar más mensajes."}
             </div>

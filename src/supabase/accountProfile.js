@@ -1,6 +1,13 @@
 // Use real profile columns. A missing compatibility alias must not discard sanctions.
 export const ACCOUNT_PROFILE_FIELDS = 'id,nombre,movil,ciudad,localidad,direccion,foto_url,is_blocked,bloqueado,ban_until';
 
+export const accountMarketPaused = (user, now = Date.now()) => !!(user?.is_blocked || user?.bloqueado || Date.parse(user?.ban_until) > now);
+
+export function articleOwnerMarketPaused(article, viewer, now = Date.now()) {
+  const owner = article?.owner_id || article?.usuario_id;
+  return accountMarketPaused(owner && viewer?.id === owner ? viewer : article?.owner_public, now);
+}
+
 export async function readAccountProfile(client, uid) {
   try {
     const { data, error } = await client.from('usuarios').select(ACCOUNT_PROFILE_FIELDS).eq('id', uid).maybeSingle();
