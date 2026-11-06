@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { X, Trash2, Tag, Gift, Check, ArrowLeft, ArrowRight, Sparkles, Camera, Scan, ZoomOut, ZoomIn } from "lucide-react";
 import Cropper from "react-easy-crop";
 import { supabase } from "../supabase/supabaseClient";
+import { publicationAccessError, readAccountProfile } from '../supabase/accountProfile.js';
 import { publicationStatus, publicationQuote } from "../supabase/publicationCredits.js";
 import { publishArticle } from "../supabase/articleService";
 import { CATEGORY_TREE as FALLBACK_CATEGORY_TREE } from "../data/categories.js";
@@ -399,7 +400,8 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       if(problem){setStep(index);setStepError(problem);return;}
     }
 
-    if (!user) return alert("Debes iniciar sesión para publicar.");
+    const accessError = publicationAccessError(user);
+    if (accessError) return alert(accessError);
     if (!user?.email_confirmed_at) return alert("Debes verificar tu correo electrónico antes de publicar.\n\nRevisa tu bandeja de entrada y haz clic en el enlace de confirmación.");
     if (!files.length) return alert("Sube al menos 1 foto del artículo.");
     if (!formData.title.trim()) return alert("Escribe un título.");
@@ -451,6 +453,10 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
     setIsSubmitting(true);
 
     try {
+      // Check again before uploading photos: a suspension may arrive after opening the form.
+      const account = await readAccountProfile(supabase, user.id);
+      const currentAccessError = publicationAccessError(account.data || { accountStatusVerified:false });
+      if (currentAccessError) { setStepError(currentAccessError); return; }
 
       const formDataES = {
         titulo: formData.title,

@@ -25,7 +25,7 @@ export function LocalNoticeSettings({controller,inline=false}) {
     <details className="local-notice-settings"><summary>Avisos en este dispositivo</summary>{content}</details>;
 }
 
-export function LocalNoticeBanner({notice,onClose,onView}) {
+export function LocalNoticeBanner({notice,onClose,onView,container,actionLabel}) {
   const panel = useRef(null);
   const close = useEffectEvent(() => onClose());
   useEffect(() => {
@@ -75,7 +75,7 @@ export function LocalNoticeBanner({notice,onClose,onView}) {
       {notice.context && <p className="local-notice-context">{notice.context}</p>}
       <p>{notice.body || LOCAL_NOTICE_TEXT[notice.kind]}</p>
     </div>
-    <button type="button" className="local-notice-open" aria-label={notice.preview ? 'Abrir notificaciones' : message ? 'Abrir conversación' : 'Abrir solicitud'} onClick={onView} />
+    <button type="button" className="local-notice-open" aria-label={actionLabel || (notice.preview ? 'Abrir notificaciones' : message ? 'Abrir conversación' : 'Abrir solicitud')} onClick={onView} />
     <button type="button" className="local-notice-dismiss" aria-label="Cerrar aviso breve" onClick={onClose}><X size={19} /></button>
-  </aside>,document.body);
+  </aside>,container || document.body);
 }

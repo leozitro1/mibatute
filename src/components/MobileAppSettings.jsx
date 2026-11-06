@@ -1,18 +1,17 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Settings, X, Type, Bell } from 'lucide-react';
-import { LocalNoticeSettings } from './LocalAppNotices.jsx';
+import { LocalNoticeBanner, LocalNoticeSettings } from './LocalAppNotices.jsx';
 import './MobileAppSettings.css';
 
 export default function MobileAppSettings({textSize,onTextSize,notices,userId,onLogin,onClose}) {
-  const dialogRef = useRef(null);
+  const [dialog,setDialog] = useState(null);
   useEffect(() => {
-    const dialog = dialogRef.current;
+    if (!dialog) return;
     dialog.showModal();
     return () => dialog.close();
-  },[]);
-  const controls = {...notices,previewBanner:() => {onClose();notices.previewBanner();}};
-  return createPortal(<dialog ref={dialogRef} className="mobile-app-settings-dialog" aria-labelledby="mobile-settings-title"
+  },[dialog]);
+  return createPortal(<dialog ref={setDialog} className="mobile-app-settings-dialog" aria-labelledby="mobile-settings-title"
     onCancel={event => {event.preventDefault();onClose();}}
     onClick={event => {if (event.target === event.currentTarget) onClose();}}>
     <div className="mobile-settings-panel">
@@ -35,7 +34,7 @@ export default function MobileAppSettings({textSize,onTextSize,notices,userId,on
         </fieldset>
         <section aria-labelledby="mobile-settings-notifications">
           <h3 id="mobile-settings-notifications"><Bell size={20} aria-hidden="true" />Notificaciones</h3>
-          {userId ? <LocalNoticeSettings controller={controls} inline /> : <>
+          {userId ? <LocalNoticeSettings controller={notices} inline /> : <>
             <p>Inicia sesión para configurar tus avisos y el contador del ícono.</p>
             <button type="button" className="mobile-settings-login" onClick={() => {onClose();onLogin();}}>Iniciar sesión</button>
           </>}
@@ -44,5 +43,7 @@ export default function MobileAppSettings({textSize,onTextSize,notices,userId,on
       </div>
       <footer><button type="button" onClick={onClose}>Listo</button></footer>
     </div>
+    {dialog && <LocalNoticeBanner container={dialog} notice={notices.banner?.preview ? notices.banner : null}
+      onClose={notices.dismissBanner} onView={notices.dismissBanner} actionLabel="Cerrar vista previa" />}
   </dialog>,document.body);
 }

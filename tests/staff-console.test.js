@@ -163,6 +163,8 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
       assert.equal(audit.length,1);assert.ok(audit[0].changes.ban_until);assert.ok(audit[0].changes.message_id);
       const end=(await db.query("select to_char(ban_until at time zone 'America/Bogota','DD/MM/YYYY HH24:MI') as deadline from usuarios where id=$1",[user])).rows[0].deadline;
       assert.ok(sanction[0].body.includes(end));await asUser(user);
+      await assert.rejects(db.query('insert into articulos(id,title,status,owner_id) values($1,$2,$3,$4)',[id(999),'Publicación durante suspensión','disponible',user]),/suspension/);
+      await assert.rejects(db.query('update articulos set title=$1 where id=$2',['Edición durante suspensión',id(10)]),/suspension/);
       await assert.rejects(db.query('insert into postulaciones(id,usuario_id) values($1,$2)',[id(30),user]),/suspension/);
       await assert.rejects(db.query('update usuarios set ban_until=null where id=$1',[user]),/sanciones/);
       await db.exec(`reset role;select set_config('request.jwt.claim.sub','',false);select set_config('request.jwt.claims','{}',false);

@@ -18,7 +18,7 @@ import MobileCatalogTools from './components/MobileCatalogTools.jsx';
 import { createListingCache } from './components/listingCache.js';
 import { readNotificationHistory, writeNotificationHistory, mergeNotificationHistory,
   markNotificationHistoryRead, markNotificationBellRead, NOTIFICATION_STATE_LIMIT } from './components/notificationHistory.js';
-import { profileNotificationBadges,profileInboxBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot } from './components/profileNotificationBadges.js';
+import { profileNotificationBadges,profileInboxBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot,settleMissingNotifications } from './components/profileNotificationBadges.js';
 import { subscribeStaffInbox } from './components/staffInboxSignals.js';
 import { catalogTopic, dispatchMarketSignal, noticeFromSignal, notificationCounts } from './components/marketSignals.js';
 import { isPublicationExpired } from './components/articleLifetime.js';
@@ -41,6 +41,7 @@ import { queryArticlesWithCondition } from "./supabase/articleQuery";
 import { CATEGORY_TREE } from "./data/categories.js";
 import useLocations from "./data/useLocations.js";
 import { supabase } from "./supabase/supabaseClient";
+import { readAccountProfile, publicationAccessError } from './supabase/accountProfile.js';
 import { searchMetric } from './analytics/metrics.js';
 import { recordMarketMetric } from './analytics/publicMetrics.js';
 
@@ -334,9 +335,9 @@ export default function MarketplaceApp() {
     setNotifByArticulo(counts.byArticle);
   }, []);
 
-  const syncInboxNotifications = useCallback((uid, messages) => {
+  const syncInboxNotifications = useCallback((uid, messages, startedAt) => {
     if (uid !== notificationUidRef.current) return;
-    saveNotificationHistory(mergeInboxNotifications(historyUidRef.current === uid ? notificationsRef.current : [], messages), uid);
+    saveNotificationHistory(mergeInboxNotifications(historyUidRef.current === uid ? notificationsRef.current : [], messages, startedAt), uid);
   }, [saveNotificationHistory]);
   const removedSupportRef=useRef({uid:null,ids:new Set()});
   const syncInboxReceipt = useCallback((uid, receiptId, action, kind, throughAt=null) => {
@@ -405,12 +406,12 @@ export default function MarketplaceApp() {
   );
 
   const markSolicitudesSeenForArticulo = useCallback(
-    (articuloId) => {
+    (articuloId, through = new Date().toISOString()) => {
       const uid = getActiveUid();
       if (!uid || !articuloId) return;
       const key = lsKeyPosts(uid);
       const map = readSeenMap(key);
-      map[String(articuloId)] = new Date().toISOString();
+      if (!(Date.parse(map[String(articuloId)]) >= Date.parse(through))) map[String(articuloId)] = through;
       writeSeenMap(key, map);
       markRecentNotificationsRead({ articleId: articuloId, through: map[String(articuloId)] });
     },
@@ -607,6 +608,8 @@ export default function MarketplaceApp() {
     const pending = (async () => {
 
     // ✅ Usa ref en vez de closure sobre products — rompe la dependencia circular
+    const snapshotStartedAt = Date.now();
+    const sourceScopes = [];
     const currentProducts = productsRef.current;
 
     // Para títulos/imagenes rápidos
@@ -614,6 +617,13 @@ export default function MarketplaceApp() {
 
     const activityItems = await loadActivityNotifications({ force: !reuseCached });
     const dropdownItems = [...activityItems, ...publicationExpiryNotifications(currentProducts, uid)];
+    sourceScopes.push({ type:'venta', field:'articulo_id', ids:currentProducts.map(getArticuloId).filter(Boolean) });
+    const personal = personalArticlesRef.current;
+    if (personal.uid === uid && personal.rows && personal.rows.length < HOME_QUERY_LIMIT) {
+      const existing = new Set(personal.rows.map(row => String(getArticuloId(row))));
+      for (const type of ['postulacion','venta']) sourceScopes.push({ type, field:'articulo_id',
+        ids:notificationsRef.current.filter(item => item.type === type && !existing.has(String(item.articulo_id))).map(item => item.articulo_id) });
+    }
 
     // 1) Ventas pendientes (desde products ya cargados)
     try {
@@ -668,6 +678,8 @@ export default function MarketplaceApp() {
           .limit(NOTIFICATION_POST_LIMIT);
 
         if (!postErr && Array.isArray(posts)) {
+          sourceScopes.push({ type:'postulacion', field:'articulo_id', ids:myArticuloIds,
+            oldest: posts.length < NOTIFICATION_POST_LIMIT ? 0 : Math.min(...posts.map(row => Date.parse(row.created_at))) });
           for (const p of posts) {
             const artId = p?.articulo_id;
             const createdAtMs = p?.created_at ? new Date(p.created_at).getTime() : 0;
@@ -711,20 +723,38 @@ export default function MarketplaceApp() {
       const chatsRes = await fetchChatsForUid(uid);
       const chats = Array.isArray(chatsRes?.data) ? chatsRes.data : [];
       const chatIds = chats.map((c) => c?.id).filter(Boolean);
+      if (!chatsRes.error && chats.length < 50) {
+        const available = new Set(chatIds.map(String));
+        sourceScopes.push({ type:'chat', field:'chat_id', ids:notificationsRef.current
+          .filter(item => item.type === 'chat' && !available.has(String(item.chat_id))).map(item => item.chat_id) });
+      }
 
       if (chatIds.length) {
         const seenKey = lsKeyChats(uid);
         const seenMap = readSeenMap(seenKey);
 
-        const { data: msgs, error: msgErr } = await supabase
+        const [{ data: msgs, error: msgErr }, { data: reads, error: readErr }] = await Promise.all([supabase
           .from("chat_messages")
           .select("id, chat_id, sender_id, created_at")
           .in("chat_id", chatIds)
           .neq('sender_id', uid)
           .order("created_at", { ascending: false })
-          .limit(NOTIFICATION_MESSAGE_LIMIT);
+          .limit(NOTIFICATION_MESSAGE_LIMIT),
+          supabase.from('chat_reads').select('chat_id,last_read_at').eq('user_id',uid).in('chat_id',chatIds)]);
+        if (!readErr) for (const row of reads || []) {
+          if (Date.parse(row.last_read_at) > Date.parse(seenMap[String(row.chat_id)] || '1970-01-01'))
+            seenMap[String(row.chat_id)] = row.last_read_at;
+        }
+        if (!readErr) {
+          const latestSeen = readSeenMap(seenKey);
+          for (const [chatId, at] of Object.entries(latestSeen))
+            if (Date.parse(at) > Date.parse(seenMap[chatId] || '1970-01-01')) seenMap[chatId] = at;
+          writeSeenMap(seenKey,seenMap);
+        }
 
         if (!msgErr && Array.isArray(msgs)) {
+          sourceScopes.push({ type:'chat', field:'chat_id', ids:chatIds,
+            oldest:msgs.length < NOTIFICATION_MESSAGE_LIMIT ? 0 : Math.min(...msgs.map(row => Date.parse(row.created_at))) });
           const chatById = Object.fromEntries(chats.map((c) => [String(c.id), c]));
 
           for (const m of msgs) {
@@ -820,7 +850,9 @@ export default function MarketplaceApp() {
       item.read = true;
       item.unreadCount = 0;
     }
-    const history = mergeNotificationHistory(notificationsRef.current, sortedDropdown, NOTIFICATION_STATE_LIMIT);
+    const settled = sourceScopes.reduce((previous, scope) => settleMissingNotifications(previous, sortedDropdown,
+      { ...scope, startedAt:snapshotStartedAt }), notificationsRef.current);
+    const history = mergeNotificationHistory(settled, sortedDropdown, NOTIFICATION_STATE_LIMIT);
     saveNotificationHistory(history, uid);
     })();
     notificationRefreshRef.current = { uid, at: refresh.uid === uid ? refresh.at : 0, pending };
@@ -831,6 +863,10 @@ export default function MarketplaceApp() {
       }
     }
   }, [getActiveUid, lsKeyChats, lsKeyPosts, fetchChatsForUid, saveNotificationHistory, loadActivityNotifications]);
+
+  useEffect(() => {
+    if (currentView === 'profile' && currentUser?.id) void loadNotifications({ reuseCached:true });
+  }, [currentView, currentUser?.id, loadNotifications]);
 
   // =========================================================
   // ✅ helper: abrir chat por articulo + buyerId
@@ -994,14 +1030,13 @@ export default function MarketplaceApp() {
         let merged = { ...verifiedUser, email: verifiedUser.email };
 
 // 1) intenta DB pero SIN romper si no hay fila o RLS
-const dbRes = await supabase
-  .from("usuarios")
-  .select("id,nombre,movil,ciudad,localidad,direccion,foto_url,is_blocked,bloqueado,ban_until,blocked,estado,status,rol,role")
-  .eq("id", verifiedUser.id)
-  .maybeSingle();
+const dbRes = await readAccountProfile(supabase, verifiedUser.id);
 
 if (!dbRes?.error && dbRes?.data) {
   merged = { ...merged, ...dbRes.data };
+} else {
+  merged.accountStatusVerified = false;
+  console.warn('No se pudo verificar el estado de la cuenta:', dbRes.error?.message);
 }
 
 // 2) fallback SIEMPRE desde metadata (esto te salva cuando DB no responde)
@@ -1246,6 +1281,9 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       }
       if (signal.kind === 'article' && signal.article?.id) {
         const article = signal.article;
+        if (signal.action === 'DELETE') saveNotificationHistory(notificationsRef.current.map(item =>
+          String(item.articulo_id) === String(article.id) && ['chat','postulacion','venta'].includes(item.type)
+            ? { ...item, read:true, unreadCount:0 } : item), uid);
         const update = rows => signal.action === 'DELETE' ? rows.filter(row => row.id !== article.id)
           : rows.some(row => row.id === article.id)
             ? rows.map(row => row.id === article.id ? { ...row, ...article, isFeatured: !!article.is_featured } : row)
@@ -1274,6 +1312,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
           }
         }
       }
+      if (signal.kind === 'chat' && signal.action === 'DELETE') {
+        saveNotificationHistory(notificationsRef.current.map(item => String(item.chat_id) === String(signal.chat?.id)
+          ? { ...item, read:true, unreadCount:0 } : item), uid);
+      }
       if (signal.kind === 'chat' && signal.chat?.status === 'open') {
         saveNotificationHistory(notificationsRef.current.map(item => item.id === `venta-${signal.chat.articulo_id}`
           ? { ...item, title: 'Venta en curso', read: true, unreadCount: 0 } : item), uid);
@@ -1290,11 +1332,12 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         setRealtimeStatus('RECOVERING');
         try {
           const [account, balance] = await Promise.all([
-            supabase.from('usuarios').select('id,is_blocked,bloqueado,ban_until').eq('id', uid).maybeSingle(),
+            readAccountProfile(supabase, uid),
             supabase.from('cupos').select('saldo').eq('usuario_id', uid).maybeSingle(),
           ]);
           if (notificationUidRef.current !== uid) return;
           if (!account.error && account.data) setCurrentUser(previous => previous?.id === uid ? { ...previous, ...account.data } : previous);
+          else setCurrentUser(previous => previous?.id === uid ? { ...previous, accountStatusVerified:false } : previous);
           if (!balance.error) notifyCreditBalance(uid, Number(balance.data?.saldo || 0));
           await load({ refreshPersonal: true });
           if (notificationUidRef.current !== uid) return;
@@ -1322,6 +1365,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       const uid = notificationUidRef.current;
       setCurrentUser(previous => previous?.id === uid ? { ...previous, ...profile } : previous);
       if (profile.is_blocked || profile.bloqueado) { setIsPublishOpen(false); setChatOpen(null); setSelectedProduct(null); }
+      else if (Date.parse(profile.ban_until) > Date.now()) setIsPublishOpen(false);
     }, {
       onSupportRemoved: threadId=>syncInboxReceipt(notificationUidRef.current,threadId,'delete','support'),
       onMarketSignal: signal => liveHandlersRef.current.market(signal),
@@ -1378,9 +1422,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   }, [selectedCity, COLOMBIA_DATA]);
 
   const handlePublishClick = () => {
-    if (!currentUser) setIsAuthOpen(true);
-    else if (isUserBlocked) return;
-    else setIsPublishOpen(true);
+    if (!currentUser) return setIsAuthOpen(true);
+    const error = publicationAccessError(currentUser);
+    if (error) return alert(error);
+    setIsPublishOpen(true);
   };
 
   const handleProfileClick = () => {
@@ -2150,8 +2195,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   onInboxNotifications={syncInboxNotifications}
                   onInboxReceiptChange={syncInboxReceipt}
                   inboxRevision={inboxRevision}
-                  onArticuloSeen={(articuloId) => {
-                    if (articuloId) markSolicitudesSeenForArticulo(articuloId);
+                  onArticuloSeen={(articuloId, through) => {
+                    if (articuloId) markSolicitudesSeenForArticulo(articuloId, through);
                   }}
                   onBack={() => setCurrentView("home")}
                   onArticuloDestacado={(article) => {

@@ -277,19 +277,22 @@ export default function Navbar({
     onPublishClick?.();
   };
 
-  const publishDisabled = !!user && (isBlocked || isBanned);
+  const accountUnverified = !!user && user.accountStatusVerified !== true;
+  const publishDisabled = !!user && (isBlocked || isBanned || accountUnverified);
   const publishTitle = !user
     ? "Publica gratis"
     : isBlocked
     ? "Cuenta bloqueada"
     : isBanned
     ? `Sancionado. Puedes publicar en ${formatRemaining(remainingMs)}`
+    : accountUnverified
+    ? 'No se pudo verificar tu cuenta. Vuelve a cargar la app.'
     : "Publica gratis";
   const balanceLabel = isBlocked ? `${creditBalance ?? '...'} créditos bloqueados` : creditBalance === null ? 'Saldo no disponible' : `${creditBalance} créditos disponibles`;
 
   return (
     <>
-      <LocalNoticeBanner notice={localNotices.banner} onClose={localNotices.dismissBanner} onView={() => {
+      <LocalNoticeBanner notice={settingsOpen && localNotices.banner?.preview ? null : localNotices.banner} onClose={localNotices.dismissBanner} onView={() => {
         const notice = localNotices.banner;
         const target = !notice?.preview && notifications.find(item => localNotices.matchesBanner(item));
         localNotices.dismissBanner();
@@ -451,6 +454,8 @@ export default function Navbar({
                 ? "Publicar (bloqueado)"
                 : user && isBanned
                 ? `Publicar (${formatRemaining(remainingMs)})`
+                : accountUnverified
+                ? 'Verifica tu cuenta'
                 : "Publica gratis"}</span>
             </button>
 

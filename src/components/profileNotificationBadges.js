@@ -1,25 +1,33 @@
-import { activityDestination,CONVERSATION_NOTIFICATION_TYPES } from './activityNotifications.js';
 import { mergeNotificationHistory,NOTIFICATION_STATE_LIMIT } from './notificationHistory.js';
 
 const receiptKey=item=>`${item.receipt_kind||'system'}:${item.receipt_id}`;
+// Informational activity belongs to bell history, not to pending-work counters.
+const PROFILE_PENDING_TYPES = new Set(['chat', 'postulacion', 'venta', 'system_notice']);
+
+// A bounded successful snapshot only settles missing sources inside its coverage.
+// Keep bell history and concurrent arrivals; a failed or partial read is not proof of deletion.
+export function settleMissingNotifications(previous, incoming, { type, field, ids = null, startedAt, oldest = 0 }) {
+  const covered = ids === null ? null : new Set(ids.map(String));
+  const present = new Set(incoming.filter(item => item.type === type).map(item => String(item[field])));
+  return previous.map(item => item.type === type && (!covered || covered.has(String(item[field])))
+    && Date.parse(item.created_at) <= startedAt && Date.parse(item.created_at) > oldest
+    && !present.has(String(item[field])) ? { ...item, read: true, unreadCount: 0 } : item);
+}
 
 export function profileNotificationBadges(items,userId,ownedArticles=[]) {
   const counts={publicaciones:0,rescates:0,buzon:0};
   if(!userId)return counts;
   const owned=new Set(ownedArticles.map(article=>String(article.id||article.articulo_id)));
   const notifications=mergeNotificationHistory([],items,NOTIFICATION_STATE_LIMIT),receipts=new Set();
-  const accepted=new Set(notifications.filter(item=>item.type==='donation_accepted').map(item=>String(item.articulo_id)));
   for(const item of notifications){
-    if(item.read||item.bellRead||!item.unreadCount)continue;
-    if(item.type==='ganador'&&accepted.has(String(item.articulo_id)))continue;
+    if(item.read||!item.unreadCount||!PROFILE_PENDING_TYPES.has(item.type))continue;
     let tab;
     if(item.type==='system_notice'){
       const key=item.receipt_id?receiptKey(item):String(item.id);
       if(receipts.has(key))continue;receipts.add(key);tab='buzon';
     }else if(owned.has(String(item.articulo_id))||['postulacion','venta'].includes(item.type))tab='publicaciones';
-    else if(item.type==='ganador'||String(item.buyer_id)===String(userId))tab='rescates';
-    else if(item.buyer_id)tab='publicaciones';
-    else {tab=activityDestination(item.type);if(tab==='chat')tab='rescates';}
+    else if(item.buyer_id&&String(item.buyer_id)!==String(userId))tab='publicaciones';
+    else tab='rescates';
     counts[tab]+=item.unreadCount;
   }
   return counts;
@@ -29,11 +37,11 @@ export function profileNotificationBadges(items,userId,ownedArticles=[]) {
 export function profileInboxBadges(items,userId) {
  const notices=profileNotificationBadges(items.filter(item=>item.type==='system_notice'),userId).buzon;
  const support=profileNotificationBadges(items.filter(item=>item.type==='system_notice'&&item.receipt_kind==='support'),userId).buzon;
- const chats=profileNotificationBadges(items.filter(item=>CONVERSATION_NOTIFICATION_TYPES.has(item.type)||item.type==='ganador'),userId);
+ const chats=profileNotificationBadges(items.filter(item=>item.type==='chat'),userId);
  return {system:Math.max(0,notices-support),conversations:support,users:chats.publicaciones+chats.rescates};
 }
 
-export function mergeInboxNotifications(previous,messages) {
+export function mergeInboxNotifications(previous,messages,startedAt=Date.now()) {
   const bellReads=new Set((previous||[]).filter(item=>item.type==='system_notice'&&item.bellRead).map(receiptKey));
   const receipts=(messages||[]).filter(message=>message.receipt_id).map(message=>({
     id:`inbox-${message.receipt_kind||'system'}-${message.receipt_id}`,type:'system_notice',
@@ -43,8 +51,12 @@ export function mergeInboxNotifications(previous,messages) {
     ...(bellReads.has(receiptKey(message))?{bellRead:true}:{}),
   }));
   const keys=new Set(receipts.map(receiptKey));
+  const oldest = messages.length < 50 ? 0 : Math.min(...messages.map(message => Date.parse(message.created_at)));
+  const settled = previous.map(item => item.type === 'system_notice' && item.receipt_kind !== 'support'
+    && !keys.has(receiptKey(item)) && Date.parse(item.created_at) <= startedAt && Date.parse(item.created_at) > oldest
+    ? { ...item, read:true, unreadCount:0 } : item);
   // The inbox snapshot is authoritative, including an intentional mark-as-unread.
-  return mergeNotificationHistory([],[(previous||[]).filter(item=>item.type!=='system_notice'||!keys.has(receiptKey(item))),receipts].flat(),NOTIFICATION_STATE_LIMIT);
+  return mergeNotificationHistory([],[settled.filter(item=>item.type!=='system_notice'||!keys.has(receiptKey(item))),receipts].flat(),NOTIFICATION_STATE_LIMIT);
 }
 
 export function updateInboxNotification(items,receiptId,action,kind='system',throughAt=null) {

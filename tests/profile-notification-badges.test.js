@@ -1,7 +1,7 @@
 import {notificationCounts} from '../src/components/marketSignals.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { profileNotificationBadges,profileInboxBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot } from '../src/components/profileNotificationBadges.js';
+import { profileNotificationBadges,profileInboxBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot,settleMissingNotifications } from '../src/components/profileNotificationBadges.js';
 import { mergeNotificationHistory,markNotificationHistoryRead,markNotificationBellRead,NOTIFICATION_STATE_LIMIT,writeNotificationHistory,readNotificationHistory } from '../src/components/notificationHistory.js';
 
 const now='2026-10-16T12:00:00.000Z';
@@ -13,15 +13,15 @@ test('profile badges classify the bell data before rescue or inbox tabs are load
     item('buyer-chat','chat',{buyer_id:'me',chat_id:'chat-two',unreadCount:4}),
     item('chosen','donation_accepted',{buyer_id:'me'}),item('notice','system_notice',{receipt_id:'receipt'}),
     item('read','postulacion',{read:true,unreadCount:10})];
-  assert.deepEqual(profileNotificationBadges(items,'me'),{publicaciones:6,rescates:5,buzon:1});
+  assert.deepEqual(profileNotificationBadges(items,'me'),{publicaciones:6,rescates:4,buzon:1});
   assert.deepEqual(profileNotificationBadges(items,null),{publicaciones:0,rescates:0,buzon:0});
 });
 
-test('private rating notices do not count and old winner notices do not double count acceptance',()=>{
+test('historical events stay in the bell without creating pending work in profile',()=>{
   const items=[item('rating','rating_received',{articulo_id:'mine'}),item('pickup','pickup_proposed',{buyer_id:'me'}),
     item('accepted','donation_accepted',{articulo_id:'rescue',buyer_id:'me'}),item('legacy','ganador',{articulo_id:'rescue'}),
     item('rejected','donation_rejected'),item('expired','publication_expired')];
-  assert.deepEqual(profileNotificationBadges(items,'me',[{id:'mine'}]),{publicaciones:1,rescates:3,buzon:0});
+  assert.deepEqual(profileNotificationBadges(items,'me',[{id:'mine'}]),{publicaciones:0,rescates:0,buzon:0});
 });
 
 test('the in-memory state keeps all bounded groups but the dropdown history still persists only ten',()=>{
@@ -72,15 +72,19 @@ test('a receipt acknowledgement affects only that namespace and preserves unrela
   assert.deepEqual(profileNotificationBadges(marked,'me'),{publicaciones:0,rescates:1,buzon:1});
 });
 
-test('marking the bell read clears profile badges without altering chats or inbox receipts',()=>{
+test('marking the bell read preserves profile and chat badges until their content is read',()=>{
   const items=[item('post','postulacion'),item('chat','chat',{chat_id:'c',buyer_id:'me'}),item('notice','system_notice',{receipt_id:'r'})];
-  const cleared={publicaciones:0,rescates:0,buzon:0},marked=markNotificationBellRead(items,items);
+  const pending={publicaciones:1,rescates:1,buzon:1},marked=markNotificationBellRead(items,items);
   assert.ok(marked.every(entry=>entry.bellRead&&!entry.read&&entry.unreadCount===1));
-  assert.deepEqual(profileNotificationBadges(marked,'me'),cleared);
-  assert.deepEqual(notificationCounts(marked),{chats:0,profile:0,byArticle:{}});
+  assert.deepEqual(profileNotificationBadges(marked,'me'),pending);
+  assert.deepEqual(notificationCounts(marked),notificationCounts(items));
+  const readChat=markNotificationHistoryRead(marked,{chatId:'c',through:now},NOTIFICATION_STATE_LIMIT);
+  assert.deepEqual(profileNotificationBadges(readChat,'me'),{publicaciones:1,rescates:0,buzon:1});
+  assert.equal(notificationCounts(readChat).chats,0);
+  assert.equal(notificationCounts(readChat).profile,1);
   const refreshed=mergeNotificationHistory(marked,items,NOTIFICATION_STATE_LIMIT);assert.ok(refreshed.every(entry=>entry.bellRead));
   const inbox=mergeInboxNotifications(refreshed,[{receipt_id:'r',created_at:now,title:'Aviso',read_at:null}]);
-  assert.equal(inbox.find(entry=>entry.receipt_id==='r').bellRead,true);assert.deepEqual(profileNotificationBadges(inbox,'me'),cleared);
+  assert.equal(inbox.find(entry=>entry.receipt_id==='r').bellRead,true);assert.deepEqual(profileNotificationBadges(inbox,'me'),pending);
   const newer={...items[1],created_at:'2026-10-16T12:01:00.000Z'};
   assert.ok(!markNotificationBellRead([newer],items)[0].bellRead,'Arrivals newer than the snapshot remain unread');
   const updated=mergeNotificationHistory(marked,[newer],NOTIFICATION_STATE_LIMIT);
@@ -93,7 +97,7 @@ test('bell-only acknowledgements persist locally without changing underlying unr
   const storage={value:null,getItem(){return this.value;},setItem(key,value){this.value=value;}};
   writeNotificationHistory(storage,'me',markNotificationBellRead([notification],[notification]));
   const loaded=readNotificationHistory(storage,'me');assert.equal(loaded[0].bellRead,true);assert.equal(loaded[0].unreadCount,4);
-  assert.equal(profileNotificationBadges(loaded,'me').rescates,0);
+  assert.equal(profileNotificationBadges(loaded,'me').rescates,4);
 });
 
 test('a support read snapshot cannot clear a reply that arrived afterwards',()=>{
@@ -122,9 +126,41 @@ test('removing support threads clears only their notices, including old offline 
 });
 
 
-test('inbox categories count system, support and user chats using existing unread and bell state',()=>{
+test('inbox categories preserve pending messages after bell-only acknowledgement',()=>{
  const items=[item('system','system_notice',{receipt_id:'s'}),item('support','system_notice',{receipt_kind:'support',receipt_id:'t'}),item('chat','chat',{chat_id:'c',buyer_id:'me',unreadCount:3}),item('read-chat','chat',{chat_id:'r',read:true}),item('bell','chat',{chat_id:'b',bellRead:true})];
- assert.deepEqual(profileInboxBadges(items,'me'),{system:1,conversations:1,users:3});
- assert.deepEqual(profileInboxBadges(markNotificationBellRead(items,items),'me'),{system:0,conversations:0,users:0});
+ assert.deepEqual(profileInboxBadges(items,'me'),{system:1,conversations:1,users:4});
+ assert.deepEqual(profileInboxBadges(markNotificationBellRead(items,items),'me'),{system:1,conversations:1,users:4});
  assert.deepEqual(profileInboxBadges(items,null),{system:0,conversations:0,users:0});
+});
+
+test('successful inbox snapshot settles hidden or deleted receipts while preserving support and concurrent arrivals',()=>{
+ const cutoff=Date.parse(now);
+ const items=[item('gone','system_notice',{receipt_id:'gone'}),
+   item('support','system_notice',{receipt_id:'support',receipt_kind:'support'}),
+   item('future','system_notice',{receipt_id:'future',created_at:'2026-10-16T12:01:00.000Z'})];
+ const merged=mergeInboxNotifications(items,[],cutoff);
+ assert.equal(merged.find(row=>row.id==='gone').read,true);
+ assert.equal(merged.find(row=>row.id==='support').read,false);
+ assert.equal(merged.find(row=>row.id==='future').read,false);
+ assert.equal(merged.length,3,'Bell history is retained');
+});
+
+test('missing messages and applications are settled only in the successful snapshot scope',()=>{
+ const entries=[item('empty','chat',{chat_id:'empty'}),item('present','chat',{chat_id:'present'}),
+   item('outside','chat',{chat_id:'outside'}),item('post','postulacion',{articulo_id:'article'}),
+   item('future','chat',{chat_id:'empty',created_at:'2026-10-16T12:01:00.000Z'})];
+ const result=settleMissingNotifications(entries,[entries[1]],{type:'chat',field:'chat_id',ids:['empty','present'],startedAt:Date.parse(now)});
+ assert.equal(result[0].read,true);assert.equal(result[0].unreadCount,0);
+ assert.ok(result.slice(1).every(row=>!row.read),'Other sources and concurrent arrivals survive');
+ assert.equal(profileInboxBadges([item('event','delivery_completed',{buyer_id:'me'})],'me').users,0);
+});
+
+test('truncated snapshots cannot clear rows at or below their oldest returned timestamp',()=>{
+ const entries=[item('boundary','chat',{chat_id:'c'}),item('older','chat',{chat_id:'c',created_at:'2026-10-16T11:59:00.000Z'}),
+   item('newer','chat',{chat_id:'c',created_at:'2026-10-16T12:01:00.000Z'})];
+ const result=settleMissingNotifications(entries,[],{type:'chat',field:'chat_id',ids:['c'],startedAt:Date.parse('2026-10-16T12:02:00Z'),oldest:Date.parse(now)});
+ assert.deepEqual(result.map(row=>row.read),[false,false,true]);
+ const receipts=Array.from({length:50},(_,i)=>({receipt_id:`r-${i}`,created_at:now,read_at:null}));
+ const inbox=mergeInboxNotifications([item('old','system_notice',{receipt_id:'old',created_at:'2026-10-16T11:59:00Z'})],receipts,Date.parse(now));
+ assert.equal(inbox.find(row=>row.id==='old').read,false);
 });

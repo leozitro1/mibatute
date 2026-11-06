@@ -279,9 +279,9 @@ export default function ProductCard({
 
         {/* ✅ overlay por reservado/entregado */}
         {isLocked && (
-          <div className="absolute inset-0 bg-white/65 backdrop-blur-[2px] flex items-center justify-center z-10">
-            <span className="bg-gray-900 text-white px-4 py-2 rounded-full font-black text-xs uppercase shadow-lg flex items-center gap-2">
-              {isReviewing ? <Clock size={14} /> : <Lock size={14} />}
+          <div className={`absolute inset-0 bg-white/65 backdrop-blur-[2px] flex items-center justify-center z-10${isReserved && !isReviewing ? ' product-card-reserved-overlay' : ''}`}>
+            <span className={isReserved && !isReviewing ? 'article-reserved-badge product-card-reserved-badge' : 'bg-gray-900 text-white px-4 py-2 rounded-full font-black text-xs uppercase shadow-lg flex items-center gap-2'}>
+              {isReviewing || isReserved ? <Clock size={14} aria-hidden="true" /> : <Lock size={14} aria-hidden="true" />}
               {lockLabel}
             </span>
           </div>

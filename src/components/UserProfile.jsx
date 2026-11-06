@@ -241,7 +241,7 @@ function badgeUIByStatus(value = "") {
     return {
       Icon: Clock,
       label: "Reservado",
-      cls: "bg-orange-100 text-orange-700 ring-1 ring-orange-200",
+      cls: "article-reserved-badge",
     };
   }
   if (s === "entregado") {
@@ -857,7 +857,7 @@ async function fetchProfileFallback(userId) {
     try {
       const { data, error } = await supabase
         .from(a.table)
-        .select("id,nombre,movil,ciudad,localidad,direccion,foto_url,is_blocked,bloqueado,blocked,estado,status,rol,role")
+        .select("id,nombre,movil,ciudad,localidad,direccion,foto_url,is_blocked,bloqueado,ban_until")
         .eq(a.col, userId)
         .maybeSingle();
       if (error) {
@@ -1828,6 +1828,7 @@ export default function UserProfile({
     if (!user?.id || sysMsgsPendingRef.current) return;
     sysMsgsPendingRef.current = true;
     const revision = receiptRevisionRef.current;
+    const snapshotStartedAt = Date.now();
     const signalRevision=inboxRevisionRef.current;
     setSysMsgsLoading(true);
     try {
@@ -1838,7 +1839,7 @@ export default function UserProfile({
       sysMsgsCargadosRef.current = true;
       loadedInboxRevisionRef.current=signalRevision;
       setSysMsgs(Array.isArray(data) ? data : []);
-      onInboxNotifications?.(user.id, Array.isArray(data) ? data : []);
+      onInboxNotifications?.(user.id, Array.isArray(data) ? data : [], snapshotStartedAt);
     } catch (e) {
       console.warn("loadSysMsgs warn:", e?.message || e);
       setSysMsgs([]);
@@ -2070,11 +2071,13 @@ export default function UserProfile({
       setArticuloSeleccionado(art);
       setCargandoSolicitudes(true);
 
+      const snapshotStartedAt = new Date().toISOString();
       const { data, error } = await obtenerPostulaciones(articuloId);
 
       if (!error) {
         setSolicitudesDelArticulo(Array.isArray(data) ? data : []);
         setModalSolicitudesAbierto(true);
+        onArticuloSeen?.(articuloId, snapshotStartedAt);
       } else {
         console.log("Error al cargar solicitudes:", error);
         alert("No se pudieron cargar las solicitudes. Revisa la consola.");
@@ -2085,7 +2088,7 @@ export default function UserProfile({
     } finally {
       setCargandoSolicitudes(false);
     }
-  }, [isUserBlocked, articuloOverridesById, user?.id]);
+  }, [isUserBlocked, articuloOverridesById, user?.id, onArticuloSeen]);
 
   const openedApplicationsNotification = useRef(null);
   useEffect(() => {
