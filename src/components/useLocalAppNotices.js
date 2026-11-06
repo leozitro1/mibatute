@@ -47,11 +47,6 @@ export default function useLocalAppNotices({uid,active,items,activeChatId}) {
     const notice = gate(signal.foregroundNotice,{visible:current.banners && document.visibilityState === 'visible',activeChatId:current.activeChatId,uid:signal.uid,messagePreview:signal.message_preview});
     if (notice) setBanner({...notice,uid:current.uid,gate});
   }),[gate,uid]);
-  useEffect(() => {
-    if (!banner) return;
-    const timer = setTimeout(() => setBanner(null),8000);
-    return () => clearTimeout(timer);
-  },[banner]);
   const enableBadge = async () => {
     const owner = latest.current.uid;
     if (!owner || !latest.current.active) return;
@@ -68,6 +63,7 @@ export default function useLocalAppNotices({uid,active,items,activeChatId}) {
   };
   return {badge,banners,count,support:iconBadgeSupport(),updatePreferences,enableBadge,
     request:request && request.uid === uid && request.gate === gate ? request : null,
+    matchesBanner:item => !!banner && localNoticeMetadata(item)?.group === banner.group,
     banner:active && banners && banner && banner.uid === uid && banner.gate === gate && (!banner.chatId || banner.chatId !== activeChatId)
       && (banner.preview || items.some(item => localNoticeMetadata(item)?.group === banner.group)) ? banner : null,
     previewBanner:() => {if (latest.current.uid && latest.current.active && latest.current.banners) setBanner({uid:latest.current.uid,gate,kind:'message',group:'preview',at:Date.now(),preview:true,context:'Artículo de ejemplo',body:'Hola, ¿podemos coordinar la entrega para mañana?'});},

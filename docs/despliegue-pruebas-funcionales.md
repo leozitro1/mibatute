@@ -307,3 +307,10 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - Campo de solicitud de donación a 16 px en móvil para evitar ampliación automática al enfocar, sin desactivar el zoom manual. Gestión de donación seleccionada con el diseño actual también en móvil: chat arriba y entregar/cancelar juntos debajo.
 - Compilación y catorce pruebas existentes de filtros, paginación y avisos de rescates aprobadas por terminal; diff sin errores. Sin navegador local ni capturas. No requiere migraciones ni cambios de datos en producción. Las diez solicitudes ficticias preparadas para revisar el diseño permanecen exclusivamente en local.
 - Commit y deploy autorizados en main y el proyecto Vercel habitual. Sin push. Registro, CAPTCHA, SMTP, pagos y calendario de conservación conservan su configuración.
+
+
+## Publicación autorizada del 6 de noviembre: notificaciones
+
+- Campana con filtros Todas/Sin leer, estado bellRead coherente con contador y filas, secciones por fecha, foto e icono por evento y filas completas pulsables. Máximo 30 avisos por filtro en bloques de diez; conserva el estado interno y el almacenamiento previo. Mostrar anteriores no consulta Supabase.
+- Fecha junto al título, separadores verdes suaves, sin etiquetas de categoría redundantes; ajustes de avisos separados de la lista y botones espaciados en móvil. Avisos flotantes compactos con apertura al pulsar la tarjeta y temporizador pausado con cursor/foco. Sin dependencias, consultas periódicas, migraciones ni cambios de configuración de producción.
+- 437 pruebas aprobadas, compilación correcta y ESLint de archivos funcionales modificados sin errores. Validación exclusivamente por terminal, sin navegador local ni capturas. Commit y deploy autorizados en main y proyecto Vercel habitual; revisión funcional real a cargo del responsable.

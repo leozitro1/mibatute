@@ -1,12 +1,12 @@
 import StyledSelect from "./StyledSelect.jsx";
-import { publicContactText } from './contactText.js';
 // src/components/Navbar.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, MapPin, User, Home, ChevronDown, LogOut, Bell, X, Plus, Coins, Settings, LockKeyhole, CheckCheck, Loader2 } from "lucide-react";
+import { Search, MapPin, User, Home, ChevronDown, LogOut, Bell, X, Plus, Coins, Settings, LockKeyhole } from "lucide-react";
 import './Navbar.css';
 import useLocations from "../data/useLocations.js";
 import { supabase } from "../supabase/supabaseClient";
-import { NOTIFICATION_HISTORY_LIMIT } from './notificationHistory.js';
+import NotificationsDropdown from './NotificationsDropdown.jsx';
+import { isBellUnread, sortBellNotifications } from './notificationPresentation.js';
 import { CREDIT_BALANCE_CHANGED } from './creditBalance.js';
 import useLocalAppNotices from './useLocalAppNotices.js';
 import { LocalNoticeBanner, LocalNoticeSettings } from './LocalAppNotices.jsx';
@@ -33,32 +33,6 @@ function Badge({ count = 0 }) {
   );
 }
 
-function formatAgo(value) {
-  try {
-    if (!value) return "";
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return "";
-
-    const now = Date.now();
-    const diff = Math.max(0, now - d.getTime());
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "ahora";
-    if (mins < 60) return `${mins} min`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs} h`;
-    const days = Math.floor(hrs / 24);
-    if (days < 7) return `${days} d`;
-    return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
-  } catch {
-    return "";
-  }
-}
-
-function safeText(v, fallback = "") {
-  const s = String(v ?? "").trim();
-  return s || fallback;
-}
-
 function formatRemaining(ms) {
   const total = Math.max(0, Number(ms || 0));
   const sec = Math.ceil(total / 1000);
@@ -75,143 +49,6 @@ function formatRemaining(ms) {
   if (!days && !hrs && !mins) parts.push(`${secs} s`);
 
   return parts.join(" ");
-}
-
-function NotificationsDropdown({
-  isOpen,
-  anchorRef,
-  onClose,
-  items = [],
-  onItemClick,
-  onMarkAllRead,
-  hasUnread,
-  marking,
-  markError,
-  localPreferences,
-  emptyText = "No tienes notificaciones",
-}) {
-  const panelRef = useRef(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const onDocDown = (e) => {
-      const panel = panelRef.current;
-      const anchor = anchorRef?.current;
-      if (!panel) return;
-
-      const target = e.target;
-      const insidePanel = panel.contains(target);
-      const insideAnchor = anchor ? anchor.contains(target) : false;
-
-      if (!insidePanel && !insideAnchor) onClose?.();
-    };
-
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
-    };
-
-    document.addEventListener("mousedown", onDocDown, true);
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      document.removeEventListener("mousedown", onDocDown, true);
-      document.removeEventListener("keydown", onKey, true);
-    };
-  }, [isOpen, onClose, anchorRef]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div
-      ref={panelRef}
-      className={`marketplace-surface marketplace-notifications fixed right-3 top-16 sm:absolute sm:right-0 sm:top-[44px] w-[360px] max-w-[calc(100vw-24px)] bg-white border border-gray-200 shadow-xl rounded-lg overflow-hidden z-[80]${localPreferences ? ' max-h-[85dvh] flex flex-col' : ''}`}
-      role="menu"
-      aria-label="Notificaciones"
-    >
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-        <p className="text-sm font-black text-gray-900">Notificaciones</p>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Cerrar notificaciones"
-          title="Cerrar notificaciones"
-          className="site-icon-close inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
-        >
-          <X size={18} />
-        </button>
-      </div>
-
-      {localPreferences}
-      {onMarkAllRead && <div className="px-4 py-2 border-b border-gray-100">
-        <button type="button" onClick={onMarkAllRead} disabled={marking||!hasUnread}
-          aria-label="Marcar todas como leídas" title="Marcar todas como leídas"
-          className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-forest-green disabled:text-gray-400 disabled:cursor-default">
-          {marking?<Loader2 size={16} className="animate-spin" aria-hidden="true" />:<CheckCheck size={16} aria-hidden="true" />}
-          {marking?'Marcando...':'Marcar todas como leídas'}
-        </button>
-        {markError&&<p role="alert" className="mt-1 text-xs text-red-700">{markError}</p>}
-      </div>}
-
-      <div className="max-h-[60vh] min-h-0 overflow-auto">
-        {!items?.length ? (
-          <div className="p-6 text-center">
-            <p className="text-sm text-gray-500 font-bold">{emptyText}</p>
-          </div>
-        ) : (
-          <div className="py-2">
-            {items.map((n) => {
-              const title = publicContactText(safeText(n?.title || n?.titulo || n?.text, "Notificación"));
-              const subtitle = publicContactText(safeText(n?.subtitle || n?.subtitulo || n?.message, ""));
-              const time = formatAgo(n?.created_at || n?.createdAt || n?.time);
-
-              const thumb = safeText(n?.thumb || n?.image || n?.foto_url, "");
-
-              return (
-                <button
-                  key={n.id}
-                  type="button"
-                  role="menuitem"
-                  data-notification-id={n.id}
-                  data-read={n.read ? 'true' : 'false'}
-                  onClick={() => onItemClick?.(n)}
-                  className={`w-full text-left px-4 py-3 hover:bg-gray-100 transition flex items-start gap-3 ${n.read ? 'bg-white' : 'bg-green-50/60'}`}
-                >
-                  <div className="notification-thumbnail relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-100 bg-[#f1f5ec]">
-                    <img src={logoMiBatute} alt="" aria-hidden="true" className="notification-brand-icon h-7 w-7 object-contain opacity-50 saturate-50" />
-                    {thumb && (
-                      <img
-                        src={thumb}
-                        alt=""
-                        className="absolute inset-0 h-full w-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className={`text-sm text-gray-900 truncate ${n.read ? 'font-semibold' : 'font-bold'}`}>{title}</p>
-                      {time ? (
-                        <span className="text-[10px] font-black uppercase text-gray-400 whitespace-nowrap">{time}</span>
-                      ) : null}
-                    </div>
-
-                    {subtitle ? (
-                      <p className="mt-1 text-[12px] text-gray-600 font-medium line-clamp-2">{subtitle}</p>
-                    ) : null}
-
-
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 export default function Navbar({
@@ -389,19 +226,9 @@ export default function Navbar({
   }, [user?.id]);
 
   // Read state is independent of whether an item remains in the recent history.
-  const visibleNotifs = useMemo(() => {
-    const list = Array.isArray(notifications) ? notifications : [];
-    return [...list]
-      .sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0))
-      .slice(0, NOTIFICATION_HISTORY_LIMIT);
-  }, [notifications]);
-
-  const dropdownCount = useMemo(() => {
-    if (Array.isArray(notifications)) {
-      return visibleNotifs.filter(n => !n.read).length;
-    }
-    return Number(notifChatCount || 0);
-  }, [notifications, visibleNotifs, notifChatCount]);
+  const visibleNotifs = useMemo(() => sortBellNotifications(notifications), [notifications]);
+  const dropdownCount = Array.isArray(notifications)
+    ? visibleNotifs.filter(isBellUnread).length : Number(notifChatCount || 0);
 
   const handleMessagesButton = () => {
     if (user && isBlocked) {
@@ -425,10 +252,10 @@ export default function Navbar({
 
     try {
       await onNotificationSeen?.(item);
-    } catch {}
+    } catch { /* Opening the destination must remain possible if marking fails. */ }
     try {
       await onNotificationClick?.(item);
-    } catch {}
+    } catch { /* Destination handlers report their own errors. */ }
   };
 
   const handlePublish = () => {
@@ -463,7 +290,11 @@ export default function Navbar({
   return (
     <>
       <LocalNoticeBanner notice={localNotices.banner} onClose={localNotices.dismissBanner} onView={() => {
-        localNotices.dismissBanner();setOpenNotifs(true);msgBtnRef.current?.focus({preventScroll:true});
+        const notice = localNotices.banner;
+        const target = !notice?.preview && notifications.find(item => localNotices.matchesBanner(item));
+        localNotices.dismissBanner();
+        if (target && onNotificationClick) { void handleNotifClick(target); return; }
+        setOpenNotifs(true);onNotificationsOpen?.();msgBtnRef.current?.focus({preventScroll:true});
       }} />
       {user && !['CONNECTING', 'SUBSCRIBED'].includes(realtimeStatus) && <p role="status" className="bg-amber-50 px-4 py-2 text-center text-xs text-amber-800">
         {realtimeStatus === 'RECOVERING' ? 'Actualizando tus avisos…' : 'Reconectando tus notificaciones…'}
@@ -641,25 +472,23 @@ export default function Navbar({
                   title={isBlocked ? "Cuenta bloqueada" : "Notificaciones"}
                   aria-label="Notificaciones"
                   aria-expanded={openNotifs}
-                  aria-haspopup="menu"
+                  aria-haspopup="dialog"
                 >
                   <Bell size={18} className={isBlocked ? "text-gray-400" : "text-gray-700"} />
                   {!isBlocked ? <Badge count={dropdownCount} /> : null}
                 </button>
 
-                <NotificationsDropdown
-                  isOpen={openNotifs && !isBlocked}
+                {openNotifs && !isBlocked && <NotificationsDropdown
+                  key={user.id}
                   anchorRef={msgBtnRef}
                   onClose={() => setOpenNotifs(false)}
                   items={visibleNotifs}
                   onItemClick={handleNotifClick}
                   onMarkAllRead={onMarkAllNotificationsRead?markAllNotifications:undefined}
-                  hasUnread={notifications.some(item=>!item.read&&item.unreadCount>0)}
                   marking={markingNotifications}
                   markError={notificationMarkError}
-                  localPreferences={appMode && user ? <LocalNoticeSettings controller={localNotices} /> : null}
-                  emptyText="No tienes notificaciones"
-                />
+                  localPreferences={appMode && user ? <LocalNoticeSettings controller={localNotices} inline /> : null}
+                />}
               </div>
             ) : null}
 
