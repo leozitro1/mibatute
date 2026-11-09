@@ -19,6 +19,7 @@ import usePublicationClock from './usePublicationClock.js';
 import {recordArticleView} from './articleViews.js';
 import PublicationViews from './PublicationViews.jsx';
 import PublicationCountdown from './PublicationCountdown.jsx';
+import ProfileAvatar from './ProfileAvatar.jsx';
 import { isPublicationUnavailable } from './articleLifetime.js';
 
 import { detectarContenidoNoPermitido, buildViolationMessage } from "../utils/contentFilter";
@@ -227,6 +228,7 @@ export default function ProductDetail({
     "";
 
   const ownerPhotoRaw = item?.owner_photo || item?.vendedor?.foto_url || item?.usuarios?.foto_url || "";
+  const canViewProfilePhoto = !!user?.id;
 
   const tipoNorm = isSaleArticle(item) ? "venta" : "donacion";
   const estadoNorm = normalizeEstado(item?.estado ?? item?.status ?? "disponible");
@@ -303,7 +305,7 @@ export default function ProductDetail({
 
     (async () => {
       const nameFromItem = String(ownerNameRaw || "").trim();
-      const photoFromItem = String(ownerPhotoRaw || "").trim();
+      const photoFromItem = canViewProfilePhoto ? String(ownerPhotoRaw || "").trim() : '';
 
       const photoResolvedFromItem = await resolvePhotoUrlMaybe(photoFromItem);
       if (!alive) return;
@@ -315,12 +317,12 @@ export default function ProductDetail({
       }
 
       if (staffPreview || !ownerId) return;
-      if (nameFromItem && photoResolvedFromItem) return;
+      if (nameFromItem && (!canViewProfilePhoto || photoResolvedFromItem)) return;
 
       try {
         const { data, error } = await supabase
           .from("usuarios_publicos")
-          .select("id, nombre, foto_url")
+          .select(canViewProfilePhoto ? "id, nombre, foto_url" : "id, nombre")
           .eq("id", ownerId)
           .maybeSingle();
 
@@ -328,7 +330,7 @@ export default function ProductDetail({
         if (error) return;
 
         const nombreDb = String(data?.nombre || "").trim();
-        const fotoDb = String(data?.foto_url || "").trim();
+        const fotoDb = canViewProfilePhoto ? String(data?.foto_url || "").trim() : '';
         const fotoDbResolved = await resolvePhotoUrlMaybe(fotoDb);
 
         if (!alive) return;
@@ -342,7 +344,7 @@ export default function ProductDetail({
     return () => {
       alive = false;
     };
-  }, [isOpen, item, ownerId, ownerNameRaw, ownerPhotoRaw, staffPreview]);
+  }, [isOpen, item, ownerId, ownerNameRaw, ownerPhotoRaw, staffPreview, canViewProfilePhoto]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -951,18 +953,7 @@ export default function ProductDetail({
           {/* VENDEDOR */}
           <div className="product-detail-owner flex items-center gap-4 mb-2 p-4 border border-gray-100 rounded-2xl">
             <div className="product-detail-owner-avatar w-12 h-12 rounded-full overflow-hidden bg-treasure-gold/20 flex items-center justify-center font-black text-treasure-gold shrink-0">
-              {ownerPhoto ? (
-                <img
-                  src={ownerPhoto}
-                  alt={ownerName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                  }}
-                />
-              ) : (
-                <span>{(ownerName?.[0] || "V").toUpperCase()}</span>
-              )}
+              <ProfileAvatar user={user} photo={ownerPhoto} name={ownerName} />
             </div>
 
             <div className="min-w-0 flex-1">

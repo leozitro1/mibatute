@@ -1846,7 +1846,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   {/* Mostrar banner solo cuando NO hay búsqueda (evita que se atraviese entre la barra y resultados) */}
                   {searchTerm.trim() === "" && (!mobileApp || (selectedCategory === 'Todo' && quickTipo === 'todo' && selectedLocality === 'Todas' && !minCondition && !onlyVerified)) && (
                     <div className="rounded-3xl">
-                      <HeroBanner sponsorFilters={{city:selectedCity,locality:selectedLocality,category:selectedCategory}} onLearnMore={() => setCurrentView("how-it-works")} />
+                      <HeroBanner sponsorFilters={{city:selectedCity,locality:selectedLocality,category:selectedCategory}} onLearnMore={() => setCurrentView("how-it-works")} onExplore={() => listingRef.current?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',block:'start'})} />
 
                     </div>
                   )}
