@@ -12,4 +12,8 @@ La prueba inicial de ImageKit V2 aceptó la subida privada y rechazó el origina
 
 1. Copiar cada avatar activo al bucket privado y verificar que rechaza la URL pública y entrega la imagen con un enlace temporal.
 2. Cambiar únicamente las referencias vigentes, después de comprobar que coinciden con el inventario anterior. Mantener las copias de ImageKit hasta confirmar que la nueva app está activa.
-3. Despublicar las copias anteriores de la carpeta de perfiles, incluidas las versiones históricas. Purgar las variantes conocidas de CDN y verificar que dejan de entregar imágenes. No borrar los originales ni tocar la carpeta de artículos.
+3. Respaldar los archivos de la carpeta de perfiles en `profile-photo-archive`, sin permisos de cliente. Verificar el SHA-256 de cada copia y conservar su ruta y versión en el manifiesto privado. El plan de ImageKit no ofrece borradores: una vez verificado el respaldo, retirar las copias de ImageKit y purgar las variantes conocidas. No tocar la carpeta de artículos.
+
+## Producción
+
+Los cuatro perfiles con foto se vincularon a objetos privados, verificados con y sin firma. Se respaldaron y retiraron 11 archivos de la carpeta histórica de perfiles; no había publicaciones que usaran esos enlaces. Los manifiestos privados conservan la información necesaria para recuperar los originales. La compilación y las 454 pruebas pasaron; el dominio respondió 200 y la autorización de subida sin sesión devolvió 401.
