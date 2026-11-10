@@ -94,7 +94,7 @@ export default function NotificationsDropdown({ anchorRef, onClose, items = [], 
             const unread = isBellUnread(item);
             const title = publicContactText(String(item.title || item.titulo || item.text || 'Notificación'));
             const subtitle = publicContactText(String(item.subtitle || item.subtitulo || item.message || ''));
-            const thumb = item.thumb || item.image || item.foto_url;
+            const thumb = item.thumb || item.image;
             return <li key={item.id}><button type="button" className="notification-row" data-notification-id={item.id} data-read={!unread} onClick={() => onItemClick?.(item)}>
               <span className="notification-visual" data-category={category}>
                 <Icon size={23} aria-hidden="true" />

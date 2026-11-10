@@ -73,6 +73,7 @@ test('ImageKit V2 signs only bounded raster uploads in the verified user folder 
     assert.match(parameters.fileName, /^[a-f0-9-]{36}\.webp$/);
     assert.equal(parameters.useUniqueFileName, 'true');
     assert.equal(parameters.overwriteFile, 'false');
+    assert.equal(parameters.isPrivateFile, undefined, 'Article images stay public');
     assert.equal(parameters.checks, '"file.mime" = "image/webp" AND "file.size" <= 8388608');
     const key = await webcrypto.subtle.importKey('raw', Buffer.from('test-private'), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
     const verify = encoded => webcrypto.subtle.verify('HMAC', key, Buffer.from(signature, 'base64url'), Buffer.from(`${encodedHeader}.${encoded}`));
@@ -86,6 +87,9 @@ test('ImageKit V2 signs only bounded raster uploads in the verified user folder 
     assert.equal(foreign.body.token, undefined);
     const profile = await run('Bearer valid-token', { ...metadata, folder: `/mibatute/perfiles/${userId}`, fileType: 'image/jpeg' });
     assert.equal(profile.body.uploadParameters.checks, '"file.mime" = "image/jpeg" AND "file.size" <= 3145728');
+    assert.equal(profile.body.uploadParameters.isPrivateFile, 'true');
+    const privatePayload = decode(profile.body.token.split('.')[1]);
+    assert.equal(privatePayload.isPrivateFile, 'true', 'The client cannot opt out of privacy without breaking the signature');
     assert.notEqual(profile.body.token, accepted.body.token);
     assert.equal(quotaCalls, 2, 'Only valid owned uploads reserve quota');
     for (const limit of ['burst', 'daily', 'profile']) {

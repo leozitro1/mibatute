@@ -1,3 +1,4 @@
+import useProfilePhoto from '../imagekit/useProfilePhoto.js';
 // src/components/ChatMessenger.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Flag, ShieldCheck, X } from 'lucide-react';
@@ -434,7 +435,7 @@ export default function ChatMessenger({
     return otherUser?.nombre || otherUserFallbackName;
   }, [otherUser, otherUserFallbackName, otherUserLoading]);
 
-  const otherAvatar = useMemo(() => otherUser?.foto_url || "", [otherUser]);
+  const otherAvatar = useProfilePhoto(isOpen && userId ? otherUser?.foto_url : '');
 
   const scrollToBottom = useCallback((smooth = true) => {
     try {
@@ -844,7 +845,9 @@ export default function ChatMessenger({
           <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
             {otherAvatar ? (
               <img
+                key={otherAvatar}
                 src={otherAvatar}
+                referrerPolicy="no-referrer"
                 alt={otherName}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -981,7 +984,9 @@ export default function ChatMessenger({
                             <div className="w-8 h-8 rounded-full overflow-hidden bg-white border border-gray-200 flex items-center justify-center">
                               {otherAvatar ? (
                                 <img
+                                  key={otherAvatar}
                                   src={otherAvatar}
+                                  referrerPolicy="no-referrer"
                                   alt={otherName}
                                   className="w-full h-full object-cover"
                                   onError={(e) => (e.currentTarget.style.display = "none")}

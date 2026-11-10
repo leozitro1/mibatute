@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 
-test('profile photos require a signed-in user, including after logout with a cached photo', async () => {
+test('profile photo markup never embeds the stored address, even while waiting for an authenticated request', async () => {
   const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   try {
     const { default: ProfileAvatar } = await server.ssrLoadModule('/src/components/ProfileAvatar.jsx');
@@ -16,8 +16,8 @@ test('profile photos require a signed-in user, including after logout with a cac
       assert.ok(!markup.includes(photo));
       assert.ok(markup.includes('Inicia sesión'));
     }
-    assert.ok(render({ id: 'viewer' }).includes(photo));
-    assert.ok(!render(null).includes(photo), 'logout must immediately remove the cached image');
+    assert.ok(!render({ id: 'viewer' }).includes(photo));
+    assert.ok(!render({ id: 'anonymous', is_anonymous: true }).includes(photo));
     const empty = renderToStaticMarkup(createElement(ProfileAvatar, { user: { id: 'viewer' }, name: 'Ana' }));
     assert.ok(!empty.includes('<img'));
     assert.ok(empty.includes('>A</span>'));

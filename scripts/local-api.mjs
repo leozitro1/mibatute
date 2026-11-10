@@ -1,6 +1,7 @@
 import emailDispatch from '../api/email-dispatch.js';
 import imagekitAuth from '../api/imagekit-auth.js';
 import imagekitDelete from '../api/imagekit-delete.js';
+import profilePhoto from '../api/profile-photo.js';
 import wompiCheckout from '../api/wompi-checkout.js';
 import wompiEvents from '../api/wompi-events.js';
 
@@ -8,6 +9,7 @@ const handlers = new Map([
   ['/api/email-dispatch', emailDispatch],
   ['/api/imagekit-auth', imagekitAuth],
   ['/api/imagekit-delete', imagekitDelete],
+  ['/api/profile-photo', profilePhoto],
   ['/api/wompi-checkout', wompiCheckout],
   ['/api/wompi-events', wompiEvents],
 ]);

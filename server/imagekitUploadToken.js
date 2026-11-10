@@ -7,6 +7,7 @@ export function signImageKitUpload({ folder, fileType, extension, maxBytes, publ
     fileName: `${randomUUID()}.${extension}`,
     useUniqueFileName: 'true',
     overwriteFile: 'false',
+    ...(folder.startsWith('/mibatute/perfiles/') ? { isPrivateFile: 'true' } : {}),
     checks: `"file.mime" = "${fileType}" AND "file.size" <= ${maxBytes}`,
   };
   const iat = Math.floor(Date.now() / 1000);

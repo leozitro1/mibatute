@@ -16,17 +16,18 @@ export async function uploadLocalImage({ file, folder, fileName }) {
   const policy = imageUploadPolicy({ folder, fileSize: file.size, fileType: file.type });
   await reserveImageUpload(supabase, policy.scope);
   const path = `${folder.replace(/^\/+|\/+$/g, '')}/${crypto.randomUUID()}-${fileName}`;
-  const bucket = supabase.storage.from('local-images');
+  const isProfile = policy.scope === 'perfiles';
+  const bucket = supabase.storage.from(isProfile ? 'local-profile-photos' : 'local-images');
   const { error } = await bucket.upload(path, file, { contentType: file.type });
   if (error) throw error;
-  const { data } = bucket.getPublicUrl(path);
+  const url = isProfile ? `local-profile:${path}` : bucket.getPublicUrl(path).data.publicUrl;
   return {
     success: true,
     fileId: `local:${path}`,
     filePath: path,
-    url: data.publicUrl,
-    thumbnailUrl: data.publicUrl,
-    detailUrl: data.publicUrl,
+    url,
+    thumbnailUrl: url,
+    detailUrl: url,
   };
 }
 

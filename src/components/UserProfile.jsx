@@ -1,3 +1,5 @@
+import ProfileAvatar from './ProfileAvatar.jsx';
+import useProfilePhoto from '../imagekit/useProfilePhoto.js';
 import AccountVerification, { AccountVerificationBadge } from './AccountVerification.jsx';
 import StyledSelect from "./StyledSelect.jsx";
 import ProfileIdentityPlacement from './ProfileIdentityPlacement.jsx';
@@ -746,21 +748,8 @@ function ModalSolicitudes({
                       className="profile-selected-applicant"
                       data-selected-applicant
                     >
-                        <div className="shrink-0">
-                          {foto ? (
-                            <img
-                              src={foto}
-                              alt={nombre}
-                              className="w-10 h-10 rounded-full object-cover border border-gray-200"
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-semibold text-gray-600">
-                              {String(nombre).charAt(0).toUpperCase()}
-                            </div>
-                          )}
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 font-semibold text-gray-600">
+                          <ProfileAvatar user={{ id: userIdOwner }} photo={foto} name={nombre} />
                         </div>
 
                         <div className="min-w-0 flex-1">
@@ -820,7 +809,7 @@ function ModalSolicitudes({
                 const mensaje = s?.justificacion || s?.mensaje || s?.message || "";
 
                 return (
-                  <ApplicantRow key={s.id || userId} applicant={{ ...s, justificacion: mensaje, usuarios: { nombre, foto_url: foto } }} busy={!!updatingKey || !userId} onChoose={() => entregarAUsuario(userId)} onReject={() => rechazarSolicitud(userId, nombre)} />
+                  <ApplicantRow key={s.id || userId} user={{ id: userIdOwner }} applicant={{ ...s, justificacion: mensaje, usuarios: { nombre, foto_url: foto } }} busy={!!updatingKey || !userId} onChoose={() => entregarAUsuario(userId)} onReject={() => rechazarSolicitud(userId, nombre)} />
                 );
               })}
             </ul>
@@ -2369,11 +2358,8 @@ export default function UserProfile({
     );
   }, [profile?.nombre]);
 
-  const avatarSrc = useMemo(() => {
-    const url = String(profile?.foto_url || "").trim();
-    if (avatarBroken) return fallbackAvatar;
-    return url ? url : fallbackAvatar;
-  }, [profile?.foto_url, avatarBroken, fallbackAvatar]);
+  const signedAvatar = useProfilePhoto(user?.id ? profile?.foto_url : '');
+  const avatarSrc = avatarBroken ? fallbackAvatar : signedAvatar || fallbackAvatar;
 
   if (!user) return null;
 
@@ -2415,7 +2401,9 @@ export default function UserProfile({
               <div className="profile-identity relative lg:-mt-12 mb-3 flex items-center gap-4 lg:justify-center">
                 <div className="relative group">
                   <img
+                    key={avatarSrc}
                     src={avatarSrc}
+                    referrerPolicy="no-referrer"
                     alt="Foto de perfil"
                     className="profile-avatar w-16 h-16 lg:w-24 lg:h-24 rounded-full border-4 border-white object-cover shadow-sm"
                     onError={(e) => {

@@ -1,3 +1,4 @@
+import ProfileAvatar from './ProfileAvatar.jsx';
 // src/components/ManageArticleModal.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Users, MessageCircle, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
@@ -422,13 +423,9 @@ export default function ManageArticleModal({
             <div>
               {buyerId && (isReservado || isEntregado) && (
                 <div className="mb-4 flex items-center gap-3 border-b border-gray-100 pb-4">
-                  {article.buyer_public?.foto_url ? (
-                    <img src={article.buyer_public.foto_url} alt="Foto del comprador" className="h-10 w-10 shrink-0 rounded-full object-cover" />
-                  ) : (
-                    <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 font-bold text-gray-600">
-                      {(article.buyer_public?.nombre || "C").charAt(0)}
-                    </span>
-                  )}
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 font-bold text-gray-600">
+                    <ProfileAvatar user={user} photo={article.buyer_public?.foto_url} name={article.buyer_public?.nombre || 'Comprador'} />
+                  </div>
                   <div className="min-w-0">
                     <p className="text-xs text-gray-500">{isEntregado ? "Comprado por" : "Reservado por"}</p>
                     <p className="truncate text-sm font-bold text-gray-800">{article.buyer_public?.nombre || "Comprador"}</p>
@@ -526,20 +523,7 @@ export default function ManageArticleModal({
                   <div className="donation-management-recipient p-4 bg-white rounded-3xl border border-gray-100">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-50 border border-gray-200 shrink-0 flex items-center justify-center">
-                        {winnerFoto ? (
-                          <img
-                            src={winnerFoto}
-                            alt={winnerNombre}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <span className="font-black text-gray-500">
-                            {String(winnerNombre || "G").charAt(0).toUpperCase()}
-                          </span>
-                        )}
+                        <ProfileAvatar user={user} photo={winnerFoto} name={winnerNombre} />
                       </div>
 
                       <div className="min-w-0">
@@ -599,7 +583,7 @@ export default function ManageArticleModal({
                     <ul className="divide-y divide-gray-100" aria-label="Personas postuladas" aria-busy={savingWinner}>
                       {postulados.map((p) => {
                         return (
-                          <ApplicantRow key={p.id} applicant={p} busy={savingWinner} onChoose={elegirGanador} onReject={rechazarSolicitud} />
+                          <ApplicantRow key={p.id} user={user} applicant={p} busy={savingWinner} onChoose={elegirGanador} onReject={rechazarSolicitud} />
                         );
                       })}
                     </ul>

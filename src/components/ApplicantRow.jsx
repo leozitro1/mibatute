@@ -1,7 +1,8 @@
+import ProfileAvatar from './ProfileAvatar.jsx';
 import { useId, useState } from 'react';
 import { Ban, Check, ChevronDown, ChevronUp } from 'lucide-react';
 
-export default function ApplicantRow({ applicant, busy, onChoose, onReject }) {
+export default function ApplicantRow({ applicant, user, busy, onChoose, onReject }) {
   const [expanded, setExpanded] = useState(false);
   const messageId = useId();
   const name = applicant.usuarios?.nombre || 'Usuario';
@@ -12,8 +13,7 @@ export default function ApplicantRow({ applicant, busy, onChoose, onReject }) {
     <li className="px-4 py-4 sm:px-6" data-applicant-row>
       <div className="flex items-start gap-3">
         <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-50 text-sm font-bold text-forest-green">
-          <span aria-hidden="true">{name.charAt(0).toUpperCase()}</span>
-          {applicant.usuarios?.foto_url && <img src={applicant.usuarios.foto_url} alt="" className="absolute inset-0 h-full w-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />}
+          <ProfileAvatar user={user} photo={applicant.usuarios?.foto_url} name={name} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">

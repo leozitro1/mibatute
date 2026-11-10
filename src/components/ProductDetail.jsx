@@ -75,19 +75,6 @@ function getArticuloId(item) {
   return item?.id || item?.articulo_id || item?.uuid || item?.product_id || null;
 }
 
-function isHttpUrl(v) {
-  const s = String(v || "").trim();
-  return s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:");
-}
-
-async function resolvePhotoUrlMaybe(storageValue) {
-  const raw = String(storageValue || "").trim();
-  if (!raw) return "";
-
-  if (isHttpUrl(raw)) return raw;
-  return "";
-}
-
 function normalizeEstado(v) {
   const s = String(v || "").toLowerCase().trim();
 
@@ -142,6 +129,7 @@ export default function ProductDetail({
   onCategoryClick,
   onSubcategoryClick,
   staffPreview = false,
+  profilePhotoClient,
   onOpenOwner,
   managementContent = null,
   requestContent = null,
@@ -205,8 +193,6 @@ export default function ProductDetail({
   const [calificarLoading, setCalificarLoading] = useState(false);
   const [yaCalifiqueItem, setYaCalifiqueItem] = useState(false);
 
-  const [stableOwnerPhoto, setStableOwnerPhoto] = useState("");
-
   // Report modal
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("Contenido prohibido");
@@ -228,7 +214,8 @@ export default function ProductDetail({
     "";
 
   const ownerPhotoRaw = item?.owner_photo || item?.vendedor?.foto_url || item?.usuarios?.foto_url || "";
-  const canViewProfilePhoto = !!user?.id;
+  const photoViewer = staffPreview && profilePhotoClient ? { id: 'staff' } : user;
+  const canViewProfilePhoto = !!photoViewer?.id && !photoViewer.is_anonymous;
 
   const tipoNorm = isSaleArticle(item) ? "venta" : "donacion";
   const estadoNorm = normalizeEstado(item?.estado ?? item?.status ?? "disponible");
@@ -289,7 +276,6 @@ export default function ProductDetail({
     setOwnerNameResolved("");
 
     setOwnerPhotoResolved("");
-    setStableOwnerPhoto("");
 
     setReportOpen(false);
     setReportReason("Contenido prohibido");
@@ -307,17 +293,13 @@ export default function ProductDetail({
       const nameFromItem = String(ownerNameRaw || "").trim();
       const photoFromItem = canViewProfilePhoto ? String(ownerPhotoRaw || "").trim() : '';
 
-      const photoResolvedFromItem = await resolvePhotoUrlMaybe(photoFromItem);
-      if (!alive) return;
-
-      if (nameFromItem || photoResolvedFromItem) {
+      if (nameFromItem || photoFromItem) {
         setOwnerNameResolved(nameFromItem);
-        setOwnerPhotoResolved(photoResolvedFromItem);
-        if (photoResolvedFromItem) setStableOwnerPhoto(photoResolvedFromItem);
+        setOwnerPhotoResolved(photoFromItem);
       }
 
       if (staffPreview || !ownerId) return;
-      if (nameFromItem && (!canViewProfilePhoto || photoResolvedFromItem)) return;
+      if (nameFromItem && (!canViewProfilePhoto || photoFromItem)) return;
 
       try {
         const { data, error } = await supabase
@@ -331,13 +313,8 @@ export default function ProductDetail({
 
         const nombreDb = String(data?.nombre || "").trim();
         const fotoDb = canViewProfilePhoto ? String(data?.foto_url || "").trim() : '';
-        const fotoDbResolved = await resolvePhotoUrlMaybe(fotoDb);
-
-        if (!alive) return;
-
         setOwnerNameResolved((prev) => prev || nombreDb);
-        setOwnerPhotoResolved((prev) => prev || fotoDbResolved);
-        if (fotoDbResolved) setStableOwnerPhoto(fotoDbResolved);
+        setOwnerPhotoResolved((prev) => prev || fotoDb);
       } catch { /* Retain the owner information supplied with the article. */ }
     })();
 
@@ -679,7 +656,6 @@ export default function ProductDetail({
   const size = articleSize(item?.size_class);
 
   const ownerName = ownerNameResolved ? formatPublicName(ownerNameResolved) : "Vendedor";
-  const ownerPhoto = stableOwnerPhoto || ownerPhotoResolved || "";
 
   const tipoBadgeStyles = tipoNorm === "donacion" ? "bg-blue-100 text-blue-700" : "bg-gray-800 text-white";
 
@@ -953,7 +929,7 @@ export default function ProductDetail({
           {/* VENDEDOR */}
           <div className="product-detail-owner flex items-center gap-4 mb-2 p-4 border border-gray-100 rounded-2xl">
             <div className="product-detail-owner-avatar w-12 h-12 rounded-full overflow-hidden bg-treasure-gold/20 flex items-center justify-center font-black text-treasure-gold shrink-0">
-              <ProfileAvatar user={user} photo={ownerPhoto} name={ownerName} />
+              <ProfileAvatar user={photoViewer} client={profilePhotoClient} photo={ownerPhotoResolved} name={ownerName} />
             </div>
 
             <div className="min-w-0 flex-1">
