@@ -107,3 +107,12 @@ test('sale client uses explicit paid endpoint and preserves quota errors',async(
   }},'a','reserve',true);
   assert.equal(result.balance,2);
 });
+
+test('sale errors keep business instructions and omit PostgreSQL internals', async () => {
+  const unavailable = { code: 'P0001', message: 'Este artículo ya no está disponible.' };
+  const internal = { code: '42P01', message: 'relation "private_example" does not exist', details: 'internal query' };
+  await assert.rejects(transitionSale({ rpc: async () => ({ error: unavailable }) }, 'a', 'reserve'), unavailable);
+  await assert.rejects(transitionSale({ rpc: async () => ({ error: internal }) }, 'a', 'reserve'), {
+    code: '42P01', message: 'No se pudo actualizar la venta. Intenta de nuevo.',
+  });
+});

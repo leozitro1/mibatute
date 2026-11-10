@@ -1,6 +1,7 @@
 // src/supabase/profileService.js
 import { supabase } from "./supabaseClient";
 import { uploadProfilePhoto } from '../imagekit/profilePhotoUpload.js';
+import { databaseActionError } from './databaseActionError.js';
 
 const MAX_PROFILE_IMAGE_MB = 3;
 
@@ -85,7 +86,7 @@ async function tryFetchProfile(userId) {
         .maybeSingle();
 
       if (error) {
-        console.log(`[getProfile] ${a.table}.${a.col} error:`, error);
+        if (import.meta.env.DEV) console.warn('[Perfil] No se pudo consultar', { code: error.code });
         continue;
       }
 
@@ -102,8 +103,8 @@ async function tryFetchProfile(userId) {
 
         return ok(data);
       }
-    } catch (e) {
-      console.log(`[getProfile] ${a.table}.${a.col} catch:`, e);
+    } catch {
+      if (import.meta.env.DEV) console.warn('[Perfil] No se pudo consultar');
     }
   }
 
@@ -135,7 +136,7 @@ export const getProfile = async (userId) => {
   try {
     return await withTimeout(tryFetchProfile(userId), 12000, "getProfile-timeout");
   } catch (e) {
-    return fail(e?.message || "Error inesperado", null);
+    return fail(databaseActionError(e, 'No se pudo cargar tu perfil. Intenta de nuevo.').message);
   }
 };
 
@@ -149,10 +150,6 @@ async function updateThenInsertUsuarios(userId, payload) {
     .maybeSingle();
 
   if (!upsert?.error && upsert?.data) return { data: upsert.data, error: null, stage: "upsert" };
-
-  if (upsert?.error) {
-    console.log("[updateThenInsertUsuarios] upsert warn:", upsert.error);
-  }
 
   const upd = await supabase
     .from("usuarios")
@@ -200,13 +197,7 @@ export const updateProfile = async (userId, profile, file = null) => {
     );
 
     if (res?.error) {
-      console.log("[updateProfile] usuarios error:", res.error, "stage:", res.stage);
-      return fail(res.error.message || "Error guardando perfil", null, {
-        stage: res.stage,
-        code: res.error.code,
-        details: res.error.details,
-        hint: res.error.hint,
-      });
+      return fail(databaseActionError(res.error, 'No se pudo guardar tu perfil. Revisa tus datos e intenta de nuevo.').message);
     }
 
     if (foto_url) {
@@ -214,8 +205,8 @@ export const updateProfile = async (userId, profile, file = null) => {
         await supabase.auth.updateUser({
           data: { foto_url, avatar_url: foto_url, photo_url: foto_url },
         });
-      } catch (e) {
-        console.log("[updateProfile] auth photo metadata warn:", e);
+      } catch {
+        if (import.meta.env.DEV) console.warn('[Perfil] No se pudo actualizar la referencia en la sesión');
       }
     }
 

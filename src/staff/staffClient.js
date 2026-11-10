@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { authFetchFor } from '../supabase/authRequestGuard.js';
+import { databaseActionError } from '../supabase/databaseActionError.js';
 
 export const staffClient = createClient(import.meta.env.VITE_SUPABASE_URL,import.meta.env.VITE_SUPABASE_ANON_KEY,{
   global: { fetch: authFetchFor(import.meta.env.VITE_SUPABASE_URL) },
@@ -8,7 +9,7 @@ export const staffClient = createClient(import.meta.env.VITE_SUPABASE_URL,import
 
 export async function staffRpc(name,args) {
   const { data,error } = await staffClient.rpc(name,args);
-  if (error) throw Object.assign(new Error(error.message || 'No se pudo completar la operacion.'),{ code:error.code });
+  if (error) throw databaseActionError(error, error.code === '42501' ? 'No tienes permiso o tu sesión venció.' : 'No se pudo completar la operación. Intenta de nuevo.');
   return data;
 }
 

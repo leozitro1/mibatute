@@ -11,9 +11,11 @@ test("ImageKit deletion authenticates and rejects another owner's files", async 
   const calls = [];
   let owner = "other-user";
   let missing = false;
+  let failed = false;
   globalThis.fetch = async (url, init = {}) => {
     calls.push({ url: String(url), method: init.method, signal: init.signal });
     if (String(url).includes("/auth/v1/user")) return Response.json({ id: "test-user" });
+    if (failed) throw new Error('Detalle interno de la conexión de prueba');
     if (String(url).endsWith("/details")) return missing ? Response.json({}, { status: 404 }) : Response.json({ filePath: `/mibatute/articulos/${owner}/foto.webp` });
     return new Response(null, { status: 204 });
   };
@@ -42,6 +44,8 @@ test("ImageKit deletion authenticates and rejects another owner's files", async 
     assert.equal((await run({ ...req, body: { fileIds: ['missing', 'missing'] } })).status, 200);
     assert.equal(calls.length - start, 2, 'One auth check and one details call; no duplicate ID or DELETE for absent files');
     assert.equal(calls.filter(c => c.method === 'DELETE').length, 1);
+    failed = true;
+    assert.deepEqual(await run(req), { status: 502, body: { error: 'No se pudo eliminar la imagen. Intenta de nuevo.' } });
     assert.equal((await run({ ...req, body: { fileIds: ["../invalid"] } })).status, 400);
   } finally {
     globalThis.fetch = original;

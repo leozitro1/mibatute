@@ -49,6 +49,7 @@ export default async function handler(req, res) {
     }
     return reply(200, { success: true });
   } catch (err) {
-    return reply(502, { error: err.message });
+    console.warn('[Eliminación de imagen]', err?.name === 'TimeoutError' || err?.name === 'AbortError' ? 'tiempo de espera' : 'fallo del proveedor');
+    return reply(502, { error: 'No se pudo eliminar la imagen. Intenta de nuevo.' });
   }
 }

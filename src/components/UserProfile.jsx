@@ -1456,7 +1456,6 @@ export default function UserProfile({
     setSaving(true);
 
     const res = await updateProfile(user.id, profile, file);
-    console.log("updateProfile(photo) =>", res);
 
     if (res?.success) {
       const newUrl = res?.foto_url || res?.data?.foto_url || "";

@@ -1,3 +1,5 @@
+import { databaseActionError } from './databaseActionError.js';
+
 export async function transitionSale(client, articleId, action, useCredit = false) {
   if (!articleId || !["reserve", "cancel", "deliver", "approve_chat"].includes(action)) {
     throw new Error("Operacion de venta invalida.");
@@ -8,10 +10,7 @@ export async function transitionSale(client, articleId, action, useCredit = fals
     ...(useCredit ? { p_use_credit: true } : {}),
   });
   if (error) {
-    if (error.code === "PGRST202" || error.code === "42883") {
-      throw new Error("Falta habilitar las reservas de ventas en Supabase. Contacta al administrador.");
-    }
-    throw new Error(error.message || "No se pudo actualizar la venta.");
+    throw databaseActionError(error, error.code === '42501' ? 'No tienes permiso para esta acción. Revisa tu sesión y el estado de la venta.' : 'No se pudo actualizar la venta. Intenta de nuevo.');
   }
   if (data?.success === false) {
     throw Object.assign(new Error(data.error || 'No se pudo reservar la compra.'), { code: data.code, quote: data });

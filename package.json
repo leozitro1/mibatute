@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:seguridad": "MIBATUTE_CSP_REVIEW=1 vite",
     "local:setup": "node scripts/local-setup.mjs",
     "local:check": "node scripts/check-local.mjs",
     "local:stop": "npx --yes supabase@2.119.0 stop",
