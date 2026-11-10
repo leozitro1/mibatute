@@ -10,6 +10,12 @@ async function requestProfilePhoto(source, client) {
   const key = JSON.stringify([session.access_token, source]);
   if (!inFlight.has(key)) {
     const request = (async () => {
+      if (source.startsWith('storage-profile:')) {
+        const path = source.slice('storage-profile:'.length);
+        if (!/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif)$/i.test(path)) return '';
+        const { data } = await client.storage.from('profile-photos').createSignedUrl(path, 300);
+        return data?.signedUrl || '';
+      }
       if (useLocalImages && source.startsWith('local-profile:')) {
         const { data } = await client.storage.from('local-profile-photos').createSignedUrl(source.slice(14), 300);
         return data?.signedUrl || '';

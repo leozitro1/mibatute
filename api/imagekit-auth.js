@@ -41,6 +41,9 @@ export default async function handler(req, res) {
   } catch (error) {
     return sendJson(res, 400, { error: error.message });
   }
+  if (policy.scope === 'perfiles') {
+    return sendJson(res, 410, { error: 'Recarga la página para subir la foto de perfil al espacio privado.' });
+  }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${accessToken}` }, fetch: createBudgetFetch() },

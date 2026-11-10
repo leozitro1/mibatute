@@ -86,12 +86,9 @@ test('ImageKit V2 signs only bounded raster uploads in the verified user folder 
     assert.equal(foreign.statusCode, 403);
     assert.equal(foreign.body.token, undefined);
     const profile = await run('Bearer valid-token', { ...metadata, folder: `/mibatute/perfiles/${userId}`, fileType: 'image/jpeg' });
-    assert.equal(profile.body.uploadParameters.checks, '"file.mime" = "image/jpeg" AND "file.size" <= 3145728');
-    assert.equal(profile.body.uploadParameters.isPrivateFile, 'true');
-    const privatePayload = decode(profile.body.token.split('.')[1]);
-    assert.equal(privatePayload.isPrivateFile, 'true', 'The client cannot opt out of privacy without breaking the signature');
-    assert.notEqual(profile.body.token, accepted.body.token);
-    assert.equal(quotaCalls, 2, 'Only valid owned uploads reserve quota');
+    assert.equal(profile.statusCode, 410, 'Old clients cannot put an avatar in ImageKit');
+    assert.equal(profile.body.token, undefined);
+    assert.equal(quotaCalls, 1, 'Only valid owned article uploads reserve quota here');
     for (const limit of ['burst', 'daily', 'profile']) {
       quota = { allowed: false, limit, retryAfter: 600, retryAt: new Date(Date.now() + 600000).toISOString() };
       const limited = await run('Bearer valid-token');

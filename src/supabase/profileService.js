@@ -1,6 +1,6 @@
 // src/supabase/profileService.js
 import { supabase } from "./supabaseClient";
-import { uploadImageKitImage } from "../imagekit/imageService";
+import { uploadProfilePhoto } from '../imagekit/profilePhotoUpload.js';
 
 const MAX_PROFILE_IMAGE_MB = 3;
 
@@ -187,14 +187,7 @@ export const updateProfile = async (userId, profile, file = null) => {
         return fail(`La foto pesa demasiado. Máximo permitido: ${MAX_PROFILE_IMAGE_MB}MB.`);
       }
 
-      const upload = await uploadImageKitImage({
-        file,
-        folder: `/mibatute/perfiles/${userId}`,
-        fileName: `${userId}-${Date.now()}-${file.name || "perfil.jpg"}`,
-      });
-
-      if (!upload.success) return fail(upload.error || "No se pudo subir la foto.");
-      foto_url = upload.thumbnailUrl || upload.url || "";
+      foto_url = await uploadProfilePhoto(file, userId);
     }
 
     // 2) Guardar en usuarios
