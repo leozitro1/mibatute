@@ -2975,6 +2975,9 @@ export default function UserProfile({
                       const hasSolicitudes = !isVenta && (hasPosts || Number(notif?.newSolicitudes || 0) > 0);
                       const canRate = !!currentId && canRateProfileArticle(art);
                       const pendingRating = canRate && !yaCalifique.has(String(currentId));
+                      const isFeatured = featuredOverrides[currentId] ?? art?.is_featured ?? false;
+                      const canFeature = !isEntregado && !isVencido && !hasWinner;
+                      const canPause = !isVencido && ["disponible", "pausado"].includes(estado);
 
                       return (
                         <div
@@ -3061,17 +3064,7 @@ export default function UserProfile({
 
                           <div className="profile-article-side">
                             <span className="profile-article-date profile-publication-date text-[10px] text-gray-400 font-medium">{formatDate(art)}</span>
-                          <fieldset disabled={isUserBlocked} data-profile-actions className={`min-w-0 flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start ${isEntregado ? "[&>button:not([data-rating-action]):not([data-sale-safety])]:opacity-50" : ""}`}>
-                            {canRate && (
-                              <ProfileRatingAction
-                                rated={yaCalifique.has(String(currentId))}
-                                onClick={() => {
-                                  const target = isVenta ? buyerId : ganadorId;
-                                  setCalificarModal({ reviewedId: target, articuloId: currentId, rol: "vendedor" });
-                                  setCalificarEstrellas(0);
-                                }}
-                              />
-                            )}
+                          <fieldset disabled={isUserBlocked} data-profile-actions className="profile-publication-actions" aria-label="Acciones de la publicación">
                             <button
                               type="button"
                               onPointerDown={(e) => e.stopPropagation()}
@@ -3086,7 +3079,7 @@ export default function UserProfile({
                               disabled={isUserBlocked || isLoadingThis || !canOpenMsgs}
                               aria-label="Ver mensajes"
                             >
-                              {(hasUnread || (notif?.unreadChats > 0)) ? (
+                              {canOpenMsgs && (hasUnread || (notif?.unreadChats > 0)) ? (
                                 <span aria-hidden="true" className="profile-unread-dot absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
                               ) : null}
                               {isLoadingThis ? (
@@ -3096,32 +3089,26 @@ export default function UserProfile({
                               )}
                             </button>
 
-                            {isVenta && (hasBuyer || hasChatOwner) && <SaleSafetyButton articleId={currentId} title={titulo} iconOnly disabled={isUserBlocked}
+                            <SaleSafetyButton articleId={currentId} title={titulo} iconOnly disabled={isUserBlocked || !isVenta || !(hasBuyer || hasChatOwner)}
+                              canMarkDelivered={!isReview} onOpenChat={canOpenMsgs && !isLoadingThis ? () => verMensajes(art) : undefined}
                               className="inline-flex items-center justify-center bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
-                              onUpdated={result => { if (result.article) onArticuloReservado?.(result.article); }} />}
+                              onUpdated={result => { if (result.article) onArticuloReservado?.(result.article); }} />
 
-                            {/* Botón ⭐ Destacar: oculto si ya hay ganador o está entregado */}
-                            {!isEntregado && !isVencido && !hasWinner && (() => {
-                              const isFeat = featuredOverrides[currentId] ?? art?.is_featured ?? false;
-                              return (
                                 <button
                                   type="button"
                                   onPointerDown={(e) => e.stopPropagation()}
                                   onMouseDown={(e) => e.stopPropagation()}
                                   onClick={(e) => { e.stopPropagation(); toggleDestacado(art); }}
-                                  disabled={isUserBlocked || isFeat || destacandoId === currentId}
+                                  disabled={isUserBlocked || !canFeature || isFeatured || !!destacandoId}
                                   className={`p-3 rounded-2xl transition ${
-                                    isFeat ? "bg-yellow-100 text-yellow-500 cursor-default" : "bg-gray-100 text-gray-400 hover:bg-yellow-50 hover:text-yellow-500 disabled:opacity-50"
+                                    isFeatured ? "bg-yellow-100 text-yellow-500" : "bg-gray-100 text-gray-600 hover:bg-yellow-50 hover:text-yellow-700"
                                   }`}
-                                  title={isFeat ? "⭐ Publicación destacada" : "Destacar — 1 crédito"}
-                                  aria-label={isFeat ? "Publicación destacada" : "Destacar publicación"}
+                                  title={isFeatured ? "Publicación destacada" : canFeature ? "Destacar — 1 crédito" : "Destacar no disponible"}
+                                  aria-label={isFeatured ? "Publicación destacada" : "Destacar publicación"}
                                 >
-                                  <Star size={16} fill={isFeat ? "currentColor" : "none"} />
+                                  <Star size={16} fill={isFeatured ? "currentColor" : "none"} />
                                 </button>
-                              );
-                            })()}
 
-                            {!isEntregado ? (
                               <button
                                 type="button"
                                 onPointerDown={(e) => e.stopPropagation()}
@@ -3134,15 +3121,13 @@ export default function UserProfile({
                                   abrirEditar(art);
                                 }}
                                 className="bg-gray-100 p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                disabled={isReview || isUserBlocked || isReservado}
+                                disabled={isReview || isUserBlocked || isReservado || isEntregado}
                                 aria-label="Editar"
                                 title={isReservado ? "No se puede editar un artículo reservado" : "Editar"}
                               >
                                 <Pencil size={16} />
                               </button>
-                            ) : null}
 
-                            {!isReservado && !isEntregado && !isVencido && (
                             <button
                               type="button"
                               onPointerDown={(e) => e.stopPropagation()}
@@ -3152,14 +3137,13 @@ export default function UserProfile({
                                 if (isUserBlocked) return alert(blockedUserMsg());
                                 togglePausado(art0);
                               }}
-                              disabled={isUserBlocked || isReview}
+                              disabled={isUserBlocked || !canPause}
                               className={`p-3 rounded-2xl transition disabled:opacity-50 ${isPausado ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-500 hover:text-white" : "bg-gray-100 text-gray-600 hover:bg-yellow-100 hover:text-yellow-700"}`}
                               aria-label={isPausado ? "Reactivar publicación" : "Pausar publicación"}
                               title={isPausado ? "Reactivar publicación" : "Pausar publicación"}
                             >
                               {isPausado ? <Play size={16} /> : <Pause size={16} />}
                             </button>
-                            )}
 
                             {/* Botón eliminar: solo si NO está en cuenta regresiva de reserva */}
                             {(isVenta && (isReservado || isEntregado)) || bloqueadoPorReserva ? (
@@ -3203,7 +3187,7 @@ export default function UserProfile({
                                 )}
                               </button>
                             </div>
-                            ) : isEntregado ? (
+                            ) : (
                             <div className="flex flex-col items-center gap-0.5">
                               <button
                                 type="button"
@@ -3227,7 +3211,15 @@ export default function UserProfile({
                                 )}
                               </button>
                             </div>
-                            ) : null}
+                            )}
+                            {canRate && <ProfileRatingAction
+                              rated={yaCalifique.has(String(currentId))}
+                              onClick={() => {
+                                const target = isVenta ? buyerId : ganadorId;
+                                setCalificarModal({ reviewedId: target, articuloId: currentId, rol: "vendedor" });
+                                setCalificarEstrellas(0);
+                              }}
+                            />}
                           </fieldset>
                             <div className="profile-article-metrics profile-publication-metrics">
                               <span className="profile-publication-created text-gray-400 font-medium" title="Fecha de creación de la publicación">{formatDate(art)}</span>
@@ -3331,17 +3323,8 @@ export default function UserProfile({
                         : false;
 
                       const renderActions = (detail = false) => (
-                          <fieldset onClick={event => event.stopPropagation()} disabled={isUserBlocked} data-profile-actions className={`${detail ? "rescate-detail-actions" : ""} min-w-0 shrink-0 flex items-center gap-2 ${isEntregadoRescate ? "[&>button:not([data-rating-action]):not([data-sale-safety])]:opacity-50" : ""}`}>
-                            {canRate && (
-                              <ProfileRatingAction
-                                rated={yaCalifique.has(String(articuloId))}
-                                onClick={() => {
-                                  if (detail) setPreviewRescateId(null);
-                                  setCalificarModal({ reviewedId: art.owner_id, articuloId, rol: "ganador" });
-                                  setCalificarEstrellas(0);
-                                }}
-                              />
-                            )}
+                          <fieldset onClick={event => event.stopPropagation()} disabled={isUserBlocked} data-profile-actions
+                            aria-label="Acciones del rescate" className={detail ? "rescate-detail-actions" : "profile-rescue-actions"}>
                             <button
                               type="button"
                               onClick={() => {
@@ -3354,7 +3337,7 @@ export default function UserProfile({
                               aria-label="Ver mensajes"
                               title={isEntregadoRescate ? "Ver historial del chat" : canOpenMsgsRescate ? "Abrir chat" : "Chat disponible al confirmar la reserva"}
                             >
-                              {hasUnread ? (
+                              {canOpenMsgsRescate && hasUnread ? (
                                 <span aria-hidden="true" className="profile-unread-dot absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-600 ring-2 ring-white" />
                               ) : null}
                               {cargandoChatRescate === articuloId ? (
@@ -3365,9 +3348,11 @@ export default function UserProfile({
                               {detail && <span>{isEntregadoRescate ? "Historial del chat" : "Abrir chat"}</span>}
                             </button>
 
-                            {isVenta && (r._chatId || isBuyer || hasChatBuyer) && <SaleSafetyButton articleId={articuloId} chatId={r._chatId || null} title={titulo} iconOnly={!detail} disabled={isUserBlocked}
+                            <SaleSafetyButton articleId={articuloId} chatId={r._chatId || null} title={titulo} iconOnly={!detail}
+                              disabled={isUserBlocked || !isVenta || !(r._chatId || isBuyer || hasChatBuyer)}
+                              onOpenChat={canOpenMsgsRescate && !isDeletingMine && cargandoChatRescate !== articuloId ? () => verMensajesRescate(r) : undefined}
                               className="inline-flex items-center justify-center bg-forest-green/10 text-forest-green p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50"
-                              onUpdated={result => { if (result.article) { onArticuloReservado?.(result.article); setRescatesReload(value => value + 1); } }} />}
+                              onUpdated={result => { if (result.article) { onArticuloReservado?.(result.article); setRescatesReload(value => value + 1); } }} />
 
                             <button
                               type="button"
@@ -3388,6 +3373,14 @@ export default function UserProfile({
                               )}
                               {detail && <span>{isVenta && isBuyer && estado === "reservado" ? "Cancelar compra" : isEntregadoRescate || rejectedRescate ? "Quitar del historial" : "Retirar solicitud"}</span>}
                             </button>
+                            {canRate && <ProfileRatingAction
+                              rated={yaCalifique.has(String(articuloId))}
+                              onClick={() => {
+                                if (detail) setPreviewRescateId(null);
+                                setCalificarModal({ reviewedId: art.owner_id, articuloId, rol: "ganador" });
+                                setCalificarEstrellas(0);
+                              }}
+                            />}
                           </fieldset>
                       );
                       return (

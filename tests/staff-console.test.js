@@ -312,14 +312,15 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
       await asUser(admin,'aal1');
       await assert.rejects(db.query("insert into reports(reason,reporter_user_id) values('Spam',$1)",[admin]),/permission/);
       await assert.rejects(rpc('submit_article_report',[id(13),'fake','']),/no es valido/);
-      const articleReport=await rpc('submit_article_report',[id(13),'Spam','Publicacion duplicada de prueba']);
+      const articleReport=await rpc('submit_article_report',[id(13),'Otro','']);
       assert.equal(articleReport.alreadyExists,false);
       const stored=(await db.query('select * from reports where id=$1',[articleReport.id])).rows[0];
       assert.equal(stored.articulo_id,id(13));assert.equal(stored.reporter_user_id,admin);assert.equal(stored.reported_user_id,user);assert.equal(stored.status,'open');
+      assert.equal(stored.details,null);
       assert.equal((await rpc('submit_article_report',[id(13),'Spam','Segundo clic'])).id,articleReport.id);
       assert.equal((await rpc('submit_article_report',[id(13),'Spam','Segundo clic'])).alreadyExists,true);
       await assert.rejects(rpc('staff_report_detail',[articleReport.id,'article']),/autorizado/);
-      const chatReport=await rpc('submit_chat_report',[id(40),'acoso','Esta conversacion tiene contenido de prueba']);
+      const chatReport=await rpc('submit_chat_report',[id(40),'otro','Reporte desde Seguridad de la venta.']);
       assert.equal((await rpc('submit_chat_report',[id(40),'acoso','Otro intento'])).id,chatReport.id);
       await asUser(user,'aal1');
       await assert.rejects(rpc('submit_article_report',[id(13),'Spam','']),/propia/);
@@ -329,8 +330,9 @@ test('staff authorization, MFA sessions, moderation and audit are enforced in Po
       await open(master);
       const articleCase=await rpc('staff_report_detail',[articleReport.id,'article']);assert.equal(articleCase.article_title,'Negociacion de prueba');
       const chatCase=await rpc('staff_report_detail',[chatReport.id,'chat']);assert.equal(chatCase.messages_snapshot.length,20);assert.equal(chatCase.messages_snapshot.at(-1).body,'Mensaje heredado');
+      assert.equal((await db.query('select reported_user_id from chat_reports where id=$1',[chatReport.id])).rows[0].reported_user_id,user);
       assert.ok(!('email' in chatCase)&&!('movil' in chatCase));
-      const queue=await rpc('staff_queue',['reports','Spam',1]);assert.equal(queue.total,1);assert.equal(queue.rows[0].articulo_id,id(13));
+      const queue=await rpc('staff_queue',['reports','Otro',1]);assert.ok(queue.rows.some(row=>row.id===articleReport.id&&row.articulo_id===id(13)));
       await act('chat_report',chatReport.id,'resolved');
       const handled=await rpc('staff_report_detail',[chatReport.id,'chat']);assert.equal(handled.resolution,'Motivo de prueba');assert.ok(handled.handled_at);
       await asUser(admin,'aal1');

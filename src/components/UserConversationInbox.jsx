@@ -82,6 +82,7 @@ export default function UserConversationInbox({userId,isActive,onOpenChat,suspen
     {row.image_url?<img src={row.image_url} alt="" loading="lazy"/>:<span className="user-conversation-placeholder"><MessageCircle size={24}/></span>}
     <span className="user-conversation-copy"><strong title={row.title||'Artículo'}>{row.title||'Artículo'}</strong><span>{row.other_name} · {userChatType(row,userId)?.label||'Conversación'}</span><small>{new Date(row.activity_at).toLocaleDateString('es-CO',{day:'numeric',month:'short',year:'numeric'})}<span className="user-conversation-mobile-state"> · {stateLabel}</span></small></span>
    </button><ChatRetentionNotice compact status={{delete_after:row.deletion_after,held:row.deletion_held,cleanup_enabled:row.cleanup_enabled}} now={retentionNow}/>{row.mode==='venta'&&<SaleSafetyButton articleId={row.article_id} chatId={row.chat_id} title={row.title} iconOnly
+     onOpenChat={!opening ? ()=>open(row) : undefined} canMarkDelivered={!suspended}
      className="user-conversation-security" onUpdated={result=>{
        loaded.current=null;
        if(result.article||result.chat)setData(previous=>({...previous,rows:previous.rows.map(item=>item.chat_id===row.chat_id

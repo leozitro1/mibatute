@@ -488,13 +488,15 @@ export default function ManageArticleModal({
                     {savingWinner ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}
                     {savingWinner ? "Guardando..." : "Marcar entregado"}
                   </button>
-                  <SaleSafetyButton articleId={articuloId} title={titulo} disabled={savingWinner} onUpdated={async result => {
+                  <SaleSafetyButton articleId={articuloId} title={titulo} disabled={savingWinner} canMarkDelivered
+                    onOpenChat={handleOpenChatVenta} onUpdated={async result => {
                     if (result.article) await onCancelSaleSuccess?.(result.article);
                   }} />
                   </div>
                 </div>
               )}
-              {buyerId && !isReservado && <div className="mt-3 flex justify-end"><SaleSafetyButton articleId={articuloId} title={titulo} onUpdated={async result => {
+              {buyerId && !isReservado && <div className="mt-3 flex justify-end"><SaleSafetyButton articleId={articuloId} title={titulo}
+                onOpenChat={isEntregado ? handleOpenChatVenta : undefined} onUpdated={async result => {
                 if (result.article) await onCancelSaleSuccess?.(result.article);
               }} /></div>}
             </div>
