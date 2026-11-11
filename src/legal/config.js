@@ -1,8 +1,8 @@
 import {CONTACT_EMAIL,REGISTRATION_ENABLED} from '../config/availability.js';
 // Public identity must match the confirmed operator; never invent missing details.
-export const LEGAL_VERSION='2026-11-05.1';
-export const LEGAL_DATE='5 de noviembre de 2026';
-export const LEGAL_OPERATOR={name:'Edgar Ortiz D',entityType:'natural',nit:'795715624',address:'Transversal 96B 20D 70',phone:'6015727978',email:CONTACT_EMAIL,dataEmail:CONTACT_EMAIL,emailVerified:false,identityOnRequest:false};
+export const LEGAL_VERSION='2026-11-11.2';
+export const LEGAL_DATE='11 de noviembre de 2026';
+export const LEGAL_OPERATOR={"name":"Edgar Leonardo Ortiz Diaz","entityType":"natural","nit":"79571562-4","address":"Transversal 96B 20D 70, Bogotá, Colombia","phone":"6015727978","email":"info@mibatute.com","dataEmail":"info@mibatute.com","emailVerified":true,"identityOnRequest":false};
 export const LEGAL_ATTENTION={lead:'Equipo de atención de MiBatute',backup:'equipo administrativo autorizado',backupEmail:CONTACT_EMAIL,frequency:'una vez cada día hábil',automaticRefunds:false,automaticErasure:false};
 // Approved as an operational proposal, not yet legally validated or enabled for cleanup.
 export const LEGAL_RETENTION_PROPOSAL={approvedByOperator:true,approvedOn:'2026-10-19',chatMaxDaysAfterCompletion:30,supportDaysAfterClosure:180,dataRequestMonthsAfterFinalResponse:24,cleanupEnabled:false};
