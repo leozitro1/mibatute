@@ -18,12 +18,13 @@ export default function LegalPage({path='/terminos'}){
   <nav className="legal-nav" aria-label="Documentos legales">{LEGAL_LINKS.map(([url,label])=><Link key={url} to={url} aria-current={path===url?'page':undefined}>{label}</Link>)}</nav>
   <LegalOperator/>
   {!LEGAL_READY&&<aside className="legal-notice"><h2>Pendientes para la versión definitiva</h2><ul>
-   <li>Completar ciudad de notificación y confirmar nombre completo y NIT con dígito de verificación del responsable.</li>
-   <li>Acreditar acuerdos de tratamiento con proveedores, países de destino y medidas de seguridad.</li>
-   <li>Validar los plazos propuestos de conservación y comprobar la ejecución de supresiones y gestión de respaldos.</li>
-   <li>Comprobar recepción del correo, atención de PQR y solicitudes de datos, devoluciones e identificación de oferentes.</li>
+   <li>Recibir la copia del acuerdo de ImageKit, confirmar el alcance del acuerdo de Cloudflare y documentar los países de tratamiento, los subencargados y las medidas de seguridad aplicables.</li>
+   <li>Validar los plazos de conservación restantes, completar la supresión de cuentas con registros asociados y definir cómo reaplicar las supresiones tras restaurar respaldos.</li>
    <li>Completar la revisión jurídica y publicar una nueva versión definitiva con aceptación expresa.</li>
-  </ul></aside>}
+  </ul>
+   <p><strong>Preparado para la siguiente etapa.</strong> La identificación ya fue confirmada y queda por publicar. El registro de oferentes y la consulta privada para reclamos ya se probaron en local y quedan por activar.</p>
+   <p><strong>Antes de habilitar recargas pagadas.</strong> Completar la revisión de Wompi y del proceso de devoluciones.</p>
+  </aside>}
   {page.sections.map(([heading,text],i)=><section key={heading}><h2>{i+1}. {heading}</h2><p>{text}</p></section>)}
   {page.retentionMatrix&&<section><h2>Matriz de conservación y eliminación</h2><div className="legal-table-scroll"><table><caption>Plazos máximos por tipo de dato — versión {LEGAL_VERSION}</caption><thead><tr><th scope="col">Tipo de dato</th><th scope="col">Plazo y evento inicial</th><th scope="col">Acción al terminar</th></tr></thead><tbody>{page.retentionMatrix.map(([type,term,action])=><tr key={type}><th scope="row">{type}</th><td>{term}</td><td>{action}</td></tr>)}</tbody></table></div></section>}
   {path==='/cookies'&&<section className="legal-preferences"><h2>Métricas opcionales</h2><p>Estado: <strong>{metrics?'permitidas':'desactivadas'}</strong>. Puedes cambiar tu elección sin afectar la cuenta, las publicaciones o el chat.</p><div><button type="button" onClick={()=>{saveMetricsPreference(false);setMetrics(false);}}>Rechazar métricas opcionales</button><button type="button" onClick={()=>{saveMetricsPreference(true);setMetrics(metricsAllowed(localStorage,navigator));}}>Permitir métricas opcionales</button></div>{(navigator.doNotTrack==='1'||navigator.globalPrivacyControl===true)&&<p>Tu navegador solicita no hacer seguimiento; las métricas permanecen desactivadas.</p>}</section>}
