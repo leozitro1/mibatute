@@ -1,6 +1,7 @@
 import ProfileAvatar from './ProfileAvatar.jsx';
 import useProfilePhoto from '../imagekit/useProfilePhoto.js';
 import AccountVerification, { AccountVerificationBadge } from './AccountVerification.jsx';
+import {ProfileSellerRegistration} from './SellerRegistration.jsx';
 import StyledSelect from "./StyledSelect.jsx";
 import ProfileIdentityPlacement from './ProfileIdentityPlacement.jsx';
 // src/components/UserProfile.jsx
@@ -2655,6 +2656,7 @@ export default function UserProfile({
                 ) : null}
               </form>
               <AccountVerification key={user.id} userId={user.id} disabled={isUserBlocked} refreshKey={notificationTarget?.receiptId}/>
+              <ProfileSellerRegistration key={`seller-${user.id}`} userId={user.id} disabled={isUserBlocked}/>
             </div>
           </section>
         </div>
