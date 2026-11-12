@@ -3,17 +3,17 @@ import {supabase} from '../supabase/supabaseClient.js';
 import {SELLER_NOTICE_VERSION,SELLER_REGISTRATION_PREVIEW} from '../supabase/sellerRegistration.js';
 
 export function ProfileSellerRegistration({userId,disabled}){
-  const [available,setAvailable]=useState(false);
+  const [status,setStatus]=useState(null);
   useEffect(()=>{
     if(!userId||disabled||SELLER_REGISTRATION_PREVIEW)return;
     let active=true;
     supabase.rpc('my_seller_registration_status').then(({data,error})=>{
-      if(active)setAvailable(!error&&data?.enrollmentOpen===true);
-    }).catch(()=>{if(active)setAvailable(false);});
+      if(active)setStatus(error?null:data);
+    }).catch(()=>{if(active)setStatus(null);});
     return ()=>{active=false;};
   },[userId,disabled]);
-  if(disabled||!(available||SELLER_REGISTRATION_PREVIEW))return null;
-  return <SellerRegistration userId={userId} showTransition={SELLER_REGISTRATION_PREVIEW}/>;
+  if(disabled||!(status?.enrollmentOpen||SELLER_REGISTRATION_PREVIEW))return null;
+  return <SellerRegistration userId={userId} showTransition={status?.enabled===true||SELLER_REGISTRATION_PREVIEW}/>;
 }
 
 export default function SellerRegistration({userId,onSaved,onCancel,disabled=false,showTransition=true}){

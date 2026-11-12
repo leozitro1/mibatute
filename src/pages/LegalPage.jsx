@@ -22,7 +22,7 @@ export default function LegalPage({path='/terminos'}){
    <li>Validar los plazos de conservación restantes, completar la supresión de cuentas con registros asociados y definir cómo reaplicar las supresiones tras restaurar respaldos.</li>
    <li>Completar la revisión jurídica y publicar una nueva versión definitiva con aceptación expresa.</li>
   </ul>
-   <p><strong>Preparado para la siguiente etapa.</strong> El registro de oferentes y la consulta privada para reclamos ya se probaron en local y quedan por activar.</p>
+   <p><strong>Registro de oferentes.</strong> El formulario voluntario está disponible en Mi perfil. Las solicitudes de identificación se reciben por soporte. Sigue pendiente completar la transición de los anuncios existentes.</p>
    <p><strong>Antes de habilitar recargas pagadas.</strong> Completar la revisión de Wompi y del proceso de devoluciones.</p>
   </aside>}
   {page.sections.map(([heading,text],i)=><section key={heading}><h2>{i+1}. {heading}</h2><p>{text}</p></section>)}

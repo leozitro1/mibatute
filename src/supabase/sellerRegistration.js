@@ -11,10 +11,11 @@ export const SELLER_REGISTRATION_PREVIEW=import.meta.env?.DEV===true
   &&import.meta.env.VITE_SELLER_REGISTRATION_PREVIEW==='true'
   &&import.meta.env.VITE_LOCAL_SERVICES==='true'&&hasLocalDatabase(import.meta.env.VITE_SUPABASE_URL);
 
-export async function checkSellerRegistration(client,mode,enabled=SELLER_REGISTRATION_PREVIEW){
+export async function checkSellerRegistration(client,mode,enabled=true){
   if(!enabled||mode!=='venta')return null;
   try{
     const {data,error}=await client.rpc('my_seller_registration_status');
+    if(!error&&data?.enabled===false)return null;
     if(!error&&data?.enabled===true&&typeof data.ready==='boolean'){
       return data.ready?null:{success:false,code:SELLER_REGISTRATION_REQUIRED,error:SELLER_REGISTRATION_MESSAGE};
     }

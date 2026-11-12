@@ -4,11 +4,12 @@ import { supabase } from '../supabase/supabaseClient';
 import { SUPPORT_NOTICE_EVENT } from './supportSignals.js';
 import './SupportInbox.css';
 import { AttentionDot } from '../staff/StaffAttention.jsx';
+import StaffSellerClaim from '../staff/StaffSellerClaim.jsx';
 
 const date=value=>new Date(value).toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bogota'});
 const newList={rows:[],total:0,page:1,pages:1,next_thread_at:null};
 
-export default function SupportInbox({client=supabase,isStaff=false,managedRealtime=false,isActive=true,userId,query='',revision=0,targetThreadId=null,targetVersion=null,onSeen,onRemoved,onActivity,onAccessExpired,heading}) {
+export default function SupportInbox({client=supabase,isStaff=false,managedRealtime=false,isActive=true,userId,query='',revision=0,targetThreadId=null,targetVersion=null,onSeen,onRemoved,onActivity,onAccessExpired,canReviewSellerClaim=false,onReverifySellerClaim,heading}) {
   const [caseStatus,setCaseStatus]=useState('all');
   const [list,setList]=useState(newList),[pageSelection,setPageSelection]=useState({query,status:'all',page:1}),[refresh,setRefresh]=useState(0),[threadRefresh,setThreadRefresh]=useState(0);
   const status=isStaff?caseStatus:'all';
@@ -157,6 +158,8 @@ export default function SupportInbox({client=supabase,isStaff=false,managedRealt
         </article>)}
       </div>
       {thread?.user_hidden_at&&isStaff&&<p className="support-hint">Eliminada por el usuario. El historial completo se conserva para administración.</p>}
+      {isStaff&&canReviewSellerClaim&&isActive&&thread?.id===activeId&&!thread.closed_at&&!thread.user_hidden_at&&
+        <StaffSellerClaim key={`${userId}-${thread.id}`} thread={thread} rpc={rpc} onReverify={onReverifySellerClaim}/>}
       {thread&&!thread.user_hidden_at&&<form className="support-compose" onSubmit={send}>
         <label htmlFor={`support-reply-${userId}`}>Responder</label><textarea id={`support-reply-${userId}`} rows={3} maxLength={500} required value={reply} onChange={event=>{setReply(event.target.value);drafts.current.set(activeId,event.target.value);}} disabled={sending} />
         <div className="support-actions"><span className="support-hint">{reply.length}/500</span><button type="submit" className="support-button support-button--primary" disabled={sending||!reply.trim()||reply.length>500}><Send size={16} />{sending?'Enviando…':'Responder'}</button></div>

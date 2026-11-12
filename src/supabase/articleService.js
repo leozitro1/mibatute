@@ -2,6 +2,7 @@
 import { supabase } from "./supabaseClient";
 import { savePhotoOrder } from './photoOrder.js';
 import { commitPublication } from './publicationCredits.js';
+import {checkSellerRegistration} from './sellerRegistration.js';
 import { uploadImageKitImage } from "../imagekit/imageService";
 import { useLocalImages, removeLocalImages } from '../imagekit/localImages';
 import { queryArticlesWithCondition } from "./articleQuery";
@@ -336,6 +337,8 @@ export async function publishArticle({ formData, files, user, useCredit = false,
   if (!payload.location_reference) return {success:false,error:"Escribe el barrio o una referencia general de ubicación."};
   if (payload.location_reference.length > 100) return {success:false,error:"La referencia de ubicación debe tener máximo 100 caracteres."};
   if (!requestId) return { success: false, error: "Falta el identificador de publicacion. Reabre el formulario." };
+  const registration=await checkSellerRegistration(supabase,mode);
+  if(registration)return registration;
   // Upload first: failed images never create a publication or consume a credit.
   // The final RPC stores primary images and the debit in one database transaction.
   const uploaded = [];

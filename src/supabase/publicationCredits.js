@@ -1,3 +1,5 @@
+import {SELLER_REGISTRATION_REQUIRED} from './sellerRegistration.js';
+
 export async function publicationStatus(client) {
   const { data, error } = await client.rpc('sale_publication_status');
   if (error) throw new Error(error.code === 'PGRST202' ? 'Falta habilitar los limites de publicaciones en la base de datos.' : error.message);
@@ -9,7 +11,7 @@ export async function commitPublication(client, { article, requestId, useCredit 
     p_article: article, p_request_id: requestId, p_use_credit: useCredit,
     ...(feature?{p_feature:true}:{}),
   });
-  if (error) return { success: false, error: error.code === 'PGRST202'
+  if (error) return { success: false, ...(error.code===SELLER_REGISTRATION_REQUIRED?{code:error.code}:{}), error: error.code === 'PGRST202'
     ? 'Falta habilitar los limites de publicaciones en la base de datos.' : error.message };
   if (!data || typeof data.success !== 'boolean') return { success: false, error: 'No se pudo confirmar la publicacion. Reintenta sin cambiar el formulario.' };
   return data;

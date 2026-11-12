@@ -19,6 +19,8 @@ import { notifyCreditBalance } from "./creditBalance.js";
 import { photoFitZoom, photoCropDrawRect } from "./photoCropGeometry.js";
 import {validatePublicationText,locationReferenceIssue} from './articleValidation.js';
 import {cachedPublicationRules} from '../supabase/publicationRules.js';
+import SellerRegistration from './SellerRegistration.jsx';
+import {checkSellerRegistration,SELLER_REGISTRATION_REQUIRED} from '../supabase/sellerRegistration.js';
 
 // ✅ regla social: tope máximo para ventas
 const MAX_VENTA_COP = 500000;
@@ -118,15 +120,28 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
   const [step,setStep] = useState(0);
   const [selectedMode,setSelectedMode] = useState(null);
   const [stepError,setStepError] = useState('');
+  const [sellerFormOpen,setSellerFormOpen]=useState(false);
   const wizardForm = useRef(null), stepHeading = useRef(null);
   useEffect(()=>{
-    if(!isOpen)return;
+    if(!isOpen||sellerFormOpen)return;
     wizardForm.current?.scrollTo({top:0});
     stepHeading.current?.focus({preventScroll:true});
-  },[step,isOpen]);
+  },[step,isOpen,sellerFormOpen]);
   const stepProblem = index => publicationStepError(index,{selectedMode,formData,files,categories:CATEGORY_TREE,locations:LOCATIONS,rules:cachedPublicationRules()});
   const goToStep = next => {setStepError('');setStep(next);};
-  const advance = () => {const problem=stepProblem(step);if(problem){setStepError(problem);return;}goToStep(step+1);};
+  const advance = async () => {
+    const problem=stepProblem(step);
+    if(problem){setStepError(problem);return;}
+    if(step===0&&selectedMode==='venta'){
+      publicationSubmitLock.current=true;setIsSubmitting(true);
+      try{
+        const registration=await checkSellerRegistration(supabase,selectedMode);
+        if(registration?.code===SELLER_REGISTRATION_REQUIRED){setSellerFormOpen(true);return;}
+        if(registration){setStepError(registration.error);return;}
+      }finally{publicationSubmitLock.current=false;setIsSubmitting(false);}
+    }
+    goToStep(step+1);
+  };
 
   // ✅ Fotos finales (YA recortadas 800x800 webp)
   const [files, setFiles] = useState([]); // File[]
@@ -261,7 +276,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
   }, [isOpen, formData.category, CATEGORY_TREE]);
 
   const resetForm = () => {
-    setStep(0);setSelectedMode(null);setStepError('');setFeatureOnPublish(false);
+    setStep(0);setSelectedMode(null);setStepError('');setFeatureOnPublish(false);setSellerFormOpen(false);
     const cat = defaultCategory;
     const sub = getSubsForCategory(CATEGORY_TREE, cat)[0] || "";
 
@@ -394,7 +409,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (publicationSubmitLock.current || isSubmitting || isCropping || cropOpen) return;
-    if(step<PUBLICATION_STEPS.length-1){advance();return;}
+    if(step<PUBLICATION_STEPS.length-1){await advance();return;}
     for(let index=0;index<4;index++){
       const problem=stepProblem(index);
       if(problem){setStep(index);setStepError(problem);return;}
@@ -498,6 +513,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
       });
 
       if (!res?.success) {
+        if(res?.code===SELLER_REGISTRATION_REQUIRED){setSellerFormOpen(true);return;}
         if (['PUBLICATION_CREDIT_REQUIRED','INSUFFICIENT_CREDITS'].includes(res?.code)) {
           setPublicationLimit(res); setUsePublicationCredit(false);
         }
@@ -530,20 +546,21 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
             <button
               onClick={handleClose}
               aria-label="Cerrar publicación nueva" className="site-icon-close inline-flex items-center justify-center p-1 hover:bg-gray-200 rounded-full transition"
-              disabled={isSubmitting || isCropping}
+              disabled={isSubmitting || isCropping || sellerFormOpen}
               type="button"
             >
               <X size={20} />
             </button>
           </div>
 
-          <form ref={wizardForm} noValidate className="publish-wizard-form p-8 space-y-4 max-h-[80vh] overflow-y-auto" onSubmit={handleSubmit}>
+          {sellerFormOpen?<div className="max-h-[75vh] overflow-y-auto"><SellerRegistration key={user?.id} userId={user?.id}
+            onCancel={()=>setSellerFormOpen(false)} onSaved={()=>{setSellerFormOpen(false);goToStep(step===0?1:step);}}/></div>:<form ref={wizardForm} noValidate className="publish-wizard-form p-8 space-y-4 max-h-[80vh] overflow-y-auto" onSubmit={handleSubmit}>
             <ol className="publish-progress" aria-label="Pasos de publicación">{PUBLICATION_STEPS.map((item,index)=><li key={item.label} aria-current={step===index?'step':undefined} data-complete={step>index}><span>{step>index?<Check size={13} aria-hidden="true"/>:index+1}</span><small>{item.label}</small></li>)}</ol>
             <div className="publish-step-heading"><p>Paso {step+1} de {PUBLICATION_STEPS.length}</p><h3 ref={stepHeading} tabIndex={-1}>{PUBLICATION_STEPS[step].title}</h3><p>{PUBLICATION_STEPS[step].hint}</p></div>
             {stepError&&<p className="publish-step-error" role="alert">{stepError}</p>}
             {step===0&&<div className="publish-mode-options" role="group" aria-label="Tipo de publicación">
-              <button type="button" aria-pressed={selectedMode==='venta'} onClick={()=>{setSelectedMode('venta');setFormData(previous=>({...previous,mode:'venta'}));setUsePublicationCredit(false);setStepError('');}}><Tag size={25} aria-hidden="true"/><strong>Venta</strong><span>Vende lo que ya no usas por un máximo de <b>$500.000 COP</b> por artículo.</span><small>3 ventas activas gratis, o 4 si tienes una donación disponible. Las adicionales requieren 1 crédito.</small><em>{selectedMode==='venta'?'Seleccionada':'Elegir venta'}</em></button>
-              <button type="button" aria-pressed={selectedMode==='donacion'} onClick={()=>{setSelectedMode('donacion');setFormData(previous=>({...previous,mode:'donacion',price:''}));setUsePublicationCredit(false);setStepError('');}}><Gift size={25} aria-hidden="true"/><strong>Donación</strong><span>No botes lo que ya no usas: materiales sobrantes, electrodomésticos o herramientas dañadas, papel y más.</span><small>Aclara su estado: alguien puede repararlo o aprovecharlo. Publicar es gratis.</small><em>{selectedMode==='donacion'?'Seleccionada':'Elegir donación'}</em></button>
+              <button type="button" disabled={isSubmitting} aria-pressed={selectedMode==='venta'} onClick={()=>{setSelectedMode('venta');setFormData(previous=>({...previous,mode:'venta'}));setUsePublicationCredit(false);setStepError('');}}><Tag size={25} aria-hidden="true"/><strong>Venta</strong><span>Vende lo que ya no usas por un máximo de <b>$500.000 COP</b> por artículo.</span><small>3 ventas activas gratis, o 4 si tienes una donación disponible. Las adicionales requieren 1 crédito.</small><em>{selectedMode==='venta'?'Seleccionada':'Elegir venta'}</em></button>
+              <button type="button" disabled={isSubmitting} aria-pressed={selectedMode==='donacion'} onClick={()=>{setSelectedMode('donacion');setFormData(previous=>({...previous,mode:'donacion',price:''}));setUsePublicationCredit(false);setStepError('');}}><Gift size={25} aria-hidden="true"/><strong>Donación</strong><span>No botes lo que ya no usas: materiales sobrantes, electrodomésticos o herramientas dañadas, papel y más.</span><small>Aclara su estado: alguien puede repararlo o aprovecharlo. Publicar es gratis.</small><em>{selectedMode==='donacion'?'Seleccionada':'Elegir donación'}</em></button>
             </div>}
             {step===1&&<>
             {/* FOTOS */}
@@ -619,7 +636,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
               {step>0&&<button type="button" className="publish-wizard-back" disabled={isSubmitting||isCropping||cropOpen} onClick={()=>goToStep(step-1)}><ArrowLeft size={16} aria-hidden="true"/>Atrás</button>}
               <button type="submit" className="publish-wizard-next bg-forest-green" disabled={isSubmitting||isCropping||cropOpen||(step===4&&(!publicationLimit||!!limitError||!quote.sufficient||(selectedMode==='venta'&&publicationLimit.requiresCredit&&(!usePublicationCredit||publicationLimit.balance<1))))}>{step===4?(isSubmitting?'Publicando…':featureOnPublish?`Publicar y destacar · ${quote.total} ${quote.total===1?'crédito':'créditos'}`:quote.publicationCost?'Publicar con 1 crédito':'Publicar gratis'):<>Continuar<ArrowRight size={16} aria-hidden="true"/></>}</button>
             </div>
-          </form>
+          </form>}
         </div>
       </div>
 
