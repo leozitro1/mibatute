@@ -102,3 +102,26 @@
   .product-detail:is([data-owner-management="true"],[data-request-detail="true"]) .profile-delivery-button { min-height: 44px; border-radius: 8px; }
   .product-detail:is([data-owner-management="true"],[data-request-detail="true"]) .product-detail-close { top: 14px; right: 14px; border: 1px solid #e1e7dc; border-radius: 10px; background: #fff; box-shadow: none; }
 }
+
+.catalog-article-related { margin-top: 24px; }
+.catalog-article-related h2 { margin-bottom: 10px; font-size: 19px; font-weight: 700; }
+.catalog-article-related > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: 12px;
+}
+.catalog-article-related a {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 8px;
+  border: 1px solid var(--catalog-line);
+  border-radius: 12px;
+  background: white;
+  overflow-wrap: anywhere;
+}
+.catalog-article-related a:hover { border-color: var(--catalog-green); }
+.catalog-article-related img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; }
+.catalog-article-related strong { color: var(--catalog-green); }
+.catalog-article-related span { font-size: 14px; }
+.catalog-article-related small { color: var(--catalog-green); }

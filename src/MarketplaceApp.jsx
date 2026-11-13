@@ -1,15 +1,16 @@
 // src/App.jsx
 import { lazy, Suspense, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
-import { Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown, LayoutGrid, MapPin, SlidersHorizontal, Gift, Tag, Star, BadgeCheck } from "lucide-react";
-import { sharedArticleId } from "./components/articleShare.js";
+import { Clock, Heart, ImageOff, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown, LayoutGrid, MapPin, SlidersHorizontal, Gift, Tag, Star, BadgeCheck } from "lucide-react";
+import { articleShareUrl, sharedArticleId } from "./components/articleShare.js";
 import Navbar from "./components/Navbar";
 import Footer from './components/Footer.jsx';
 import InstallSuggestion from './components/InstallSuggestion.jsx';
 import LegalConsentDialog from './components/LegalConsentDialog.jsx';
 import { notifyCreditBalance } from './components/creditBalance.js';
 import FilterSection from "./components/FilterSection";
-import ProductCard from "./components/ProductCard";
+import ProductCard, { pickImageSrc } from "./components/ProductCard";
+import { cardImageUrl } from "./imagekit/imageUrls.js";
 import usePublicationClock from './components/usePublicationClock.js';
 import useDetailScroll from './components/useDetailScroll.js';
 import useMobileApp from './components/useMobileApp.js';
@@ -80,6 +81,18 @@ const NOTIFICATION_POST_LIMIT = 80;
 const NOTIFICATION_MESSAGE_LIMIT = 100;
 const NOTIFICATION_REFRESH_MS = 60 * 1000;
 const HOME_REFRESH_MS = 10 * 60 * 1000;
+const CATALOG_SAVES_KEY = 'mibatute-catalog-saves-v1';
+
+function readCatalogSaves() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CATALOG_SAVES_KEY));
+    if (Array.isArray(saved?.favorites) && Array.isArray(saved?.searches)) return saved;
+  } catch {
+    // Storage can be disabled in the browser.
+  }
+  return { favorites: [], searches: [] };
+}
+
 const PUBLICATION_TYPES = [
   { key: "todo", label: "Todas", icon: <LayoutGrid size={16} aria-hidden="true" /> },
   { key: "donacion", label: "Donaciones", icon: <Gift size={16} aria-hidden="true" /> },
@@ -196,6 +209,22 @@ export default function MarketplaceApp() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   const [currentView, setCurrentView] = useState("home"); // home | profile | how-it-works
+  const [showCatalogProposal, setShowCatalogProposal] = useState(() => !import.meta.env.DEV
+    || new URLSearchParams(window.location.search).get('design') === 'catalogo');
+  const catalogProposal = currentView === 'home' && showCatalogProposal;
+  const [catalogSaves, setCatalogSaves] = useState(readCatalogSaves);
+  const [catalogStorageError, setCatalogStorageError] = useState(false);
+
+  function updateCatalogSaves(next) {
+    setCatalogSaves(next);
+    try {
+      localStorage.setItem(CATALOG_SAVES_KEY, JSON.stringify(next));
+      setCatalogStorageError(false);
+    } catch {
+      setCatalogStorageError(true);
+    }
+  }
+
   const mobileViewHistory = useRef(['home']);
   useEffect(() => {
     const history = mobileViewHistory.current;
@@ -221,6 +250,10 @@ export default function MarketplaceApp() {
     return () => clearTimeout(timer);
   }, [viewedArticleId]);
   useDetailScroll(!!selectedProduct);
+
+  function openCatalogArticle(item) {
+    if (!isUserBlocked) setSelectedProduct(item);
+  }
 
   const [searchTerm, setSearchTerm] = useState("");
   const [searchMode, setSearchMode] = useState("related");
@@ -1702,9 +1735,304 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   const inboxCategoryCounts=useMemo(()=>profileInboxBadges(historyUidRef.current===currentUser?.id?notifications:[],currentUser?.id),[notifications,currentUser?.id]);
 
+  const savedSearchFilters = {
+    term: searchTerm.trim(), city: selectedCity, locality: selectedLocality,
+    category: selectedCategory, subcategory: selectedSubcategory, kind: quickTipo,
+    onlyVerified, minCondition, searchMode, sort: sortOrder,
+  };
+  const savedSearchId = JSON.stringify(savedSearchFilters);
+  const loadedPublicItems = catalogProposal ? products.filter(item =>
+    (homePage.ids.includes(item.id) || homePage.featuredIds.includes(item.id))
+    && normEstado(item.estado || item.status) === 'disponible'
+    && ![item.review_status, item.approval_status, item.moderation_status, item.revision_status]
+      .some(status => ['pending', 'en_revision', 'rejected', 'rechazado'].includes(status))
+    && !articleOwnerMarketPaused(item, currentUser, publicationNow)
+    && !isPublicationExpired(item, publicationNow)
+  ) : [];
+  function openSavedSearch(search) {
+    setSearchTerm(search.term);
+    setSelectedCity(search.city);
+    setSelectedLocality(search.locality);
+    setSelectedCategory(search.category);
+    setSelectedSubcategory(search.subcategory);
+    setExpandedCategory(null);
+    setQuickTipo(search.kind);
+    setOnlyVerified(search.onlyVerified);
+    setMinCondition(search.minCondition);
+    setConditionDraft(search.minCondition);
+    setSearchMode(search.searchMode);
+    setSortOrder(search.sort);
+  }
+
+  function countSavedSearchMatches(search) {
+    const normalize = value => normStr(value).normalize('NFD').replace(/\p{M}/gu, '');
+    const term = normalize(search.term);
+    return loadedPublicItems.filter(item => {
+      const title = normalize(item.title || item.titulo);
+      const text = search.searchMode === 'specific' ? title
+        : [title, normalize(item.description || item.descripcion), normalize(getCategoria(item))].join(' ');
+      return Date.parse(item.published_at || item.created_at) > search.savedAt
+        && (item.city || item.ciudad) === search.city
+        && (search.locality === 'Todas' || (item.locality || item.localidad_es) === search.locality)
+        && (search.category === 'Todo' || normStr(getCategoria(item)) === normStr(search.category))
+        && (!search.subcategory || normStr(getSubcategoria(item)) === normStr(search.subcategory))
+        && (search.kind === 'todo' || (search.kind === 'destacado' ? item.isFeatured : normTipo(item.mode || item.tipo) === search.kind))
+        && (!search.onlyVerified || item.owner_public?.account_verified === true)
+        && (!search.minCondition || Number(item.estado_producto) >= search.minCondition)
+        && (!term || term.split(/\s+/).every(word => text.includes(word)));
+    }).length;
+  }
+
+  const articleSuggestions = useMemo(() => {
+    if (!catalogProposal || !selectedProduct || isUserBlocked) return [];
+    const category = normStr(getCategoria(selectedProduct));
+    const city = selectedProduct.city || selectedProduct.ciudad;
+    const candidates = loadedPublicItems.filter(item => item.id !== selectedProduct.id
+      && (item.city || item.ciudad) === city && !isInReview(item));
+    const featured = candidates.filter(item => item.isFeatured && category
+      && normStr(getCategoria(item)) === category).slice(0, 2);
+    const other = candidates.filter(item => !featured.some(pick => pick.id === item.id));
+    // A stable order for each article, so a render does not shuffle the cards.
+    const score = item => {
+      let hash = 0;
+      for (const character of `${selectedProduct.id}:${item.id}`) hash = Math.imul(31, hash) + character.charCodeAt(0) | 0;
+      return hash;
+    };
+    other.sort((left, right) => score(left) - score(right));
+    return [
+      { title: 'Destacados de la categoría', items: featured },
+      { title: 'Otros hallazgos en la ciudad', items: other.slice(0, 2) },
+    ].filter(group => group.items.length);
+  }, [catalogProposal, isUserBlocked, selectedProduct, loadedPublicItems]);
+
   if (loading) {
     return <div className="h-screen flex items-center justify-center font-black uppercase">Cargando MiBatute...</div>;
   }
+
+  const favoritesMenu = catalogProposal && (
+    <details className="catalog-saves catalog-saves--favorites">
+      <summary aria-label="Favoritos" title="Favoritos">
+        <Heart size={19} aria-hidden="true" />
+        {catalogSaves.favorites.length > 0 && <span>{catalogSaves.favorites.length}</span>}
+      </summary>
+      <section className="catalog-saves-panel">
+        <h2>Favoritos</h2>
+        {catalogSaves.favorites.length === 0 && <p>Guarda artículos con el corazón.</p>}
+        <ul>
+          {catalogSaves.favorites.map(favorite => {
+            const article = loadedPublicItems.find(item => String(getArticuloId(item)) === String(favorite.id));
+            const loadedImage = article?.image_url || article?.imagen_url_principal || article?.imagenes || article?.imagenes_db;
+            const image = favorite.image || (loadedImage ? cardImageUrl(pickImageSrc(loadedImage)) : null);
+            const location = favorite.location || [article?.city || article?.ciudad, article?.locality || article?.localidad_es]
+              .filter(Boolean).join(', ');
+            const content = (
+              <>
+                <span className="catalog-saved-thumbnail" aria-hidden="true">
+                  <ImageOff size={20} />
+                  {image && <img key={image} src={image} alt="" width="56" height="56" loading="lazy"
+                    onError={event => { event.currentTarget.hidden = true; }} />}
+                </span>
+                <span className="catalog-saved-item-copy">
+                  <strong>{favorite.title}</strong>
+                  {location && <small><MapPin size={13} aria-hidden="true" />{location}</small>}
+                </span>
+              </>
+            );
+            return (
+              <li key={favorite.id} className="catalog-saved-item">
+                {isUserBlocked ? <span className="catalog-saved-item-link">{content}</span>
+                  : <a className="catalog-saved-item-link" href={`/?articulo=${encodeURIComponent(favorite.id)}&design=catalogo`}>{content}</a>}
+                <button type="button" className="catalog-saved-remove" title="Quitar de favoritos"
+                  aria-label={`Quitar de favoritos: ${favorite.title}`}
+                  onClick={() => updateCatalogSaves({ ...catalogSaves,
+                    favorites: catalogSaves.favorites.filter(item => item.id !== favorite.id) })}>
+                  <Trash2 size={17} aria-hidden="true" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {catalogStorageError && <p role="status">El navegador no permitió conservar los cambios al cerrar la página.</p>}
+      </section>
+    </details>
+  );
+
+  const savedSearchMenu = catalogProposal && searchTerm.trim() !== "" && (
+    <details className="catalog-saves catalog-saves--search">
+      <summary aria-label="Búsquedas guardadas" title="Búsquedas guardadas">
+        <Clock size={15} aria-hidden="true" />
+      </summary>
+      <section className="catalog-saves-panel">
+        <h2>Búsquedas guardadas</h2>
+        <p className="catalog-saved-search-hint">Verás coincidencias nuevas mientras exploras el catálogo.</p>
+        <button type="button" className="catalog-save-search" disabled={catalogSaves.searches.some(search => search.id === savedSearchId)}
+          onClick={() => updateCatalogSaves({ ...catalogSaves,
+            searches: [...catalogSaves.searches, { ...savedSearchFilters, id: savedSearchId, savedAt: Date.now() }] })}>
+          Guardar búsqueda actual
+        </button>
+        <ul className="catalog-saved-search-list">
+          {catalogSaves.searches.map(search => {
+            const matches = countSavedSearchMatches(search);
+            const filters = [search.category !== 'Todo' && search.category, search.subcategory, search.city,
+              search.locality !== 'Todas' && search.locality, PUBLICATION_TYPES.find(type => type.key === search.kind)?.label]
+              .filter(Boolean).join(' · ');
+            return (
+              <li key={search.id} className="catalog-saved-item">
+                <button type="button" className="catalog-saved-item-link" onClick={event => {
+                  openSavedSearch(search);
+                  const disclosure = event.currentTarget.closest('details');
+                  disclosure.open = false;
+                  disclosure.querySelector('summary').focus();
+                }}>
+                  <span className="catalog-saved-item-copy">
+                    <strong>{search.term || 'Todos los artículos'}</strong>
+                    <small>{filters}</small>
+                    {matches > 0 && <small className="catalog-search-matches" role="status">
+                      {matches} {matches === 1 ? 'coincidencia nueva' : 'coincidencias nuevas'}
+                    </small>}
+                  </span>
+                </button>
+                <button type="button" className="catalog-saved-remove" title="Quitar búsqueda"
+                  aria-label={`Quitar búsqueda: ${search.term || filters}`}
+                  onClick={() => updateCatalogSaves({ ...catalogSaves,
+                    searches: catalogSaves.searches.filter(item => item.id !== search.id) })}>
+                  <Trash2 size={17} aria-hidden="true" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        {catalogStorageError && <p role="status">El navegador no permitió conservar los cambios al cerrar la página.</p>}
+      </section>
+    </details>
+  );
+
+  const showHomeBanner = searchTerm.trim() === "" && (!mobileApp || (
+    selectedCategory === 'Todo' && quickTipo === 'todo' && selectedLocality === 'Todas' && !minCondition && !onlyVerified
+  ));
+  const homeBanner = showHomeBanner && (
+    <div className="rounded-3xl">
+      <HeroBanner
+        sponsorFilters={{ city: selectedCity, locality: selectedLocality, category: selectedCategory }}
+        onLearnMore={() => setCurrentView("how-it-works")}
+        onExplore={() => listingRef.current?.scrollIntoView({
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+          block: 'start',
+        })}
+      />
+    </div>
+  );
+
+  function catalogFavoriteButton(item) {
+    const id = getArticuloId(item);
+    if (!catalogProposal || isUserBlocked || !articleShareUrl(id, window.location.href)) return null;
+    const title = item.title || item.titulo || 'Artículo';
+    const isFavorite = catalogSaves.favorites.some(favorite => favorite.id === id);
+    const image = item.image_url || item.imagen_url_principal || item.imagenes || item.imagenes_db;
+    const location = [item.city || item.ciudad, item.locality || item.localidad_es].filter(Boolean).join(', ');
+    return (
+      <button type="button" className="catalog-favorite" aria-pressed={isFavorite}
+        aria-label={`${isFavorite ? 'Quitar de favoritos' : 'Guardar en favoritos'}: ${title}`}
+        onClick={() => updateCatalogSaves({ ...catalogSaves, favorites: isFavorite
+          ? catalogSaves.favorites.filter(favorite => favorite.id !== id)
+          : [...catalogSaves.favorites, { id, title, location, image: image ? cardImageUrl(pickImageSrc(image)) : null }] })}>
+        <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} aria-hidden="true" />
+      </button>
+    );
+  }
+
+  const catalogPagination = !homeError && totalPages > 1 && (
+    <nav aria-label="Paginación de publicaciones" className="mt-8 flex flex-wrap items-center justify-center gap-3">
+      <button type="button" title="Página anterior" aria-label="Página anterior"
+        disabled={homeBusy || homePage.page <= 1}
+        onClick={() => changeHomePage(homePage.page - 1)}
+        className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-forest-green disabled:opacity-40 disabled:cursor-not-allowed">
+        <ChevronLeft size={20} />
+      </button>
+      <span aria-live="polite" className="text-sm font-semibold text-gray-600">Página {homePage.page} de {totalPages}</span>
+      <button type="button" title="Página siguiente" aria-label="Página siguiente"
+        disabled={homeBusy || homePage.page >= totalPages}
+        onClick={() => changeHomePage(homePage.page + 1)}
+        className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-forest-green disabled:opacity-40 disabled:cursor-not-allowed">
+        <ChevronRight size={20} />
+      </button>
+    </nav>
+  );
+
+  const articleRecommendations = articleSuggestions.length > 0 && (
+    <section className="catalog-article-related" aria-labelledby="catalog-related-heading">
+      <h2 id="catalog-related-heading">Sigue explorando</h2>
+      <div>
+        {articleSuggestions.flatMap(group => group.items).map(item => {
+          const title = item.title || item.titulo || 'Artículo';
+          const url = articleShareUrl(item.id, window.location.href);
+          const image = item.image_url || item.imagen_url_principal || item.imagenes || item.imagenes_db;
+          return (
+            <a key={item.id} href={url ? `${url}&design=catalogo` : undefined} onClick={event => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              openCatalogArticle(item);
+            }}>
+              <img src={cardImageUrl(pickImageSrc(image))} alt="" loading="lazy" />
+              <strong>{normTipo(item.mode || item.tipo) === 'venta'
+                ? Number(item.price || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+                : 'Gratis'}</strong>
+              <span>{title}</span>
+              {item.isFeatured && <small>Destacado</small>}
+            </a>
+          );
+        })}
+      </div>
+    </section>
+  );
+
+  const productDetail = (
+    <ProductDetail
+      item={selectedProduct}
+      recommendations={articleRecommendations}
+      favoriteAction={catalogFavoriteButton(selectedProduct)}
+      isOpen={!!selectedProduct}
+      onClose={() => setSelectedProduct(null)}
+      user={currentUser}
+      onSolicitar={async (item, message, useCredit = false) => {
+        const id = getArticuloId(item);
+        if (!id) return alert("Este artículo no tiene id válido.");
+
+        const isVenta = normTipo(item?.mode || item?.tipo) === "venta";
+
+        if (isVenta) {
+          return handleBuy(id, useCredit);
+        } else {
+          const applyRes = await handleApply(id, message, useCredit);
+          if (applyRes?.success) setSelectedProduct(null);
+          return applyRes;
+        }
+      }}
+      onOpenChat={async (item) => {
+        // ✅ BLOQUEO REVISIÓN (detalle)
+        if (isInReview(item)) {
+          alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
+          return;
+        }
+        await openChatFromArticle(item);
+      }}
+      onCategoryClick={(catKey) => {
+        setSelectedCategory(String(catKey || "Todo"));
+        setSelectedSubcategory("");
+        setSearchTerm("");
+        setCurrentView("home");
+        setSelectedProduct(null);
+      }}
+      onSubcategoryClick={(catKey, subKey) => {
+        if (catKey) setSelectedCategory(String(catKey));
+        else setSelectedCategory("Todo");
+        setSelectedSubcategory(String(subKey || ""));
+        setSearchTerm("");
+        setCurrentView("home");
+        setSelectedProduct(null);
+      }}
+    />
+  );
 
   return (
     <Suspense fallback={<div role="status" className="min-h-screen flex items-center justify-center">Cargando...</div>}>
@@ -1714,9 +2042,10 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       <Route
         path="/"
         element={
-          <div className="marketplace-shell min-h-screen bg-[#F5F5F5] mb-design-preview" data-realtime-state={realtimeStatus} data-realtime-revision={realtimeRevision}>
+          <div className={`marketplace-shell min-h-screen bg-[#F5F5F5] mb-design-preview${catalogProposal ? ' catalog-proposal' : ''}`} data-realtime-state={realtimeStatus} data-realtime-revision={realtimeRevision}>
             <InstallSuggestion />
             <Navbar
+              searchAccessory={mobileApp ? null : savedSearchMenu}
               onSearch={setSearchTerm}
               searchTerm={searchTerm}
               currentCity={selectedCity}
@@ -1833,6 +2162,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               {currentView === "home" && (
                 <div className={`animate-in fade-in duration-500${mobileApp ? ' mobile-app-catalog' : ''}`}>
                   {mobileApp && <MobileCatalogTools search={searchTerm} onSearch={setSearchTerm}
+                    searchAccessory={savedSearchMenu}
+                    filterAccessory={favoritesMenu}
                     value={{category:selectedCategory,subcategory:selectedSubcategory,city:selectedCity,locality:selectedLocality,
                       kind:quickTipo,onlyVerified,minCondition,sort:sortOrder,hideOwn:!!currentUser?.id && hiddenAdsOwnerId === currentUser.id,searchMode}}
                     onChange={next => {
@@ -1843,17 +2174,25 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     }}
                     categories={CATEGORY_TREE} cities={COLOMBIA_DATA} signedIn={!!currentUser?.id}
                     onSubmitSearch={() => listingRef.current?.scrollIntoView({behavior:'smooth',block:'start'})} />}
-                  {/* Mostrar banner solo cuando NO hay búsqueda (evita que se atraviese entre la barra y resultados) */}
-                  {searchTerm.trim() === "" && (!mobileApp || (selectedCategory === 'Todo' && quickTipo === 'todo' && selectedLocality === 'Todas' && !minCondition && !onlyVerified)) && (
-                    <div className="rounded-3xl">
-                      <HeroBanner sponsorFilters={{city:selectedCity,locality:selectedLocality,category:selectedCategory}} onLearnMore={() => setCurrentView("how-it-works")} onExplore={() => listingRef.current?.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',block:'start'})} />
-
+                  {!catalogProposal && homeBanner}
+                  {catalogProposal && (
+                    <div className="catalog-proposal-bar">
+                      <h1>Explora en {selectedCity}</h1>
+                      <div className="catalog-proposal-types" role="group" aria-label="Tipo de publicación">
+                        {PUBLICATION_TYPES.map(({ key, label, icon }) => (
+                          <button key={key} type="button" aria-pressed={quickTipo === key} onClick={() => setQuickTipo(key)}>
+                            {icon}<span>{label}</span>
+                          </button>
+                        ))}
+                      </div>
+                      {!mobileApp && <div className="catalog-favorites-desktop">{favoritesMenu}</div>}
                     </div>
                   )}
 
                   <div className={`home-catalog flex flex-col lg:flex-row gap-4 lg:gap-8${filteredProducts.length === 12 && !homeBusy && !homeError ? ' home-catalog--full' : ''}${totalPages > 1 && !homeError ? ' home-catalog--paginated' : ''}`}>
                     <aside className="contents lg:block lg:w-1/4 shrink-0 min-w-0" aria-label="Filtros del catálogo">
                       <div className="order-1 min-w-0">
+                      {catalogProposal && !mobileApp && <div className="catalog-favorites-mobile">{favoritesMenu}</div>}
                       {/* Categorías */}
                       <FilterSection id="category-filters" title="Categorías" icon={<LayoutGrid size={18} className="shrink-0 text-forest-green" aria-hidden="true" />}
                         summary={selectedCategory === "Todo" ? "Todas las categorías" : [selectedCategory, selectedSubcategory].filter(Boolean).join(' / ')}
@@ -2053,7 +2392,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                       </div>
                       <div className="home-catalog-sponsors order-3 min-w-0 lg:mt-6">
                         <SponsorCarousel sponsorFilters={{city:selectedCity,locality:selectedLocality,category:selectedCategory}} />
-                        <SocialBar />
+                        {!catalogProposal && <SocialBar />}
                       </div>
                     </aside>
 
@@ -2062,7 +2401,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                         key={JSON.stringify([searchTerm.trim().toLowerCase(), selectedCategory, selectedSubcategory, selectedCity, selectedLocality, quickTipo, onlyVerified, hiddenAdsOwnerId, currentUser?.id])}
                         items={featuredProducts}
                         category={selectedCategory}
-                        onItemClick={setSelectedProduct}
+                        onItemClick={openCatalogArticle}
                       />
                       <div ref={listingRef} className="mb-4 flex flex-wrap justify-between items-center gap-3 scroll-mt-24">
                         <h2 className="text-lg font-black text-gray-800">
@@ -2132,6 +2471,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                             return (
   <div key={item.id} className={`home-listing ${item.isFeatured ? 'home-listing--featured' : ''} ${isUserBlocked ? "cursor-not-allowed" : "cursor-pointer"}`}>
     <ProductCard
+      photoAccessory={catalogFavoriteButton(item)}
       title={item.title || item.titulo || "Sin título"}
       location={resolvedLocation}
       category={getCategoria(item)}
@@ -2154,7 +2494,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       onBlockedClick={() => alert("🚫 Tu cuenta está BLOQUEADA. No puedes abrir artículos ni acceder a chats por el momento.")}
       onClick={() => {
         if (isUserBlocked) return; // por seguridad
-        setSelectedProduct(item);
+        openCatalogArticle(item);
       }}
     />
   </div>
@@ -2169,25 +2509,16 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           </p>
                         </div>
                       )}
-                      {!homeError && totalPages > 1 && (
-                        <nav aria-label="Paginación de publicaciones" className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                          <button type="button" title="Página anterior" aria-label="Página anterior"
-                            disabled={homeBusy || homePage.page <= 1}
-                            onClick={() => changeHomePage(homePage.page - 1)}
-                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-forest-green disabled:opacity-40 disabled:cursor-not-allowed">
-                            <ChevronLeft size={20} />
-                          </button>
-                          <span aria-live="polite" className="text-sm font-semibold text-gray-600">Página {homePage.page} de {totalPages}</span>
-                          <button type="button" title="Página siguiente" aria-label="Página siguiente"
-                            disabled={homeBusy || homePage.page >= totalPages}
-                            onClick={() => changeHomePage(homePage.page + 1)}
-                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:border-forest-green disabled:opacity-40 disabled:cursor-not-allowed">
-                            <ChevronRight size={20} />
-                          </button>
-                        </nav>
-                      )}
+                      {!catalogProposal && catalogPagination}
                     </div>
                   </div>
+                  {catalogProposal && (
+                    <div className="catalog-proposal-bottom">
+                      {catalogPagination}
+                      {homeBanner}
+                      <SocialBar />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2269,6 +2600,22 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               window.scrollTo(0, 0);
             }} />}
 
+            {import.meta.env.DEV && currentView === 'home' && (
+              <div className="flex justify-center px-4 py-4">
+                <button type="button" className="min-h-11 rounded-lg border border-forest-green bg-white px-5 text-sm font-semibold text-forest-green"
+                  onClick={() => {
+                    const url = new URL(window.location.href);
+                    if (showCatalogProposal) url.searchParams.delete('design');
+                    else url.searchParams.set('design', 'catalogo');
+                    window.history.replaceState(window.history.state, '', url);
+                    setShowCatalogProposal(!showCatalogProposal);
+                    window.scrollTo({ top: 0, behavior: 'instant' });
+                  }}>
+                  {catalogProposal ? 'Ver diseño actual' : 'Ver propuesta de catálogo'}
+                </button>
+              </div>
+            )}
+
             <DeferredPanel active={isAuthOpen}>
             <AuthModal
               isOpen={isAuthOpen}
@@ -2288,51 +2635,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
             />
             </DeferredPanel>
 
-            <DeferredPanel active={!!selectedProduct}>
-            <ProductDetail
-              item={selectedProduct}
-              isOpen={!!selectedProduct}
-              onClose={() => setSelectedProduct(null)}
-              user={currentUser}
-              onSolicitar={async (item, message, useCredit = false) => {
-                const id = getArticuloId(item);
-                if (!id) return alert("Este artículo no tiene id válido.");
-
-                const isVenta = normTipo(item?.mode || item?.tipo) === "venta";
-
-                if (isVenta) {
-                  return handleBuy(id, useCredit);
-                } else {
-                  const applyRes = await handleApply(id, message, useCredit);
-                  if (applyRes?.success) setSelectedProduct(null);
-                  return applyRes;
-                }
-              }}
-              onOpenChat={async (item) => {
-                // ✅ BLOQUEO REVISIÓN (detalle)
-                if (isInReview(item)) {
-                  alert("Este artículo está en revisión. El chat está deshabilitado temporalmente.");
-                  return;
-                }
-                await openChatFromArticle(item);
-              }}
-              onCategoryClick={(catKey) => {
-                setSelectedCategory(String(catKey || "Todo"));
-                setSelectedSubcategory("");
-                setSearchTerm("");
-                setCurrentView("home");
-                setSelectedProduct(null);
-              }}
-              onSubcategoryClick={(catKey, subKey) => {
-                if (catKey) setSelectedCategory(String(catKey));
-                else setSelectedCategory("Todo");
-                setSelectedSubcategory(String(subKey || ""));
-                setSearchTerm("");
-                setCurrentView("home");
-                setSelectedProduct(null);
-              }}
-            />
-            </DeferredPanel>
+            <DeferredPanel active={!!selectedProduct}>{productDetail}</DeferredPanel>
 
             <DeferredPanel active={isManageOpen}>
             <ManageArticleModal

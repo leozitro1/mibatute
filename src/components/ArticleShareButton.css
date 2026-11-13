@@ -9,3 +9,20 @@
 @media (max-width: 767px) { .article-share-button { min-height: 44px; } }
 .product-detail-actions > button { min-height: 36px; border-radius: 10px; font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: normal; }
 @media (max-width: 767px) { .product-detail-actions > button { min-height: 44px; } }
+
+.product-detail-actions > .catalog-favorite {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.product-detail-actions > .catalog-favorite svg { width: 14px; height: 14px; }
+
+@media (max-width: 767px) {
+  .product-detail-owner .product-detail-actions > .catalog-favorite {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+  }
+}

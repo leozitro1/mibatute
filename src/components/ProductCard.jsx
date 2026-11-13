@@ -38,7 +38,7 @@ function normStatus(status) {
 }
 
 
-function pickImageSrc(image) {
+export function pickImageSrc(image) {
   if (typeof image === "string" && image.trim() !== "") return image.trim();
 
   if (Array.isArray(image) && image.length) {
@@ -111,6 +111,7 @@ export default function ProductCard({
   image, // string | string[] | [{url}]
   isFeatured,
   ownerVerified = false,
+  photoAccessory,
   status = "disponible",
 
   // ✅ nuevos (para mostrar interesados)
@@ -215,14 +216,14 @@ export default function ProductCard({
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={(e) => {
-        if (!onClick) return;
+        if (!onClick || e.target !== e.currentTarget) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           handleCardClick(e);
         }
       }}
     >
-      <div className="product-card-photo relative h-48 shrink-0">
+      <div className={`product-card-photo relative h-48 shrink-0${photoAccessory ? " product-card-photo--with-accessory" : ""}`}>
         <img
           src={imageSrc}
           alt={title || "Artículo"}
@@ -296,6 +297,9 @@ export default function ProductCard({
             </span>
           </div>
         )}
+        {photoAccessory && <div className="product-card-photo-accessory" onClick={event => event.stopPropagation()}>
+          {photoAccessory}
+        </div>}
       </div>
 
       <div className={`product-card-body flex min-h-0 flex-1 flex-col p-4 ${isReserved || isReviewing ? 'opacity-70' : ''}`}>

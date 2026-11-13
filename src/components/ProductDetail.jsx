@@ -131,6 +131,8 @@ export default function ProductDetail({
   staffPreview = false,
   profilePhotoClient,
   onOpenOwner,
+  recommendations,
+  favoriteAction,
   managementContent = null,
   requestContent = null,
   closeDisabled = false,
@@ -952,6 +954,7 @@ export default function ProductDetail({
             </div>
 
             {!staffPreview && <div className="product-detail-actions">
+              {favoriteAction}
               {!isUnderReview && <ArticleShareButton key={articuloId} articleId={articuloId} title={titulo} />}
               {!isOwner && (
               <button
@@ -1170,6 +1173,7 @@ export default function ProductDetail({
               )}
             </div>
           )}
+          {recommendations}
         </div>
 
         {/* MODAL CALIFICAR */}

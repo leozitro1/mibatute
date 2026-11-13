@@ -17,11 +17,6 @@
 .sponsor-carousel-copy { height: 176px; }
 .sponsor-carousel-copy h4 { line-height: 24px; }
 .sponsor-carousel-copy > p:last-child { -webkit-line-clamp: 3; }
-.sponsor-carousel-controls { height: 70px; }
-.sponsor-carousel-dots { min-width: 0; overflow-x: auto; }
-.sponsor-carousel-dots > button { flex-shrink: 0; }
-.sponsor-carousel-controls > div:last-child { flex-shrink: 0; }
-.sponsor-carousel-controls button:disabled { opacity: .35; cursor: default; }
 @media (max-width: 639px) {
   .hero-banner { height: 384px; }
   .hero-banner .hero-banner-content { padding-block: 20px; }
@@ -37,8 +32,6 @@
   .mobile-app-catalog .sponsor-carousel-copy { height: auto; padding: 10px 16px 12px; }
   .mobile-app-catalog .sponsor-carousel-copy h4 { font-size: 16px; line-height: 21px; }
   .mobile-app-catalog .sponsor-carousel-copy > p:last-child { font-size: 12px; line-height: 18px; -webkit-line-clamp: 2; }
-  .mobile-app-catalog .sponsor-carousel-controls { height: 56px; padding-block: 6px; }
-  .mobile-app-catalog .sponsor-carousel-controls button { min-height: 44px; }
   .hero-banner { height: 220px; margin-bottom: 12px; }
   .hero-banner .hero-banner-content { padding: 10px 12px; }
   .hero-banner .hero-banner-copy { flex: 1; display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: auto auto minmax(32px,1fr) auto; row-gap: 4px; }

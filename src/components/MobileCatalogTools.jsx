@@ -8,7 +8,7 @@ import './MobileCatalogTools.css';
 const kinds = [['todo','Todo'],['donacion','Donaciones'],['venta','Ventas']];
 const shortCategory = category => category.split(' & ')[0];
 
-export default function MobileCatalogTools({ search, onSearch, value, onChange, categories, cities, signedIn, onSubmitSearch }) {
+export default function MobileCatalogTools({ search, onSearch, value, onChange, categories, cities, signedIn, onSubmitSearch, searchAccessory, filterAccessory }) {
   const [open,setOpen] = useState(false), [draft,setDraft] = useState(value);
   const dialog = useRef(null), searchInput = useRef(null), subcategoryRow = useRef(null);
   const titleId = useId(), fieldId = useId();
@@ -38,15 +38,19 @@ export default function MobileCatalogTools({ search, onSearch, value, onChange, 
         <input ref={searchInput} type="search" aria-label="Buscar artículos" placeholder="¿Qué estás buscando?" value={search}
           onChange={event => onSearch(event.target.value)} enterKeyHint="search" />
         {search && <button type="button" onClick={() => {onSearch('');searchInput.current?.focus();}} aria-label="Limpiar búsqueda"><X size={18} /></button>}
+        {searchAccessory}
         <button type="submit" aria-label="Buscar"><Search size={20} /></button>
       </form>
+      <div className={filterAccessory ? "catalog-mobile-filter-row" : undefined}>
       <button type="button" className="mobile-catalog-location" onClick={showFilters} aria-haspopup="dialog">
         <MapPin size={15} aria-hidden="true" /><span>{value.city}{value.locality !== 'Todas' ? ` · ${value.locality}` : ' · Todas las localidades'}</span><ChevronDown size={14} aria-hidden="true" />
       </button>
-      <div className="mobile-catalog-kinds" role="group" aria-label="Tipo de artículo">
+        {filterAccessory}
+      </div>
+      {!filterAccessory && <div className="mobile-catalog-kinds" role="group" aria-label="Tipo de artículo">
         {kinds.map(([key,label]) => <button key={key} type="button" aria-pressed={value.kind === key}
           onClick={() => onChange({...value,kind:key})}>{label}</button>)}
-      </div>
+      </div>}
       <div className="mobile-catalog-categories" role="group" aria-label="Categorías de artículos">
         <button type="button" aria-pressed={value.category === 'Todo'} onClick={() => onChange(patchMobileFilters(value,{category:'Todo'}))}><LayoutGrid size={19} aria-hidden="true" /><span>Todas</span></button>
         {categories.map(category => <button key={category.key} type="button" aria-pressed={value.category === category.key} title={category.key}

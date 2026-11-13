@@ -52,6 +52,7 @@ function formatRemaining(ms) {
 }
 
 export default function Navbar({
+  searchAccessory,
   onSearch,
   searchTerm,
   currentCity,
@@ -374,6 +375,7 @@ export default function Navbar({
                   </button>
                 ) : null}
               </div>
+              {searchAccessory}
               <div className="navbar-search-city relative flex min-h-11 shrink-0 items-center gap-1.5 border-l border-gray-200 pl-2 pr-2 sm:pl-3">
                 <MapPin size={15} className="shrink-0 text-forest-green" aria-hidden="true" />
                 <StyledSelect align="end" value={currentCity} onChange={(e) => onCityChange?.(e.target.value)}
