@@ -1,3 +1,4 @@
+import useVisibleSponsor from '../sponsors/useVisibleSponsor.js';
 import { useEffect,useRef,useState } from 'react';
 import { ArrowUpRight,ChevronLeft,ChevronRight } from 'lucide-react';
 import { recordSponsorClick,useSponsorImpression,useSponsorSlots } from '../sponsors/publicSponsors.js';
@@ -9,12 +10,13 @@ export default function HeroBanner({onLearnMore,onExplore,onBlog,sponsorFilters}
   const campaigns=useSponsorSlots('hero',sponsorFilters),slides=campaigns.length?campaigns:fallback;
   const [index,setIndex]=useState(0),[paused,setPaused]=useState(false);
   const root=useRef(null),active=sponsorCreative(slides[index%slides.length],Math.floor(index/slides.length));
+  const visible = useVisibleSponsor(root);
   useSponsorImpression(root,active.id,'hero');
   useEffect(()=>{
-    if(paused||(slides.length<2&&!(active.creative_assets?.length>1)))return;
+    if(!visible||paused||(slides.length<2&&!(active.creative_assets?.length>1)))return;
     const timer=setInterval(()=>setIndex(previous=>previous+1),6500);
     return()=>clearInterval(timer);
-  },[paused,slides.length,active.creative_assets?.length]);
+  },[visible,paused,slides.length,active.creative_assets?.length]);
   const move=direction=>setIndex(previous=>previous===0&&direction<0?slides.length-1:previous+direction);
   const click=()=>{if(active.id)recordSponsorClick(active.id,'hero');};
   const internal=()=>{click();if(active.destination==='blog')(onBlog||onLearnMore)?.();else onLearnMore?.();};
@@ -23,7 +25,7 @@ export default function HeroBanner({onLearnMore,onExplore,onBlog,sponsorFilters}
   const ctaClass='pointer-events-auto inline-flex min-h-11 max-w-full items-center justify-center rounded-lg bg-white px-5 py-2 text-sm font-black text-forest-green [overflow-wrap:anywhere] transition-colors hover:bg-treasure-gold hover:text-black sm:px-7 sm:py-3';
   return <section ref={root} aria-label="Banner principal" data-community={isCommunity ? 'true' : undefined} className="hero-banner relative mb-5 overflow-hidden rounded-lg border border-white/10 bg-forest-green shadow-sm sm:mb-8"
     onMouseEnter={()=>setPaused(true)} onMouseLeave={()=>setPaused(false)} onFocusCapture={()=>setPaused(true)} onBlurCapture={event=>{if(!event.currentTarget.contains(event.relatedTarget))setPaused(false);}}>
-    {!isCommunity&&<><picture className="pointer-events-none absolute inset-0" aria-hidden="true">{active.mobile_image_url&&<source media="(max-width: 767px)" srcSet={active.mobile_image_url} />}<img src={active.imagen_url} alt="" className="h-full w-full object-cover" /></picture>
+    {!isCommunity&&<><picture className="pointer-events-none absolute inset-0" aria-hidden="true">{active.mobile_image_url&&<source media="(max-width: 767px)" srcSet={active.mobile_image_url} />}<img src={active.imagen_url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" /></picture>
     <div className="pointer-events-none absolute inset-0 bg-black/45" aria-hidden="true" /></>}
     {isCommunity&&<div className="hero-community-art" aria-hidden="true"><div className="hero-community-orbit" /><div className="hero-community-seal"><span>MiBatute</span><strong>Otra vida.<br />Más historias.</strong><ArrowUpRight size={32} strokeWidth={1.5} /></div><span className="hero-community-caption">mi basura, tu tesoro</span></div>}
     {external&&<a href={active.enlace} target="_blank" rel="sponsored noopener noreferrer" onClick={click} aria-label={`Abrir anuncio: ${active.texto}`} className="absolute inset-0" />}

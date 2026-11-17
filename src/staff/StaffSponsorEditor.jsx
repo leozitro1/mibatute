@@ -1,3 +1,4 @@
+import { encodeCanvasImage } from '../imagekit/canvasImage.js';
 import { useEffect,useRef,useState } from 'react';
 import { ArrowDown,ArrowUp,Save,Trash2,Upload,X } from 'lucide-react';
 import { staffClient,staffRpc } from './staffClient.js';
@@ -29,12 +30,12 @@ export default function StaffSponsorEditor({campaign,onClose,onSaved}) {
       for(const file of files) {
       const bitmap=await createImageBitmap(file);
       if(bitmap.width*bitmap.height>40_000_000){bitmap.close();throw new Error('La imagen supera los 40 megapíxeles.');}
-      const limit=key==='mobile_image_url'?1000:1800,scale=Math.min(1,limit/bitmap.width,limit/bitmap.height);
+      const limit=draft.placement==='footer'?640:key==='mobile_image_url'?800:1600,scale=Math.min(1,limit/bitmap.width,limit/bitmap.height);
       const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
       canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
-      const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',.85));if(!blob)throw new Error('No se pudo preparar la imagen.');
-      const path=`campaigns/${crypto.randomUUID()}.webp`,bucket=staffClient.storage.from('sponsor-media');
-      const {error:uploadError}=await bucket.upload(path,blob,{contentType:'image/webp',cacheControl:'31536000'});if(uploadError)throw uploadError;
+      const blob=await encodeCanvasImage(canvas,{name:crypto.randomUUID(),type:'image/webp',quality:.75});
+      const path=`campaigns/${blob.name}`,bucket=staffClient.storage.from('sponsor-media');
+      const {error:uploadError}=await bucket.upload(path,blob,{contentType:blob.type,cacheControl:'31536000'});if(uploadError)throw uploadError;
       const {data}=bucket.getPublicUrl(path);uploads.current.push({path,url:data.publicUrl});
       if(key==='gallery')setDraft(previous=>({...previous,extra_assets:[...previous.extra_assets,{imagen_url:data.publicUrl,mobile_image_url:''}]}));
       else if(index!==null)changeAsset(index,key,data.publicUrl);
