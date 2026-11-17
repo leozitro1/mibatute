@@ -5,6 +5,7 @@ import Cropper from "react-easy-crop";
 import { supabase } from "../supabase/supabaseClient";
 import { publicationAccessError, readAccountProfile } from '../supabase/accountProfile.js';
 import { publicationStatus, publicationQuote } from "../supabase/publicationCredits.js";
+import { encodeCanvasImage } from '../imagekit/canvasImage.js';
 import { publishArticle } from "../supabase/articleService";
 import { CATEGORY_TREE as FALLBACK_CATEGORY_TREE } from "../data/categories.js";
 import useLocations from "../data/useLocations.js";
@@ -64,12 +65,6 @@ async function createImageFromUrl(url) {
   });
 }
 
-function blobToFile(blob, originalName = "foto") {
-  const ext = OUT_FORMAT === "image/webp" ? "webp" : "jpg";
-  const base = String(originalName || "foto").replace(/\.[^.]+$/, "");
-  return new File([blob], `${base}_sq.${ext}`, { type: OUT_FORMAT });
-}
-
 async function getCroppedSquareFile({ imageSrc, cropPixels, originalName }) {
   const image = await createImageFromUrl(imageSrc);
 
@@ -87,12 +82,8 @@ async function getCroppedSquareFile({ imageSrc, cropPixels, originalName }) {
   ctx.fillRect(0,0,OUT_SIZE,OUT_SIZE);
   ctx.drawImage(image,...photoCropDrawRect({width:image.naturalWidth,height:image.naturalHeight},cropPixels,OUT_SIZE));
 
-  const blob = await new Promise((resolve) => {
-    canvas.toBlob((b) => resolve(b), OUT_FORMAT, OUT_QUALITY);
-  });
-
-  if (!blob) throw new Error("No se pudo generar la imagen recortada.");
-  return blobToFile(blob, originalName);
+  const base = String(originalName || "foto").replace(/\.[^.]+$/, "");
+  return encodeCanvasImage(canvas, { name: `${base}_sq`, type: OUT_FORMAT, quality: OUT_QUALITY });
 }
 
 export default function PublishModal({ isOpen, onClose, onPublish, currentCity, user, categories }) {

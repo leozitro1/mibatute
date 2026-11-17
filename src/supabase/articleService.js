@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import { savePhotoOrder } from './photoOrder.js';
 import { commitPublication } from './publicationCredits.js';
 import {checkSellerRegistration} from './sellerRegistration.js';
+import { encodeCanvasImage } from '../imagekit/canvasImage.js';
 import { uploadImageKitImage } from "../imagekit/imageService";
 import { useLocalImages, removeLocalImages } from '../imagekit/localImages';
 import { queryArticlesWithCondition } from "./articleQuery";
@@ -86,17 +87,8 @@ async function compressAndResizeImage(file) {
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(src, 0, 0, outW, outH);
 
-  const blob = await new Promise((resolve) => {
-    canvas.toBlob((b) => resolve(b), OUT_FORMAT, OUT_QUALITY);
-  });
-
-  if (!blob) throw new Error("No se pudo generar la imagen optimizada.");
-
-  const ext = OUT_FORMAT === "image/webp" ? "webp" : "jpg";
-  const baseName = (file.name || "foto").replace(/\.[^.]+$/, "");
-  const newName = `${baseName}.${ext}`;
-
-  return new File([blob], newName, { type: OUT_FORMAT });
+  const name = (file.name || "foto").replace(/\.[^.]+$/, "");
+  return encodeCanvasImage(canvas, { name, type: OUT_FORMAT, quality: OUT_QUALITY });
 }
 
 async function ensureOptimizedImage(file) {
