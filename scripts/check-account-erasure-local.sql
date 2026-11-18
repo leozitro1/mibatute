@@ -48,7 +48,7 @@ begin
   perform set_config('request.jwt.claim.sub',supervisor::text,true);
   perform set_config('request.jwt.claims',jsonb_build_object('sub',supervisor,'aal','aal2','session_id',supervisor_session)::text,true);
   result:=public.staff_account_erasure(request,1,false);
-  if result is distinct from '{"enabled":false,"blockers":[]}'::jsonb then raise exception 'Vista previa inesperada: %',result; end if;
+  if (result - 'closureKind' - 'sanctionExpiresAt' - 'requiresSanctionReview') is distinct from '{"enabled":false,"blockers":[]}'::jsonb then raise exception 'Vista previa inesperada: %',result; end if;
   begin
     perform public.staff_account_erasure(request,1,true);
     raise exception 'Ejecución sin MFA reciente';
@@ -85,6 +85,8 @@ begin
     or public.staff_account_erasure(request,1,true) is distinct from result then
     raise exception 'Falló la comprobación del borrado o el reintento';
   end if;
+  insert into auth.users(id,email,created_at,raw_user_meta_data)
+    values(gen_random_uuid(),'erasure-'||target||'@example.com',now(),acceptance);
   raise notice 'Supresión ficticia verificada. Cuenta, perfil y sesiones eliminados. Radicado, consentimiento sin vínculo y constancia conservados.';
 end;
 $test$;

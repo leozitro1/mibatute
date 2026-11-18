@@ -1,3 +1,4 @@
+import StaffEmailSanctions from '../staff/StaffEmailSanctions.jsx';
 import StyledSelect from "../components/StyledSelect.jsx";
 import AuthCaptcha from '../components/AuthCaptcha.jsx';
 import { captchaOptions } from '../security/turnstile.js';
@@ -360,6 +361,7 @@ export default function StaffConsole({ requireMaster=false }) {
           <button type="button" className="staff-button" onClick={()=>{setArticleFilters(EMPTY_ARTICLE_FILTERS);setOwnerName('');setPage(1);setSearch('');setQuery('');setData(null);}}>Limpiar filtros</button>
         </div>}
         {section==='articles'&&articleFilters.owner_id&&<div className="staff-owner-filter"><span>Publicaciones de <strong>{ownerName||'Usuario'}</strong></span><button type="button" className="staff-button" onClick={()=>{filterArticles('owner_id','');setOwnerName('');}}>Ver todas</button></div>}
+        {section==='users'&&account.role==='master'&&<StaffEmailSanctions />}
         {section==='users'&&<div className="staff-filters" aria-label="Filtros de usuarios">
           <div><label htmlFor="staff-user-city">Ciudad</label><StyledSelect id="staff-user-city" value={userFilters.city} onChange={event=>filterUsers('city',event.target.value)}><option value="">Todas las ciudades</option>{COLOMBIA_DATA.map(item=><option key={item.city}>{item.city}</option>)}</StyledSelect></div>
           <div><label htmlFor="staff-user-locality">Barrio / localidad</label><select id="staff-user-locality" value={userFilters.locality} onChange={event=>filterUsers('locality',event.target.value)} disabled={!userFilters.city}><option value="">Todos los barrios / localidades</option>{(COLOMBIA_DATA.find(item=>item.city===userFilters.city)?.localities||[]).map(item=><option key={item}>{item}</option>)}</select></div>
