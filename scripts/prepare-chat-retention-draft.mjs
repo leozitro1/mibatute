@@ -1,5 +1,6 @@
 import {writeFile} from 'node:fs/promises';
-import {LEGAL_VERSION,LEGAL_OPERATOR,LEGAL_APPROVED,LEGAL_READY} from '../src/legal/config.js';
+import {LEGAL_VERSION,LEGAL_APPROVED,LEGAL_READY} from '../src/legal/config.js';
+import {LEGAL_OPERATOR} from '../server/legalOperator.js';
 import {policies} from '../src/legal/policies.js';
 if(LEGAL_APPROVED||LEGAL_READY)throw new Error('Este script solo prepara un borrador, sin aprobación jurídica ni activación definitiva.');
 const documents=JSON.stringify({version:LEGAL_VERSION,reviewStatus:'draft',operator:LEGAL_OPERATOR,policies});

@@ -1,7 +1,12 @@
-import {LEGAL_OPERATOR} from '../legal/config.js';
+import ContactButton from './ContactButton.jsx';
 
-export default function LegalOperator(){
- const entityLabel={natural:'Persona natural',juridica:'Persona jurídica'}[LEGAL_OPERATOR.entityType]||LEGAL_OPERATOR.entityType;
- const fields=[['Responsable',LEGAL_OPERATOR.name],['Tipo de titular',entityLabel],['NIT con dígito de verificación',LEGAL_OPERATOR.nit],['Dirección de notificación judicial',LEGAL_OPERATOR.address],['Teléfono',LEGAL_OPERATOR.phone],['Contacto oficial',LEGAL_OPERATOR.email],['Protección de datos',LEGAL_OPERATOR.dataEmail]];
- return <details id="responsable" className="legal-operator"><summary>Identificación del responsable de MiBatute</summary><dl>{fields.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value||'Sin definir — requerido antes del lanzamiento'}</dd></div>)}</dl></details>;
+export default function LegalOperator() {
+  return <section id="responsable" className="legal-operator" aria-labelledby="legal-operator-title">
+    <h2 id="legal-operator-title" className="mb-3 text-[15px] font-semibold text-[#2d4935]">Responsable de MiBatute</h2>
+    <p className="mb-3 text-sm">Puedes solicitar la información de identificación y contacto del responsable a través de nuestro canal de atención.</p>
+    <ContactButton subject="Solicitud de información del responsable de MiBatute"
+      className="min-h-11 rounded-lg bg-forest-green px-4 text-sm font-semibold text-white">
+      Solicitar información del responsable
+    </ContactButton>
+  </section>;
 }

@@ -1,5 +1,6 @@
 import {readFile,writeFile} from 'node:fs/promises';
-import {LEGAL_VERSION,LEGAL_OPERATOR} from '../src/legal/config.js';
+import {LEGAL_VERSION} from '../src/legal/config.js';
+import {LEGAL_OPERATOR} from '../server/legalOperator.js';
 import {policies} from '../src/legal/policies.js';
 const names=['2026-10-19-legal-foundation.sql','2026-10-19-data-rights-workflow.sql','2026-10-19-support-closure-preview.sql','2026-10-19-testing-registration.sql','2026-11-04-explicit-legal-choices.sql'];
 const parts=[];
