@@ -7,7 +7,7 @@ import StyledSelect from "./StyledSelect.jsx";
 import ProfileIdentityPlacement from './ProfileIdentityPlacement.jsx';
 // src/components/UserProfile.jsx
 import { createReadCache, listenMarketSignals } from "./marketSignals.js";
-import { Fragment, useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
+import { createElement, Fragment, useEffect, useId, useMemo, useRef, useState, useCallback } from "react";
 import { getProfile, updateProfile } from "../supabase/profileService";
 import { notifyCreditBalance } from './creditBalance.js';
 import { accountCreditStatus } from '../supabase/donationApplications.js';
@@ -1281,9 +1281,10 @@ export default function UserProfile({
           console.log("Fallback no pudo leer perfil:", fb);
         }
       } finally {
-        if (!alive) return;
-        setIsEditing(false);
-        setLoading(false);
+        if (alive) {
+          setIsEditing(false);
+          setLoading(false);
+        }
       }
     })();
 
@@ -1327,7 +1328,9 @@ export default function UserProfile({
         setDonacionLimit(data.donations);
         setPurchaseLimit(data.purchases);
         notifyCreditBalance(user.id, data.balance);
-      } catch {}
+      } catch {
+        // Preserve the last known balance when the refresh fails.
+      }
     };
     cargarSaldo();
   }, [user?.id, rescatesReload]);
@@ -1540,7 +1543,7 @@ export default function UserProfile({
   }, [safeMyProducts, publicationExpiryClock]);
 
   const publications = useMemo(() => {
-    const ahora = Date.now();
+    const ahora = Math.max(publicationExpiryClock, Date.now());
     const base = [...(safeMyProducts || [])]
       .filter((a) => {
         const id = getArticuloId(a);
@@ -1587,7 +1590,7 @@ export default function UserProfile({
   }, [rescates, rescateExpiryClock]);
 
   const rescatesSorted = useMemo(() => {
-    const ahora = Date.now();
+    const ahora = Math.max(rescateExpiryClock, Date.now());
     return [...(rescates || [])]
       .filter((r) => {
         if (!isRescateVisible(r, user?.id, ahora)) return false;
@@ -1915,7 +1918,9 @@ export default function UserProfile({
         const allIds = [...new Set([...pubIds, ...rescIds])];
         if (allIds.length) await loadUnreadRef.current?.(allIds);
         if (activeTab === "buzon" && systemInboxActive && sysMsgsCargadosRef.current) await loadSysMsgs();
-      } catch {}
+      } catch {
+        // The next visibility event can retry the inbox refresh.
+      }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
@@ -1923,72 +1928,7 @@ export default function UserProfile({
 
 
 
-  // ✅ Buzón (Inbox): mezcla publicaciones + rescates, y muestra lo que tenga chat / notificación / unread
-  const inboxItems = useMemo(() => {
-    const map = new Map();
 
-    const put = (art, source) => {
-      const id = getArticuloId(art);
-      if (!id) return;
-      const key = String(id);
-
-      const prev = map.get(key);
-      if (!prev) {
-        map.set(key, { art, source });
-        return;
-      }
-
-      // si ya existe, preferimos el "art" más completo (por si uno viene incompleto)
-      const prevTitle = prev?.art?.titulo || prev?.art?.title || "";
-      const nextTitle = art?.titulo || art?.title || "";
-      if (!prevTitle && nextTitle) map.set(key, { art, source });
-    };
-
-    (publications || []).forEach((a) => put(getArtEffective(a), "pub"));
-    (rescates || []).forEach((r) => put(r?.articulo || {}, "res"));
-
-    const items = Array.from(map.entries()).map(([id, v]) => {
-      const hasUnread = unreadByArticulo.get(String(id)) === true;
-      const notif = notifByArticulo?.[String(id)] || null;
-      const notifCount = Number(notif?.total || 0) || 0;
-      const hasChat =
-        hasChatOwnerByArticulo.get(String(id)) === true ||
-        hasChatBuyerByArticulo.get(String(id)) === true;
-
-      return {
-        articuloId: String(id),
-        art: v.art,
-        source: v.source,
-        hasUnread,
-        notifCount,
-        hasChat,
-      };
-    });
-
-    // solo lo “relevante”: chat o notif o unread
-    const filtered = items.filter((x) => x.hasChat || x.notifCount > 0 || x.hasUnread);
-
-    // orden: primero unread / notif
-    filtered.sort((a, b) => {
-      const scoreA = (a.hasUnread ? 10 : 0) + (a.notifCount ? 5 : 0);
-      const scoreB = (b.hasUnread ? 10 : 0) + (b.notifCount ? 5 : 0);
-      if (scoreB !== scoreA) return scoreB - scoreA;
-
-      const ta = a?.art?.created_at ? new Date(a.art.created_at).getTime() : 0;
-      const tb = b?.art?.created_at ? new Date(b.art.created_at).getTime() : 0;
-      return tb - ta;
-    });
-
-    return filtered;
-  }, [
-    publications,
-    rescates,
-    unreadByArticulo,
-    notifByArticulo,
-    hasChatOwnerByArticulo,
-    hasChatBuyerByArticulo,
-    articuloOverridesById,
-  ]);
 
   const {publicaciones:pubNotifCount=0,rescates:rescNotifCount=0}=notificationBadges;
   const inboxUnreadCount=inboxCategoryCounts.system+inboxCategoryCounts.conversations+inboxCategoryCounts.users;
@@ -2247,7 +2187,9 @@ export default function UserProfile({
         if (selectedId && String(selectedId) === String(articuloId)) {
           await refreshSolicitudesArticuloSeleccionado();
         }
-      } catch {}
+      } catch {
+        // The removal succeeded even if the request list could not refresh.
+      }
     } catch (e) {
       console.error(e);
       alert("No se pudo eliminar de Mis Rescates. Revisa la consola.");
@@ -2303,7 +2245,7 @@ export default function UserProfile({
       // Refrescar mi reputación si yo fui calificado
       supabase.from("reputacion_promedio").select("promedio,total").eq("usuario_id", user.id).maybeSingle()
         .then(({ data }) => setMiReputacion(data ? { promedio: parseFloat(data.promedio), total: parseInt(data.total) } : { promedio: 0, total: 0 }));
-    } catch (e) { alert("No se pudo enviar la calificación."); }
+    } catch { alert("No se pudo enviar la calificación."); }
     finally { setCalificarLoading(false); }
   };
 
@@ -2779,7 +2721,7 @@ export default function UserProfile({
                   <div className="profile-inbox-tabs" role="tablist" aria-label="Secciones del buzón">
                     {inboxTabs.map(([tab,label,Icon,count])=>(
                       <button key={tab} type="button" role="tab" id={`${inboxTabId}-${tab}-tab`} aria-controls={`${inboxTabId}-${tab}-panel`} aria-selected={selectedInboxTab===tab} tabIndex={selectedInboxTab===tab?0:-1} data-inbox-tab={tab} onKeyDown={inboxTabKey} onClick={()=>changeInboxTab(tab)}>
-                        <Icon size={16} aria-hidden="true" /><span>{label}</span>{count>0&&<span className="profile-inbox-count" aria-label={`${count} sin leer`}>{count}</span>}
+                        {createElement(Icon, { size: 16, "aria-hidden": true })}<span>{label}</span>{count>0&&<span className="profile-inbox-count" aria-label={`${count} sin leer`}>{count}</span>}
                       </button>
                     ))}
                   </div>
