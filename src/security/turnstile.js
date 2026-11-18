@@ -32,7 +32,7 @@ export function loadTurnstile() {
   return loading;
 }
 
-export function createCaptchaWidget(container, { siteKey, onMessage, load = loadTurnstile, now = Date.now }) {
+export function createCaptchaWidget(container, { siteKey, action, onToken, onMessage, load = loadTurnstile, now = Date.now }) {
   let active = true, api, id = null, token = null;
   const invalidate = message => { if (active) { token = null; onMessage(message); } };
   const ready = load().then(loaded => {
@@ -40,8 +40,14 @@ export function createCaptchaWidget(container, { siteKey, onMessage, load = load
     api = loaded;
     id = api.render(container, {
       sitekey: siteKey, language: 'es', size: 'flexible', theme: 'light',
+      ...(action && { action }),
       retry: 'never', 'refresh-expired': 'manual', 'refresh-timeout': 'manual', 'response-field': false,
-      callback: value => { if (active) { token = { value, expiresAt: now() + 290000 }; onMessage(''); } },
+      callback: value => {
+        if (!active) return;
+        token = { value, expiresAt: now() + 290000 };
+        onMessage('');
+        onToken?.(value);
+      },
       'expired-callback': () => invalidate('La verificación venció. Renuévala para continuar.'),
       'timeout-callback': () => invalidate('La verificación agotó su tiempo. Puedes reintentar.'),
       'error-callback': () => { invalidate('No se pudo verificar. Revisa tu conexión y reintenta.'); return true; },

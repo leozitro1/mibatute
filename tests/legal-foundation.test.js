@@ -77,6 +77,11 @@ test('rights requests are private, retry-safe, independent of the support cooldo
   await assert.rejects(rpc('respond_data_request',[key,'answered','Quiero sobrescribir la respuesta final.']),/sobrescribir/);
   await as(1);const answered=(await rpc('data_requests_inbox',[false,1,'answered'])).rows[0];assert.equal(answered.id,key);assert.ok(answered.response);assert.equal(answered.user_id,null);
   await db.exec('reset role');assert.equal((await db.query("select count(*)::int n from staff_audit where action='privacy.respond'")).rows[0].n,2);
+  const {rows:[closure]}=await db.query(`select
+    exists(select 1 from auth.users where id=$1) as account_exists,
+    exists(select 1 from public.usuarios where id=$1) as profile_exists,
+    (select status from public.data_rights_requests where id=$2) as request_status`,[id(1),id(201)]);
+  assert.deepEqual(closure,{account_exists:true,profile_exists:true,request_status:'open'});
   await db.query('update staff_accounts set active=false where user_id=$1',[id(3)]);await as(3,'aal2');await assert.rejects(rpc('data_requests_inbox',[true,1,'']),/autorizado/);
   await as(null);await assert.rejects(rpc('submit_data_request',[id(203),'consultation',body]),/permission denied/);
  }finally{await db.close();}

@@ -75,3 +75,5 @@ En `/datos-personales`, la sesión del usuario de prueba mostró el mismo radica
 ## Canal vigente desde el 22 de octubre de 2026
 
 Por instrucción del responsable, el único correo de atención es el buzón `info` del dominio `mibatute.com`. Sustituye los canales Gmail, hola y contacto indicados en el registro histórico anterior. El sitio ofrece botones de contacto sin mostrar la dirección completa. La recepción del nuevo buzón queda por comprobar; este cambio no configura SMTP ni envía correos.
+
+El responsable confirmó que el correo de MiBatute funciona. En un simulacro local se recibió una consulta ficticia, se radicó con la fecha original, se comprobó la entrega de la respuesta al destinatario simulado y se cerró con el mismo radicado y constancia de envío. El cierre se registró en menos de un minuto. El panel rechazó el cierre sin constancia y la solicitud no apareció en la cuenta de otro usuario. Los mensajes ficticios se retiraron del buzón local después de la prueba. El equipo lleva manualmente el control de los vencimientos y responde desde el correo oficial.

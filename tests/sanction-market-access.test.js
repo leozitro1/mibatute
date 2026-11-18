@@ -13,7 +13,7 @@ const owner=id(1), buyer=id(2), normal=id(3), staff=id(4);
 test('temporary sanctions pause discovery and new requests while preserving existing read-only conversations',async t=>{
  const db=new PGlite({extensions:{unaccent}});
  try{
-  await db.exec(`create role anon;create role authenticated;create schema auth;create schema realtime;
+  await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create schema realtime;
    create function auth.uid() returns uuid language sql stable as 'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
    create table auth.users(id uuid primary key,email_confirmed_at timestamptz default now());
    create table public.usuarios(id uuid primary key,nombre text default 'Usuario',foto_url text default '',is_blocked boolean default false,bloqueado boolean default false,ban_until timestamptz);
@@ -150,6 +150,51 @@ test('temporary sanctions pause discovery and new requests while preserving exis
    await admin();await db.query('update usuarios set ban_until=null where id=$1',[owner]);await as();assert.equal((await page()).total,4);
    await as(buyer);assert.equal((await db.query('select apply_for_donation($1,$2,true) r',[id(10),'Solicitud después de levantar sanción'])).rows[0].r.success,true);
    assert.equal((await db.query('select transition_sale($1,$2) r',[id(11),'reserve'])).rows[0].r.article.status,'reservado');
+  });
+  await t.test('seller cutoff pauses only offers, protects old links and preserves existing reservations',async()=>{
+   await admin();
+   await db.exec(`alter table public.usuarios add column direccion text,add column movil text;
+    insert into articulos(id,owner_id,mode,is_featured) values('${id(17)}','${owner}','venta',true);`);
+   const creditSql=await migration('2026-10-20-publication-credits');
+   const activeStart=creditSql.indexOf('create or replace function public.sale_publication_active(');
+   await db.exec(creditSql.slice(activeStart,creditSql.indexOf('$$;',activeStart)+3));
+   await db.exec(await migration('2026-11-10-seller-registration'));
+   const transition=await migration('2026-11-10-seller-registration-transition');
+   await db.exec(transition);await db.exec(transition);
+   const notice=async()=>(await db.query('select public.my_seller_transition_notice() r')).rows[0].r;
+   const direct=async n=>(await db.query('select id from public.articulos where id=$1',[id(n)])).rows.length;
+   const stored=async()=>(await db.query('select id,estado,status,buyer_id,created_at,updated_at,is_featured from articulos order by id')).rows;
+   const beforeCut=await stored();
+   await as();assert.ok((await page()).featuredIds.includes(id(17)));assert.equal(await direct(17),1);
+   await admin();await db.exec("update seller_registration_settings set enabled=true,visibility_starts_at=now()+interval '1 day';");
+   await as(owner);assert.equal((await notice()).state,'upcoming');assert.equal(await direct(17),1);
+   await as(normal);assert.equal(await notice(),null);
+   await admin();await db.exec("update seller_registration_settings set visibility_starts_at=now()-interval '1 second';");
+   assert.deepEqual(await stored(),beforeCut);
+   for(const viewer of [null,owner,buyer,staff]){
+    await as(viewer);const result=await page({search:'sillon'});
+    assert.equal(result.total,2);assert.ok(!result.ids.includes(id(17)));assert.ok(!result.featuredIds.includes(id(17)));
+   }
+   await as();assert.equal(await direct(17),0);assert.equal(await direct(10),1);
+   await assert.rejects(db.query('select public.my_seller_transition_notice()'),{code:'42501'});
+   await as(owner);assert.equal((await notice()).state,'paused');assert.equal(await direct(17),1);
+   await as(buyer);assert.equal(await direct(11),1);assert.equal(await direct(13),1);assert.equal(await direct(17),0);
+   const balance=async()=>(await db.query('select saldo from public.cupos where usuario_id=$1',[buyer])).rows[0].saldo;
+   const balanceBefore=await balance();
+   await assert.rejects(db.query("select public.transition_sale($1,'reserve')",[id(17)]),/no está disponible/);
+   assert.equal(await balance(),balanceBefore);
+   await db.query("select public.transition_sale($1,'cancel')",[id(11)]);
+   await as(owner);await db.query("select public.transition_sale($1,'deliver')",[id(13)]);
+   await as();assert.equal(await direct(11),0);
+   await as(owner);await db.query('select public.save_my_seller_registration($1,$2,$3,$4,$5,true,$6)',
+    ['Vendedor ficticio','CC','1000000000','Dirección ficticia, Bogotá','3000000000','seller-2026-11-10.1']);
+   assert.equal(await notice(),null);
+   await as();assert.equal(await direct(17),1);assert.ok((await page()).featuredIds.includes(id(17)));
+   await admin();
+   const after=await stored();
+   assert.deepEqual(after.find(row=>row.id===id(17)),beforeCut.find(row=>row.id===id(17)));
+   assert.equal(after.find(row=>row.id===id(12)).estado,'pausado');
+   assert.equal(after.find(row=>row.id===id(13)).estado,'entregado');
   });
  }finally{await db.close();}
 });

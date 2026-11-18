@@ -22,8 +22,8 @@ test("empty or inconsistent results never report a successful purchase", async (
 });
 
 test("missing migration and rejected purchases return actionable errors", async () => {
-  await assert.rejects(transitionSale({ rpc: async () => ({ error: { code: "PGRST202" } }) }, "a1", "reserve"), /Supabase/);
-  await assert.rejects(transitionSale({ rpc: async () => ({ error: { message: "Ya no esta disponible" } }) }, "a1", "reserve"), /disponible/);
+  await assert.rejects(transitionSale({ rpc: async () => ({ error: { code: "PGRST202" } }) }, "a1", "reserve"), { code: "PGRST202", message: "No se pudo actualizar la venta. Intenta de nuevo." });
+  await assert.rejects(transitionSale({ rpc: async () => ({ error: { code: "P0001", message: "Ya no esta disponible" } }) }, "a1", "reserve"), /disponible/);
 });
 
 test("cancel and delivery validate the persisted state", async () => {

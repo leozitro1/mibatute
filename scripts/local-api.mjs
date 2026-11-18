@@ -1,6 +1,7 @@
 import emailDispatch from '../api/email-dispatch.js';
 import imagekitAuth from '../api/imagekit-auth.js';
 import imagekitDelete from '../api/imagekit-delete.js';
+import legalOperator from '../api/legal-operator.js';
 import profilePhoto from '../api/profile-photo.js';
 import profilePhotoUpload from '../api/profile-photo-upload.js';
 import wompiCheckout from '../api/wompi-checkout.js';
@@ -10,6 +11,7 @@ const handlers = new Map([
   ['/api/email-dispatch', emailDispatch],
   ['/api/imagekit-auth', imagekitAuth],
   ['/api/imagekit-delete', imagekitDelete],
+  ['/api/legal-operator', legalOperator],
   ['/api/profile-photo', profilePhoto],
   ['/api/profile-photo-upload', profilePhotoUpload],
   ['/api/wompi-checkout', wompiCheckout],
@@ -23,7 +25,7 @@ export function localApiPlugin(env) {
     configureServer(server) {
       for (const key of ['SUPABASE_URL', 'SUPABASE_ANON_KEY',
         'IMAGEKIT_PUBLIC_KEY', 'IMAGEKIT_PRIVATE_KEY', 'IMAGEKIT_URL_ENDPOINT',
-        'EMAIL_NOTIFICATIONS_ENABLED', 'RESEND_API_KEY', 'NOTIFICATION_EMAIL_FROM', 'CRON_SECRET',
+        'EMAIL_NOTIFICATIONS_ENABLED', 'RESEND_API_KEY', 'NOTIFICATION_EMAIL_FROM', 'CRON_SECRET', 'LEGAL_TURNSTILE_SECRET_KEY',
         'WOMPI_LOCAL_SANDBOX','WOMPI_RETURN_ORIGIN',
         'SUPABASE_SERVICE_ROLE_KEY', 'WOMPI_ENABLED', 'WOMPI_ENVIRONMENT', 'WOMPI_PUBLIC_KEY', 'WOMPI_PRIVATE_KEY',
         'WOMPI_INTEGRITY_SECRET', 'WOMPI_EVENTS_SECRET']) {

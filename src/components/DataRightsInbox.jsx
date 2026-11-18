@@ -4,6 +4,7 @@ import {supabase} from '../supabase/supabaseClient';
 import {LEGAL_ATTENTION} from '../legal/config.js';
 import ContactButton from './ContactButton.jsx';
 import RetentionPreview from './RetentionPreview.jsx';
+import AccountErasure from './AccountErasure.jsx';
 import {finalResponseBlockers} from './dataRightsActions.js';
 import './SupportInbox.css';
 import './DataRightsInbox.css';
@@ -12,7 +13,7 @@ import { AttentionDot } from '../staff/StaffAttention.jsx';
 const kinds={consultation:'Consultar mis datos o mi autorización',correction:'Corregir o actualizar datos',deletion:'Cerrar mi cuenta y solicitar supresión',revocation:'Revocar una autorización',complaint:'Reclamo sobre mis datos'};
 const statuses={open:'Recibida',reviewing:'En revisión',answered:'Respondida'};
 const stamp=value=>new Date(value).toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short',timeZone:'America/Bogota'});
-export default function DataRightsInbox({client=supabase,isStaff=false,userId:staffUserId,revision:externalRevision=0,onActivity,onAccessExpired}){
+export default function DataRightsInbox({client=supabase,isStaff=false,canEraseAccounts=false,userId:staffUserId,revision:externalRevision=0,onActivity,onAccessExpired}){
  const [uid,setUid]=useState(isStaff?staffUserId:null),[authReady,setAuthReady]=useState(isStaff);
  const [kind,setKind]=useState('consultation'),[body,setBody]=useState(''),[page,setPage]=useState(1),[filter,setFilter]=useState(isStaff?'pending':'');
  const [data,setData]=useState({rows:[],pages:1,page:1}),[loading,setLoading]=useState(false),[sending,setSending]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[revision,setRevision]=useState(0);
@@ -104,6 +105,9 @@ export default function DataRightsInbox({client=supabase,isStaff=false,userId:st
       {caseFeedback?.id===row.id&&caseFeedback.scope==='work'&&<p role={caseFeedback.type==='error'?'alert':'status'} className={caseFeedback.type==='error'?'support-error':'legal-save-success'}>{caseFeedback.message}</p>}
      </form>:<><p className="support-hint">Verificación: {row.verification==='verified'?'Verificada':row.verification==='not_required'?'No requerida para esta respuesta':'Pendiente'}</p>{row.internal_notes&&<p>{row.internal_notes}</p>}</>}
     </section>}
+    {isStaff&&canEraseAccounts&&row.source==='web'&&row.kind==='deletion'&&row.status!=='answered'
+      &&row.assigned_to===uid&&row.verification==='verified'&&<AccountErasure key={row.work_revision} row={row} rpc={rpc}
+        onCompleted={()=>{setNotice('Cuenta suprimida. El radicado quedó en Respondida. Comunica el resultado al titular por el canal verificado.');setRevision(value=>value+1);}}/>}
     {isStaff&&row.assigned_to===uid&&row.status!=='answered'&&<form className="support-compose" onSubmit={event=>answer(row,event)}>
      <label htmlFor={`${controlId}-${row.id}-status`}>Estado de atención</label><select id={`${controlId}-${row.id}-status`} disabled={sending} value={drafts[row.id]?.status||'reviewing'} onChange={event=>setDrafts(old=>({...old,[row.id]:{...old[row.id],status:event.target.value}}))}><option value="reviewing">En revisión</option><option value="answered">Respuesta final</option></select>
      <label htmlFor={`${controlId}-${row.id}-answer`}>Respuesta al titular (10 a 500 caracteres)</label><textarea id={`${controlId}-${row.id}-answer`} rows={3} minLength={10} maxLength={500} required disabled={sending} value={responseText} onChange={event=>setDrafts(old=>({...old,[row.id]:{...old[row.id],text:event.target.value}}))}/><p className="support-hint">Antes de responder, guarda el seguimiento interno. Una respuesta final exige verificación resuelta y constancia de las acciones; no ejecuta el borrado ni un reembolso. La respuesta final no se puede sobrescribir. Si hay una ampliación de plazo, explica su motivo y la fecha prevista antes del vencimiento.</p>{blockers.length>0&&<div className="legal-save-requirements"><strong>Antes de guardar la respuesta final:</strong><ul>{blockers.map(reason=><li key={reason}>{reason}</li>)}</ul></div>}

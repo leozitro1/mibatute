@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCaptchaWidget, loadTurnstile } from '../src/security/turnstile.js';
+import legalOperator from '../api/legal-operator.js';
 
 function fixture() {
   let config, stamp = 0, removed = 0, reset = 0, renders = 0;
@@ -75,4 +76,22 @@ test('loader shares one official script, removes a failed load, and allows a man
   const next = loadTurnstile(); assert.equal(scripts.length, 2);
   const api = { render() {} }; globalThis.turnstile = api;
   scripts[1].onload(); assert.equal(await next, api);
+});
+
+test('operator identity endpoint only offers the contact channel, without disclosing identity', async t => {
+  const verify = t.mock.method(globalThis, 'fetch', async () => { throw new Error('Unexpected network request'); });
+  for (const method of ['GET', 'POST']) {
+    const response = {
+      headers: {},
+      setHeader(key, value) { this.headers[key] = value; },
+      status(code) { this.code = code; return this; },
+      json(body) { this.body = body; },
+    };
+    await legalOperator({ method, body: { token: 'test-token' } }, response);
+    assert.equal(response.code, 410);
+    assert.equal(response.headers['Cache-Control'], 'private, no-store');
+    assert.deepEqual(Object.keys(response.body).sort(), ['email', 'message']);
+    assert.equal(response.body.email, 'info@mibatute.com');
+  }
+  assert.equal(verify.mock.callCount(), 0);
 });

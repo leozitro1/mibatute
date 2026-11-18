@@ -15,6 +15,9 @@ export default defineConfig(({ mode, command }) => {
   }))) throw new Error('La revisión CSP requiere Supabase y los servicios de desarrollo locales.')
   return {
     plugins: [react(), localApiPlugin(env), localAppPreview(), appVersion(), ...(cspReview ? [localCspReview()] : [])],
-    server: { host: '127.0.0.1', port: 5173, strictPort: true },
+    server: {
+      host: '127.0.0.1', port: 5173, strictPort: true,
+      fs: { deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/server/legalOperator.js', '**/supabase/migrations/**'] },
+    },
   }
 })

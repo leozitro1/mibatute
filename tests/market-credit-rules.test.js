@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { commitPublication, publicationStatus, publicationQuote } from '../src/supabase/publicationCredits.js';
+import {checkSellerRegistration,SELLER_NOTICE_VERSION,SELLER_REGISTRATION_REQUIRED} from '../src/supabase/sellerRegistration.js';
 const id = n => `00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 const owner=id(1), buyer=id(2), other=id(3);
 
@@ -241,7 +242,72 @@ test('daily donation quota and paid publication rules are enforced by PostgreSQL
     await assert.rejects(db.query('select sale_free_limit($1)',[owner]),/permission denied/);
     await db.exec('reset role;set role anon');await assert.rejects(db.query('select sale_publication_status()'),/permission denied/);
   });
+  await t.test('seller registration gates new offers without spending credits or interrupting ongoing sales',async()=>{
+    await reset();
+    await db.exec('reset role; alter table public.usuarios add column direccion text,add column movil text,add column ban_until timestamptz;');
+    const sql=await migration('2026-11-10-seller-registration');
+    await db.exec(sql);
+    const status=async()=>(await db.query('select public.my_seller_registration_status() as r')).rows[0].r;
+    const details=async()=>(await db.query('select public.my_seller_registration() as r')).rows[0].r;
+    const save=(consent=true)=>db.query('select public.save_my_seller_registration($1,$2,$3,$4,$5,$6,$7)',
+      ['Vendedor Ficticio','CC','1000000000','Calle de prueba 12, Bogotá','3000000000',consent,SELLER_NOTICE_VERSION]);
+    await asUser(owner);
+    assert.deepEqual(await status(),{enabled:false,enrollmentOpen:false,ready:false});
+    await assert.rejects(save(),{code:'42501'});
+    await publish(10);
+    await db.exec('reset role; update public.seller_registration_settings set enrollment_open=true;');
+    await asUser(owner);
+    assert.deepEqual(await status(),{enabled:false,enrollmentOpen:true,ready:false});
+    await publish(11);
+    await assert.rejects(save(false),{code:'22023'});
+    await save();
+    assert.deepEqual(await status(),{enabled:false,enrollmentOpen:true,ready:true});
+    assert.equal((await details()).documentNumber,'1000000000');
+    await asUser(other);
+    assert.equal((await details()).documentNumber,undefined);
+    await db.exec('reset role; delete from public.seller_registrations; update public.seller_registration_settings set enrollment_open=false;');
+    await asUser(owner);
+    await publish(12);
+    await db.exec('reset role; update public.seller_registration_settings set enabled=true;');
+    await db.exec(sql);
+    await asUser(owner);
+    assert.deepEqual(await status(),{enabled:true,enrollmentOpen:true,ready:false});
+    await assert.rejects(publish(13,true),{code:SELLER_REGISTRATION_REQUIRED});
+    assert.equal((await sales()).balance,5);
+    assert.equal((await db.query('select count(*)::int as n from cupos_historial')).rows[0].n,0);
+    assert.equal((await db.query('select id from articulos where id=$1',[id(13)])).rows.length,0);
+    await publish(14,false,{mode:'donacion'});
+    await assert.rejects(db.query("update articulos set mode='venta' where id=$1",[id(14)]),{code:SELLER_REGISTRATION_REQUIRED});
+    await db.query("update articulos set estado='pausado',status='pausado' where id=$1",[id(14)]);
+    await db.query("update articulos set estado='reservado',status='reservado' where id=$1",[id(10)]);
+    await db.query("update articulos set estado='disponible',status='disponible' where id=$1",[id(10)]);
+    await db.query("update articulos set estado='pausado',status='pausado' where id=$1",[id(10)]);
+    await assert.rejects(db.query("update articulos set estado='disponible',status='disponible' where id=$1",[id(10)]),{code:SELLER_REGISTRATION_REQUIRED});
+    await assert.rejects(save(false),{code:'22023'});
+    await save();
+    assert.deepEqual(await status(),{enabled:true,enrollmentOpen:true,ready:true});
+    assert.equal((await details()).documentNumber,'1000000000');
+    assert.equal((await publish(13,true)).balance,4);
+    await asUser(other);
+    assert.equal((await details()).documentNumber,undefined);
+    await assert.rejects(db.query('select * from public.seller_registrations'),{code:'42501'});
+    await assert.rejects(db.query('update public.seller_registration_settings set enabled=false'),{code:'42501'});
+    await db.exec('reset role; set role anon;');
+    await assert.rejects(db.query('select public.my_seller_registration()'),{code:'42501'});
+    await db.exec('reset role;');
+    const {rows:[proof]}=await db.query('select consent_at,consent_version from public.seller_registrations where user_id=$1',[owner]);
+    assert.ok(proof.consent_at);assert.equal(proof.consent_version,SELLER_NOTICE_VERSION);
+  });
  } finally { await db.close(); }
+});
+
+test('seller preflight skips donations and blocks uploads when sales cannot be verified',async()=>{
+  const client={rpc:async()=>{throw new Error('unexpected request');}};
+  assert.equal(await checkSellerRegistration(client,'donacion',true),null);
+  assert.equal(await checkSellerRegistration(client,'venta',false),null);
+  assert.equal((await checkSellerRegistration(client,'venta',true)).success,false);
+  assert.equal((await checkSellerRegistration({rpc:async()=>({data:{enabled:true,ready:false}})},'venta',true)).code,SELLER_REGISTRATION_REQUIRED);
+  assert.equal(await checkSellerRegistration({rpc:async()=>({data:{enabled:true,ready:true}})},'venta',true),null);
 });
 
 test('publication client passes consent and stable id and never falls back to unguarded insert',async()=>{

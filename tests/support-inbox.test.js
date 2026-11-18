@@ -8,6 +8,8 @@ const hideSql=await readFile(new URL('../supabase/migrations/2026-10-19-support-
 const limitSql=await readFile(new URL('../supabase/migrations/2026-10-19-support-message-limit.sql',import.meta.url),'utf8');
 const closureSql=await readFile(new URL('../supabase/migrations/2026-10-19-support-closure-preview.sql',import.meta.url),'utf8');
 const staffSql=await readFile(new URL('../supabase/migrations/2026-10-14-staff-console.sql',import.meta.url),'utf8');
+const sellerRegistrationSql=await readFile(new URL('../supabase/migrations/2026-11-10-seller-registration.sql',import.meta.url),'utf8');
+const sellerClaimSql=await readFile(new URL('../supabase/migrations/2026-11-10-seller-claim-access.sql',import.meta.url),'utf8');
 function definition(source,name){const start=source.indexOf(`create or replace function public.${name}(`);return source.slice(start,source.indexOf('$$;',start)+3);}
 async function fixture(){
  const db=new PGlite();
@@ -52,6 +54,62 @@ async function fixture(){
  const rpc=async(name,args=[])=> (await db.query(`select public.${name}(${args.map((_,i)=>`$${i+1}`).join(',')}) result`,args)).rows[0].result;
  return {db,as,rpc};
 }
+
+test('seller claim lookup accepts a manually verified off-platform purchase in the existing support thread',async()=>{
+ const {db,as,rpc}=await fixture();try{
+  await db.exec(`alter table auth.users add column email_confirmed_at timestamptz default now();
+    alter table public.usuarios add column direccion text,add column movil text;
+    alter table public.staff_audit add column created_at timestamptz default clock_timestamp();
+    alter table public.support_threads add column closed_at timestamptz;
+    create table public.articulos(id uuid primary key,owner_id uuid,usuario_id uuid,mode text,estado text,status text);`);
+  await db.exec(definition(staffSql,'staff_require_recent_mfa'));
+  await db.exec(sellerRegistrationSql);await db.exec(sellerClaimSql);
+  await db.exec(`insert into articulos values
+    ('${id(80)}','${id(2)}',null,'venta','disponible','disponible'),
+    ('${id(81)}','${id(2)}',null,'donacion','disponible','disponible'),
+    ('${id(82)}','${id(3)}',null,'venta','disponible','disponible');
+    insert into seller_registrations(user_id,legal_name,document_type,document_number,notification_address,phone,consent_version,consent_at)
+    values('${id(2)}','Nombre de prueba','CC','1000000000','Dirección ficticia 12, Bogotá','3000000000','seller-2026-11-10.1',now()-interval '2 days');
+    update seller_registration_settings set enabled=true;`);
+  await as(1);
+  const thread=await rpc('support_start_thread',[id(85),'Reclamo de compra','Solicito ayuda para identificar al vendedor de esta compra.']);
+  const evidence=(await rpc('support_thread',[thread,false,null])).messages[0].seq;
+  await as(2);
+  const foreign=await rpc('support_start_thread',[id(86),'Otro reclamo','Este hilo no está vinculado a la compra.']);
+  const foreignEvidence=(await rpc('support_thread',[foreign,false,null])).messages[0].seq;
+  const args=[thread,id(80),evidence,['name','document'],true];
+  const lookup=(overrides={})=>rpc('staff_seller_claim_lookup',args.map((value,index)=>Object.hasOwn(overrides,index)?overrides[index]:value));
+  const recent=async n=>{
+   await as(n,'aal2');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({aal:'aal2',session_id:id(n+100),amr:[{method:'totp',timestamp:Math.floor(Date.now()/1000)}]})]);
+  };
+  await as(null);await assert.rejects(lookup(),{code:'42501'});
+  await as(1);await assert.rejects(lookup(),{code:'42501'});
+  await recent(3);await assert.rejects(lookup(),{code:'42501'});
+  await as(4,'aal2');await assert.rejects(lookup(),/segundo factor/);
+  await recent(4);await assert.rejects(lookup(),/no está habilitada/);
+  await db.exec('reset role; update seller_registration_settings set claims_enabled=true;');
+  await db.exec(sellerClaimSql);
+  await recent(4);
+  await assert.rejects(lookup({0:foreign,2:foreignEvidence}),{code:'P0001'});
+  await assert.rejects(lookup({2:foreignEvidence}),{code:'P0001'});
+  await assert.rejects(lookup({1:id(81)}),{code:'P0001'});
+  await assert.rejects(lookup({1:id(82)}),{code:'P0001'});
+  await assert.rejects(lookup({4:false}),{code:'22023'});
+  await assert.rejects(lookup({3:['all']}),{code:'22023'});
+  assert.deepEqual(await lookup(),{legalName:'Nombre de prueba',documentType:'CC',documentNumber:'1000000000'});
+  await as(1);assert.ok(!JSON.stringify(await rpc('support_thread',[thread,false,null])).includes('1000000000'));
+  await db.exec('reset role');
+  const audit=(await db.query("select * from staff_audit where action='seller_claim.lookup'")).rows;
+  assert.equal(audit.length,1);assert.equal(audit[0].actor_id,id(4));assert.equal(audit[0].target_id,thread);assert.ok(audit[0].created_at);
+  assert.deepEqual(audit[0].changes,{article_id:id(80),evidence_seq:Number(evidence),categories:['name','document']});
+  assert.ok(!JSON.stringify(audit).includes('1000000000'));
+  await db.query('update support_threads set closed_at=now() where id=$1',[thread]);
+  await recent(4);await assert.rejects(lookup(),{code:'P0001'});
+  await db.exec('reset role');
+  await db.query('update support_threads set closed_at=null,user_hidden_at=now() where id=$1',[thread]);
+  await recent(4);await assert.rejects(lookup(),{code:'P0001'});
+ }finally{await db.close();}
+});
 
 test('private support threads enforce 24-hour starts, retries and participant/staff authorization',async()=>{
  const {db,as,rpc}=await fixture();try{

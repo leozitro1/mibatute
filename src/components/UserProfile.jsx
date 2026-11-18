@@ -2,6 +2,7 @@ import ProfileAvatar from './ProfileAvatar.jsx';
 import useProfilePhoto from '../imagekit/useProfilePhoto.js';
 import AccountVerification, { AccountVerificationBadge } from './AccountVerification.jsx';
 import {ProfileSellerRegistration} from './SellerRegistration.jsx';
+import {SELLER_REGISTRATION_PREVIEW,SELLER_REGISTRATION_REQUIRED,SELLER_REGISTRATION_MESSAGE} from '../supabase/sellerRegistration.js';
 import StyledSelect from "./StyledSelect.jsx";
 import ProfileIdentityPlacement from './ProfileIdentityPlacement.jsx';
 // src/components/UserProfile.jsx
@@ -2282,7 +2283,7 @@ export default function UserProfile({
       onArticuloReservado?.({ ...art, estado: nextEstado, status: nextEstado, pausado: next });
     } catch (e) {
       console.error("togglePausado error:", e);
-      alert("No se pudo " + (next ? "pausar" : "reactivar") + " la publicación.");
+      alert(e?.code===SELLER_REGISTRATION_REQUIRED?SELLER_REGISTRATION_MESSAGE:"No se pudo " + (next ? "pausar" : "reactivar") + " la publicación.");
     }
   };
 
@@ -2595,7 +2596,7 @@ export default function UserProfile({
                 <div className="flex items-start gap-2 border-t border-gray-200 pt-3 text-gray-500">
                   <LockKeyhole size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
                   <p id="profile-privacy-note" className="text-xs leading-5">
-                    Tu teléfono, correo y dirección no se muestran a otros usuarios; son de uso interno de la plataforma.
+                    Tu teléfono, correo y dirección no se muestran en tu perfil público. {SELLER_REGISTRATION_PREVIEW&&'Los datos de vendedor pueden facilitarse ante un reclamo de quien compró o una solicitud de la autoridad competente. '}
                     {' '}El contacto entre compradores y vendedores se realiza únicamente por el chat de MiBatute, incluso después de confirmar una venta o donación.
                   </p>
                 </div>
