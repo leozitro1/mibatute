@@ -1,5 +1,27 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Publicación autorizada del 18 de noviembre: favoritos y cupos
+
+- Responsable revisó la propuesta local y autorizó commit y deploy en main y el proyecto Vercel habitual. Favoritos limitados a diez por navegador; bloque de créditos y cupos con persiana, iconos y contadores compactos.
+- Migraciones de máximo de tres donaciones y retención de cupos aplicadas juntas, en una transacción, al proyecto Supabase habitual mediante el panel SQL autorizado expresamente. Tres funciones anteriores comparadas por huella antes de aplicar; siete funciones finales coinciden con las probadas. Tabla de metadatos privada con RLS y sin acceso directo de clientes; consulta de borrado autenticada, limitada al propietario. Ambos triggers habilitados.
+- Eliminar un aviso activo dentro de doce horas libera el cupo; después se retiene diez días desde el borrado. Controles en servidor para ventas/donaciones, sin devoluciones de créditos por eliminar. Conserva publicaciones históricas y no reconstruye avisos ya borrados. No crea borrados, publicaciones ni cargos ficticios en producción.
+- 466 pruebas y compilación aprobadas. Lint de módulos nuevos y componentes de publicación/cupos correcto; el lint general conserva 48 errores anteriores y diez advertencias. Comparación con HEAD de MarketplaceApp y UserProfile sin nuevos errores. Wompi, recargas reales, CAPTCHA y SMTP conservan su configuración.
+
+## Propuesta local del 18 de noviembre: máximo de donaciones
+
+- Migración `2026-11-18-donation-publication-limit.sql` aplicada solo en Supabase local. Máximo de tres donaciones activas por cuenta, incluidas pausadas, en revisión y reservadas; las reservas siguen ocupando espacio después de 60 días. Entregadas y vencidas sin reserva no cuentan. El borrado queda sujeto a la regla de doce horas descrita abajo.
+- Control en servidor para inserciones, conversiones y reactivaciones, con bloqueo por propietario compartido con publicaciones/créditos. No permite precios distintos de cero ni ampliar este máximo con créditos. Conserva las publicaciones históricas por encima del máximo y permite editarlas sin añadir otras.
+- Formulario, perfil y Cómo funciona explican el límite y la gratuidad obligatoria. No detecta automáticamente cobros ocultos en texto o chat; requieren reportes y moderación. Sin cambios en producción ni aprobación jurídica de borradores.
+- Veintidós pruebas de reglas del mercado aprobadas, incluida la nueva cobertura del límite, conservación de historial, precio cero y aislamiento entre usuarios. Compilación y lint de los componentes revisados correctos.
+
+## Propuesta local del 18 de noviembre: cupos tras eliminar avisos
+
+- Migración `2026-11-18-deleted-publication-slots.sql` probada y aplicada solo a Supabase local. Eliminar un aviso activo durante las primeras doce horas libera el cupo; después lo retiene durante diez días desde el borrado, para ventas y donaciones. Entregados o vencidos que ya no ocupan cupo no crean una retención. No devuelve créditos de publicación/destacado.
+- Registro privado de metadatos del servidor, sin título, texto, fotos ni teléfonos: autor, identificador, tipo, fecha original y fechas de borrado/liberación. Sin permisos de cliente. Fechas originales de registros existentes tomadas del recibo de publicación o del artículo; las nuevas se registran en servidor. No se reconstruyen borrados anteriores.
+- Retenciones contadas en el estado y los guards de ventas/donaciones, con bloqueo común por propietario. La publicación de ventas adicionales mantiene el consentimiento y débito existentes; las donaciones no admiten ampliar el máximo con créditos. La liberación ocurre por comparación de fechas, sin cron.
+- Confirmación de borrado con consulta autorizada al servidor, plazo y fecha aproximada de liberación en hora de Colombia; cancelar conserva el aviso en el perfil. Perfil muestra cupos retenidos y próxima liberación. Formulario y Cómo funciona explican ambas ventanas.
+- Veintitrés pruebas de mercado y cinco pruebas de confirmación/pasos aprobadas. Incluyen frontera de doce horas, vencimiento de retención, ventas con crédito, escrituras directas, aislamiento, transacciones revertidas y conservación de publicaciones históricas. Compilación y lint de módulos nuevos/revisados correctos. Sin commit, push ni cambios en producción.
+
 ## Publicación autorizada del 5 de noviembre: presupuesto de consultas y métricas
 
 - Migraciones catalog-query-budget y global-metric-budgets aplicadas juntas al proyecto Supabase habitual. Cuatro funciones originales comparadas y nueve comprobaciones posteriores positivas: cuerpos exactos, permisos/RLS, reservador privado y tres presupuestos correctos. MFA, créditos y cuota de subidas intactos. Sin visitas, métricas ni operaciones de prueba en producción.

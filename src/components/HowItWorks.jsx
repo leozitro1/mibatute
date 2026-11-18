@@ -4,7 +4,7 @@ import './HowItWorks.css';
 import ReuseImpact from './ReuseImpact.jsx';
 
 const costs = [
-  ['Publicar una donación', 'Gratis', 'Ofrecer tu artículo no requiere créditos.'],
+  ['Publicar una donación', 'Gratis', 'Máximo 3 donaciones activas. Ofrecer tu artículo no requiere créditos.'],
   ['Mantener 3 ventas activas, o 4 con una donación disponible', 'Gratis', 'Sin comisión por la venta. El cuarto cupo requiere una donación disponible con foto y descripción.'],
   ['Publicar otra venta cuando ocupaste tus cupos gratuitos', '1 crédito', '$2.500 COP por esa publicación adicional.'],
   ['Destacar una publicación', '1 crédito', 'Opcional; no garantiza una venta ni solicitudes.'],
@@ -19,6 +19,7 @@ const packs = CREDIT_PACKS.map(pack => ({
     ? formatCOP(pack.credits * CREDIT_UNIT_PRICE_COP - pack.amountCOP) : null,
 }));
 const questions = [
+  ['¿Qué pasa con mi cupo si elimino una publicación?', 'Puedes eliminarla durante las primeras 12 horas y recuperar el cupo inmediatamente. Si borras un aviso activo después, deja de verse pero el cupo permanece ocupado durante 10 días desde la eliminación. Aplica a ventas y donaciones. Borrar no devuelve los créditos utilizados. Antes de confirmar verás cuándo recuperas el cupo.'],
   ['¿Cuál es el precio máximo de un artículo?', 'MiBatute está pensado para ventas de monto reducido: puedes publicar artículos de venta con un precio de hasta $500.000 COP cada uno. Las donaciones se ofrecen gratis. Si vendes, acuerdas el pago directamente con la otra persona; MiBatute no recauda el precio del artículo.'],
   ['¿MiBatute cobra una comisión si vendo?', 'No. MiBatute no descuenta un porcentaje del precio de tu artículo. El crédito se usa para una función concreta, como una publicación adicional o un destacado; no es una comisión por concretar una venta.'],
   ['¿Cuándo recupero un espacio gratuito para vender?', 'Tienes 3 cupos de venta gratuitos, o 4 mientras tengas al menos una donación disponible con foto y descripción. Las donaciones reservadas, pausadas, vencidas o en revisión no cuentan. Al finalizar una venta liberas un espacio. Si ya ocupaste tu límite gratuito, publicar otra venta requiere 1 crédito. Si tu donación deja de estar activa, las ventas existentes continúan sin cobros retroactivos; para reemplazar la cuarta gratis necesitarás otra donación disponible.'],
@@ -71,7 +72,7 @@ export default function HowItWorks({ onBack, reuseImpact }) {
       </section>
       <section className="how-card" aria-labelledby="how-donate">
         <div className="how-section-title"><Gift size={21} aria-hidden="true"/><h2 id="how-donate">Quiero donar</h2></div>
-        <p>Publicar una donación es gratis. Quien recibe el artículo no paga un precio por él.</p>
+        <p>Puedes tener hasta 3 donaciones activas gratis; las pausadas y reservadas también ocupan un cupo. Entregar o dejar vencer una libera espacio. Si eliminas durante las primeras 12 horas recuperas el cupo; después, queda ocupado durante 10 días desde la eliminación, tanto en ventas como en donaciones. Quien recibe el artículo no paga un precio por él: no se permite exigir dinero ni ocultar precios. Si esperas un pago, publícalo como venta.</p>
         <ol>
           <li><strong>Elige «Donación» al publicar.</strong> Explica qué entregas, en qué estado está y dónde se recoge.</li>
           <li><strong>Recibe las postulaciones.</strong> Revisa los perfiles y los mensajes de quienes están interesados.</li>

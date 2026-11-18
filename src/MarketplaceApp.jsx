@@ -8,6 +8,7 @@ import Footer from './components/Footer.jsx';
 import InstallSuggestion from './components/InstallSuggestion.jsx';
 import LegalConsentDialog from './components/LegalConsentDialog.jsx';
 import { notifyCreditBalance } from './components/creditBalance.js';
+import { publicationDeletionStatus, publicationDeletionMessage } from './supabase/publicationDeletion.js';
 import FilterSection from "./components/FilterSection";
 import ProductCard, { pickImageSrc } from "./components/ProductCard";
 import { cardImageUrl } from "./imagekit/imageUrls.js";
@@ -82,11 +83,14 @@ const NOTIFICATION_MESSAGE_LIMIT = 100;
 const NOTIFICATION_REFRESH_MS = 60 * 1000;
 const HOME_REFRESH_MS = 10 * 60 * 1000;
 const CATALOG_SAVES_KEY = 'mibatute-catalog-saves-v1';
+const FAVORITES_LIMIT = 10;
 
 function readCatalogSaves() {
   try {
     const saved = JSON.parse(localStorage.getItem(CATALOG_SAVES_KEY));
-    if (Array.isArray(saved?.favorites) && Array.isArray(saved?.searches)) return saved;
+    if (Array.isArray(saved?.favorites) && Array.isArray(saved?.searches)) {
+      return { ...saved, favorites: saved.favorites.slice(0, FAVORITES_LIMIT) };
+    }
   } catch {
     // Storage can be disabled in the browser.
   }
@@ -216,6 +220,10 @@ export default function MarketplaceApp() {
   const [catalogStorageError, setCatalogStorageError] = useState(false);
 
   function updateCatalogSaves(next) {
+    if (next.favorites.length > FAVORITES_LIMIT) {
+      alert(`Puedes guardar hasta ${FAVORITES_LIMIT} favoritos en este navegador. Quita uno para guardar otra publicación.`);
+      return;
+    }
     setCatalogSaves(next);
     try {
       localStorage.setItem(CATALOG_SAVES_KEY, JSON.stringify(next));
@@ -1596,14 +1604,13 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       throw new Error("no-auth");
     }
 
-    const ok = confirm("¿Eliminar esta publicación? Esta acción no se puede deshacer.");
-    if (!ok) return;
-
     try {
       const freshArticle = await readArticleContext(supabase, articleId);
       if (saleDeletionBlocked(freshArticle)) {
         throw new Error("No puedes eliminar esta venta. Se retira del historial siete días después de confirmar la entrega.");
       }
+      const deletionStatus = await publicationDeletionStatus(supabase, articleId);
+      if (!confirm(publicationDeletionMessage(deletionStatus))) return false;
       const cleanup = await deleteArticleImages(articleId);
       if (!cleanup.success) throw new Error(cleanup.error);
       try {
@@ -1644,6 +1651,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
       alert("✅ Publicación eliminada.");
       await load({ refreshPersonal: true });
+      return true;
     } catch (e) {
       console.error("DELETE ERROR:", e);
       alert("No se pudo eliminar: " + (e?.message || "Error inesperado"));
@@ -1817,6 +1825,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       </summary>
       <section className="catalog-saves-panel">
         <h2>Favoritos</h2>
+        <p>{catalogSaves.favorites.length}/{FAVORITES_LIMIT} guardados solo en este navegador.</p>
         {catalogSaves.favorites.length === 0 && <p>Guarda artículos con el corazón.</p>}
         <ul>
           {catalogSaves.favorites.map(favorite => {
@@ -2575,7 +2584,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   onDelete={async (art) => {
                     const id = getArticuloId(art);
                     if (!id) return alert("Este artículo no tiene id válido.");
-                    await deleteArticle(id);
+                    return await deleteArticle(id);
                   }}
                   onArticuloReservado={(articuloActualizado) => {
                     const id = getArticuloId(articuloActualizado);

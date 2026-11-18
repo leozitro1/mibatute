@@ -15,6 +15,7 @@ import { accountMarketPaused } from '../supabase/accountProfile.js';
 import './UserProfile.css';
 import './TransactionActions.css';
 import CreditBalanceValue from './CreditBalanceValue.jsx';
+import ProfileUsage from './ProfileUsage.jsx';
 import RescateArticleDetail from './RescateArticleDetail.jsx';
 import WompiTopupDialog from './WompiTopupDialog.jsx';
 import SupportInbox from './SupportInbox.jsx';
@@ -2264,13 +2265,15 @@ export default function UserProfile({
     try {
       setEliminandoArticuloId(String(articuloId));
 
+      const deleted = await onDelete(art);
+      if (!deleted) return;
       setDeletedIds((prev) => {
         const next = new Set(prev);
         next.add(String(articuloId));
         return next;
       });
 
-      await onDelete(art);
+      setRescatesReload(value => value + 1);
     } catch (e) {
       console.log("Eliminar publicación falló:", e);
 
@@ -2608,7 +2611,7 @@ export default function UserProfile({
         <div className="lg:col-span-2 min-w-0 space-y-5">
 
           {/* ── CAJA DE CRÉDITOS ── */}
-          <section className="profile-credits border-y border-gray-200 py-4" aria-label="Créditos de mi cuenta">
+          <section className={`profile-credits border-y border-gray-200 py-4${creditDetailsOpen ? ' is-expanded' : ''}`} aria-label="Créditos y cupos de mi cuenta">
             <div className="profile-credits-summary flex flex-wrap items-center gap-3">
               <div className="profile-credits-icon w-10 h-10 flex items-center justify-center shrink-0 text-forest-green">
                 <CircleDollarSign size={24} strokeWidth={1.5} aria-hidden="true" />
@@ -2619,13 +2622,13 @@ export default function UserProfile({
                   <CreditBalanceValue value={cuposSaldo}/>
                   <span className="text-sm font-semibold text-gray-400 ml-1">crédito{cuposSaldo !== 1 ? "s" : ""}</span>
                 </p>
-                <button type="button" className="profile-credits-toggle" aria-expanded={creditDetailsOpen} aria-controls={creditDetailsId}
-                  aria-label={creditDetailsOpen ? 'Ocultar información de créditos' : 'Mostrar información de créditos'}
+                <button type="button" className="profile-credits-toggle" aria-expanded={creditDetailsOpen} aria-controls={`${creditDetailsId} ${creditDetailsId}-usage`}
+                  aria-label={creditDetailsOpen ? 'Ocultar detalles de créditos y cupos' : 'Mostrar detalles de créditos y cupos'}
                   onClick={() => setCreditDetailsOpen(open => !open)}>
                   <ChevronDown size={18} className={creditDetailsOpen ? 'rotate-180' : ''} aria-hidden="true" />
                 </button>
                 <div id={creditDetailsId} className={`profile-credits-details${creditDetailsOpen ? ' is-open' : ''}`}>
-                  <p className="text-[11px] text-gray-400 mt-0.5">{isUserBlocked ? 'El saldo se conserva, pero no puede utilizarse mientras la cuenta esté bloqueada.' : 'Los créditos sirven para destacar, solicitar donaciones adicionales o reservar compras adicionales. Los destacados no son reembolsables.'}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{isUserBlocked ? 'El saldo se conserva, pero no puede utilizarse mientras la cuenta esté bloqueada.' : 'Usa créditos para publicar ventas adicionales, destacar o enviar solicitudes adicionales. Los destacados no son reembolsables.'}</p>
                   {!isUserBlocked && <p className="mt-2 text-xs text-forest-green">Desde $2.500 COP, menos que muchos cafés. Recargar es opcional y nos ayuda a mantener MiBatute funcionando.</p>}
                   {donacionLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{donacionLimit.heldCredits} crédito{donacionLimit.heldCredits === 1 ? '' : 's'} retenido{donacionLimit.heldCredits === 1 ? '' : 's'} en solicitudes pendientes. El saldo muestra los disponibles.</p>}
                   {purchaseLimit?.heldCredits > 0 && <p className="mt-1 text-xs text-gray-600">{purchaseLimit.heldCredits} crédito{purchaseLimit.heldCredits === 1 ? '' : 's'} retenido{purchaseLimit.heldCredits === 1 ? '' : 's'} en compras adicionales.</p>}
@@ -2642,6 +2645,7 @@ export default function UserProfile({
                 Recargar créditos
               </button>
             </div>
+            <ProfileUsage key={user.id} id={`${creditDetailsId}-usage`} client={supabase} userId={user.id} refreshKey={rescatesReload} expanded={creditDetailsOpen} />
           </section>
 
           {recargaOpen && !isUserBlocked && <WompiTopupDialog onClose={() => setRecargaOpen(false)} onConfirmed={balance => {
@@ -3113,9 +3117,6 @@ export default function UserProfile({
                                   if (isUserBlocked) return alert(blockedUserMsg());
                                   if (isReservado) {
                                     const ok = window.confirm("¿Ya entregaste el artículo?\n\nTe recomendamos marcarlo como Entregado antes de borrar, así el rescatador sabe que todo quedó bien.");
-                                    if (!ok) return;
-                                  } else {
-                                    const ok = window.confirm("¿Estás seguro de que quieres eliminar esta publicación? Esta acción no se puede deshacer.");
                                     if (!ok) return;
                                   }
                                   eliminarPublicacion(art);
