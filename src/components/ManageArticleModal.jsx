@@ -582,7 +582,7 @@ export default function ManageArticleModal({
                   ) : postulados.length === 0 ? (
                     !errorMsg && <p className="text-gray-400 text-center py-6 font-bold">Nadie se ha postulado todavía...</p>
                   ) : (
-                    <ul className="divide-y divide-gray-100" aria-label="Personas postuladas" aria-busy={savingWinner}>
+                    <ul className="applicant-list" aria-label="Personas postuladas" aria-busy={savingWinner}>
                       {postulados.map((p) => {
                         return (
                           <ApplicantRow key={p.id} user={user} applicant={p} busy={savingWinner} onChoose={elegirGanador} onReject={rechazarSolicitud} />

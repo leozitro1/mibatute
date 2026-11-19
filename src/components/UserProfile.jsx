@@ -696,15 +696,15 @@ function ModalSolicitudes({
           else if (!e.shiftKey && (document.activeElement === last || document.activeElement === e.currentTarget)) { e.preventDefault(); first?.focus(); }
         }}
         className="marketplace-surface marketplace-modal relative flex max-h-[min(760px,calc(100dvh-32px))] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-gray-100 bg-white shadow-xl outline-none">
-        <div className="shrink-0 border-b border-gray-200 p-4 sm:p-6">
+        <div className="shrink-0 border-b border-gray-200 px-4 py-3 sm:px-5">
           <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="mb-3 text-xs font-semibold text-gray-500">
+            <p className="mb-2 text-xs font-medium text-gray-500">
               Postulaciones
             </p>
             <div className="flex items-center gap-3">
-              <img src={getThumb(articulo)} alt={titulo} className="h-14 w-14 shrink-0 rounded-md border border-gray-100 object-cover" onError={e => { if (!e.currentTarget.dataset.fallbackApplied) { e.currentTarget.dataset.fallbackApplied = '1'; e.currentTarget.src = FALLBACK_SVG; } }} />
-              <div className="min-w-0"><h3 id={titleId} className="break-words text-lg font-bold leading-6 text-gray-900">{titulo}</h3><p className="mt-1 text-xs text-gray-500">Donación · {estadoArticulo}</p></div>
+              <img src={getThumb(articulo)} alt={titulo} className="h-10 w-10 shrink-0 rounded-md border border-gray-100 object-cover" onError={e => { if (!e.currentTarget.dataset.fallbackApplied) { e.currentTarget.dataset.fallbackApplied = '1'; e.currentTarget.src = FALLBACK_SVG; } }} />
+              <div className="min-w-0"><h3 id={titleId} className="break-words text-base font-semibold leading-5 text-gray-900">{titulo}</h3><p className="mt-1 text-xs text-gray-500">Donación · {estadoArticulo}</p></div>
             </div>
           </div>
 
@@ -719,7 +719,7 @@ function ModalSolicitudes({
             <X size={20} />
           </button>
           </div>
-          {!hasWinner && <div className="mt-4 flex items-center gap-2 border-t border-gray-100 pt-3 text-sm font-medium text-gray-700" aria-live="polite"><Users size={16} className="text-gray-400" />{loading ? 'Cargando...' : `${solicitudesVisibles.length} ${solicitudesVisibles.length === 1 ? 'postulación' : 'postulaciones'}`}<span className="ml-auto text-xs font-normal text-gray-400">Más recientes primero</span></div>}
+          {!hasWinner && <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-2 text-xs font-medium text-gray-700" aria-live="polite"><Users size={16} className="text-gray-400" />{loading ? 'Cargando...' : `${solicitudesVisibles.length} ${solicitudesVisibles.length === 1 ? 'postulación' : 'postulaciones'}`}<span className="ml-auto text-xs font-normal text-gray-400">Más recientes primero</span></div>}
         </div>
 
         <div className={`min-h-0 overflow-y-auto overscroll-contain ${hasWinner ? 'p-4 sm:p-6' : ''}`} data-management-body>
@@ -806,7 +806,7 @@ function ModalSolicitudes({
               )}
             </div>
           ) : solicitudesVisibles?.length ? (
-            <ul className="divide-y divide-gray-100" aria-label="Personas postuladas" aria-busy={!!updatingKey}>
+            <ul className="applicant-list" aria-label="Personas postuladas" aria-busy={!!updatingKey}>
               {solicitudesVisibles.map((s) => {
                 const { nombre, foto, userId } = getUserFromSolicitud(s);
                 const mensaje = s?.justificacion || s?.mensaje || s?.message || "";
