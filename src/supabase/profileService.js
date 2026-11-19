@@ -1,9 +1,10 @@
 // src/supabase/profileService.js
 import { supabase } from "./supabaseClient";
 import { uploadProfilePhoto } from '../imagekit/profilePhotoUpload.js';
+import { PROFILE_PHOTO_MAX_SOURCE_MB } from '../imagekit/prepareProfilePhoto.js';
 import { databaseActionError } from './databaseActionError.js';
 
-const MAX_PROFILE_IMAGE_MB = 3;
+const MAX_PROFILE_IMAGE_MB = PROFILE_PHOTO_MAX_SOURCE_MB;
 
 // Solo estas columnas se pueden escribir en DB
 const sanitizeProfilePayload = (profile) => {

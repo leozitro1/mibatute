@@ -1,5 +1,18 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Entrega autorizada del 19 de noviembre: postulaciones, presencia y fotos
+
+- Responsable revisó en local y autorizó commit/deploy del conjunto: lista de interesados con mensaje de ancho completo y controles discretos, solicitudes pendientes primero en el perfil con resaltado persistente y pulsación limitada, presencia privada dentro del chat y nuevas fotos de perfil optimizadas a 500 × 500 píxeles antes de subir.
+- Validación del conjunto: 477 pruebas aprobadas, compilación correcta, lint de todos los archivos nuevos/modificados sin errores y diff sin espacios conflictivos. Conserva registro, cuotas y créditos; no activa recargas reales ni cambia CAPTCHA/SMTP.
+- La migración `2026-11-19-chat-presence.sql` debe aplicarse y verificarse en el proyecto Supabase habitual antes de activar el nuevo frontend. El despliegue preparado sin dominio permite mantener la versión pública hasta completar ese paso. No se prueban publicaciones, pagos ni mensajes ficticios en producción.
+
+## Propuesta local del 19 de noviembre: presencia en la conversación
+
+- Punto verde/gris en la esquina superior derecha del avatar del interlocutor. Verde significa conversación abierta y visible con presencia confirmada; gris significa presencia no confirmada. No representa conexión global al sitio ni garantiza atención de la persona. Una desconexión abrupta puede tardar en reflejarse por detección de Realtime.
+- Reutiliza el canal/socket de mensajes: chats abiertos usan el tema privado `mb:chat:<id>`, con Presence y Postgres Changes en el mismo canal. Solo publica identificador y `active: true` al entrar/volver; retira presencia al ocultar/cerrar. Sin polling, actividad de ratón, fechas de última conexión, escrituras de actividad ni funciones Vercel. Sí genera mensajes de Presence y autorización del canal al entrar/reconectar.
+- Migración `2026-11-19-chat-presence.sql` aplicada solo en Supabase local. Solo participantes verificados y no suspendidos de chats abiertos pueden publicar/recibir presencia. Políticas restrictivas por prefijo, sin modificar los canales de avisos/soporte. Debe aplicarse antes de un futuro despliegue del frontend.
+- Diecinueve pruebas de presencia/chat y compilación aprobadas; lint de componentes nuevos/modificados correcto. Prueba de integración por terminal con vendedor, comprador y tercera cuenta ficticios: verde mutuo, gris al ocultar/cerrar, retorno a verde, tercero privado rechazado y aislamiento frente al canal público del mismo nombre. Sin enviar mensajes de chat ni modificar datos de usuarios en producción. Sin navegador, commit, push ni deploy.
+
 ## Publicación autorizada del 18 de noviembre: favoritos y cupos
 
 - Responsable revisó la propuesta local y autorizó commit y deploy en main y el proyecto Vercel habitual. Favoritos limitados a diez por navegador; bloque de créditos y cupos con persiana, iconos y contadores compactos.

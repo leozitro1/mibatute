@@ -13,6 +13,8 @@ import useChatRetentionClock from './useChatRetentionClock.js';
 import { CHAT_MESSAGE_FIELDS, listenMarketSignals, mergeChatMessages, readChatMessages, singleFlight } from "./marketSignals.js";
 import { trackChatViewport } from './chatViewport.js';
 import { transactionChatReadOnly } from './chatAvailability.js';
+import { attachChatPresence } from './chatPresence.js';
+import './ChatPresence.css';
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -318,6 +320,7 @@ export default function ChatMessenger({
   const [showArticleDescription,setShowArticleDescription] = useState(false);
   const sendingRef = useRef(false);
   const [connectionStatus, setConnectionStatus] = useState("CONNECTING");
+  const [peerPresence, setPeerPresence] = useState(null);
   const messagesRef = useRef([]);
   const seenCallbackRef = useRef(null);
   const messageSessionRef = useRef(null);
@@ -664,14 +667,21 @@ export default function ChatMessenger({
     });
     setConnectionStatus('CONNECTING');
     const fallback = setTimeout(() => refresh(), 2000);
-    const channel = supabase.channel(`chat_messages_${chatId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` }, ({ new: row }) => {
+    const sharePresence = chatRow.status === 'open' && !suspended && !!resolvedOtherUserId;
+    const channel = supabase.channel(sharePresence ? `mb:chat:${chatId}` : `chat_messages_${chatId}`,
+      sharePresence ? { config: { private: true } } : undefined);
+    const presence = sharePresence ? attachChatPresence(channel, {
+      userId, peerId: resolvedOtherUserId,
+      onChange: online => setPeerPresence({ chatId, peerId: resolvedOtherUserId, online }),
+    }) : null;
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` }, ({ new: row }) => {
         if (!active || !row?.id) return;
         apply([row]);
         setTimeout(() => { if (active) scrollToBottom(true); }, 0);
       }).subscribe(status => {
         if (!active) return;
         setConnectionStatus(status);
+        presence?.status(status);
         if (status === 'SUBSCRIBED') { clearTimeout(fallback); refresh(); }
       });
     const onVisible = () => {
@@ -692,10 +702,11 @@ export default function ChatMessenger({
       messageSessionRef.current = null;
       clearTimeout(fallback);
       stop();
+      presence?.dispose();
       document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
     };
-  }, [isOpen, chatRow?.id, meBlocked, userId, scrollToBottom]);
+  }, [isOpen, chatRow?.id, chatRow?.status, meBlocked, suspended, resolvedOtherUserId, userId, scrollToBottom]);
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -826,6 +837,11 @@ export default function ChatMessenger({
 
   if (!isOpen) return null;
 
+  const peerOnline = !meBlocked && !suspended && chatRow?.status === 'open'
+    && connectionStatus === 'SUBSCRIBED' && peerPresence?.online === true
+    && peerPresence.chatId === chatRow?.id && peerPresence.peerId === resolvedOtherUserId;
+  const presenceLabel = peerOnline ? 'Activo en esta conversación' : 'Sin presencia confirmada en esta conversación';
+
   return (
     <div ref={overlayRef} className="marketplace-chat-overlay fixed inset-0 z-[9999] flex">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-black/40" aria-label="Cerrar chat" />
@@ -842,21 +858,24 @@ export default function ChatMessenger({
             Volver
           </button>
 
-          <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
-            {otherAvatar ? (
-              <img
-                key={otherAvatar}
-                src={otherAvatar}
-                referrerPolicy="no-referrer"
-                alt={otherName}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
-              />
-            ) : (
-              <span className="font-black text-gray-600">{String(otherName || "U").charAt(0).toUpperCase()}</span>
-            )}
+          <div className="chat-presence-avatar w-10 h-10 rounded-full bg-gray-100 border border-gray-200 shrink-0">
+            <div className="chat-presence-avatar-photo">
+              {otherAvatar ? (
+                <img
+                  key={otherAvatar}
+                  src={otherAvatar}
+                  referrerPolicy="no-referrer"
+                  alt={otherName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : (
+                <span className="font-black text-gray-600">{String(otherName || "U").charAt(0).toUpperCase()}</span>
+              )}
+            </div>
+            <span className="chat-presence-dot" data-online={peerOnline ? 'true' : 'false'} role="img" aria-label={presenceLabel} title={presenceLabel} />
           </div>
 
           <div className="min-w-0 flex-1">

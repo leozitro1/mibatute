@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_PROFILE_FILTERS, filterProfileItems, canRateProfileArticle } from '../src/components/profileFilters.js';
+import { DEFAULT_PROFILE_FILTERS, filterProfileItems, canRateProfileArticle, hasPendingProfileRequest } from '../src/components/profileFilters.js';
 
 const filters = changes => ({ ...DEFAULT_PROFILE_FILTERS, ...changes });
 const articles = [
@@ -45,7 +45,7 @@ test('combines title, type, status and featured filters without mutating input',
 
 test('requests include gifts already assigned, pending requests exclude them and sales', () => {
   const options = { posts: new Map([['a', true], ['b', true], ['c', true]]), now: Date.parse('2026-09-05T12:00:00Z') };
-  assert.deepEqual(ids(filterProfileItems(articles, filters({ activity: 'requests' }), options)), ['c', 'b']);
+  assert.deepEqual(ids(filterProfileItems(articles, filters({ activity: 'requests' }), options)), ['b', 'c']);
   assert.deepEqual(ids(filterProfileItems(articles, filters({ activity: 'pending' }), options)), ['b']);
 });
 
@@ -77,9 +77,43 @@ test('rescue requests preserve metadata and separate pending from closed or assi
     { id: 'r4', articulo: articles[0], _source: 'compras' },
   ];
   const options = { rescates: true, now: Date.parse('2026-09-05T12:00:00Z') };
-  assert.deepEqual(ids(filterProfileItems(rows, filters({ activity: 'requests' }), options)), ['r2', 'r1', 'r3']);
+  assert.deepEqual(ids(filterProfileItems(rows, filters({ activity: 'requests' }), options)), ['r1', 'r2', 'r3']);
   const pending = filterProfileItems(rows, filters({ status: 'pendiente' }), options);
   assert.deepEqual(ids(pending), ['r1']);
   assert.equal(pending[0]._source, 'postulaciones');
   assert.deepEqual(ids(filterProfileItems(rows, filters({ activity: 'chat' }), options)), ['r2']);
+});
+
+
+test('pending requests stay above unread, reservations and ratings in every sort, even after reading', () => {
+  const now = Date.parse('2026-11-19T12:00:00Z');
+  const pending = { id: 'request', mode: 'donacion', estado: 'disponible', interested_count: 1, created_at: '2026-11-01' };
+  const rows = [
+    { id: 'new', mode: 'venta', estado: 'disponible', created_at: '2026-11-19' },
+    { id: 'rating', mode: 'venta', estado: 'entregado', buyer_id: 'buyer', created_at: '2026-11-18' },
+    { id: 'reserved', mode: 'venta', estado: 'reservado', created_at: '2026-11-18' }, pending,
+  ];
+  for (const sort of ['priority','newest','oldest']) {
+    assert.equal(filterProfileItems(rows, filters({sort}), {now,unread:new Map([['new',true]])})[0].id,'request');
+    assert.equal(filterProfileItems(rows, filters({sort}), {now})[0].id,'request');
+    const resolved = filterProfileItems(rows,filters({sort}),{now,posts:new Map([['request',false]])});
+    assert.equal(resolved[0].id,'rating');
+  }
+  assert.equal(hasPendingProfileRequest({...pending,ganador_id:'chosen'},{now}),false);
+  assert.equal(hasPendingProfileRequest({...pending,estado:'pausado'},{now}),false);
+  assert.equal(hasPendingProfileRequest({...pending,created_at:'2026-01-01'},{now}),false);
+  assert.equal(hasPendingProfileRequest(pending,{now,posts:new Map([['request',false]]),notifications:{request:{newSolicitudes:2}}}),false);
+});
+
+test('pending purchases are pinned for seller and buyer until approved or canceled', () => {
+  const article = {id:'sale',mode:'venta',estado:'reservado',buyer_id:'buyer',transaction_chat:{id:'chat',status:'pending'}};
+  assert.equal(hasPendingProfileRequest(article),true);
+  assert.equal(hasPendingProfileRequest({...article,transaction_chat:{status:'open'}}),false);
+  assert.equal(hasPendingProfileRequest(article,{row:{_chatStatus:'pending',_chatApprovedAt:'2026-11-19'}}),false);
+  assert.equal(hasPendingProfileRequest(article,{row:{_chatStatus:'closed'}}),false);
+  const rows = [
+    {id:'ordinary',articulo:{id:'other',mode:'donacion',estado:'disponible'}},
+    {id:'purchase',articulo:article,_source:'compras',_chatStatus:'pending'},
+  ];
+  for(const sort of ['priority','newest','oldest'])assert.equal(filterProfileItems(rows,filters({sort}),{rescates:true})[0].id,'purchase');
 });

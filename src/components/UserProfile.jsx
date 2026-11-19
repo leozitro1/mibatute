@@ -1,5 +1,6 @@
 import ProfileAvatar from './ProfileAvatar.jsx';
 import useProfilePhoto from '../imagekit/useProfilePhoto.js';
+import { PROFILE_PHOTO_MAX_SOURCE_MB } from '../imagekit/prepareProfilePhoto.js';
 import AccountVerification, { AccountVerificationBadge } from './AccountVerification.jsx';
 import {ProfileSellerRegistration} from './SellerRegistration.jsx';
 import {SELLER_REGISTRATION_PREVIEW,SELLER_REGISTRATION_REQUIRED,SELLER_REGISTRATION_MESSAGE} from '../supabase/sellerRegistration.js';
@@ -64,7 +65,7 @@ import usePublicationClock from './usePublicationClock.js';
 import { isPublicationUnavailable } from './articleLifetime.js';
 import ProfilePagination from "./ProfilePagination";
 import { paginateProfileItems } from "./profilePageData";
-import { DEFAULT_PROFILE_FILTERS, filterProfileItems, canRateProfileArticle } from "./profileFilters";
+import { DEFAULT_PROFILE_FILTERS, filterProfileItems, canRateProfileArticle, hasPendingProfileRequest } from "./profileFilters";
 
 // ✅ IMPORT CORRECTO
 import {
@@ -699,7 +700,7 @@ function ModalSolicitudes({
         <div className="shrink-0 border-b border-gray-200 px-4 py-3 sm:px-5">
           <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-xs font-medium text-gray-500">
+            <p className="applicant-list-title mb-2 text-xs font-semibold">
               Postulaciones
             </p>
             <div className="flex items-center gap-3">
@@ -719,7 +720,7 @@ function ModalSolicitudes({
             <X size={20} />
           </button>
           </div>
-          {!hasWinner && <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-2 text-xs font-medium text-gray-700" aria-live="polite"><Users size={16} className="text-gray-400" />{loading ? 'Cargando...' : `${solicitudesVisibles.length} ${solicitudesVisibles.length === 1 ? 'postulación' : 'postulaciones'}`}<span className="ml-auto text-xs font-normal text-gray-400">Más recientes primero</span></div>}
+          {!hasWinner && <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-2 text-xs font-medium text-gray-700" aria-live="polite"><Users size={16} className="text-gray-400" /><span className="applicant-list-title">{loading ? 'Cargando...' : `${solicitudesVisibles.length} ${solicitudesVisibles.length === 1 ? 'postulación' : 'postulaciones'}`}</span><span className="ml-auto text-xs font-normal text-gray-400">Más recientes primero</span></div>}
         </div>
 
         <div className={`min-h-0 overflow-y-auto overscroll-contain ${hasWinner ? 'p-4 sm:p-6' : ''}`} data-management-body>
@@ -1452,7 +1453,7 @@ export default function UserProfile({
     }
 
     // ✅ valida tamaño
-    const maxMb = 8;
+    const maxMb = PROFILE_PHOTO_MAX_SOURCE_MB;
     const sizeMb = file.size / (1024 * 1024);
     if (sizeMb > maxMb) {
       alert(`La imagen pesa ${sizeMb.toFixed(1)}MB. Máximo permitido: ${maxMb}MB.`);
@@ -2364,13 +2365,14 @@ export default function UserProfile({
                     className={`absolute bottom-0 right-0 bg-white p-2 rounded-full shadow-md cursor-pointer hover:scale-110 transition ${
                       isUserBlocked ? "opacity-50 pointer-events-none" : ""
                     }`}
-                    title={isUserBlocked ? "Cuenta bloqueada" : "Cambiar foto"}
+                    title={isUserBlocked ? "Cuenta bloqueada" : "Cambiar foto · se guarda a 500 × 500 px"}
                   >
                     <Camera size={18} className="text-forest-green" />
                     <input
                       type="file"
                       className="hidden"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      aria-label="Cambiar foto de perfil; se recorta y guarda a 500 por 500 píxeles"
                       disabled={saving || isUserBlocked}
                       onChange={(e) => {
                         const f = e.target.files?.[0];
@@ -2922,6 +2924,7 @@ export default function UserProfile({
 
                       const notif = currentId ? notifByArticulo?.[String(currentId)] : null;
                       const hasSolicitudes = !isVenta && (hasPosts || Number(notif?.newSolicitudes || 0) > 0);
+                      const pendingRequest = hasPendingProfileRequest(art, { posts: hasPostulacionesByArticulo, notifications: notifByArticulo, now: publicationNow });
                       const canRate = !!currentId && canRateProfileArticle(art);
                       const pendingRating = canRate && !yaCalifique.has(String(currentId));
                       const isFeatured = featuredOverrides[currentId] ?? art?.is_featured ?? false;
@@ -2932,6 +2935,7 @@ export default function UserProfile({
                         <div
                           key={currentId ? `art-${currentId}` : `art-idx-${idx}`}
                           data-profile-article-id={currentId}
+                          data-pending-request={pendingRequest ? "true" : undefined}
                           tabIndex={-1}
                           className={`relative flex flex-wrap items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition focus:outline-2 focus:outline-forest-green focus:outline-offset-2 sm:flex-nowrap ${
                             isEntregado
@@ -2970,6 +2974,7 @@ export default function UserProfile({
                           />
 
                           <div data-profile-content className="flex-1 min-w-0">
+                            {pendingRequest && <p className="profile-request-priority">Solicitud pendiente</p>}
                             {pendingRating && <p data-rating-notice className="profile-rating-notice">Calificación pendiente</p>}
                             <h4 className="font-bold text-gray-800 truncate">{titulo}</h4>
 
@@ -3239,6 +3244,7 @@ export default function UserProfile({
                         art?.recipient_id ||
                         null;
 
+                      const pendingRequest = hasPendingProfileRequest(art, { rescates: true, row: r, now: publicationNow });
                       const isEntregadoRescate = estado === "entregado";
                       const rejectedSale = saleCancellation(r)?.bySeller === true;
                       const rejectedDonation = !!donationRejection(r);
@@ -3334,6 +3340,7 @@ export default function UserProfile({
                         <div
                           key={r?.id || `${r?.articulo_id}-${r?.created_at}`}
                           data-profile-article-id={articuloId}
+                          data-pending-request={pendingRequest ? "true" : undefined}
                           tabIndex={-1}
                           onClick={() => setPreviewRescateId(`${user.id}:${articuloId}`)}
                           className={`relative flex items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition focus:outline-2 focus:outline-forest-green focus:outline-offset-2 ${
@@ -3362,6 +3369,7 @@ export default function UserProfile({
                           />
 
                           <div data-profile-content className="flex-1 min-w-0">
+                            {pendingRequest && <p className="profile-request-priority">Solicitud pendiente</p>}
                             {pendingRating && <p data-rating-notice className="profile-rating-notice">Calificación pendiente</p>}
                             <h4 className="font-bold text-gray-800 truncate"><button type="button" className="block w-full text-left truncate" aria-label={`Ver artículo: ${titulo}`}>{titulo}</button></h4>
 

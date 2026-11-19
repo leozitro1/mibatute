@@ -14,6 +14,10 @@ La prueba inicial de ImageKit V2 aceptó la subida privada y rechazó el origina
 2. Cambiar únicamente las referencias vigentes, después de comprobar que coinciden con el inventario anterior. Mantener las copias de ImageKit hasta confirmar que la nueva app está activa.
 3. Respaldar los archivos de la carpeta de perfiles en `profile-photo-archive`, sin permisos de cliente. Verificar el SHA-256 de cada copia y conservar su ruta y versión en el manifiesto privado. El plan de ImageKit no ofrece borradores: una vez verificado el respaldo, retirar las copias de ImageKit y purgar las variantes conocidas. No tocar la carpeta de artículos.
 
+## Propuesta local del 19 de noviembre: fotos de 500 píxeles
+
+El flujo de nuevas fotos recorta en el navegador un cuadrado centrado y lo redimensiona a 500 × 500 píxeles, sin deformar. Codifica WebP con calidad 0,82 y respaldo JPEG si el navegador no admite el encoder. Los GIF quedan como imagen estática. Acepta originales de hasta 8 MiB y solo envía el archivo generado, tanto en local como en la ruta de subida privada. Si falla la conversión, no sube el original. Conserva los límites de Storage, las cuotas y la autorización existente; no añade funciones ni peticiones al servidor. No modifica fotos históricas. Seis pruebas de conversión/encoder/autorización, lint y compilación correctos; pendiente de revisión local, sin publicar.
+
 ## Producción
 
 Los cuatro perfiles con foto se vincularon a objetos privados, verificados con y sin firma. Se respaldaron y retiraron 11 archivos de la carpeta histórica de perfiles; no había publicaciones que usaran esos enlaces. Los manifiestos privados conservan la información necesaria para recuperar los originales. La compilación y las 454 pruebas pasaron; el dominio respondió 200 y la autorización de subida sin sesión devolvió 401.

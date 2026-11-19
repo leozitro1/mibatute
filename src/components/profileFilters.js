@@ -26,6 +26,25 @@ export function canRateProfileArticle(article, { rescates = false, userId } = {}
   return !rescates || (!!article.owner_id && !!userId && String(recipient) === String(userId));
 }
 
+export function hasPendingProfileRequest(article, {
+  rescates = false, row = {}, posts = new Map(), notifications = {}, now = Date.now(),
+} = {}) {
+  const status = statusOf(article);
+  const chatStatus = row._chatStatus || article.transaction_chat?.status;
+  if (saleCancellation(row) || donationRejection(row) || chatStatus === 'closed'
+    || isPublicationUnavailable(article, now)) return false;
+  if (isSaleArticle(article)) {
+    return status === 'reservado' && !!(article.buyer_id || article.buyerId)
+      && chatStatus === 'pending' && !(row._chatApprovedAt || article.transaction_chat?.approved_at);
+  }
+  if (status !== 'disponible' || article.ganador_id || article.winner_id || article.winnerUid || article.recipient_id) return false;
+  if (rescates) return ['postulaciones', 'chats'].includes(row._source);
+  const id = String(article.id || article.articulo_id || '');
+  if (posts.has(id)) return posts.get(id) === true;
+  if (Number.isInteger(article.interested_count)) return article.interested_count > 0;
+  return Number(notifications[id]?.newSolicitudes || 0) > 0;
+}
+
 export function filterProfileItems(items, filters, {
   rescates = false, unread = new Map(), notifications = {}, chats = new Map(),
   posts = new Map(), overrides = new Map(), featured = {}, rated = new Set(), userId, now = Date.now(),
@@ -40,11 +59,10 @@ export function filterProfileItems(items, filters, {
     const sale = isSaleArticle(article);
     const hasUnread = unread.get(id) === true || Number(notifications[id]?.unreadChats || 0) > 0;
     const hasChat = chats.get(id) === true || !!row._chatId || !!article.transaction_chat?.id;
-    const winner = article.ganador_id || article.winner_id || article.recipient_id;
     const hasRequests = !sale && (rescates
       ? ['postulaciones', 'chats'].includes(row._source)
       : posts.get(id) === true || Number(notifications[id]?.newSolicitudes || 0) > 0);
-    const pending = hasRequests && status === 'disponible' && !winner && row._chatStatus !== 'closed';
+    const pending = hasPendingProfileRequest(article, { rescates, row, posts, notifications, now });
     const isFeatured = featured[id] ?? article.isFeatured ?? article.is_featured ?? false;
     const canRate = status !== 'cancelado' && canRateProfileArticle(article, { rescates, userId });
     const ratingOrder = canRate ? (rated.has(id) ? 2 : 0) : 1;
@@ -61,6 +79,7 @@ export function filterProfileItems(items, filters, {
     if (filters.activity === 'pending' && !item.pending) return false;
     return true;
   }).sort((a, b) => {
+    if (a.pending !== b.pending) return a.pending ? -1 : 1;
     if (a.ratingOrder !== b.ratingOrder) return a.ratingOrder - b.ratingOrder;
     if (filters.sort === 'priority') {
       const priority = item => item.status === 'cancelado' ? 5 : item.hasUnread ? 0 : item.status === 'reservado' ? 1 : item.pending ? 2 : item.status === 'entregado' ? 4 : 3;
