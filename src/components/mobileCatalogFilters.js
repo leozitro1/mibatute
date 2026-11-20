@@ -6,7 +6,7 @@ export function patchMobileFilters(value, patch) {
 }
 
 export function resetMobileFilters(value) {
-  return {...value,category:'Todo',subcategory:'',locality:'Todas',kind:'todo',onlyVerified:false,minCondition:0,sort:'random',hideOwn:false,searchMode:'related'};
+  return {...value,category:'Todo',subcategory:'',locality:'Todas',kind:'todo',onlyVerified:false,minCondition:0,sort:'random',hideOwn:false};
 }
 
 export function mobileFilterChips(value) {
@@ -18,6 +18,5 @@ export function mobileFilterChips(value) {
   if (value.onlyVerified) chips.push({key:'verified',label:'Solo cuentas verificadas',patch:{onlyVerified:false}});
   if (value.hideOwn) chips.push({key:'own',label:'Sin mis anuncios',patch:{hideOwn:false}});
   if (value.sort !== 'random') chips.push({key:'sort',label:value.sort === 'newest' ? 'Más recientes' : 'Más antiguas',patch:{sort:'random'}});
-  if (value.searchMode === 'specific') chips.push({key:'mode',label:'Búsqueda específica',patch:{searchMode:'related'}});
   return chips;
 }

@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import useMobileApp from './useMobileApp.js';
 
-export default function ProfileIdentityPlacement({ target, children }) {
+export default function ProfileIdentityPlacement({ target, children, insideCard = false }) {
   const inHeader = useMobileApp();
-  return inHeader && target ? createPortal(children,target) : children;
+  return !insideCard && inHeader && target ? createPortal(children,target) : children;
 }

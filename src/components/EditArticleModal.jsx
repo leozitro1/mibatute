@@ -147,6 +147,7 @@ export default function EditArticleModal({ isOpen, onClose, article, onUpdateSuc
     if (!res?.success) {
       alert(res?.error || "No se pudo eliminar la imagen");
     } else {
+      if (res.warning) alert(res.warning);
       await refreshArticle(article.id);
       onUpdateSuccess?.();
     }

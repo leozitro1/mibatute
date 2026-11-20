@@ -1,5 +1,30 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Entrega autorizada del 20 de noviembre
+
+- Responsable autoriza commit y despliegue del conjunto revisado en local: confirmación de pausa, bloqueo de edición con interesados, tarjeta desplegable de identidad, icono junto al saldo, rescates compactos, búsqueda sin expansión relacionada, selección de todas las localidades fija sobre la lista desplazable y buzón que abre conversaciones de usuarios.
+- Validación: 480 pruebas aprobadas, compilación correcta y lint de módulos modificados correcto salvo los errores previos de MarketplaceApp, comparados con HEAD. Sin pruebas de navegador.
+- Antes de activar el frontend se requieren `2026-11-20-lock-article-editing.sql` y `2026-11-20-remove-related-search.sql` en producción. SQL combinado preparado con ocho comprobaciones de funciones, permisos y triggers. La CLI no tiene sesión autenticada; aplicación pendiente en el panel por el responsable. Preparar candidato sin dominio hasta confirmar este paso.
+
+## Propuesta local del 20 de noviembre: retirar búsqueda relacionada
+
+- Se retira el selector Relacionados/Específica y su estado de escritorio/móvil. El buscador utiliza solo los términos escritos, sin ampliación automática por conceptos. Las búsquedas guardadas anteriores ignoran el modo antiguo y se reconocen por sus filtros actuales, sin duplicarlas solo por ese cambio.
+- Migración `2026-11-20-remove-related-search.sql` aplicada únicamente en Supabase local: modifica solo la expresión de expansión de la función vigente del catálogo y retira el helper relacionado. Conserva RLS, permisos, paginación y presupuestos de consultas; peticiones antiguas con `searchMode: related` usan términos directos.
+- Quince pruebas de búsqueda/filtros móviles y compilación correctas. Cambios pendientes de revisión local, sin commit ni deploy.
+
+## Propuesta local del 20 de noviembre: tarjeta solo para datos personales
+
+- Tarjeta blanca únicamente en la columna de identidad/datos del usuario. El contacto, ubicación, verificación y registro del vendedor se despliegan desde el resumen con la ciudad/localidad guardadas del usuario, también en escritorio, sin línea separadora y con menos espacio bajo las estrellas. Foto, nombre y persiana permanecen dentro de la tarjeta también en la app móvil; la cabecera recupera la marca. Créditos, publicaciones, rescates y buzón conservan su disposición anterior.
+- Compilación, lint de UserProfile y diecinueve pruebas de edición/avisos correctos. Conserva la confirmación de pausa y el bloqueo de edición con interesados preparados en local. Sin commit ni deploy.
+
+## Propuesta local del 20 de noviembre: pausa y edición con interesados
+
+- Perfil pide confirmación antes de pausar; cancelar no consulta ni modifica la base. Reactivar conserva el comportamiento anterior. La actualización comprueba propietario y estado anterior para no sobrescribir una reserva llegada mientras se confirmaba.
+- Edición deshabilitada con ofertas/solicitudes actuales, comprador/ganador asignado o conversaciones activas. Consulta de propietario al abrir el editor y antes de guardar/subir fotos para cubrir formularios abiertos antes de llegar una solicitud. Si desaparecen todas las solicitudes/conversaciones activas y el estado admite edición, vuelve a permitirse.
+- Migración `2026-11-20-lock-article-editing.sql` aplicada solo a Supabase local. Triggers bloquean cambios de contenido, precio, ubicación y fotos del propietario; las solicitudes serializan con las ediciones sobre el artículo. Pausar/reactivar y gestionar solicitudes no cambian contenido y siguen disponibles. Se conservan los controles anteriores de reservas y entregas y las correcciones administrativas de otras cuentas.
+- Retirada de una foto mediante RPC propia: comprobación, borrado de referencia, portada y orden en una transacción; después se limpia el archivo externo. Una limpieza externa fallida informa del pendiente y no deja una portada apuntando a la referencia retirada. El borrado completo de publicación mantiene su flujo y sus reglas de cupos.
+- Pruebas nuevas: cancelar/confirmar pausa, estado/propietario, bloqueo de textos/precios/fotos, editor desactualizado, aislamiento, retirada atómica de fotos y cascadas. Compilación y lint de los módulos de edición revisados correctos. Sin navegador ni cambios de producción; requiere aplicar la migración antes de un futuro despliegue.
+
 ## Entrega autorizada del 19 de noviembre: postulaciones, presencia y fotos
 
 - Responsable revisó en local y autorizó commit/deploy del conjunto: lista de interesados con mensaje de ancho completo y controles discretos, solicitudes pendientes primero en el perfil con resaltado persistente y pulsación limitada, presencia privada dentro del chat y nuevas fotos de perfil optimizadas a 500 × 500 píxeles antes de subir.

@@ -47,5 +47,5 @@
 @media (display-mode: standalone) and (max-width: 1023px) {
   .navbar-mobile-catalog .navbar-search-region { display: none; }
   .mobile-app-catalog .home-catalog aside > div:first-child { display: none; }
-  .mobile-app-catalog .home-search-mode, .mobile-app-catalog .home-own-filter { display: none; }
+  .mobile-app-catalog .home-own-filter { display: none; }
 }

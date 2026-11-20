@@ -400,29 +400,38 @@ test('prefix search matches bicicleta and normalizes accents and punctuation wit
   } finally { await db.close(); }
 });
 
-test('related search includes cycling accessories, prioritizes direct matches and keeps other filters', async () => {
+test('catalog uses only direct terms after retiring related mode, preserving budgets and legacy clients', async () => {
   const { db, page } = await fixture();
   try {
-    await db.exec(`reset role;
-      insert into public.articulos (id, title, description, category, subcategory, created_at)
-        values ('${id(20)}', 'Bicicleta', 'Manual', 'Deportes', 'Ciclismo', now() - interval '1 hour'),
-          ('${id(21)}', 'Casco', 'Proteccion para ciclistas', 'Deportes', 'Accesorios', now()),
-          ('${id(22)}', 'Casco de moto', 'Proteccion', 'Movilidad', 'Motos', now()),
-          ('${id(23)}', 'Inflador', 'Compacto', 'Deportes', 'Ciclismo', now());
-      set role anon;`);
-    for (const search of ['bicicleta', 'BÍCI', 'bic', 'ciclismo']) {
-      const result = await page({ search, searchMode: 'related' });
-      assert.equal(result.total, 3, search);
-      assert.equal(result.ids.includes(id(22)), false);
+    await db.exec('reset role');
+    await db.exec(await migration('2026-10-13-home-random-order'));
+    await db.exec(await migration('2026-10-16-home-desktop-page-size'));
+    await db.exec("create function public.market_reuse_impact() returns jsonb language sql stable as 'select ''{}''::jsonb'");
+    await db.exec(await migration('2026-10-30-mobile-app-page-size'));
+    await db.exec('create function public.account_is_verified(uuid) returns boolean language sql stable as $$select true$$');
+    await db.exec(await migration('2026-11-04-home-verified-accounts'));
+    await db.exec(await migration('2026-11-04-mobile-uniform-grid'));
+    await db.exec(await migration('2026-11-05-catalog-query-budget'));
+    const retirement = await migration('2026-11-20-remove-related-search');
+    await db.exec(retirement); await db.exec(retirement);
+    assert.equal((await db.query("select to_regprocedure('public.article_related_prefix_query(text)') as helper")).rows[0].helper, null);
+    await db.exec(`insert into public.articulos (id,title,description,category,subcategory,created_at)
+      values ('${id(20)}','Bicicleta','Manual','Deportes','Ciclismo',now()-interval '1 hour'),
+        ('${id(21)}','Casco','Proteccion para ciclistas','Deportes','Accesorios',now()),
+        ('${id(22)}','Casco de moto','Proteccion','Movilidad','Motos',now()),
+        ('${id(23)}','Inflador','Compacto','Deportes','Ciclismo',now()); set role anon;`);
+    for (const search of ['bicicleta','BÍCI','bic']) {
+      const direct = await page({search});
+      assert.deepEqual(direct.ids,[id(20)]);
+      assert.deepEqual(await page({search,searchMode:'related'}),direct);
+      assert.deepEqual(await page({search,searchMode:'specific'}),direct);
     }
-    assert.equal((await page({ search: 'bicicleta', searchMode: 'related' })).ids[0], id(20));
-    assert.deepEqual((await page({ search: 'bicicleta', searchMode: 'specific' })).ids, [id(20)]);
-    assert.deepEqual((await page({ search: 'bici protec', searchMode: 'related' })).ids, [id(21)]);
-    assert.equal((await page({ search: 'bici inexistente', searchMode: 'related' })).total, 0);
-    assert.equal((await page({ search: 'bici', searchMode: 'related', city: 'Cali' })).total, 0);
-    assert.deepEqual((await page({ search: 'bici', searchMode: 'related', subcategory: 'Accesorios' })).ids, [id(21)]);
-    assert.equal((await page({ search: "' & | ! :*", searchMode: 'related' })).total, 0);
-    assert.deepEqual(await page({ searchMode: 'related' }), await page());
+    assert.equal((await page({search:'bici protec',searchMode:'related'})).total,0);
+    assert.equal((await page({search:'bici',city:'Cali'})).total,0);
+    assert.equal((await page({search:'bici',subcategory:'Accesorios'})).total,0);
+    assert.equal((await page({search:"' & | ! :*"})).total,0);
+    assert.deepEqual(await page({searchMode:'related'}),await page());
+    await assert.rejects(page({search:'x'.repeat(201)}),{code:'22023'});
   } finally { await db.close(); }
 });
 

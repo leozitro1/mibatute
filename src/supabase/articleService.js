@@ -1,3 +1,4 @@
+import { assertArticleEditable } from './articleEditing.js';
 // src/supabase/articleService.js
 import { supabase } from "./supabaseClient";
 import { savePhotoOrder } from './photoOrder.js';
@@ -370,6 +371,7 @@ export async function publishArticle({ formData, files, user, useCredit = false,
 export async function updateArticleFields(articleId, updates = {}) {
   try {
     if (!articleId) return { success: false, error: "articleId es requerido" };
+    await assertArticleEditable(supabase, articleId);
 
     const payload = {};
     for (const [k, v] of Object.entries(updates || {})) {
@@ -442,6 +444,7 @@ export async function uploadArticleImage({ file, ownerId }) {
 export async function addArticleImages(articleId, newFiles, ownerId = null) {
   try {
     if (!articleId) return { success: false, error: "articleId es requerido" };
+    await assertArticleEditable(supabase, articleId);
 
     const files = Array.from(newFiles || []).filter(Boolean);
     if (!files.length) return { success: false, error: "No hay imágenes para agregar" };
@@ -514,6 +517,8 @@ export async function replaceArticleImage(imageId, newFile, ownerId) {
 
     if (rErr) return { success: false, error: rErr.message };
 
+    await assertArticleEditable(supabase, oldImg.articulo_id);
+
     const up = await uploadArticleImage({ file: newFile, ownerId });
     if (!up.success) return up;
 
@@ -553,22 +558,10 @@ export async function deleteArticleImage(imageId) {
   try {
     if (!imageId) return { success: false, error: "imageId es requerido" };
 
-    const { data: img, error: rErr } = await supabase
-      .from("articulo_imagenes")
-      .select("id,articulo_id,path,file_id,position")
-      .eq("id", imageId)
-      .single();
-
-    if (rErr) return { success: false, error: rErr.message };
-    if (!img?.path) return { success: false, error: "No se encontró path de la imagen" };
-
+    const { data: img, error } = await supabase.rpc('owner_remove_article_photo', { p_image_id: imageId });
+    if (error || !img?.articulo_id) return { success: false, error: error?.message || 'No se pudo retirar la foto.' };
     const del = await removeStorageFiles([img]);
-    if (!del.success) return del;
-    const { error: dErr } = await supabase.from("articulo_imagenes").delete().eq("id", imageId);
-    if (dErr) return { success: false, error: dErr.message };
-
-    await normalizeImagePositions(img.articulo_id);
-    await syncArticleImagesArray(img.articulo_id);
+    if (!del.success) return { success: true, warning: 'La foto se retiró de la publicación, pero no se pudo completar la limpieza del archivo.' };
 
     return { success: true };
   } catch (err) {
@@ -584,31 +577,13 @@ export async function reorderArticleImages(articleId,orderIds=[]) {
 }
 
 /**
- * Compacta positions para que queden 0..n-1.
- */
-async function normalizeImagePositions(articleId) {
-  const { data, error } = await supabase
-    .from("articulo_imagenes")
-    .select("id, position")
-    .eq("articulo_id", articleId)
-    .order("position", { ascending: true });
-
-  if (error || !Array.isArray(data)) return;
-
-  for (let i = 0; i < data.length; i++) {
-    if (data[i].position !== i) {
-      await supabase.from("articulo_imagenes").update({ position: i }).eq("id", data[i].id);
-    }
-  }
-}
-
-/**
  * ✅ updateArticle (para tu EditArticleModal)
  * ✅ Ahora usa RPC segura para actualizar campos.
  */
 export async function updateArticle(articleId, formData = {}, file = null, {imageOrder=null} = {}) {
   try {
     if (!articleId) return { success: false, error: "articleId es requerido" };
+    await assertArticleEditable(supabase, articleId);
     const { data: auth } = await supabase.auth.getSession();
     const uid = auth?.session?.user?.id;
     if (!uid) return { success: false, error: "Debes iniciar sesion." };

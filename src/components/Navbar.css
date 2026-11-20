@@ -5,6 +5,8 @@
 
 @media (display-mode: standalone) and (max-width: 1023px) {
   .navbar-profile .navbar-brand, .navbar-profile .navbar-search-region { display: none; }
+  .navbar-profile:has(.navbar-profile-identity:empty) .navbar-brand { display: flex; }
+  .navbar-profile-identity:empty { display: none; }
   .navbar-profile-identity { display: block; grid-column: 1; grid-row: 1; min-width: 0; }
   .navbar-profile-identity .profile-identity-group { display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: center; column-gap: 10px; }
   .navbar-profile-identity .profile-identity { display: contents; }

@@ -1,5 +1,6 @@
 import ProfileAvatar from './ProfileAvatar.jsx';
 import useProfilePhoto from '../imagekit/useProfilePhoto.js';
+import { articleEditingLocked, ARTICLE_EDIT_LOCK_MESSAGE, togglePublicationPause } from '../supabase/articleEditing.js';
 import { PROFILE_PHOTO_MAX_SOURCE_MB } from '../imagekit/prepareProfilePhoto.js';
 import AccountVerification, { AccountVerificationBadge } from './AccountVerification.jsx';
 import {ProfileSellerRegistration} from './SellerRegistration.jsx';
@@ -898,7 +899,7 @@ export default function UserProfile({
   const publicationNow = usePublicationClock();
   const [activeTab, setActiveTab] = useState("publicaciones"); // ✅ ahora inicia en Buzón
   const mobileInbox = useMobileApp();
-  const [inboxTab,setInboxTab]=useState(() => mobileInbox ? 'users' : 'system');
+  const [inboxTab,setInboxTab]=useState('users');
   const selectedInboxTab = mobileInbox && inboxTab === 'conversations' ? 'system' : inboxTab;
   const systemInboxActive = selectedInboxTab === 'system';
   const supportInboxActive = mobileInbox ? systemInboxActive : inboxTab === 'conversations';
@@ -1985,6 +1986,9 @@ export default function UserProfile({
     const titulo = art?.titulo || art?.title || "Artículo";
     if (isArticuloEnRevision(art)) return alert(revisionBlockMsg(titulo));
 
+    const id = String(getArticuloId(art));
+    const requests = hasPostulacionesByArticulo.has(id) ? hasPostulacionesByArticulo.get(id) : undefined;
+    if (articleEditingLocked(art, requests)) return alert(ARTICLE_EDIT_LOCK_MESSAGE);
     if (typeof onOpenEdit === "function") return onOpenEdit(art);
     alert("Falta pasar onOpenEdit a <UserProfile /> para abrir el modal de edición.");
   };
@@ -2210,14 +2214,8 @@ export default function UserProfile({
     const next = estado !== "pausado";
     const nextEstado = next ? "pausado" : "disponible";
     try {
-      const { error } = await supabase
-        .from("articulos")
-        .update({ estado: nextEstado, status: nextEstado })
-        .eq("id", id)
-        .eq("owner_id", user.id)
-        .select("id")
-        .single();
-      if (error) throw error;
+      const updated = await togglePublicationPause(supabase, { ...current, id }, user.id);
+      if (!updated) return;
       setArticuloOverridesById((prev) => {
         const m = new Map(prev);
         const base = m.get(String(id)) || art;
@@ -2339,11 +2337,11 @@ export default function UserProfile({
 
       <div className="profile-layout grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-8">
         {/* IZQUIERDA */}
-        <div className={`profile-personal-column lg:col-span-1 min-w-0 space-y-6${personalDetailsOpen || isEditing ? '' : ' profile-personal-collapsed'}`}>
-          <section className="profile-personal overflow-hidden lg:rounded-lg lg:border lg:border-gray-200 lg:bg-white" aria-label="Datos de mi cuenta">
+        <div className={`profile-personal-column profile-personal-column--card lg:col-span-1 min-w-0 space-y-6${personalDetailsOpen || isEditing ? '' : ' profile-personal-collapsed'}`}>
+          <section className="profile-personal profile-personal-card overflow-hidden lg:rounded-lg lg:border lg:border-gray-200 lg:bg-white" aria-label="Datos de mi cuenta">
             <div className="hidden lg:block h-24 bg-forest-green" />
             <div className="profile-personal-body lg:px-6 lg:pb-6">
-              <ProfileIdentityPlacement target={mobileHeaderTarget}>
+              <ProfileIdentityPlacement target={mobileHeaderTarget} insideCard>
               <div className="profile-identity-group">
               <div className="profile-identity relative lg:-mt-12 mb-3 flex items-center gap-4 lg:justify-center">
                 <div className="relative group">
@@ -2386,12 +2384,11 @@ export default function UserProfile({
                   <h2 className="text-lg font-bold text-gray-900 break-words">
                     <button type="button" className="profile-name-toggle" onClick={() => setPersonalDetailsOpen(open => !open)}
                       aria-expanded={personalDetailsOpen || isEditing} aria-controls="profile-personal-details"
-                      title="Mostrar u ocultar datos personales">
+                      title="Mostrar u ocultar datos del perfil">
                       <span>{profile.nombre || 'Mi perfil'}</span>
                       <ChevronDown size={16} className={personalDetailsOpen || isEditing ? 'rotate-180' : ''} aria-hidden="true" />
                     </button>
                   </h2>
-                  <p className="mt-1 text-sm text-gray-500 break-words">{[profile.ciudad, profile.localidad].filter(Boolean).join(' · ')}</p>
                 </div>
               </div>
 
@@ -2415,11 +2412,12 @@ export default function UserProfile({
               </ProfileIdentityPlacement>
               <button type="button" onClick={() => setPersonalDetailsOpen(open => !open)}
                 aria-expanded={personalDetailsOpen || isEditing} aria-controls="profile-personal-details"
-                className="profile-personal-details-toggle lg:hidden flex min-h-11 w-full items-center justify-between gap-3 border-y border-gray-200 py-3 text-sm font-semibold text-gray-700">
-                Datos personales
+                className="profile-personal-details-toggle flex min-h-11 w-full items-center justify-between gap-3 py-3 text-sm font-semibold text-gray-700">
+                <span className="text-left break-words">{[profile.ciudad, profile.localidad].filter(Boolean).join(' · ') || 'Agregar ubicación'}</span>
                 <ChevronDown size={18} className={personalDetailsOpen || isEditing ? 'rotate-180' : ''} aria-hidden="true" />
               </button>
-              <form id="profile-personal-details" onSubmit={handleUpdate} className={`${personalDetailsOpen || isEditing ? 'block' : 'hidden'} lg:block space-y-3 pt-4 lg:pt-0`}>
+              <div id="profile-personal-details" hidden={!personalDetailsOpen && !isEditing} className="profile-personal-card-details">
+<form id="profile-personal-form" onSubmit={handleUpdate} className="space-y-3">
                 <div>
                   <label className="text-[10px] font-black uppercase text-gray-400 ml-2">
                     Nombre completo (no editable)
@@ -2605,6 +2603,7 @@ export default function UserProfile({
               </form>
               <AccountVerification key={user.id} userId={user.id} disabled={isUserBlocked} refreshKey={notificationTarget?.receiptId}/>
               <ProfileSellerRegistration key={`seller-${user.id}`} userId={user.id} disabled={isUserBlocked}/>
+              </div>
             </div>
           </section>
         </div>
@@ -2615,14 +2614,12 @@ export default function UserProfile({
           {/* ── CAJA DE CRÉDITOS ── */}
           <section className={`profile-credits border-y border-gray-200 py-4${creditDetailsOpen ? ' is-expanded' : ''}`} aria-label="Créditos y cupos de mi cuenta">
             <div className="profile-credits-summary flex flex-wrap items-center gap-3">
-              <div className="profile-credits-icon w-10 h-10 flex items-center justify-center shrink-0 text-forest-green">
-                <CircleDollarSign size={24} strokeWidth={1.5} aria-hidden="true" />
-              </div>
               <div className="profile-credits-balance flex-1 min-w-[140px]">
                 <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">{isUserBlocked ? 'Créditos bloqueados' : 'Saldo de créditos'}</p>
-                <p className="text-2xl font-black text-gray-800">
+                <p className="flex flex-wrap items-center gap-x-2 text-2xl font-black text-gray-800">
+                  <CircleDollarSign size={23} strokeWidth={1.7} className="shrink-0 text-forest-green" aria-hidden="true" />
                   <CreditBalanceValue value={cuposSaldo}/>
-                  <span className="text-sm font-semibold text-gray-400 ml-1">crédito{cuposSaldo !== 1 ? "s" : ""}</span>
+                  <span className="text-sm font-semibold text-gray-400">crédito{cuposSaldo !== 1 ? "s" : ""}</span>
                 </p>
                 <button type="button" className="profile-credits-toggle" aria-expanded={creditDetailsOpen} aria-controls={`${creditDetailsId} ${creditDetailsId}-usage`}
                   aria-label={creditDetailsOpen ? 'Ocultar detalles de créditos y cupos' : 'Mostrar detalles de créditos y cupos'}
@@ -2700,8 +2697,7 @@ export default function UserProfile({
               <button
                 onClick={() => {
                   setActiveTab("buzon");
-                  if (mobileInbox && activeTab !== 'buzon') changeInboxTab('users');
-                  else if(systemInboxActive&&sysMsgsCargadosRef.current&&loadedInboxRevisionRef.current!==inboxRevisionRef.current)loadSysMsgs();
+                  changeInboxTab('users');
                 }}
                 className={`flex-1 py-4 text-sm font-bold transition flex items-center justify-center gap-2 ${
                   activeTab === "buzon"
@@ -2929,6 +2925,8 @@ export default function UserProfile({
                       const pendingRating = canRate && !yaCalifique.has(String(currentId));
                       const isFeatured = featuredOverrides[currentId] ?? art?.is_featured ?? false;
                       const canFeature = !isEntregado && !isVencido && !hasWinner;
+                      const editLocked = articleEditingLocked(art, currentId && hasPostulacionesByArticulo.has(String(currentId))
+                        ? hasPostulacionesByArticulo.get(String(currentId)) : undefined);
                       const canPause = !isVencido && ["disponible", "pausado"].includes(estado);
 
                       return (
@@ -3072,12 +3070,13 @@ export default function UserProfile({
                                   if (isUserBlocked) return alert(blockedUserMsg());
                                   if (isReview) return alert(revisionBlockMsg(titulo));
                                   if (isReservado) return alert("Este artículo ya tiene un ganador asignado y no puede editarse.");
+                                  if (editLocked) return alert(ARTICLE_EDIT_LOCK_MESSAGE);
                                   abrirEditar(art);
                                 }}
                                 className="bg-gray-100 p-3 rounded-2xl hover:bg-forest-green hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                disabled={isReview || isUserBlocked || isReservado || isEntregado}
+                                disabled={isReview || isUserBlocked || isReservado || isEntregado || editLocked}
                                 aria-label="Editar"
-                                title={isReservado ? "No se puede editar un artículo reservado" : "Editar"}
+                                title={editLocked ? ARTICLE_EDIT_LOCK_MESSAGE : isReservado ? "No se puede editar un artículo reservado" : "Editar"}
                               >
                                 <Pencil size={16} />
                               </button>
@@ -3409,6 +3408,11 @@ export default function UserProfile({
 
                             {rejectedSale && <p className="mt-1 text-xs text-gray-500">Se retira de Mis Rescates 24 horas después de la cancelación.</p>}
                             {rejectedDonation && <p className="mt-1 text-xs text-gray-500">Desaparece en 24 horas desde el rechazo. Hasta entonces no puedes volver a postularte.</p>}
+                            {r?.justificacion ? (
+                              <p className="profile-transaction-copy profile-rescue-message" title={r.justificacion}>
+                                <span>Tu mensaje:</span>{" "}{r.justificacion}
+                              </p>
+                            ) : null}
 
                           </div>
 
@@ -3429,11 +3433,7 @@ export default function UserProfile({
                                   Para hablar con el vendedor, él debe aprobar la compra.
                                 </p>
                               )}
-                          {r?.justificacion ? (
-                            <p className="profile-transaction-copy profile-rescue-message">
-                              <span>Tu mensaje:</span>{" "}{r.justificacion}
-                            </p>
-                          ) : null}
+
                         </div>
                         {previewRescateId === `${user.id}:${articuloId}` && <RescateArticleDetail
                           row={r} user={user} actions={renderActions(true)} busy={isDeletingMine}

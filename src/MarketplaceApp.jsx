@@ -1,3 +1,4 @@
+import { assertArticleEditable } from './supabase/articleEditing.js';
 // src/App.jsx
 import { lazy, Suspense, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
@@ -264,7 +265,6 @@ export default function MarketplaceApp() {
   }
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [searchMode, setSearchMode] = useState("related");
   const [selectedCategory, setSelectedCategory] = useState("Todo");
   const [selectedSubcategory, setSelectedSubcategory] = useState("");
   const [expandedCategory, setExpandedCategory] = useState(null);
@@ -310,11 +310,11 @@ export default function MarketplaceApp() {
   }, [searchTerm]);
 
   const homeFilters = useMemo(() => ({
-    search: debouncedSearch, searchMode, category: selectedCategory, subcategory: selectedSubcategory,
+    search: debouncedSearch, category: selectedCategory, subcategory: selectedSubcategory,
     city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive: false, onlyVerified, minCondition,
     hideOwn: !!currentUser?.id && hiddenAdsOwnerId === currentUser.id, sort: sortOrder, featuredSeed,
     layout: mobileCatalog || mobileApp ? 'mobile' : 'desktop', desktopPageSize: 12, mobilePageRows: mobileApp ? 10 : 4, mobileUniformGrid: true,
-  }), [debouncedSearch, searchMode, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
+  }), [debouncedSearch, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
     quickTipo, onlyVerified, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id, mobileCatalog, mobileApp]);
   const homeFilterKey = JSON.stringify([homeFilters, currentUser?.id]);
   useEffect(() => {
@@ -1746,7 +1746,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
   const savedSearchFilters = {
     term: searchTerm.trim(), city: selectedCity, locality: selectedLocality,
     category: selectedCategory, subcategory: selectedSubcategory, kind: quickTipo,
-    onlyVerified, minCondition, searchMode, sort: sortOrder,
+    onlyVerified, minCondition, sort: sortOrder,
   };
   const savedSearchId = JSON.stringify(savedSearchFilters);
   const loadedPublicItems = catalogProposal ? products.filter(item =>
@@ -1768,7 +1768,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     setOnlyVerified(search.onlyVerified);
     setMinCondition(search.minCondition);
     setConditionDraft(search.minCondition);
-    setSearchMode(search.searchMode);
     setSortOrder(search.sort);
   }
 
@@ -1777,8 +1776,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     const term = normalize(search.term);
     return loadedPublicItems.filter(item => {
       const title = normalize(item.title || item.titulo);
-      const text = search.searchMode === 'specific' ? title
-        : [title, normalize(item.description || item.descripcion), normalize(getCategoria(item))].join(' ');
+      const text = [title, normalize(item.description || item.descripcion), normalize(getCategoria(item))].join(' ');
       return Date.parse(item.published_at || item.created_at) > search.savedAt
         && (item.city || item.ciudad) === search.city
         && (search.locality === 'Todas' || (item.locality || item.localidad_es) === search.locality)
@@ -1874,7 +1872,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       <section className="catalog-saves-panel">
         <h2>Búsquedas guardadas</h2>
         <p className="catalog-saved-search-hint">Verás coincidencias nuevas mientras exploras el catálogo.</p>
-        <button type="button" className="catalog-save-search" disabled={catalogSaves.searches.some(search => search.id === savedSearchId)}
+        <button type="button" className="catalog-save-search" disabled={catalogSaves.searches.some(search => Object.keys(savedSearchFilters).every(key => search[key] === savedSearchFilters[key]))}
           onClick={() => updateCatalogSaves({ ...catalogSaves,
             searches: [...catalogSaves.searches, { ...savedSearchFilters, id: savedSearchId, savedAt: Date.now() }] })}>
           Guardar búsqueda actual
@@ -2174,12 +2172,12 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     searchAccessory={savedSearchMenu}
                     filterAccessory={favoritesMenu}
                     value={{category:selectedCategory,subcategory:selectedSubcategory,city:selectedCity,locality:selectedLocality,
-                      kind:quickTipo,onlyVerified,minCondition,sort:sortOrder,hideOwn:!!currentUser?.id && hiddenAdsOwnerId === currentUser.id,searchMode}}
+                      kind:quickTipo,onlyVerified,minCondition,sort:sortOrder,hideOwn:!!currentUser?.id && hiddenAdsOwnerId === currentUser.id}}
                     onChange={next => {
                       setSelectedCategory(next.category);setSelectedSubcategory(next.subcategory);setExpandedCategory(null);
                       setSelectedCity(next.city);setSelectedLocality(next.locality);setQuickTipo(next.kind);
                       setOnlyVerified(next.onlyVerified);setMinCondition(next.minCondition);setConditionDraft(next.minCondition);
-                      setSortOrder(next.sort);setHiddenAdsOwnerId(next.hideOwn ? currentUser?.id : null);setSearchMode(next.searchMode);
+                      setSortOrder(next.sort);setHiddenAdsOwnerId(next.hideOwn ? currentUser?.id : null);
                     }}
                     categories={CATEGORY_TREE} cities={COLOMBIA_DATA} signedIn={!!currentUser?.id}
                     onSubmitSearch={() => listingRef.current?.scrollIntoView({behavior:'smooth',block:'start'})} />}
@@ -2307,12 +2305,12 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                       <FilterSection id="locality-filters" title={`Localidades en ${selectedCity}`} icon={<MapPin size={18} className="shrink-0 text-forest-green" aria-hidden="true" />}
                         summary={selectedLocality === "Todas" ? "Todas las localidades" : selectedLocality}>
 
-                        <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                        <div className="flex max-h-64 flex-col gap-2">
                           <button
                             type="button"
                             aria-pressed={selectedLocality === "Todas"}
                             onClick={() => setSelectedLocality("Todas")}
-                            className={`w-full text-left text-sm min-h-11 py-2 px-3 rounded-md transition ${
+                            className={`w-full shrink-0 text-left text-sm min-h-11 py-2 px-3 rounded-md transition ${
                               selectedLocality === "Todas"
                                 ? "bg-forest-green text-white font-bold"
                                 : "text-gray-500 hover:bg-gray-100"
@@ -2321,6 +2319,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                             Todas las localidades
                           </button>
 
+                          <div className="min-h-0 space-y-2 overflow-y-auto pr-2">
                           {(currentCityData?.localities ?? []).map((loc) => (
                             <button
                               key={loc}
@@ -2336,6 +2335,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                               {loc}
                             </button>
                           ))}
+                          </div>
                         </div>
 
                       </FilterSection>
@@ -2433,16 +2433,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           )}
                         </div>
                       </div>
-
-                      {searchTerm.trim() && <div role="group" aria-label="Modo de búsqueda" className="home-search-mode mb-4 inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-gray-200 bg-white p-1">
-                        {[['related', 'Relacionados'], ['specific', 'Específica']].map(([value, label]) => (
-                          <button key={value} type="button" aria-pressed={searchMode === value}
-                            onClick={() => setSearchMode(value)}
-                            className={`min-h-11 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${searchMode === value ? 'bg-forest-green text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-                            {label}
-                          </button>
-                        ))}
-                      </div>}
 
                       {catalogChanged && <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-forest-green">
                         <span>Hay novedades en las publicaciones.</span>
@@ -2553,9 +2543,12 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                       String(getArticuloId(item)) === String(article.id) ? { ...item, ...article, isFeatured: true } : item));
                     load({ refreshPersonal: true });
                   }}
-                  onOpenEdit={(art) => {
-                    setEditArticle(art);
-                    setIsEditOpen(true);
+                  onOpenEdit={async (art) => {
+                    try {
+                      await assertArticleEditable(supabase, getArticuloId(art));
+                      setEditArticle(art);
+                      setIsEditOpen(true);
+                    } catch (error) { alert(error.message); }
                   }}
                   onOpenGestion={async (art) => {
                     try {
