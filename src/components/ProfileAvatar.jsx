@@ -8,5 +8,5 @@ export default function ProfileAvatar({ user, photo, name = 'Usuario', client, c
   if (!url || brokenUrl === url) {
     return fallback ?? <span title={!allowed ? 'Inicia sesión para ver la foto de perfil' : undefined}>{(name[0] || 'U').toUpperCase()}</span>;
   }
-  return <img src={url} alt={name} className={className} referrerPolicy="no-referrer" onError={() => setBrokenUrl(url)} />;
+  return <img src={url} alt={name} loading="lazy" decoding="async" className={className} referrerPolicy="no-referrer" onError={() => setBrokenUrl(url)} />;
 }

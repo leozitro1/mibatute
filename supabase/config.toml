@@ -107,6 +107,7 @@ sql_paths = [
   "./migrations/2026-10-16-market-realtime.sql",
   "./local-storage.sql",
   "./migrations/2026-11-05-image-upload-limits.sql",
+  "./migrations/2026-11-20-growth-participant-indexes.sql",
 ]
 
 [db.network_restrictions]

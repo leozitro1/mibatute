@@ -63,3 +63,36 @@ Los límites actuales de lectura de notificaciones e historial inicial se conser
 - Reposo de 65 segundos: cero llamadas HTTP de estado y cero llamadas `/api/`. Se observaron un lote de métricas de patrocinadores, un lote de métricas del mercado y tres solicitudes de imágenes de patrocinadores. Estos conteos HTTP no miden bytes facturados ni los frames del WebSocket.
 - ESLint en archivos modificados: ningún error nuevo frente a `HEAD`; permanecen 21 errores anteriores (había 26 en esos archivos). No se declara que el lint global esté limpio.
 - Migración aplicada a Supabase local y comprobada también en PostgreSQL embebido, incluyendo rollback y reaplicación. No aplicada a Supabase alojado y sin despliegue a Vercel en esta tarea.
+
+## Preparación local para crecimiento — 20 de noviembre de 2026
+
+Cambios pendientes de revisión del responsable, sin commit, push ni deploy. No se tocaron producción, planes, permisos de acceso, SMTP ni pagos.
+
+- El catálogo conserva el mismo tema al paginar o cambiar búsqueda/filtros que no cambian ciudad/categoría. Su callback usa la consulta vigente sin recrear suscripciones por cada cambio de formulario.
+- El canal público se retira mientras la pestaña está oculta, espera su desconexión antes de volver a crearlo y descarta callbacks antiguos. Al recuperar conexión invalida la caché y señala novedades. Chat y notificaciones privadas siguen funcionando con sus canales existentes; no se añade sondeo. Esto reduce suscripciones/tráfico de catálogo; no equivale a eliminar la conexión privada del usuario autenticado.
+- Se verificaron los límites existentes: listado paginado, historial inicial del chat de 50 mensajes, recuperación incremental por cursor, historial de conversaciones de 12 filas, caché acotada del catálogo y ubicaciones, métricas por lotes y presupuestos de ingestión del servidor. No se reducen límites de funciones para aparentar ahorro.
+- Cinco índices parciales nuevos cubren las ramas de participantes actuales e históricos de las consultas personales: usuario, comprador, ganador y sus alias. Se mantienen los índices ya existentes de propietario, búsqueda de texto y cursor del chat. No se cambian filas ni RLS. Migración `2026-11-20-growth-participant-indexes.sql` instalada y verificada únicamente en la base local; incluida al final de la semilla local.
+- Se conservan los ajustes de imágenes de esta revisión: reutilizar un archivo ya generado por nuestro canvas sin volver a codificarlo, liberar recursos de procesamiento, avatares diferidos y caché temporal de URLs autorizadas separada por cliente, cuenta y token. La caché no utiliza almacenamiento persistente, no atiende visitantes anónimos ni sesiones vencidas y no omite permisos de subida.
+
+### Verificación reproducible por terminal
+
+`npm run local:check-growth` crea una base PostgreSQL/WASM aislada en memoria, con 10.000 cuentas y 100.000 artículos sintéticos; no realiza peticiones HTTP ni conecta con Supabase/Vercel. Compara resultados y planes antes/después de los índices y comprueba que reaplicarlos es seguro. En la ejecución del 20 de noviembre:
+
+| Consulta | Filas ajenas filtradas antes | Después | Tiempo local antes → después |
+|---|---:|---:|---:|
+| Publicaciones de los participantes | 99.986 | 0 | 23,283 ms → 0,129 ms |
+| Compras del usuario | 99.996 | 0 | 17,629 ms → 0,059 ms |
+
+Son medidas de dos consultas sintéticas en esta máquina; no predicen tiempos de producción, cuotas de facturación ni capacidad de 10.000 sesiones simultáneas. Los resultados y su orden se conservaron. Los índices sí tienen un costo adicional de espacio y mantenimiento en escrituras, a cambio de evitar recorridos completos para esas consultas.
+
+Pruebas adicionales: 1.000 consumidores lógicos de un mismo avatar comparten una autorización; 1.000 catálogos ocultos no crean canales. Son pruebas con clientes simulados, no 1.000 usuarios conectados a la web real. Conjunto completo: **488 pruebas aprobadas**, compilación correcta, lint de módulos nuevos sin errores y diferencias sin problemas de formato. Sin navegador ni capturas.
+
+### Seguimiento pendiente antes de una prueba real de concurrencia
+
+Las alertas de los paneles no se modificaron. Antes de abrir una prueba de tráfico real, revisar en Supabase y Vercel las cuotas vigentes y avisos al 50/75/90 %, separando egress con/sin caché, Realtime, cómputo e invocaciones. Evaluar visitas activas, mensajes y fotos vistas por sesión, no solo cuentas registradas. Hacer una prueba controlada primero con pocos clientes y ampliar por etapas según latencia, errores y consumo medidos, con permiso explícito antes de generar carga sobre producción. Estos cambios no garantizan que 10.000 personas conectadas simultáneamente quepan en el plan actual.
+
+### Publicación autorizada del 20 de noviembre
+
+El responsable autoriza commit/push en main y deploy del conjunto de mejoras de frontend en el proyecto Vercel habitual. Se conserva la migración de índices en el commit, pero su aplicación a producción está pendiente de acceso administrativo a Supabase: la CLI no tiene sesión y no se usa el navegador interno, de acuerdo con las normas vigentes. Se solicitó iniciar sesión con la CLI; el frontend es compatible con el esquema anterior y sus mejoras de imágenes/suscripciones no dependen de esos índices. La base local sí los tiene instalados y verificados. No declarar la mejora SQL como activa en producción hasta aplicar y comprobar los cinco índices.
+
+Para aplicar tras habilitar el acceso, usar exclusivamente `supabase/migrations/2026-11-20-growth-participant-indexes.sql` en el proyecto habitual y verificar sus cinco índices válidos en `pg_indexes`/`pg_index`. No ejecutar un `db push` masivo: el repositorio contiene migraciones históricas con nombres heredados. No se generará carga de usuarios contra producción para comprobar este deploy.

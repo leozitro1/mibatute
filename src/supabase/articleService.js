@@ -4,7 +4,7 @@ import { supabase } from "./supabaseClient";
 import { savePhotoOrder } from './photoOrder.js';
 import { commitPublication } from './publicationCredits.js';
 import {checkSellerRegistration} from './sellerRegistration.js';
-import { encodeCanvasImage } from '../imagekit/canvasImage.js';
+import { encodeCanvasImage, isPreparedCanvasImage } from '../imagekit/canvasImage.js';
 import { uploadImageKitImage } from "../imagekit/imageService";
 import { useLocalImages, removeLocalImages } from '../imagekit/localImages';
 import { queryArticlesWithCondition } from "./articleQuery";
@@ -63,6 +63,9 @@ async function compressAndResizeImage(file) {
     );
   }
 
+  // Files already cropped/encoded by our own canvas need no second lossy encoding.
+  if (isPreparedCanvasImage(file, MAX_SIDE)) return file;
+
   // 2) Cargar bitmap/imagen
   const src = await fileToImageBitmap(file);
   const w = src.width;
@@ -75,21 +78,22 @@ async function compressAndResizeImage(file) {
   const outW = Math.max(1, Math.round(w * scale));
   const outH = Math.max(1, Math.round(h * scale));
 
-  // Si ya está pequeña y además ya es webp/jpeg razonable, podrías devolver igual.
-  // Pero igual normalizamos para estandarizar formato/peso.
-  const canvas = document.createElement("canvas");
-  canvas.width = outW;
-  canvas.height = outH;
-
-  const ctx = canvas.getContext("2d", { alpha: false });
-  if (!ctx) throw new Error("No se pudo procesar la imagen (canvas).");
-
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(src, 0, 0, outW, outH);
-
-  const name = (file.name || "foto").replace(/\.[^.]+$/, "");
-  return encodeCanvasImage(canvas, { name, type: OUT_FORMAT, quality: OUT_QUALITY });
+  let canvas;
+  try {
+    canvas = document.createElement("canvas");
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) throw new Error("No se pudo procesar la imagen (canvas).");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(src, 0, 0, outW, outH);
+    const name = (file.name || "foto").replace(/\.[^.]+$/, "");
+    return await encodeCanvasImage(canvas, { name, type: OUT_FORMAT, quality: OUT_QUALITY });
+  } finally {
+    src.close?.();
+    if (canvas) { canvas.width = 0; canvas.height = 0; }
+  }
 }
 
 async function ensureOptimizedImage(file) {

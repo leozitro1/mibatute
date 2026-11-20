@@ -18,6 +18,7 @@ import useDetailScroll from './components/useDetailScroll.js';
 import useMobileApp from './components/useMobileApp.js';
 import useMobileBackGesture from './components/useMobileBackGesture.js';
 import MobileCatalogTools from './components/MobileCatalogTools.jsx';
+import { subscribeVisibleCatalog } from './components/catalogSubscription.js';
 import { createListingCache } from './components/listingCache.js';
 import { readNotificationHistory, writeNotificationHistory, mergeNotificationHistory,
   markNotificationHistoryRead, markNotificationBellRead, NOTIFICATION_STATE_LIMIT } from './components/notificationHistory.js';
@@ -1423,12 +1424,14 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     return () => { clearTimeout(reconnectTimerRef.current); stop(); };
   }, [currentUser?.id, currentUser?.created_at, saveNotificationHistory,syncInboxReceipt]);
 
+  const catalogLoadRef = useRef(load);
+  catalogLoadRef.current = load;
   useEffect(() => {
     if (currentView !== 'home') return;
-    let active = true, joined = false, refreshTimer;
-    const channel = supabase.channel(catalogTopic(selectedCity, selectedCategory))
-      .on('broadcast', { event: 'catalog_changed' }, ({ payload }) => {
-        // Broadcasts are advisory. Sanctions trigger a coalesced authoritative refresh.
+    let active = true, refreshTimer;
+    const stop = subscribeVisibleCatalog(supabase, {
+      topic: catalogTopic(selectedCity, selectedCategory),
+      onChange: payload => {
         if (!active || !payload?.id || !['INSERT', 'UPDATE', 'DELETE'].includes(payload.action)) return;
         catalogVersionRef.current++;
         listingCacheRef.current.clear();
@@ -1436,17 +1439,18 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         if (payload.owner_state_changed === true) {
           clearTimeout(refreshTimer);
           refreshTimer = setTimeout(() => {
-            if (active) void load({ refreshPersonal:true }).catch(error => console.warn('No se pudo actualizar la disponibilidad:',error));
-          },250);
+            if (active) void catalogLoadRef.current({ refreshPersonal: true }).catch(error => console.warn('No se pudo actualizar la disponibilidad:', error));
+          }, 250);
         }
-      }).subscribe(status => {
-        if (active && status === 'SUBSCRIBED') {
-          if (joined) { listingCacheRef.current.clear(); setCatalogChanged(true); }
-          joined = true;
-        }
-      });
-    return () => { active = false; clearTimeout(refreshTimer); supabase.removeChannel(channel); };
-  }, [currentView, selectedCity, selectedCategory, load]);
+      },
+      onReconnect: () => {
+        catalogVersionRef.current++;
+        listingCacheRef.current.clear();
+        setCatalogChanged(true);
+      },
+    });
+    return () => { active = false; clearTimeout(refreshTimer); stop(); };
+  }, [currentView, selectedCity, selectedCategory]);
 
   useEffect(() => {
     notificationRefreshRef.current = { uid: null, at: 0, pending: null };
