@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { supabase } from '../supabase/supabaseClient';
 import './AccountVerification.css';
-import VerificationMark from './VerificationMark.jsx';
+import UserTrustBadges from './UserTrustBadges.jsx';
 
 const labels={unverified:'Sin verificar',pending:'En revisión',approved:'Cuenta verificada',rejected:'Requiere corrección'};
 
@@ -11,8 +11,9 @@ export default function AccountVerification({userId,disabled=false,refreshKey}) 
  useEffect(()=>{
   let active=true;
   const refresh=()=>{if(document.visibilityState!=='hidden')supabase.rpc('my_account_verification').then(({data,error})=>{if(active){if(error)setError('No se pudo consultar la verificación. Recarga para intentar nuevamente.');else {setRequest(data);setError('');}}});};
-  refresh();document.addEventListener('visibilitychange',refresh);
-  return()=>{active=false;document.removeEventListener('visibilitychange',refresh);};
+  const changed=event=>{if(event.detail?.userId===userId)refresh();};
+  refresh();document.addEventListener('visibilitychange',refresh);window.addEventListener('mb:seller-registration-changed',changed);
+  return()=>{active=false;document.removeEventListener('visibilitychange',refresh);window.removeEventListener('mb:seller-registration-changed',changed);};
  },[userId,refreshKey]);
  const submit=async event=>{
   event.preventDefault();if(busy)return;
@@ -48,15 +49,17 @@ export default function AccountVerification({userId,disabled=false,refreshKey}) 
  </section>;
 }
 
-export function AccountVerificationBadge({userId,refreshKey,showStatus=false}) {
+export function AccountVerificationBadge({userId,refreshKey,showStatus=false,identity=null}) {
  const [verification,setVerification]=useState(null);
  useEffect(()=>{
   let active=true;
-  const refresh=()=>{if(userId&&document.visibilityState!=='hidden')supabase.rpc('account_is_verified',{p_user_id:userId}).then(({data,error})=>{if(active)setVerification({userId,verified:error?null:data===true,error:!!error});});};
-  refresh();document.addEventListener('visibilitychange',refresh);
-  return()=>{active=false;document.removeEventListener('visibilitychange',refresh);};
+  const refresh=()=>{if(userId&&document.visibilityState!=='hidden')supabase.rpc('account_public_badges',{p_user_id:userId}).then(({data,error})=>{if(active)setVerification({userId,verified:error?null:data?.account_verified===true,sellerRegistered:!error&&data?.seller_registered===true,error:!!error});});};
+  const changed=event=>{if(event.detail?.userId===userId)refresh();};
+  refresh();document.addEventListener('visibilitychange',refresh);window.addEventListener('mb:seller-registration-changed',changed);
+  return()=>{active=false;document.removeEventListener('visibilitychange',refresh);window.removeEventListener('mb:seller-registration-changed',changed);};
  },[userId,refreshKey]);
  const current=verification?.userId===userId?verification:null;
- if(showStatus&&current?.verified!==true)return <span className="text-xs font-semibold text-gray-500" role="status">{current?.error?'Verificación no disponible':current?.verified===false?'Cuenta no verificada':'Consultando verificación…'}</span>;
- return <VerificationMark verified={Boolean(userId&&current?.verified===true)}/>;
+ if(showStatus&&(!current||current.error))return <span className="text-xs font-semibold text-gray-500" role="status">{current?.error?'Verificación no disponible':current?.verified===false?'Cuenta no verificada':'Consultando verificación…'}</span>;
+ if(!current||current.error)return identity;
+ return <UserTrustBadges identity={identity} key={userId} verified={Boolean(userId&&current?.verified===true)} sellerRegistered={Boolean(userId&&current?.sellerRegistered===true)}/>;
 }

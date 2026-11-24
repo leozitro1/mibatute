@@ -21,6 +21,7 @@ export function profileNotificationBadges(items,userId,ownedArticles=[]) {
   const notifications=mergeNotificationHistory([],items,NOTIFICATION_STATE_LIMIT),receipts=new Set();
   for(const item of notifications){
     if(item.read||!item.unreadCount||!PROFILE_PENDING_TYPES.has(item.type))continue;
+    if(item.type==='system_notice'&&item.receipt_kind!=='support'&&item.bellRead)continue;
     let tab;
     if(item.type==='system_notice'){
       const key=item.receipt_id?receiptKey(item):String(item.id);

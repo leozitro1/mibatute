@@ -1186,7 +1186,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     if (ownerIds.length) {
       const { data: owners, error: ownersErr } = await supabase
         .from("usuarios_publicos")
-        .select("id,nombre,foto_url,account_verified,is_blocked,bloqueado,ban_until")
+        .select("id,nombre,foto_url,account_verified,seller_registered,is_blocked,bloqueado,ban_until")
         .in("id", ownerIds);
 
       if (ownersErr) console.log("Error cargando usuarios_publicos:", ownersErr);
@@ -1942,6 +1942,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   function catalogFavoriteButton(item) {
     const id = getArticuloId(item);
+    if ([item?.estado, item?.status].some(value => normEstado(value) === 'reservado')) return null;
     if (!catalogProposal || isUserBlocked || !articleShareUrl(id, window.location.href)) return null;
     const title = item.title || item.titulo || 'Artículo';
     const isFavorite = catalogSaves.favorites.some(favorite => favorite.id === id);
@@ -2482,6 +2483,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     <ProductCard
       photoAccessory={catalogFavoriteButton(item)}
       title={item.title || item.titulo || "Sin título"}
+      description={item.description || item.descripcion || ''}
       location={resolvedLocation}
       category={getCategoria(item)}
       mode={normTipo(item.mode || item.tipo || "donacion")}
@@ -2489,6 +2491,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       image={resolvedImage}
       isFeatured={item.isFeatured || false}
       ownerVerified={item.owner_public?.account_verified===true}
+      ownerSellerRegistered={item.owner_public?.seller_registered===true}
       status={item.estado || item.status || "disponible"}
       estadoProducto={typeof item?.estado_producto === "number" ? item.estado_producto : (item?.estado_producto ? Number(item.estado_producto) : null)}
       interestedCount={interestedCount}

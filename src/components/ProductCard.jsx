@@ -1,8 +1,9 @@
+import './ProductCardSummary.css';
 // src/components/ProductCard.jsx
-import { MapPin, Lock, Users, BadgeCheck, Clock } from "lucide-react";
+import { MapPin, Lock, Clock } from "lucide-react";
 import { productCondition } from './productCondition.js';
 import { cardImageUrl } from '../imagekit/imageUrls.js';
-import VerificationMark from './VerificationMark.jsx';
+import UserTrustBadges from './UserTrustBadges.jsx';
 
 const FALLBACK_SVG =
   "data:image/svg+xml;utf8," +
@@ -99,8 +100,8 @@ function toCountRobust(v) {
 
 export default function ProductCard({
   title,
+  description,
   location,
-  category,
   mode,
   price,
   // ✅ NUEVO: estado del producto (1–10)
@@ -111,6 +112,7 @@ export default function ProductCard({
   image, // string | string[] | [{url}]
   isFeatured,
   ownerVerified = false,
+  ownerSellerRegistered = false,
   photoAccessory,
   status = "disponible",
 
@@ -208,7 +210,7 @@ export default function ProductCard({
   return (
     <div
       onClick={handleCardClick}
-      className={`product-card ${isFeatured ? 'product-card--featured' : ''} relative flex h-[376px] flex-col bg-white rounded-lg overflow-hidden border-2 ${
+      className={`product-card ${isFeatured ? 'product-card--featured' : ''} relative flex h-full min-h-[376px] flex-col bg-white rounded-lg overflow-hidden border-2 ${
         isFeatured ? "border-treasure-gold border-2 shadow-md" : "border-gray-200 shadow-sm"
       } hover:shadow-lg transition ${isDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
       aria-disabled={isDisabled}
@@ -252,32 +254,6 @@ export default function ProductCard({
         )}
 
 
-        {/* ✅ Estado del producto (1–10) */}
-        {showCondition && (
-          <div
-            className={`product-card-condition absolute ${isFeatured ? "top-10" : "top-2"} right-2 z-20`}
-            title={`Estado ${conditionInfo.score}/10 · ${conditionInfo.label}. Informado por quien publica.`}
-            aria-label={`Estado ${conditionInfo.score} de 10, ${conditionInfo.label}`}
-          >
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider shadow ${conditionInfo.cls}`}>
-              <BadgeCheck size={14} aria-hidden="true" />
-              {conditionInfo.score}/10
-            </span>
-          </div>
-        )}
-
-{/* ✅ Badge “interesados” (solo donación/regalo) */}
-        {showInterested && (
-          <div className="product-card-applicants absolute bottom-2 right-2 z-20" title={interestedTooltip} aria-label={interestedTooltip}>
-            <span
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2 py-1 text-[11px] font-bold text-gray-800 shadow-sm"
-            >
-              <Users size={14} aria-hidden="true" />
-              {badgeText}
-            </span>
-          </div>
-        )}
-
         {/* ✅ overlay por reservado/entregado */}
         {isLocked && (
           <div className={`absolute inset-0 bg-white/65 backdrop-blur-[2px] flex items-center justify-center z-10${isReserved && !isReviewing ? ' product-card-reserved-overlay' : ''}`}>
@@ -303,21 +279,27 @@ export default function ProductCard({
       </div>
 
       <div className={`product-card-body flex min-h-0 flex-1 flex-col p-4 ${isReserved || isReviewing ? 'opacity-70' : ''}`}>
-        <div className="flex min-w-0 items-center gap-1.5"><h3 className="min-w-0 flex-1 font-bold text-gray-800 truncate">{title || "Sin título"}</h3><VerificationMark verified={ownerVerified} compact/></div>
-        <p className="mt-1 h-4 truncate text-[11px] text-gray-400" title={category || undefined}>
-          {category || ''}
-        </p>
-
-        <p className="flex min-w-0 items-center text-xs text-gray-500 mt-1">
+        <p className="product-card-location flex min-w-0 items-center text-xs text-forest-green mb-1">
           <MapPin size={12} className="mr-1 shrink-0" /> <span className="truncate">{location || "Ubicación"}</span>
         </p>
+        <h3 className="min-w-0 font-bold text-gray-800 truncate uppercase" title={title || "Sin título"}>{title || "Sin título"}</h3>
 
-        {/* ✅ texto auxiliar debajo (solo donación) */}
-        <p className="mt-2 h-4 truncate text-[10px] font-bold uppercase text-gray-500">
-          {showInterested ? (isFull ? "Cupo lleno" : `${remaining} ${remaining === 1 ? "cupo disponible" : "cupos disponibles"}`) : ''}
+        <p className={`product-card-interest-summary${showInterested ? '' : ' is-sale'}`}
+          title={showInterested ? interestedTooltip : description || undefined}>
+          {showInterested ? <>
+            <span>{badgeText}</span>
+            <span>{isFull ? 'Cupo lleno' : `${remaining} ${remaining === 1 ? 'cupo disponible' : 'cupos disponibles'}`}</span>
+          </> : <span className="product-card-description">{description || 'Sin descripción.'}</span>}
         </p>
+        <div className="product-card-summary-status">
+          {showCondition && <p className="product-card-summary-condition"
+            title="Estado informado por quien publica.">
+            {conditionInfo.label} · <strong>{conditionInfo.score}/10</strong>
+          </p>}
+          <UserTrustBadges verified={ownerVerified} sellerRegistered={ownerSellerRegistered} compact/>
+        </div>
 
-        <div className="product-card-actions mt-auto flex items-center justify-between gap-2">
+        <div className="product-card-actions flex items-center justify-between gap-2">
           <span className="text-lg font-black text-forest-green">{formattedPrice}</span>
 
           <button

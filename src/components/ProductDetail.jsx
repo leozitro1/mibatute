@@ -935,8 +935,9 @@ export default function ProductDetail({
             </div>
 
             <div className="min-w-0 flex-1">
-              {staffPreview&&onOpenOwner&&ownerId?<button type="button" className="product-detail-owner-link" title="Abrir ficha del vendedor" onClick={()=>onOpenOwner({id:ownerId,nombre:ownerNameRaw||ownerName})}>{ownerName}</button>:<p className="text-sm font-black text-gray-800 truncate">{ownerName}</p>}
-              {isOpen&&<AccountVerificationBadge userId={ownerId} />}
+              <AccountVerificationBadge userId={isOpen?ownerId:null} identity={
+                staffPreview&&onOpenOwner&&ownerId?<button type="button" className="product-detail-owner-link" title="Abrir ficha del vendedor" onClick={()=>onOpenOwner({id:ownerId,nombre:ownerNameRaw||ownerName})}>{ownerName}</button>:<p className="text-sm font-black text-gray-800 truncate" title={ownerName}>{ownerName}</p>
+              } />
               {ownerReputacion !== null && (
                 <div className="flex items-center gap-0.5 mt-1">
                   {[1,2,3,4,5].map(s => (

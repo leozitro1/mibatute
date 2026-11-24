@@ -58,7 +58,7 @@ export default function SellerRegistration({userId,onSaved,onCancel,disabled=fal
         p_consent_version:SELLER_NOTICE_VERSION,
       });
       if(error){setError(error.code==='22023'?'Revisa los datos y confirma el uso indicado.':'No se pudo guardar el registro. Vuelve a intentarlo.');return;}
-      setRecord(null);setOpen(false);setSaved(true);setTransition(null);onSaved?.();
+      setRecord(null);setOpen(false);setSaved(true);setTransition(null);window.dispatchEvent(new CustomEvent('mb:seller-registration-changed',{detail:{userId}}));onSaved?.();
     }catch{setError('No se pudo guardar el registro. Vuelve a intentarlo.');}
     finally{locked.current=false;setBusy(false);}
   };

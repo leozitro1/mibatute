@@ -49,7 +49,6 @@ export default function FeaturedTicker({ items = [], onItemClick, category = 'To
           const title = item.title || item.titulo || 'Artículo';
           const image = item.image_url || item.imagen_url_principal || item.imagen_url
             || item.imagenes?.[0] || item.imagenes_db?.[0] || item.articulo_imagenes?.[0]?.url;
-          const category = item.category || item.categoria || item.categoria_es || item.category_name || '';
           const isSale = isSaleArticle(item);
           const inReview = ['estado','status','review_status','approval_status','moderation_status','revision_status']
             .some(key => ['en_revision','en revisión','en revision','reviewing','under_review','pending_review']
@@ -73,11 +72,10 @@ export default function FeaturedTicker({ items = [], onItemClick, category = 'To
               </div>}
             </div>
             <div className={`w-full min-w-0 p-3 ${inReview ? 'opacity-70' : ''}`}>
-              <h3 className="truncate text-sm font-black text-gray-800">{title}</h3>
-              <p className="mt-1 h-4 truncate text-[11px] text-gray-400" title={category || undefined}>{category}</p>
-              <p className="mt-1 truncate text-xs text-gray-500">
+              <p className="mb-1 truncate text-xs text-forest-green">
                 {item.city || item.ciudad}{(item.locality || item.localidad_es) ? `, ${item.locality || item.localidad_es}` : ''}
               </p>
+              <h3 className="truncate text-sm font-black text-gray-800 uppercase" title={title}>{title}</h3>
               <p className="mt-2 text-sm font-black text-forest-green">
                 {isSale ? Number(item.price ?? item.precio ?? 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }) : 'GRATIS'}
               </p>

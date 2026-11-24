@@ -72,14 +72,14 @@ test('a receipt acknowledgement affects only that namespace and preserves unrela
   assert.deepEqual(profileNotificationBadges(marked,'me'),{publicaciones:0,rescates:1,buzon:1});
 });
 
-test('marking the bell read preserves profile and chat badges until their content is read',()=>{
+test('marking the bell read clears system badges and preserves actionable chat and request badges',()=>{
   const items=[item('post','postulacion'),item('chat','chat',{chat_id:'c',buyer_id:'me'}),item('notice','system_notice',{receipt_id:'r'})];
-  const pending={publicaciones:1,rescates:1,buzon:1},marked=markNotificationBellRead(items,items);
+  const pending={publicaciones:1,rescates:1,buzon:0},marked=markNotificationBellRead(items,items);
   assert.ok(marked.every(entry=>entry.bellRead&&!entry.read&&entry.unreadCount===1));
   assert.deepEqual(profileNotificationBadges(marked,'me'),pending);
   assert.deepEqual(notificationCounts(marked),notificationCounts(items));
   const readChat=markNotificationHistoryRead(marked,{chatId:'c',through:now},NOTIFICATION_STATE_LIMIT);
-  assert.deepEqual(profileNotificationBadges(readChat,'me'),{publicaciones:1,rescates:0,buzon:1});
+  assert.deepEqual(profileNotificationBadges(readChat,'me'),{publicaciones:1,rescates:0,buzon:0});
   assert.equal(notificationCounts(readChat).chats,0);
   assert.equal(notificationCounts(readChat).profile,1);
   const refreshed=mergeNotificationHistory(marked,items,NOTIFICATION_STATE_LIMIT);assert.ok(refreshed.every(entry=>entry.bellRead));
@@ -126,10 +126,10 @@ test('removing support threads clears only their notices, including old offline 
 });
 
 
-test('inbox categories preserve pending messages after bell-only acknowledgement',()=>{
+test('inbox categories clear seen system notices while preserving pending conversations',()=>{
  const items=[item('system','system_notice',{receipt_id:'s'}),item('support','system_notice',{receipt_kind:'support',receipt_id:'t'}),item('chat','chat',{chat_id:'c',buyer_id:'me',unreadCount:3}),item('read-chat','chat',{chat_id:'r',read:true}),item('bell','chat',{chat_id:'b',bellRead:true})];
  assert.deepEqual(profileInboxBadges(items,'me'),{system:1,conversations:1,users:4});
- assert.deepEqual(profileInboxBadges(markNotificationBellRead(items,items),'me'),{system:1,conversations:1,users:4});
+ assert.deepEqual(profileInboxBadges(markNotificationBellRead(items,items),'me'),{system:0,conversations:1,users:4});
  assert.deepEqual(profileInboxBadges(items,null),{system:0,conversations:0,users:0});
 });
 
@@ -163,4 +163,16 @@ test('truncated snapshots cannot clear rows at or below their oldest returned ti
  const receipts=Array.from({length:50},(_,i)=>({receipt_id:`r-${i}`,created_at:now,read_at:null}));
  const inbox=mergeInboxNotifications([item('old','system_notice',{receipt_id:'old',created_at:'2026-10-16T11:59:00Z'})],receipts,Date.parse(now));
  assert.equal(inbox.find(row=>row.id==='old').read,false);
+});
+
+test('profile system badge remains clear after receiving account acknowledgements on login',()=>{
+ const seen=[item('legacy','system_notice',{receipt_id:'legacy',bellRead:true}),
+  item('staff','system_notice',{receipt_id:'staff',receipt_kind:'staff',bellRead:true})];
+ const refreshed=mergeActivitySnapshot([],seen,Date.parse(now));
+ assert.equal(profileNotificationBadges(refreshed,'me').buzon,0);
+ assert.equal(profileInboxBadges(refreshed,'me').system,0);
+ const fresh=item('fresh','system_notice',{receipt_id:'fresh'});
+ assert.equal(profileInboxBadges([...refreshed,fresh],'me').system,1);
+ const unread=updateInboxNotification(refreshed,'staff','unread','staff');
+ assert.equal(profileInboxBadges(unread,'me').system,1);
 });

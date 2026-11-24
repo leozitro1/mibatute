@@ -1,5 +1,18 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Entrega autorizada: insignias y tarjetas del catálogo
+
+- Responsable revisó en local y autoriza commit/deploy: contador del perfil sin avisos del sistema ya vistos, favoritos ocultos en reservados, dos insignias independientes siempre visibles (gris si falta el estado), sin marcos y con explicación al pulsar. En el perfil permanecen centradas; en detalle el escudo va junto al nombre y el registro debajo. Los iconos compactos del catálogo comparten fila también en móvil.
+- Tarjetas sin categoría; ubicación verde encima del título, título en mayúsculas de una sola línea con elipsis, estado del artículo como texto bajo el resumen y fuera de la foto. Donaciones con solicitudes en amarillo suave; ventas con descripción de dos líneas en gris de igual altura. Espaciado reducido, acciones alineadas y precio centrado en móvil. Destacados adoptan título/ubicación sin añadir acciones.
+- 498 pruebas aprobadas y compilación correcta. Lint sin errores nuevos: MarketplaceApp conserva 12 errores y 5 advertencias; ProductCard conserva 1 error; ProductDetail tiene 2 advertencias. Otros módulos modificados/nuevos sin errores. Sin navegador ni capturas.
+- SQL de `2026-11-24-public-user-badges.sql` preparado con ocho comprobaciones, todas correctas en local. Requiere confirmar ejecución en producción antes de activar el dominio. No se copian a producción los seis registros ficticios creados para pruebas locales.
+
+## Propuesta local: insignias de vendedor y cuenta
+
+- Dos estados independientes: tienda discreta para Vendedor registrado (datos completos con consentimiento vigente) y escudo verde para Cuenta verificada (aprobación manual). Ambas insignias explican su alcance al pulsarlas; ninguna garantiza transacciones. En perfil/detalle se muestra texto y en tarjetas de catálogo iconos compactos. Las cuentas bloqueadas no muestran estos estados positivos.
+- El catálogo añade solo un booleano al lote existente de usuarios públicos; sin consultas por tarjeta. Perfil/detalle sustituyen la consulta de verificación por una única consulta de ambos estados. Guardar el registro actualiza su insignia en el perfil. No se añaden documento, dirección ni teléfono a respuestas públicas.
+- Migración `2026-11-24-public-user-badges.sql` aplicada únicamente en local; conserva la definición vigente de usuarios públicos y la privacidad de fotos. Dieciocho pruebas de insignias/contadores y compilación correctas. Publicación pendiente; incluye además los ajustes locales del contador del buzón y favoritos ocultos al reservar.
+
 ## Entrega autorizada: sincronización de notificaciones
 
 - Responsable autoriza commit/deploy de avisos vistos entre dispositivos y caché local. 496 pruebas aprobadas, compilación correcta y lint de módulos nuevos/modificados sin errores nuevos; MarketplaceApp conserva sus 12 errores y 5 advertencias previos. Diff sin errores de espacios.

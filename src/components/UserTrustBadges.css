@@ -1,0 +1,28 @@
+.user-trust-badges { position:relative;display:inline-flex;flex-wrap:wrap;align-items:center;justify-content:center;align-self:center;gap:2px;max-width:100%; }
+.user-trust-badge { display:inline-flex;max-width:100%; }
+.user-trust-badge > button { display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:22px;padding:0;border:0;border-radius:5px;background:transparent;color:#626d5d;font-size:13px;font-weight:500;line-height:1.3;text-align:center;cursor:pointer; }
+.user-trust-badge--seller.is-active > button { color:#9b6a13; }
+.user-trust-badge--verified.is-active > button { color:#245438;font-weight:600; }
+.user-trust-badge.is-missing > button { color:#9ca3af; }
+.user-trust-badge > button:focus-visible { outline:2px solid #2d5a27;outline-offset:2px; }
+.user-trust-badge svg { flex-shrink:0; }
+.user-trust-explanation { position:absolute;z-index:30;top:calc(100% + 4px);right:0;width:220px;max-width:70vw;padding:10px;border:1px solid #dce5d6;border-radius:8px;background:#fff;box-shadow:0 4px 16px #152b2426;color:#4b5563;font-size:11px;font-weight:400;line-height:1.5;text-align:left;white-space:normal; }
+.user-trust-badges.is-compact { flex-wrap:nowrap;flex-shrink:0;gap:2px; }
+.user-trust-badges.is-compact .user-trust-badge > button { padding:3px;min-width:28px;min-height:24px;border:0;background:transparent; }
+.product-detail-owner .user-trust-badges { justify-content:center;margin-top:2px; }
+
+.user-trust-badges.is-compact .user-trust-explanation { top:auto;bottom:calc(100% + 4px);max-width:calc((100vw - 60px) / 2); }
+
+@media (max-width: 767px), (display-mode: standalone) and (max-width: 1023px) {
+  .user-trust-badges { flex-direction:column;align-items:center;gap:0; }
+  .user-trust-badges.is-compact { flex-direction:row;gap:4px; }
+}
+
+/* Publication identity: name and account shield together, seller registration below. */
+.product-detail-owner .user-trust-badges.has-identity { display:grid;grid-template-columns:minmax(0,max-content) auto;justify-content:start;align-items:center;column-gap:5px;row-gap:0;margin-top:0;width:100%; }
+.user-trust-badges.has-identity .user-trust-identity { grid-column:1;grid-row:1;min-width:0; }
+.user-trust-badges.has-identity .user-trust-badge--verified { grid-column:2;grid-row:1;justify-self:start; }
+.user-trust-badges.has-identity .user-trust-badge--seller { grid-column:1 / -1;grid-row:2;justify-self:start; }
+.user-trust-badges.has-identity .user-trust-badge > button { justify-content:flex-start;text-align:left; }
+.user-trust-badges.has-identity .user-trust-badge--verified > button { min-width:24px;min-height:24px; }
+.user-trust-badges.has-identity .user-trust-explanation { left:0;right:auto;max-width:100%; }
