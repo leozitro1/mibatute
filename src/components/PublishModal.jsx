@@ -1,3 +1,4 @@
+import { MAX_VENTA_COP, SALE_PRICE_LIMIT_LABEL } from '../config/salePriceLimit.js';
 // src/components/PublishModal.jsx
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { X, Trash2, Tag, Gift, Check, ArrowLeft, ArrowRight, Sparkles, Camera, Scan, ZoomOut, ZoomIn } from "lucide-react";
@@ -24,7 +25,7 @@ import SellerRegistration from './SellerRegistration.jsx';
 import {checkSellerRegistration,SELLER_REGISTRATION_REQUIRED} from '../supabase/sellerRegistration.js';
 
 // ✅ regla social: tope máximo para ventas
-const MAX_VENTA_COP = 500000;
+
 
 // ====== ESTÁNDAR FINAL (cuadrada) ======
 const MAX_FILES = 4;
@@ -428,7 +429,7 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
 
       if (p > MAX_VENTA_COP) {
         alert(
-          `Tope de venta: $${MAX_VENTA_COP.toLocaleString("es-CO")} COP.\n\n` +
+          `Tope de venta: ${SALE_PRICE_LIMIT_LABEL}.\n\n` +
             "Esta plataforma es más social que comercial. Para ventas mayores te recomendamos Marketplace o Mercado Libre."
         );
         return;
@@ -538,22 +539,22 @@ export default function PublishModal({ isOpen, onClose, onPublish, currentCity, 
           <div className="marketplace-modal-header p-4 border-b flex justify-between items-center bg-smoke-white">
             <h2 className="font-black text-gray-800 uppercase text-sm tracking-widest">Publica tu artículo</h2>
             <button
-              onClick={handleClose}
-              aria-label="Cerrar publicación nueva" className="site-icon-close inline-flex items-center justify-center p-1 hover:bg-gray-200 rounded-full transition"
-              disabled={isSubmitting || isCropping || sellerFormOpen}
+              onClick={() => sellerFormOpen ? setSellerFormOpen(false) : handleClose()}
+              aria-label={sellerFormOpen ? 'Cerrar registro de vendedor' : 'Cerrar publicación nueva'} className="site-icon-close inline-flex items-center justify-center p-1 hover:bg-gray-200 rounded-full transition"
+              disabled={isSubmitting || isCropping}
               type="button"
             >
               <X size={20} />
             </button>
           </div>
 
-          {sellerFormOpen?<div className="max-h-[75vh] overflow-y-auto"><SellerRegistration key={user?.id} userId={user?.id}
+          {sellerFormOpen?<div className="publish-seller-registration"><SellerRegistration key={user?.id} userId={user?.id}
             onCancel={()=>setSellerFormOpen(false)} onSaved={()=>{setSellerFormOpen(false);goToStep(step===0?1:step);}}/></div>:<form ref={wizardForm} noValidate className="publish-wizard-form p-8 space-y-4 max-h-[80vh] overflow-y-auto" onSubmit={handleSubmit}>
             <ol className="publish-progress" aria-label="Pasos de publicación">{PUBLICATION_STEPS.map((item,index)=><li key={item.label} aria-current={step===index?'step':undefined} data-complete={step>index}><span>{step>index?<Check size={13} aria-hidden="true"/>:index+1}</span><small>{item.label}</small></li>)}</ol>
             <div className="publish-step-heading"><p>Paso {step+1} de {PUBLICATION_STEPS.length}</p><h3 ref={stepHeading} tabIndex={-1}>{PUBLICATION_STEPS[step].title}</h3><p>{PUBLICATION_STEPS[step].hint}</p></div>
             {stepError&&<p className="publish-step-error" role="alert">{stepError}</p>}
             {step===0&&<div className="publish-mode-options" role="group" aria-label="Tipo de publicación">
-              <button type="button" disabled={isSubmitting} aria-pressed={selectedMode==='venta'} onClick={()=>{setSelectedMode('venta');setFormData(previous=>({...previous,mode:'venta'}));setUsePublicationCredit(false);setStepError('');}}><Tag size={25} aria-hidden="true"/><strong>Venta</strong><span>Vende lo que ya no usas por un máximo de <b>$500.000 COP</b> por artículo.</span><small>3 ventas activas gratis, o 4 si tienes una donación disponible. Las adicionales requieren 1 crédito.</small><em>{selectedMode==='venta'?'Seleccionada':'Elegir venta'}</em></button>
+              <button type="button" disabled={isSubmitting} aria-pressed={selectedMode==='venta'} onClick={()=>{setSelectedMode('venta');setFormData(previous=>({...previous,mode:'venta'}));setUsePublicationCredit(false);setStepError('');}}><Tag size={25} aria-hidden="true"/><strong>Venta</strong><span>Vende lo que ya no usas por un máximo de <b>{SALE_PRICE_LIMIT_LABEL}</b> por artículo.</span><small>3 ventas activas gratis, o 4 si tienes una donación disponible. Las adicionales requieren 1 crédito.</small><em>{selectedMode==='venta'?'Seleccionada':'Elegir venta'}</em></button>
               <button type="button" disabled={isSubmitting} aria-pressed={selectedMode==='donacion'} onClick={()=>{setSelectedMode('donacion');setFormData(previous=>({...previous,mode:'donacion',price:''}));setUsePublicationCredit(false);setStepError('');}}><Gift size={25} aria-hidden="true"/><strong>Donación</strong><span>No botes lo que ya no usas: materiales sobrantes, electrodomésticos o herramientas dañadas, papel y más.</span><small>Máximo 3 donaciones activas gratis. No se permite exigir dinero ni ocultar precios.</small><em>{selectedMode==='donacion'?'Seleccionada':'Elegir donación'}</em></button>
             </div>}
             {step===1&&<>

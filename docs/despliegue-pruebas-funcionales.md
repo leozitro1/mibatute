@@ -1,5 +1,18 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Entrega autorizada del 24 de noviembre
+
+- Responsable revisó en local y autorizó commit/deploy: contador de donaciones junto a publicaciones y postulaciones, tarjeta de identidad con foto de 100 px, aviso privado del registro con referencia al artículo 53, formulario móvil desplazable y X operativa, límite de medio salario mínimo y dos destacados visibles en el carrusel móvil.
+- Validación del conjunto: 490 pruebas aprobadas, compilación y lint de módulos modificados correctos, diff sin errores de espacios. Sin pruebas de navegador.
+- Migración del límite preparada para producción con ocho comprobaciones, todas confirmadas en local. Se requiere ejecución y confirmación del responsable en Supabase antes de activar el frontend; CLI sin sesión autenticada. Candidato Vercel sin dominio hasta completar ese paso.
+
+## Propuesta local del 24 de noviembre: medio salario mínimo por artículo
+
+- Regla comercial de ventas: 50 % del salario mínimo mensual configurado, sin auxilio de transporte, redondeado hacia abajo a pesos enteros. Para 2026: $1.750.905 / 2 → $875.452 COP. Referencia: Decreto 159 de 2026. Las donaciones, créditos y recargas no cambian.
+- Formularios de creación/edición, validación del servicio y Cómo funciona comparten `src/config/salePriceLimit.js`. SQL usa `market_minimum_wages` con escritura revocada a clientes, helper por año colombiano y trigger contra inserciones/ediciones directas. Los RPC vigentes conservan sus otros controles y permisos.
+- Cada año se debe verificar y agregar el salario oficial tanto a la configuración del frontend como a la tabla mediante migración; los límites se calculan automáticamente y las vigencias futuras se seleccionan desde el 1 de enero en Colombia. Sin valor nuevo se conserva el último valor confirmado: no se consulta internet ni se inventa el siguiente salario. El texto muestra el año de referencia.
+- Migración `2026-11-24-half-minimum-wage-sale-limit.sql` aplicada únicamente en Supabase local. Requiere aplicarla en producción antes de activar un futuro despliegue. Veintiocho pruebas correctas: límites exactos, cambios directos, créditos/donaciones sin cambios, reejecución y cambio de año. Sin publicar.
+
 ## Entrega autorizada del 20 de noviembre
 
 - Responsable autoriza commit y despliegue del conjunto revisado en local: confirmación de pausa, bloqueo de edición con interesados, tarjeta desplegable de identidad, icono junto al saldo, rescates compactos, búsqueda sin expansión relacionada, selección de todas las localidades fija sobre la lista desplazable y buzón que abre conversaciones de usuarios.

@@ -1,3 +1,4 @@
+import {SALE_PRICE_LIMIT_LABEL} from '../config/salePriceLimit.js';
 import { CREDIT_PACKS, CREDIT_UNIT_PRICE_COP, formatCOP } from '../config/creditPricing.js';
 import { ArrowLeft, Gift, Tag, Sparkles, Coins, Handshake, ShieldCheck, ShieldAlert } from 'lucide-react';
 import './HowItWorks.css';
@@ -20,7 +21,7 @@ const packs = CREDIT_PACKS.map(pack => ({
 }));
 const questions = [
   ['¿Qué pasa con mi cupo si elimino una publicación?', 'Puedes eliminarla durante las primeras 12 horas y recuperar el cupo inmediatamente. Si borras un aviso activo después, deja de verse pero el cupo permanece ocupado durante 10 días desde la eliminación. Aplica a ventas y donaciones. Borrar no devuelve los créditos utilizados. Antes de confirmar verás cuándo recuperas el cupo.'],
-  ['¿Cuál es el precio máximo de un artículo?', 'MiBatute está pensado para ventas de monto reducido: puedes publicar artículos de venta con un precio de hasta $500.000 COP cada uno. Las donaciones se ofrecen gratis. Si vendes, acuerdas el pago directamente con la otra persona; MiBatute no recauda el precio del artículo.'],
+  ['¿Cuál es el precio máximo de un artículo?', `MiBatute permite ventas de hasta ${SALE_PRICE_LIMIT_LABEL} por artículo, sin incluir auxilio de transporte. El límite se calcula con el salario oficial configurado para cada año. Las donaciones se ofrecen gratis. Si vendes, acuerdas el pago directamente con la otra persona; MiBatute no recauda el precio del artículo.`],
   ['¿MiBatute cobra una comisión si vendo?', 'No. MiBatute no descuenta un porcentaje del precio de tu artículo. El crédito se usa para una función concreta, como una publicación adicional o un destacado; no es una comisión por concretar una venta.'],
   ['¿Cuándo recupero un espacio gratuito para vender?', 'Tienes 3 cupos de venta gratuitos, o 4 mientras tengas al menos una donación disponible con foto y descripción. Las donaciones reservadas, pausadas, vencidas o en revisión no cuentan. Al finalizar una venta liberas un espacio. Si ya ocupaste tu límite gratuito, publicar otra venta requiere 1 crédito. Si tu donación deja de estar activa, las ventas existentes continúan sin cobros retroactivos; para reemplazar la cuarta gratis necesitarás otra donación disponible.'],
   ['¿Las 24 horas se reinician a medianoche?', 'No. Se cuentan las postulaciones gratuitas de las últimas 24 horas. Si usas una hoy a las 10:00 a. m., ese espacio vuelve a estar disponible mañana a las 10:00 a. m. La pantalla te indicará cuándo puedes volver a postularte gratis.'],
@@ -35,7 +36,7 @@ export default function HowItWorks({ onBack, reuseImpact }) {
       <span className="how-eyebrow">Una segunda oportunidad para tus artículos</span>
       <h1>Así funciona MiBatute</h1>
       <button type="button" onClick={onBack} className="how-back"><ArrowLeft size={17} aria-hidden="true"/><span>Volver a los artículos</span></button>
-      <p>Un mercado de segunda mano para ventas de hasta $500.000 COP por artículo y donaciones gratuitas. Publica lo que ya no usas y dale otra oportunidad.</p>
+      <p>Un mercado de segunda mano para ventas de hasta {SALE_PRICE_LIMIT_LABEL} por artículo y donaciones gratuitas. Publica lo que ya no usas y dale otra oportunidad.</p>
     </header>
 
     <section className="how-summary" aria-label="Lo esencial">
@@ -62,7 +63,7 @@ export default function HowItWorks({ onBack, reuseImpact }) {
     <div className="how-modes">
       <section className="how-card" aria-labelledby="how-sell">
         <div className="how-section-title"><Tag size={21} aria-hidden="true"/><h2 id="how-sell">Quiero vender</h2></div>
-        <p>Publica hasta 3 artículos de venta activos al mismo tiempo, gratis y sin comisión por venta. Con al menos una donación disponible, con foto y descripción, puedes tener 4 ventas activas gratis. El precio máximo es de <strong>$500.000 COP por artículo</strong>.</p>
+        <p>Publica hasta 3 artículos de venta activos al mismo tiempo, gratis y sin comisión por venta. Con al menos una donación disponible, con foto y descripción, puedes tener 4 ventas activas gratis. El precio máximo es de <strong>{SALE_PRICE_LIMIT_LABEL} por artículo</strong>.</p>
         <ol>
           <li><strong>Crea tu publicación.</strong> Agrega fotos reales, precio, ubicación y una descripción honesta del estado del artículo.</li>
           <li><strong>Revisa a las personas interesadas.</strong> Consulta sus perfiles y acuerda los detalles por el chat de MiBatute.</li>

@@ -1,3 +1,4 @@
+import {MAX_VENTA_COP, SALE_PRICE_ERROR} from '../config/salePriceLimit.js';
 import { LOCATIONS } from '../data/locations.js';
 import {validatePublicationText,locationReferenceIssue} from './articleValidation.js';
 
@@ -16,7 +17,7 @@ export function publicationStepError(step,{selectedMode,formData,files,categorie
     if(!formData.title.trim())return 'Escribe un título para tu artículo.';
     const category=categories.find(item=>item.key===formData.category);
     if(!category||!category.subs.includes(formData.subcategory))return 'Selecciona una categoría y subcategoría válidas.';
-    if(selectedMode==='venta'&&(!Number.isFinite(Number(formData.price))||Number(formData.price)<=0||Number(formData.price)>500000))return 'El precio debe estar entre $1 y $500.000 COP.';
+    if(selectedMode==='venta'&&(!Number.isFinite(Number(formData.price))||Number(formData.price)<=0||Number(formData.price)>MAX_VENTA_COP))return SALE_PRICE_ERROR;
     if(!Number.isInteger(Number(formData.conditionScore))||Number(formData.conditionScore)<1||Number(formData.conditionScore)>10)return 'Indica el estado del artículo entre 1 y 10.';
     if(!formData.description.trim())return 'Describe el artículo, su estado y los detalles que debe conocer quien lo recibe.';
     return validatePublicationText(formData.title,formData.description,rules)||'';

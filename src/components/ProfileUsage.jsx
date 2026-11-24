@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Clock3, Package, HandHeart } from 'lucide-react';
+import { Clock3, Package, HandHeart, Gift } from 'lucide-react';
 import { publicationStatus } from '../supabase/publicationCredits.js';
 import { donationStatus } from '../supabase/donationApplications.js';
 import { listenMarketSignals } from './marketSignals.js';
@@ -71,6 +71,10 @@ export default function ProfileUsage({ id, client, userId, refreshKey, expanded 
             <UsageBar label="Publicaciones" used={sales.occupied ?? sales.active} limit={sales.freeLimit} icon={<Package size={15} strokeWidth={1.7} />} />
             <small>{sales.freeRemaining > 0 ? 'Ventas · cupos gratuitos' : 'Otra venta: 1 crédito o libera un cupo'}</small>
           </div>
+          {Number.isInteger(sales.donationActive) && <div>
+            <UsageBar label="Donaciones" used={sales.donationOccupied ?? sales.donationActive} limit={sales.donationLimit} icon={<Gift size={15} strokeWidth={1.7} />} />
+            <small>{sales.donationRemaining === 0 ? 'Libera un cupo para donar otro artículo' : 'Donaciones · cupos gratuitos'}</small>
+          </div>}
           <div>
             <UsageBar label="Postulaciones" used={donations.freeUsed} limit={donations.freeLimit} icon={<HandHeart size={15} strokeWidth={1.7} />} />
             {expanded && !donations.freeAvailable && donations.nextFreeAt
@@ -78,7 +82,6 @@ export default function ProfileUsage({ id, client, userId, refreshKey, expanded 
               : <small>Donaciones · últimas 24 h</small>}
           </div>
         </div>
-        {Number.isInteger(sales.donationActive) && <p className="profile-usage-donations">Cupos de donación: <strong>{sales.donationOccupied ?? sales.donationActive} de {sales.donationLimit}</strong>{sales.donationRemaining === 0 && ' · Libera un cupo para donar otro artículo'}</p>}
         {(sales.heldSales > 0 || sales.heldDonations > 0) && <p className="profile-usage-retained">Por avisos eliminados: {sales.heldSales} cupos de venta y {sales.heldDonations} de donación retenidos.
           {sales.nextSlotReleaseAt && <> Próximo cupo libre: {new Date(sales.nextSlotReleaseAt).toLocaleString('es-CO', { timeZone: 'America/Bogota', dateStyle: 'medium', timeStyle: 'short' })}.</>}
         </p>}

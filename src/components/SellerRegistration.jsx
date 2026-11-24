@@ -75,7 +75,15 @@ export default function SellerRegistration({userId,onSaved,onCancel,disabled=fal
       {saved&&<p role="status">Registro de vendedor guardado.</p>}
       <button type="button" className="font-semibold text-forest-green underline" disabled={disabled} onClick={()=>{setError('');setSaved(false);setOpen(true);}}>Completar o actualizar mis datos de vendedor</button>
     </>:<>
-      <p>MiBatute guarda estos datos en su registro privado de vendedores, alojado en Estados Unidos. Puede facilitar tu identificación a quien acredite una compra para presentar un reclamo, o a la autoridad competente cuando la solicite. Puedes ejercer tus derechos en <a href="/datos-personales" className="underline" target="_blank" rel="noreferrer">Solicitudes de datos</a>.</p>
+      <p className="text-sm text-gray-600">¿Por qué pedimos estos datos? El <a href="https://www.funcionpublica.gov.co/eva/gestornormativo/norma.php?i=44306" className="font-semibold underline" target="_blank" rel="noopener noreferrer">artículo 53 de la Ley 1480 de 2011</a> exige a los portales de contacto un registro de identificación de quienes ofrecen productos para la venta. MiBatute permite publicar avisos y contactar al oferente; no vende los artículos publicados por sus usuarios.</p>
+      <div className="rounded-lg border border-green-100 bg-green-50 p-3 text-sm text-forest-green">
+        <p className="font-semibold">Tus datos de vendedor son privados y no se muestran en tu perfil público.</p>
+        <p className="mt-1">Se alojan de forma privada y su consulta está restringida a la administración autorizada de MiBatute. Tú puedes revisarlos y actualizarlos desde Mi perfil.</p>
+      </div>
+      <details className="text-sm">
+        <summary className="min-h-11 cursor-pointer py-2 font-semibold text-forest-green">Uso de tus datos y privacidad</summary>
+        <p>MiBatute puede facilitar tu identificación a quien acredite una compra para presentar un reclamo, o a la autoridad competente cuando la solicite. Consulta los detalles del tratamiento y alojamiento en la <a href="/privacidad" className="underline" target="_blank" rel="noreferrer">política de privacidad</a>. Puedes ejercer tus derechos en <a href="/datos-personales" className="underline" target="_blank" rel="noreferrer">Solicitudes de datos</a>.</p>
+      </details>
       {error&&<p role="alert" className="text-red-700">{error}</p>}
       {!record?<div className="flex gap-4">
         {error?<button type="button" className="underline" onClick={()=>{setError('');setAttempt(value=>value+1);}}>Reintentar</button>:<p role="status">Cargando tus datos…</p>}
@@ -87,7 +95,7 @@ export default function SellerRegistration({userId,onSaved,onCancel,disabled=fal
             <option value="CC">Cédula de ciudadanía</option><option value="CE">Cédula de extranjería</option><option value="PAS">Pasaporte</option><option value="NIT">NIT</option><option value="OTRO">Otro documento</option>
           </select></label>
           <label>Número de identificación<input name="documentNumber" autoComplete="off" required maxLength={25} pattern="[A-Za-z0-9][A-Za-z0-9\-]{2,24}" defaultValue={record.documentNumber??''}/></label>
-          <label>Dirección física de notificaciones (incluye ciudad)<input name="notificationAddress" minLength={8} maxLength={240} required defaultValue={record.notificationAddress??''}/></label>
+          <label>Dirección física de notificaciones (incluye ciudad)<input name="notificationAddress" minLength={8} maxLength={240} required defaultValue={record.notificationAddress??''}/><span className="text-xs text-gray-500">Dato privado para notificaciones; no se publica en tu perfil ni en tus avisos.</span></label>
           <label>Teléfono de contacto<input name="phone" type="tel" inputMode="numeric" autoComplete="tel-national" required pattern="[0-9]{10}" maxLength={10} defaultValue={record.phone??''}/></label>
           <label className="!flex items-start"><input name="consent" type="checkbox" required className="mt-1"/><span>Confirmo que los datos son correctos y autorizo su uso para el registro de vendedor y la atención de reclamos y requerimientos. Puedo actualizar mis datos desde Mi perfil y consultar la <a href="/privacidad" className="underline" target="_blank" rel="noreferrer">política de privacidad</a>.</span></label>
         </fieldset>

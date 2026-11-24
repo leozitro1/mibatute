@@ -1,3 +1,4 @@
+import {MAX_VENTA_COP, SALE_PRICE_ERROR} from '../config/salePriceLimit.js';
 import { assertArticleEditable } from './articleEditing.js';
 // src/supabase/articleService.js
 import { supabase } from "./supabaseClient";
@@ -593,8 +594,8 @@ export async function updateArticle(articleId, formData = {}, file = null, {imag
     if (!uid) return { success: false, error: "Debes iniciar sesion." };
     const mode = normalizeMode(formData.tipo ?? formData.mode);
     const price = mode === "venta" ? Number(formData.price) : 0;
-    if (mode === "venta" && (!Number.isFinite(price) || price <= 0 || price > 500000)) {
-      return { success: false, error: "El precio debe estar entre 1 y 500.000 COP." };
+    if (mode === "venta" && (!Number.isFinite(price) || price <= 0 || price > MAX_VENTA_COP)) {
+      return { success: false, error: SALE_PRICE_ERROR };
     }
     const title = (formData.titulo ?? formData.title ?? "").trim();
     const description = (formData.descripcion ?? formData.description ?? "").trim();

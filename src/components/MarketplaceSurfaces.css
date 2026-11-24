@@ -28,7 +28,11 @@
 .marketplace-modal-header > :is(h1,h2,h3) { font-size: 20px; color: #253d2e; }
 .marketplace-modal-header button { display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; }
 .marketplace-modal-header button:hover { background: #e7efdf; }
-.publish-article-dialog form { max-height: calc(100dvh - 124px); padding: 24px; scrollbar-width: thin; scrollbar-color: #a6b69d #f5f7f2; }
+.publish-article-dialog { display: flex; flex-direction: column; }
+.publish-article-dialog > .marketplace-modal-header { flex-shrink: 0; }
+.publish-article-dialog > form { max-height: calc(100dvh - 124px); padding: 24px; scrollbar-width: thin; scrollbar-color: #a6b69d #f5f7f2; }
+.publish-seller-registration { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: max(16px, env(safe-area-inset-bottom)); scrollbar-width: thin; }
+.publish-seller-registration form { max-height: none; }
 .edit-article-dialog form { scrollbar-width: thin; scrollbar-color: #a6b69d #f5f7f2; }
 .publish-article-dialog form > button[type="submit"],
 .edit-article-dialog form > button[type="submit"] { font-size: 14px; }
@@ -66,7 +70,7 @@
 @media (max-width: 639px) {
   .marketplace-surface :is(h1,h2) { font-size: 20px; }
   .marketplace-modal { max-height: calc(100dvh - 24px); }
-  .publish-article-dialog form { padding: 20px 16px; }
+  .publish-article-dialog > form { padding: 20px 16px; }
   .marketplace-surface.marketplace-chat { border-radius: 0; border: 0; }
   .marketplace-chat-header { gap: 8px; padding: 12px; }
   .marketplace-chat-article { padding: 12px; }

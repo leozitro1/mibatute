@@ -394,6 +394,25 @@ test('daily donation quota and paid publication rules are enforced by PostgreSQL
     await db.exec('reset role;set role anon');
     await assert.rejects(preview(221),{code:'42501'});
   });
+  await t.test('half minimum wage applies to publication and direct edits without changing credits or donations', async()=>{
+    await db.exec('reset role');
+    const sql=await migration('2026-11-24-half-minimum-wage-sale-limit');
+    await db.exec(sql);await db.exec(sql);
+    await reset();
+    assert.equal(Number((await db.query('select sale_price_limit_cop(2026) as n')).rows[0].n),875452);
+    assert.equal((await publish(300,false,{price:875452})).cost,0);
+    await assert.rejects(publish(301,false,{price:875453}),/salario mínimo/);
+    await db.query('update articulos set price=800000 where id=$1',[id(300)]);
+    await assert.rejects(db.query('update articulos set price=875453 where id=$1',[id(300)]),/salario mínimo/);
+    await assert.rejects(db.query('update articulos set price=0 where id=$1',[id(300)]),/salario mínimo/);
+    await publish(302,false,{mode:'donacion'});
+    assert.equal((await sales()).balance,5);
+    await assert.rejects(db.query('update market_minimum_wages set monthly_cop=9000000'),{code:'42501'});
+    await db.exec('reset role');
+    await db.exec("insert into market_minimum_wages values(2027,2000000,'test future configuration')");
+    assert.equal(Number((await db.query('select sale_price_limit_cop(2027) as n')).rows[0].n),1000000);
+    assert.equal(Number((await db.query('select sale_price_limit_cop(2026) as n')).rows[0].n),875452);
+  });
  } finally { await db.close(); }
 });
 

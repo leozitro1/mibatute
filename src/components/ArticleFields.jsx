@@ -1,3 +1,4 @@
+import { MAX_VENTA_COP, SALE_PRICE_LIMIT_LABEL } from '../config/salePriceLimit.js';
 import ArticleSizeField from "./ArticleSizeField.jsx";
 import StyledSelect from "./StyledSelect.jsx";
 import { useId } from "react";
@@ -8,7 +9,7 @@ import usePublicationRules from './usePublicationRules.js';
 import { productCondition } from "./productCondition.js";
 import "./ProductCondition.css";
 
-const MAX_VENTA_COP = 500000;
+
 
 export default function ArticleFields({ formData, setFormData, categories, disabled = false, lockMode = false, section = 'all', hideMode = false, preserveLocation = false }) {
   const { LOCATIONS } = useLocations();
@@ -114,15 +115,14 @@ export default function ArticleFields({ formData, setFormData, categories, disab
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   type="number"
+                  min="1" max={MAX_VENTA_COP}
                   placeholder="Ej: 20000"
                   className={`w-full border-2 rounded-xl p-3 outline-none ${
                     exceedsMaxVenta ? "border-red-300" : "border-gray-100"
                   }`}
                   disabled={disabled || formData.mode !== "venta"}
                 />
-                {exceedsMaxVenta && (
-                  <p className="text-[11px] mt-1 text-red-600">Tope: ${MAX_VENTA_COP.toLocaleString("es-CO")} COP</p>
-                )}
+                <p className={`text-[11px] mt-1 ${exceedsMaxVenta ? "text-red-600" : "text-gray-500"}`}>Tope por artículo: {SALE_PRICE_LIMIT_LABEL}.</p>
               </div>}
             </div>}
 

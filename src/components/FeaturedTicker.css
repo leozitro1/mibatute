@@ -1,0 +1,9 @@
+@media (max-width: 767px), (display-mode: standalone) and (max-width: 1023px) {
+  .featured-ticker-track { gap: 12px; }
+  .featured-ticker-track > button,
+  .mb-design-preview .featured-ticker-track > button {
+    width: calc((100% - 12px) / 2);
+    min-width: 0;
+    flex: 0 0 calc((100% - 12px) / 2);
+  }
+}

@@ -1,13 +1,13 @@
 .profile-usage { margin-top: 16px; padding-top: 14px; border-top: 1px solid #edf0ea; color: #345737; }
-.profile-usage-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.profile-usage-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .profile-usage-columns > div { min-width: 0; padding: 8px 10px; border: 1px solid #dfe8da; border-radius: 10px; background: #f8faf6; }
-.profile-usage-columns > div + div { border-color: #ebe3d2; background: #fdfbf6; }
+.profile-usage-columns > div:last-child { border-color: #ebe3d2; background: #fdfbf6; }
 .profile-usage-label { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .profile-usage-label h3 { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 12px; font-weight: 500; }
 .profile-usage-icon { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px; background: #edf3e7; color: #345737; }
-.profile-usage-columns > div + div .profile-usage-icon { background: #faf4e6; color: #826016; }
+.profile-usage-columns > div:last-child .profile-usage-icon { background: #faf4e6; color: #826016; }
 .profile-usage-label strong { white-space: nowrap; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.profile-usage-columns > div + div .profile-usage-label strong { color: #826016; }
+.profile-usage-columns > div:last-child .profile-usage-label strong { color: #826016; }
 .profile-usage progress { display: block; appearance: none; width: 100%; height: 3px; margin: 7px 0 5px; border: 0; border-radius: 4px; overflow: hidden; background: #edf3e7; color: #345737; }
 .profile-usage progress::-webkit-progress-bar { background: #edf3e7; }
 .profile-usage progress::-webkit-progress-value { background: #345737; border-radius: 4px; }
@@ -24,8 +24,8 @@
   .profile-usage { margin-top: 12px; padding-top: 12px; }
   .profile-usage-columns { gap: 6px; }
   .profile-usage-columns > div { padding: 7px 5px; }
-  .profile-usage-label { gap: 6px; }
-  .profile-usage-label h3 { gap: 3px; font-size: 11px; white-space: nowrap; }
+  .profile-usage-label { flex-wrap: wrap; gap: 2px 6px; }
+  .profile-usage-label h3 { justify-content: center; width: 100%; gap: 3px; font-size: 10px; white-space: nowrap; }
   .profile-usage-label strong { font-size: 11px; }
   .profile-usage-icon { width: 18px; height: 22px; border-radius: 5px; }
 }

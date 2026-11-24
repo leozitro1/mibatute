@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Star, Users, Clock } from 'lucide-react';
 import { orderFeaturedItems } from './featuredOrder';
 import { isSaleArticle } from '../supabase/articleContext';
+import './FeaturedTicker.css';
 
 const shortCategoryNames={
   'Hogar & Muebles':'Hogar y muebles',
@@ -43,7 +44,7 @@ export default function FeaturedTicker({ items = [], onItemClick, category = 'To
         </div>}
       </div>
       <div ref={scroller} role="region" aria-label={heading}
-        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+        className="featured-ticker-track flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
         {list.map(item => {
           const title = item.title || item.titulo || 'Artículo';
           const image = item.image_url || item.imagen_url_principal || item.imagen_url
