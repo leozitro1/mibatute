@@ -66,7 +66,7 @@ export function updateInboxNotification(items,receiptId,action,kind='system',thr
   return current.map(item=>
     item.type==='system_notice'&&String(item.receipt_id)===String(receiptId)&&(item.receipt_kind||'system')===kind
       &&(!throughAt||Date.parse(item.created_at)<=Date.parse(throughAt))
-      ?{...item,read:action!=='unread',unreadCount:action==='unread'?1:0}:item);
+      ?{...item,read:action!=='unread',unreadCount:action==='unread'?1:0,...(action==='unread'?{bellRead:false}:{})}:item);
 }
 
 // Support replies disappear from a refreshed feed after the owner hides a thread.

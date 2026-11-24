@@ -1,5 +1,17 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Entrega autorizada: sincronización de notificaciones
+
+- Responsable autoriza commit/deploy de avisos vistos entre dispositivos y caché local. 496 pruebas aprobadas, compilación correcta y lint de módulos nuevos/modificados sin errores nuevos; MarketplaceApp conserva sus 12 errores y 5 advertencias previos. Diff sin errores de espacios.
+- SQL completo preparado en `/tmp/mibatute-produccion-notificaciones.sql`, con ocho comprobaciones de tabla, RLS, permisos, feed y acciones, todas correctas en local. Activación del dominio condicionada a confirmar su aplicación en producción; CLI sin sesión autenticada. Sin importar marcas locales antiguas automáticamente ni ejecutar avisos ficticios en producción.
+
+## Propuesta local: avisos vistos entre dispositivos
+
+- Avisos vistos de la campana asociados a la cuenta mediante registros mínimos de identificador/fecha, sin copiar texto ni fotos. El feed existente incorpora las confirmaciones mediante la clave indexada del usuario; refrescar o iniciar sesión no añade peticiones ni escrituras. El historial visible conserva sus diez filas y la caché local conserva hasta mil referencias.
+- Marcar todas usa un RPC agrupado de hasta 300 eventos por petición; espera confirmación y no informa éxito si falla. Lecturas y marcas como no leído de avisos individuales reutilizan sus RPC existentes con la confirmación en la misma transacción. Se conservan permisos, reglas de visibilidad y contadores pendientes del buzón. Nuevas respuestas de soporte no heredan el visto de respuestas anteriores.
+- Migración `2026-11-24-notification-bell-sync.sql` aplicada únicamente en local; requerida antes de activar un futuro frontend en producción. Reejecución segura, tabla sin acceso directo de clientes, aislamiento por cuenta y validación de lotes/fechas. Las marcas locales de navegadores antiguos no se importan automáticamente al servidor; la sincronización comienza con las acciones confirmadas tras instalar la mejora.
+- 52 pruebas de avisos, caché, presentación y sincronización correctas, compilación y lint de módulos nuevos correctos. Sin navegador, commit ni deploy.
+
 ## Entrega autorizada del 24 de noviembre
 
 - Responsable revisó en local y autorizó commit/deploy: contador de donaciones junto a publicaciones y postulaciones, tarjeta de identidad con foto de 100 px, aviso privado del registro con referencia al artículo 53, formulario móvil desplazable y X operativa, límite de medio salario mínimo y dos destacados visibles en el carrusel móvil.

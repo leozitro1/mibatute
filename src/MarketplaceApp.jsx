@@ -22,6 +22,8 @@ import { subscribeVisibleCatalog } from './components/catalogSubscription.js';
 import { createListingCache } from './components/listingCache.js';
 import { readNotificationHistory, writeNotificationHistory, mergeNotificationHistory,
   markNotificationHistoryRead, markNotificationBellRead, NOTIFICATION_STATE_LIMIT } from './components/notificationHistory.js';
+import { rememberNotificationSeen, forgetNotificationSeen } from './components/notificationSeen.js';
+import { acknowledgeNotificationBell } from './components/notificationBellSync.js';
 import { profileNotificationBadges,profileInboxBadges,mergeInboxNotifications,updateInboxNotification,mergeActivitySnapshot,settleMissingNotifications } from './components/profileNotificationBadges.js';
 import { subscribeStaffInbox } from './components/staffInboxSignals.js';
 import { catalogTopic, dispatchMarketSignal, noticeFromSignal, notificationCounts } from './components/marketSignals.js';
@@ -366,7 +368,7 @@ export default function MarketplaceApp() {
 
   const saveNotificationHistory = useCallback((items, uid) => {
     if (!uid || uid !== notificationUidRef.current) return;
-    const next = mergeNotificationHistory([], items, NOTIFICATION_STATE_LIMIT);
+    const next = rememberNotificationSeen(localStorage, uid, items);
     notificationsRef.current = next;
     historyUidRef.current = uid;
     writeNotificationHistory(localStorage, uid, next);
@@ -384,6 +386,7 @@ export default function MarketplaceApp() {
   const removedSupportRef=useRef({uid:null,ids:new Set()});
   const syncInboxReceipt = useCallback((uid, receiptId, action, kind, throughAt=null) => {
     if (uid !== notificationUidRef.current || historyUidRef.current !== uid) return;
+    if (action === 'unread') forgetNotificationSeen(localStorage, uid, receiptId, kind);
     if(kind==='support'&&action==='delete'){
       if(removedSupportRef.current.uid!==uid)removedSupportRef.current={uid,ids:new Set()};
       removedSupportRef.current.ids.add(String(receiptId));
@@ -431,6 +434,9 @@ export default function MarketplaceApp() {
     if(!uid||historyUidRef.current!==uid)return;
     const snapshot=notificationsRef.current.filter(item=>!item.read&&!item.bellRead&&item.unreadCount>0);
     if(!snapshot.length)return;
+    try { await acknowledgeNotificationBell(supabase, snapshot); }
+    catch (error) { alert(error.message); return; }
+    if (uid !== notificationUidRef.current || historyUidRef.current !== uid) return;
     saveNotificationHistory(markNotificationBellRead(notificationsRef.current,snapshot),uid);
   };
 
