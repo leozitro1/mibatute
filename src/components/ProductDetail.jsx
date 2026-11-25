@@ -36,15 +36,6 @@ const FALLBACK_IMAGE =
   </svg>
 `);
 
-// ✅ NUEVO: Formatear nombre público (Primer nombre + inicial del apellido)
-function formatPublicName(fullName) {
-  if (!fullName) return "Usuario";
-  const parts = String(fullName).trim().split(/\s+/);
-  const firstName = parts[0] || "Usuario";
-  if (parts.length === 1) return firstName;
-  const lastInitial = (parts[1] || "").slice(0, 1).toUpperCase();
-  return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
-}
 
 function buildImages(item) {
   const out = [];
@@ -658,7 +649,7 @@ export default function ProductDetail({
   const condition = productCondition(conditionScore);
   const size = articleSize(item?.size_class);
 
-  const ownerName = ownerNameResolved ? formatPublicName(ownerNameResolved) : "Vendedor";
+  const ownerName = String(ownerNameResolved || "").trim().replace(/\s+/g, " ") || "Vendedor";
 
   const tipoBadgeStyles = tipoNorm === "donacion" ? "bg-blue-100 text-blue-700" : "bg-gray-800 text-white";
 
@@ -937,7 +928,7 @@ export default function ProductDetail({
 
             <div className="min-w-0 flex-1">
               <AccountVerificationBadge userId={isOpen?ownerId:null} identity={
-                staffPreview&&onOpenOwner&&ownerId?<button type="button" className="product-detail-owner-link" title="Abrir ficha del vendedor" onClick={()=>onOpenOwner({id:ownerId,nombre:ownerNameRaw||ownerName})}>{ownerName}</button>:<p className="text-sm font-black text-gray-800 truncate" title={ownerName}>{ownerName}</p>
+                staffPreview&&onOpenOwner&&ownerId?<button type="button" className="product-detail-owner-link" title="Abrir ficha del vendedor" onClick={()=>onOpenOwner({id:ownerId,nombre:ownerNameRaw||ownerName})}>{ownerName}</button>:<p className="product-detail-owner-name text-sm font-black text-gray-800" title={ownerName}>{ownerName}</p>
               } />
               {ownerReputacion !== null && (
                 <div className="flex items-center gap-0.5 mt-1">

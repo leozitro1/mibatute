@@ -21,6 +21,8 @@
 /* Publication identity: name and account shield together, seller registration below. */
 .product-detail-owner .user-trust-badges.has-identity { display:grid;grid-template-columns:minmax(0,max-content) auto;justify-content:start;align-items:center;column-gap:5px;row-gap:0;margin-top:0;width:100%; }
 .user-trust-badges.has-identity .user-trust-identity { grid-column:1;grid-row:1;min-width:0; }
+.product-detail-owner-name { max-width:100%;white-space:nowrap;overflow-x:auto;overflow-y:hidden;text-overflow:clip;scrollbar-width:none; }
+.product-detail-owner-name::-webkit-scrollbar { display:none; }
 .user-trust-badges.has-identity .user-trust-badge--verified { grid-column:2;grid-row:1;justify-self:start; }
 .user-trust-badges.has-identity .user-trust-badge--seller { grid-column:1 / -1;grid-row:2;justify-self:start; }
 .user-trust-badges.has-identity .user-trust-badge > button { justify-content:flex-start;text-align:left; }

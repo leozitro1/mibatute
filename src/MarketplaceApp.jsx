@@ -1,5 +1,6 @@
 import { assertArticleEditable } from './supabase/articleEditing.js';
 import { isCatalogReservationHidden } from './components/catalogVisibility.js';
+import { cleanCatalogFavorites, favoriteLifecycle, isFavoriteFinished } from './components/catalogFavorites.js';
 // src/App.jsx
 import { lazy, Suspense, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
@@ -222,7 +223,7 @@ export default function MarketplaceApp() {
   const [catalogSaves, setCatalogSaves] = useState(readCatalogSaves);
   const [catalogStorageError, setCatalogStorageError] = useState(false);
 
-  function updateCatalogSaves(next) {
+  const updateCatalogSaves = useCallback((next) => {
     if (next.favorites.length > FAVORITES_LIMIT) {
       alert(`Puedes guardar hasta ${FAVORITES_LIMIT} favoritos en este navegador. Quita uno para guardar otra publicación.`);
       return;
@@ -234,7 +235,7 @@ export default function MarketplaceApp() {
     } catch {
       setCatalogStorageError(true);
     }
-  }
+  }, []);
 
   const mobileViewHistory = useRef(['home']);
   useEffect(() => {
@@ -250,6 +251,11 @@ export default function MarketplaceApp() {
   useMobileBackGesture(mobileApp && window.location.pathname === '/', currentView !== 'home' ? goBackOnMobile : null);
   const [mobileProfileHeader, setMobileProfileHeader] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  useEffect(() => {
+    const favorites = cleanCatalogFavorites(catalogSaves.favorites,
+      selectedProduct ? [...products, selectedProduct] : products, publicationNow);
+    if (favorites !== catalogSaves.favorites) updateCatalogSaves({ ...catalogSaves, favorites });
+  }, [catalogSaves, products, selectedProduct, publicationNow, updateCatalogSaves]);
   const sharedArticleRef = useRef(sharedArticleId(window.location.href));
   const [sharedArticleError, setSharedArticleError] = useState("");
   const viewedArticleId = selectedProduct && currentUser?.id !== (selectedProduct.owner_id || selectedProduct.usuario_id) ? selectedProduct.id : null;
@@ -1942,6 +1948,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
 
   function catalogFavoriteButton(item) {
     const id = getArticuloId(item);
+    if (isFavoriteFinished(item, publicationNow)) return null;
     if ([item?.estado, item?.status].some(value => normEstado(value) === 'reservado')) return null;
     if (!catalogProposal || isUserBlocked || !articleShareUrl(id, window.location.href)) return null;
     const title = item.title || item.titulo || 'Artículo';
@@ -1953,7 +1960,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
         aria-label={`${isFavorite ? 'Quitar de favoritos' : 'Guardar en favoritos'}: ${title}`}
         onClick={() => updateCatalogSaves({ ...catalogSaves, favorites: isFavorite
           ? catalogSaves.favorites.filter(favorite => favorite.id !== id)
-          : [...catalogSaves.favorites, { id, title, location, image: image ? cardImageUrl(pickImageSrc(image)) : null }] })}>
+          : [...catalogSaves.favorites, { id, title, location, image: image ? cardImageUrl(pickImageSrc(image)) : null, lifecycle: favoriteLifecycle(item) }] })}>
         <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} aria-hidden="true" />
       </button>
     );

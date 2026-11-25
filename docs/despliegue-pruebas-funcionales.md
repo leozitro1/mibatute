@@ -1,5 +1,18 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Entrega autorizada: favoritos y nombre del vendedor
+
+- Responsable revisó en local y autoriza commit/deploy de limpieza de favoritos confirmados como vencidos/finalizados y presentación del nombre público completo del vendedor en una línea. Ficha de vendedor con acciones debajo para dar espacio al nombre y las insignias; nombres excepcionalmente largos permiten desplazamiento horizontal sin abreviaturas ni elipsis.
+- Favoritos conserva el límite de diez y su almacenamiento por navegador; reservados permanecen guardados. Limpieza usa estados/fechas ya recibidos y no añade consultas de red. Datos de artículos ausentes no se adivinan.
+- 507 pruebas aprobadas, compilación correcta y diff sin errores de espacios. Lint sin errores nuevos: MarketplaceApp conserva 12 errores y 5 advertencias, ProductDetail conserva 2 advertencias. Módulos nuevos sin errores. Esta entrega no requiere migraciones ni datos de prueba en producción.
+
+## Propuesta local: limpieza automática de favoritos
+
+- Retira de favoritos los avisos confirmados como entregados/vendidos/finalizados o vencidos, liberando su espacio dentro del máximo de diez. Conserva reservados y filas ausentes de una página del catálogo: la ausencia no acredita finalización. Se impide añadir un favorito ya finalizado desde el detalle.
+- Usa los artículos y el detalle ya recibidos y el reloj local existente. Guarda únicamente el estado y las fechas de vigencia/actualización junto al favorito para reconocer su vencimiento aunque cambie de página. Reconoce republicaciones más recientes y evita sustituirlas por caché anterior. Sin consultas, canales ni temporizadores nuevos; favoritos siguen siendo solo de este navegador.
+- Favoritos antiguos sin fechas se enriquecen cuando se recibe su artículo; no se hace una consulta adicional para averiguar el estado de avisos que no están cargados. Limpieza y persistencia conservan búsquedas guardadas y datos visuales del favorito.
+- Ocho pruebas de favoritos/vencimiento, compilación y lint de módulos nuevos correctos; MarketplaceApp conserva sus errores previos sin errores nuevos. Sin commit ni despliegue.
+
 ## Entrega autorizada: reservas aceptadas y avisos de ayuda
 
 - Responsable revisó en local y autoriza commit/deploy: ayuda de insignias/estado/tamaño con cierre automático de tres segundos, avisos de insignias centrados dentro de las tarjetas, texto de verificación manual sin la referencia a Registraduría, reservas aceptadas ocultas del catálogo a las 24 horas y solicitudes resaltadas en verde suave.

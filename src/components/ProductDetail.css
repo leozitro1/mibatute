@@ -1,4 +1,6 @@
 .product-detail-close { min-width: 44px; min-height: 44px; }
+.product-detail-owner { display:grid;grid-template-columns:48px minmax(0,1fr); }
+.product-detail-owner .product-detail-actions { grid-column:1 / -1;width:100%;margin-left:0;padding-top:10px;border-top:1px solid #e5e7eb; }
 @media (min-width: 768px) {
   .product-detail-header { padding-right: 48px; }
 }
