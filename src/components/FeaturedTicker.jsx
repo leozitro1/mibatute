@@ -75,7 +75,7 @@ export default function FeaturedTicker({ items = [], onItemClick, category = 'To
               <p className="mb-1 truncate text-xs text-forest-green">
                 {item.city || item.ciudad}{(item.locality || item.localidad_es) ? `, ${item.locality || item.localidad_es}` : ''}
               </p>
-              <h3 className="truncate text-sm font-black text-gray-800 uppercase" title={title}>{title}</h3>
+              <h3 className="truncate text-sm font-black text-gray-800" title={title}>{title}</h3>
               <p className="mt-2 text-sm font-black text-forest-green">
                 {isSale ? Number(item.price ?? item.precio ?? 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }) : 'GRATIS'}
               </p>

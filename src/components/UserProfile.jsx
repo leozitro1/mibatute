@@ -1,4 +1,6 @@
+import { republishArticle } from '../supabase/articleRepublication.js';
 import ProfileAvatar from './ProfileAvatar.jsx';
+import { formatCOP } from '../config/creditPricing.js';
 import useProfilePhoto from '../imagekit/useProfilePhoto.js';
 import { articleEditingLocked, ARTICLE_EDIT_LOCK_MESSAGE, togglePublicationPause } from '../supabase/articleEditing.js';
 import { PROFILE_PHOTO_MAX_SOURCE_MB } from '../imagekit/prepareProfilePhoto.js';
@@ -983,6 +985,8 @@ export default function UserProfile({
   const [cancelandoId, setCancelandoId] = useState(null);
 
   const [eliminandoArticuloId, setEliminandoArticuloId] = useState(null);
+  const [republishingId, setRepublishingId] = useState(null);
+  const republicationLock = useRef(false);
   const [deletedIds, setDeletedIds] = useState(() => new Set());
 
   const [hasPostulacionesByArticulo, setHasPostulacionesByArticulo] = useState(() => new Map());
@@ -2204,6 +2208,22 @@ export default function UserProfile({
     }
   };
 
+  const republicar = async (art) => {
+    if (republicationLock.current || isUserBlocked) return;
+    const id = getArticuloId(art);
+    if (!window.confirm('¿Republicar este aviso por 30 días? Volverá a ocupar un cupo y no se renovará el destacado. No se cobrarán créditos automáticamente.')) return;
+    republicationLock.current = true;
+    setRepublishingId(id);
+    try {
+      const updated = await republishArticle(supabase, id);
+      setArticuloOverridesById(previous => new Map(previous).set(String(id), updated));
+      setFeaturedOverrides(previous => ({ ...previous, [id]: false }));
+      onArticuloReservado?.(updated);
+      setRescatesReload(value => value + 1);
+    } catch (error) { alert(error.message); }
+    finally { republicationLock.current = false; setRepublishingId(null); }
+  };
+
   const togglePausado = async (art0) => {
     const art = getArtEffective(art0);
     const id = getArticuloId(art);
@@ -2883,6 +2903,10 @@ export default function UserProfile({
                       const diasRestantes = isReservado ? Math.max(0, 7 - diasDesdeReserva) : 0;
                       const bloqueadoPorReserva = isReservado && diasRestantes > 0;
                       const isVenta = isVentaArticulo(art);
+                      const articlePrice = Number(art?.price ?? art?.precio);
+                      const articleValue = isVenta
+                        ? Number.isFinite(articlePrice) && articlePrice > 0 ? formatCOP(articlePrice) : 'Sin precio'
+                        : 'Gratis';
 
                       const buyerId = art?.buyer_id || art?.buyerId || null;
                       const hasBuyer = !!buyerId;
@@ -2933,10 +2957,13 @@ export default function UserProfile({
                         <div
                           key={currentId ? `art-${currentId}` : `art-idx-${idx}`}
                           data-profile-article-id={currentId}
+                          data-profile-expired={isVencido ? 'true' : undefined}
                           data-pending-request={pendingRequest ? "true" : undefined}
                           tabIndex={-1}
                           className={`relative flex flex-wrap items-center gap-4 p-4 mb-3 rounded-3xl shadow-sm border transition focus:outline-2 focus:outline-forest-green focus:outline-offset-2 sm:flex-nowrap ${
-                            isEntregado
+                            isVencido
+                              ? "bg-gray-100 border-gray-200 [&>img]:opacity-60"
+                              : isEntregado
                               ? "bg-gray-50 border-gray-200 [&>img]:opacity-50 [&>[data-profile-content]>:not([data-rating-notice])]:opacity-50"
                               : isReservado
                               ? "bg-emerald-50 border-emerald-400 ring-1 ring-emerald-200"
@@ -2974,7 +3001,10 @@ export default function UserProfile({
                           <div data-profile-content className="flex-1 min-w-0">
                             {pendingRequest && <p className="profile-request-priority">Solicitud pendiente</p>}
                             {pendingRating && <p data-rating-notice className="profile-rating-notice">Calificación pendiente</p>}
-                            <h4 className="font-bold text-gray-800 truncate">{titulo}</h4>
+                            <div className="profile-publication-heading">
+                              <h4 className="font-bold text-gray-800 truncate" title={titulo}>{titulo}</h4>
+                              <span className="profile-publication-price" aria-label={isVenta && articlePrice > 0 ? `Precio: ${articleValue} COP` : articleValue}>{articleValue}</span>
+                            </div>
 
                             <div className="profile-article-labels flex flex-wrap items-center gap-2 mt-1">
                               <span
@@ -3017,6 +3047,13 @@ export default function UserProfile({
                           <div className="profile-article-side">
                             <span className="profile-article-date profile-publication-date text-[10px] text-gray-400 font-medium">{formatDate(art)}</span>
                           <fieldset disabled={isUserBlocked} data-profile-actions className="profile-publication-actions" aria-label="Acciones de la publicación">
+                            {isVencido && !isReview && <button type="button"
+                              className="profile-republish-button" title="Republicar por 30 días"
+                              disabled={isUserBlocked || republishingId !== null}
+                              onClick={event => { event.stopPropagation(); void republicar(art); }}>
+                              {republishingId === currentId ? <Loader2 size={15} className="animate-spin" aria-hidden="true"/> : <RefreshCw size={15} aria-hidden="true"/>}
+                              {republishingId === currentId ? 'Republicando…' : 'Republicar'}
+                            </button>}
                             <button
                               type="button"
                               onPointerDown={(e) => e.stopPropagation()}
@@ -3230,6 +3267,10 @@ export default function UserProfile({
                       const articuloId =
                         r?.articulo_id || r?.articuloId || getArticuloId(r?.articulo) || null;
                       const isVenta = isVentaArticulo(art);
+                      const articlePrice = Number(art?.price ?? art?.precio);
+                      const articleValue = isVenta
+                        ? Number.isFinite(articlePrice) && articlePrice > 0 ? formatCOP(articlePrice) : 'Sin precio'
+                        : 'Gratis';
 
                       const hasChatBuyer = articuloId
                         ? hasChatBuyerByArticulo.get(String(articuloId)) === true
@@ -3370,7 +3411,10 @@ export default function UserProfile({
                           <div data-profile-content className="flex-1 min-w-0">
                             {pendingRequest && <p className="profile-request-priority">Solicitud pendiente</p>}
                             {pendingRating && <p data-rating-notice className="profile-rating-notice">Calificación pendiente</p>}
-                            <h4 className="font-bold text-gray-800 truncate"><button type="button" className="block w-full text-left truncate" aria-label={`Ver artículo: ${titulo}`}>{titulo}</button></h4>
+                            <div className="profile-publication-heading">
+                              <h4 className="font-bold text-gray-800 truncate"><button type="button" className="block w-full text-left truncate" aria-label={`Ver artículo: ${titulo}`} title={titulo}>{titulo}</button></h4>
+                              <span className="profile-publication-price" aria-label={isVenta && articlePrice > 0 ? `Precio: ${articleValue} COP` : articleValue}>{articleValue}</span>
+                            </div>
 
                             <div className="profile-article-labels flex flex-wrap items-center gap-2 mt-1">
                               {!rejectedRescate && <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-xl ${statusUI.cls}`}>

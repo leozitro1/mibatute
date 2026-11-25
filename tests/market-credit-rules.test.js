@@ -413,6 +413,54 @@ test('daily donation quota and paid publication rules are enforced by PostgreSQL
     assert.equal(Number((await db.query('select sale_price_limit_cop(2027) as n')).rows[0].n),1000000);
     assert.equal(Number((await db.query('select sale_price_limit_cop(2026) as n')).rows[0].n),875452);
   });
+  await t.test('republication lasts exactly thirty days, preserves the original article and obeys expiry and quotas',async()=>{
+    await db.exec('reset role;alter table public.articulos add column if not exists categoria text');
+    const legacy=await migration('2026-10-02-publication-expiry');
+    for(const name of ['home_article_page','guard_expired_application']){
+      const start=legacy.indexOf(`create or replace function public.${name}(`);
+      await db.exec(legacy.slice(start,legacy.indexOf('$$;',start)+3));
+    }
+    await db.exec('create trigger expired_application before insert or update on public.postulaciones for each row execute function public.guard_expired_application()');
+    const sql=await migration('2026-11-25-republish-30-days');
+    await db.exec(sql);await db.exec(sql);
+    const expire=async n=>{
+      await db.exec('reset role');
+      await db.query("insert into publication_republications values($1,$2,now()-interval '31 days',now()-interval '1 hour') on conflict(article_id) do update set expires_at=excluded.expires_at",[id(n),owner]);
+      await db.query('update articulos set publication_expires_at=(select expires_at from publication_republications where article_id=$1) where id=$1',[id(n)]);
+      await asUser(owner);
+    };
+    const renew=async n=>(await db.query('select owner_republish_article($1) as r',[id(n)])).rows[0].r;
+    const page=async()=>(await db.query("select home_article_page('{\"city\":\"Bogotá\"}'::jsonb,1) as r")).rows[0].r;
+    await reset();await publish(400,false,{mode:'donacion'});
+    const original=(await db.query('select * from articulos where id=$1',[id(400)])).rows[0];
+    await db.exec('reset role');
+    await db.query("update publication_slot_history set published_at=now()-interval '61 days' where article_id=$1",[id(400)]);
+    await expire(400);assert.equal((await page()).total,0);assert.equal((await sales()).donationActive,0);
+    await asUser(other);await assert.rejects(renew(400),{code:'42501'});await asUser(owner);
+    const renewed=await renew(400);
+    assert.equal(renewed.article.id,original.id);assert.equal(Date.parse(renewed.article.created_at),original.created_at.getTime());
+    assert.equal(renewed.article.is_featured,false);assert.deepEqual(renewed.article.imagenes,original.imagenes);
+    assert.equal((await page()).total,1);assert.equal((await sales()).donationActive,1);assert.equal((await sales()).balance,5);
+    assert.equal((await db.query('select publication_deletion_status($1) as r',[id(400)])).rows[0].r.holdsSlot,true,'Renewal must not restart the twelve-hour free-deletion window');
+    await db.exec('reset role');
+    assert.equal(Number((await db.query("select extract(epoch from expires_at-republished_at) as n from publication_republications where article_id=$1",[id(400)])).rows[0].n),30*86400);
+    await asUser(owner);
+    const retry=await renew(400);assert.equal(retry.alreadyRepublished,true);assert.equal(retry.article.publication_expires_at,renewed.article.publication_expires_at);
+    await assert.rejects(db.query("update articulos set publication_expires_at=now()+interval '60 days' where id=$1",[id(400)]),{code:'42501'});
+    await assert.rejects(db.query('select * from publication_republications'),{code:'42501'});
+    await assert.rejects(db.query("update articulos set created_at=now()+interval '1 day' where id=$1",[id(400)]),{code:'42501'});
+    await expire(400);assert.equal((await page()).total,0);assert.equal((await sales()).donationActive,0);
+    await asUser(buyer);await assert.rejects(apply(400),/venci|no esta disponible/);await asUser(owner);
+    for(let n=401;n<404;n++)await publish(n,false,{mode:'donacion'});
+    await assert.rejects(renew(400),/máximo 3 donaciones/);
+    await assert.rejects(renew(401),/vigente/);
+    await reset();await publish(410);await expire(410);
+    for(let n=411;n<414;n++)await publish(n);
+    await assert.rejects(renew(410),/credito|crédito|cupos/i);
+    await db.query("update articulos set estado='entregado',status='entregado' where id=$1",[id(411)]);
+    assert.ok((await renew(410)).article.publication_expires_at);assert.equal((await sales()).balance,5);
+    await db.exec('reset role;set role anon');await assert.rejects(renew(410),{code:'42501'});
+  });
  } finally { await db.close(); }
 });
 

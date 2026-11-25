@@ -282,7 +282,7 @@ export default function ProductCard({
         <p className="product-card-location flex min-w-0 items-center text-xs text-forest-green mb-1">
           <MapPin size={12} className="mr-1 shrink-0" /> <span className="truncate">{location || "Ubicación"}</span>
         </p>
-        <h3 className="min-w-0 font-bold text-gray-800 truncate uppercase" title={title || "Sin título"}>{title || "Sin título"}</h3>
+        <h3 className="min-w-0 font-bold text-gray-800 truncate" title={title || "Sin título"}>{title || "Sin título"}</h3>
 
         <p className={`product-card-interest-summary${showInterested ? '' : ' is-sale'}`}
           title={showInterested ? interestedTooltip : description || undefined}>
@@ -325,7 +325,7 @@ export default function ProductCard({
           </button>
         </div>
 
-        {(isReserved || isDelivered) && (
+        {isDelivered && (
           <p className="mt-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Estado: {statusNorm}</p>
         )}
       </div>

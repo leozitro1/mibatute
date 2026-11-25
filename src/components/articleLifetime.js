@@ -1,8 +1,11 @@
 export const PUBLICATION_DAYS = 60;
+export const REPUBLICATION_DAYS = 30;
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const PUBLICATION_LIFETIME_MS = PUBLICATION_DAYS * DAY_MS;
 
 export function publicationExpiresAt(article) {
+  const renewed = Date.parse(article?.publication_expires_at || '');
+  if (Number.isFinite(renewed)) return renewed;
   const created = Date.parse(article?.created_at || '');
   return Number.isFinite(created) ? created + PUBLICATION_LIFETIME_MS : null;
 }

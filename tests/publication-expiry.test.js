@@ -88,3 +88,12 @@ test('server hides expired listings and protects timestamps, requests, reservati
     assert.equal((await page()).total, 20);
   } finally { await db.close(); }
 });
+
+test('renewed articles use their explicit thirty-day deadline and keep original creation dates',()=>{
+ const start=Date.parse('2026-11-25T12:00:00Z');
+ const article={created_at:'2026-08-01T12:00:00Z',publication_expires_at:new Date(start+30*DAY_MS).toISOString(),estado:'disponible'};
+ assert.equal(publicationDaysRemaining(article,start),30);
+ assert.equal(isPublicationExpired(article,start+30*DAY_MS-1),false);
+ assert.equal(isPublicationExpired(article,start+30*DAY_MS),true);
+ assert.equal(publicationExpiresAt({...article,publication_expires_at:'invalid'}),Date.parse(article.created_at)+60*DAY_MS);
+});

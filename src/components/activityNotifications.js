@@ -28,7 +28,7 @@ export function publicationExpiryNotifications(articles, uid, now = Date.now()) 
     && isPublicationExpired(article, now)).map(article => ({
     id: `expiry-${article.id}`, type: 'publication_expired', articulo_id: article.id,
     created_at: new Date(publicationExpiresAt(article)).toISOString(),
-    title: 'Publicación vencida', subtitle: `${article.title || article.titulo || 'Tu publicación'} · Cumplió sus 60 días.`,
+    title: 'Publicación vencida', subtitle: `${article.title || article.titulo || 'Tu publicación'} · Cumplió sus ${article.publication_expires_at ? 30 : 60} días.`,
     thumb: article.image_url || article.imagen_url_principal || '', read: false, unreadCount: 1,
   }));
 }

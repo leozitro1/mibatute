@@ -1,4 +1,4 @@
-.featured-ticker-track h3 { display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase; }
+.featured-ticker-track h3 { display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:none; }
 
 @media (max-width: 767px), (display-mode: standalone) and (max-width: 1023px) {
   .featured-ticker-track { gap: 12px; }

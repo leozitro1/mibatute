@@ -217,9 +217,7 @@ export default function MarketplaceApp() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   const [currentView, setCurrentView] = useState("home"); // home | profile | how-it-works
-  const [showCatalogProposal, setShowCatalogProposal] = useState(() => !import.meta.env.DEV
-    || new URLSearchParams(window.location.search).get('design') === 'catalogo');
-  const catalogProposal = currentView === 'home' && showCatalogProposal;
+  const catalogProposal = currentView === 'home';
   const [catalogSaves, setCatalogSaves] = useState(readCatalogSaves);
   const [catalogStorageError, setCatalogStorageError] = useState(false);
 
@@ -1151,7 +1149,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
          city, locality, location_reference, description,
          price, interested_count, usuario_id, owner_id, buyer_id,
          ganador_id, winner_id, recipient_id,
-         reserved_at, delivered_at, updated_at, created_at,
+         reserved_at, delivered_at, updated_at, created_at, publication_expires_at,
          image_url, imagen_url_principal, imagenes,
          is_featured,
          review_status, approval_status,
@@ -2614,22 +2612,6 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               setCurrentView("how-it-works");
               window.scrollTo(0, 0);
             }} />}
-
-            {import.meta.env.DEV && currentView === 'home' && (
-              <div className="flex justify-center px-4 py-4">
-                <button type="button" className="min-h-11 rounded-lg border border-forest-green bg-white px-5 text-sm font-semibold text-forest-green"
-                  onClick={() => {
-                    const url = new URL(window.location.href);
-                    if (showCatalogProposal) url.searchParams.delete('design');
-                    else url.searchParams.set('design', 'catalogo');
-                    window.history.replaceState(window.history.state, '', url);
-                    setShowCatalogProposal(!showCatalogProposal);
-                    window.scrollTo({ top: 0, behavior: 'instant' });
-                  }}>
-                  {catalogProposal ? 'Ver diseño actual' : 'Ver propuesta de catálogo'}
-                </button>
-              </div>
-            )}
 
             <DeferredPanel active={isAuthOpen}>
             <AuthModal

@@ -1,5 +1,18 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Entrega autorizada del 25 de noviembre
+
+- Responsable revisó en local y autoriza commit/deploy: títulos con su escritura original en lista y destacados, sin duplicar Reservado debajo de la foto, diseño de catálogo definitivo sin alternador local, precio/Gratis junto al título tanto en Mis publicaciones como en Mis rescates, republicación de 30 días y avisos vencidos en gris con Republicar verde.
+- Validación: 500 pruebas aprobadas, compilación correcta y lint sin errores nuevos. MarketplaceApp conserva 12 errores y 5 advertencias; ProductCard conserva 1 error. Módulos funcionales restantes sin errores. Diff sin errores de espacios; sin navegador.
+- SQL `2026-11-25-republish-30-days.sql` preparado con ocho comprobaciones, todas correctas en local. Aplicación en producción pendiente de confirmación del responsable antes de activar el dominio. El aviso vencido de prueba permanece únicamente en local.
+
+## Propuesta local del 25 de noviembre: republicar por 30 días
+
+- Mis publicaciones muestra Republicar en avisos vencidos. Pide confirmación, bloquea doble envío y renueva el mismo artículo durante 30 días exactos, conservando fotos, solicitudes y fecha original. No reactiva el destacado ni descuenta créditos automáticamente; conserva las reglas actuales de cupos y autorizaciones de publicación. Reservas, conversaciones activas, revisiones y cuentas bloqueadas impiden la republicación.
+- La fecha de vencimiento explícita la establece solo el servidor con un registro privado; el cliente no puede ampliarla ni cambiar la fecha de creación. Un reintento de una republicación ya confirmada no extiende la vigencia. Catálogo, solicitudes, cupos y borrado reconocen la nueva fecha; el plazo original de 12 horas para borrar sin retención no se reinicia.
+- Migración `2026-11-25-republish-30-days.sql` aplicada solo en Supabase local. Requerida antes de desplegar un futuro frontend en producción. 500 pruebas del conjunto, compilación y lint de módulos modificados correctos; 28 pruebas de cuotas/vencimiento tras la comprobación adicional de retención. Sin navegador, commit ni deploy.
+- Preparado únicamente en local el aviso Libros para donar - PRUEBA, de vendedor@example.com, con vencimiento pasado. Comprobación real bajo rol autenticado y con reversión: renovación exacta de 30 días; al terminar sigue vencido para revisión del responsable.
+
 ## Entrega autorizada: insignias y tarjetas del catálogo
 
 - Responsable revisó en local y autoriza commit/deploy: contador del perfil sin avisos del sistema ya vistos, favoritos ocultos en reservados, dos insignias independientes siempre visibles (gris si falta el estado), sin marcos y con explicación al pulsar. En el perfil permanecen centradas; en detalle el escudo va junto al nombre y el registro debajo. Los iconos compactos del catálogo comparten fila también en móvil.
