@@ -1,5 +1,18 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Entrega autorizada: reservas aceptadas y avisos de ayuda
+
+- Responsable revisó en local y autoriza commit/deploy: ayuda de insignias/estado/tamaño con cierre automático de tres segundos, avisos de insignias centrados dentro de las tarjetas, texto de verificación manual sin la referencia a Registraduría, reservas aceptadas ocultas del catálogo a las 24 horas y solicitudes resaltadas en verde suave.
+- Validación del conjunto: 502 pruebas aprobadas, compilación correcta y diff sin errores de espacios. Lint sin errores nuevos; MarketplaceApp conserva 12 errores y 5 advertencias, ProductDetail conserva 2 advertencias. Otros módulos nuevos/modificados sin errores.
+- SQL de `2026-11-25-hide-accepted-after-day.sql` preparado con ocho comprobaciones, todas correctas en local. Aplicación en producción pendiente de confirmación del responsable antes de activar el dominio. No cambia el plazo inicial de 60 días ni la republicación de 30 días.
+
+## Propuesta local del 25 de noviembre: ocultar reservas aceptadas tras 24 horas
+
+- En el catálogo principal, ventas reservadas se ocultan 24 horas después de que el vendedor aprueba el chat/compra; la solicitud inicial del comprador no inicia el plazo. Donaciones se ocultan 24 horas después de elegir al beneficiario. Conserva el acceso desde perfil, rescates y enlaces de la transacción; completar la entrega mantiene las reglas anteriores. Cancelar la reserva limpia el plazo y permite volver al catálogo.
+- Fecha límite calculada por triggers del servidor; el cliente no puede ampliarla ni reiniciarla editando el artículo. La aprobación utiliza su escritura actual, sin peticiones adicionales del navegador ni tareas periódicas. El catálogo filtra por fecha antes de contar y paginar y el reloj local existente oculta tarjetas cargadas al llegar al plazo.
+- Migración `2026-11-25-hide-accepted-after-day.sql` aplicada solo en Supabase local. Las donaciones antiguas con fecha de reserva conocida usan esa fecha; si carecen de un registro fiable, reciben 24 horas desde la migración. Ventas existentes usan la fecha de aprobación del chat. Requiere migración antes de activar un futuro despliegue.
+- Pruebas: límites temporales exactos, catálogo y filtros, compradores pendientes, aprobaciones reales, acceso al historial, cancelación y protección frente a cambios manuales de fecha. 502 pruebas del conjunto y compilación correctas; sin navegador ni cambios de producción.
+
 ## Entrega autorizada del 25 de noviembre
 
 - Responsable revisó en local y autoriza commit/deploy: títulos con su escritura original en lista y destacados, sin duplicar Reservado debajo de la foto, diseño de catálogo definitivo sin alternador local, precio/Gratis junto al título tanto en Mis publicaciones como en Mis rescates, republicación de 30 días y avisos vencidos en gris con Republicar verde.

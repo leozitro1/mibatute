@@ -1,4 +1,5 @@
 import { AccountVerificationBadge } from './AccountVerification.jsx';
+import AutoCloseDetails from './AutoCloseDetails.jsx';
 // src/components/ProductDetail.jsx
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { X, MapPin, Lock, Flag, BadgeCheck, Expand, CircleHelp, Package } from "lucide-react";
@@ -874,18 +875,18 @@ export default function ProductDetail({
                 <BadgeCheck size={16} aria-hidden="true" />
                 <span className="text-xs font-black">{conditionScore}/10</span>
                 <span className="text-[10px] font-black uppercase tracking-widest">{condition.label}</span>
-                <details className="product-condition-help" key={conditionScore}>
+                <AutoCloseDetails className="product-condition-help" key={conditionScore}>
                   <summary aria-label="Información sobre el estado del producto"><CircleHelp size={15} aria-hidden="true" /></summary>
                   <span className="product-condition-help-text">{condition.description} Estado informado por quien publica.</span>
-                </details>
+                </AutoCloseDetails>
               </div>}
               {size && <div className="product-detail-size" aria-label={`Tamaño ${size.label.toLowerCase()}`}>
                 <Package size={16} aria-hidden="true" />
                 <span>{size.label}</span>
-                <details className="product-condition-help" key={size.value}>
+                <AutoCloseDetails className="product-condition-help" key={size.value}>
                   <summary aria-label={`Cómo transportar un artículo ${size.label.toLowerCase()}`}><CircleHelp size={15} aria-hidden="true" /></summary>
                   <span className="product-condition-help-text">{size.description}</span>
-                </details>
+                </AutoCloseDetails>
               </div>}
             </div>
 

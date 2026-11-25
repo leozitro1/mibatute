@@ -518,7 +518,7 @@ export default function ManageArticleModal({
                     <p className="text-xs text-green-700 mt-1">
                       {isEntregado
                         ? "Transacción cerrada. El chat debe abrir para ver historial (solo lectura)."
-                        : "Este artículo quedó reservado para entrega. Los demás ya no deben verlo."}
+                        : "Reservado para entrega. El aviso se oculta de la lista principal 24 horas después de elegir al beneficiario."}
                     </p>
                   </div>
 

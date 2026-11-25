@@ -1,4 +1,5 @@
 import { assertArticleEditable } from './supabase/articleEditing.js';
+import { isCatalogReservationHidden } from './components/catalogVisibility.js';
 // src/App.jsx
 import { lazy, Suspense, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
@@ -1149,7 +1150,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
          city, locality, location_reference, description,
          price, interested_count, usuario_id, owner_id, buyer_id,
          ganador_id, winner_id, recipient_id,
-         reserved_at, delivered_at, updated_at, created_at, publication_expires_at,
+         reserved_at, delivered_at, updated_at, created_at, publication_expires_at, catalog_hide_at,
          image_url, imagen_url_principal, imagenes,
          is_featured,
          review_status, approval_status,
@@ -1674,6 +1675,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       if (!homePage.ids.includes(item.id)) return false;
       if (articleOwnerMarketPaused(item, currentUser, publicationNow)) return false;
       if (isPublicationExpired(item, publicationNow)) return false;
+      if (isCatalogReservationHidden(item, publicationNow)) return false;
       const estadoActual = normEstado(item?.estado || item?.status || "");
       const tipo = normTipo(item?.mode || item?.tipo || "");
 

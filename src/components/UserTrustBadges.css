@@ -26,3 +26,10 @@
 .user-trust-badges.has-identity .user-trust-badge > button { justify-content:flex-start;text-align:left; }
 .user-trust-badges.has-identity .user-trust-badge--verified > button { min-width:24px;min-height:24px; }
 .user-trust-badges.has-identity .user-trust-explanation { left:0;right:auto;max-width:100%; }
+
+.product-card .user-trust-badges.is-compact { position:static; }
+.product-card .user-trust-badges.is-compact .user-trust-explanation {
+  top:50%;left:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);
+  width:calc(100% - 24px);max-width:260px;max-height:calc(100% - 24px);
+  box-sizing:border-box;overflow:auto;text-align:center;overflow-wrap:anywhere;
+}

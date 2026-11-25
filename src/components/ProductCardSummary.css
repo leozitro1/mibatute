@@ -1,4 +1,4 @@
-.product-card .product-card-interest-summary { margin:3px 0 0;padding:6px 8px;min-height:46px;height:auto;border:1px solid #eedda8;border-radius:7px;background:#fff6d9;white-space:normal;font-size:11px;font-weight:600;line-height:16px;color:#765816; }
+.product-card .product-card-interest-summary { margin:3px 0 0;padding:6px 8px;min-height:46px;height:auto;border:1px solid #d3e3cf;border-radius:7px;background:#edf5e9;white-space:normal;font-size:11px;font-weight:600;line-height:16px;color:#345737; }
 .product-card-interest-summary > span { display:block; }
 .product-card-interest-summary > span + span { font-size:10px;font-weight:400; }
 .product-card .product-card-interest-summary.is-sale { height:46px;overflow:hidden;border-color:#e2e5e7;background:#f3f4f5;color:#667085; }

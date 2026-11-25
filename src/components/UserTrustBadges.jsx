@@ -1,12 +1,17 @@
-import { createElement, useId, useState } from 'react';
+import { createElement, useEffect, useId, useState } from 'react';
 import { ShieldCheck, Shield, Store } from 'lucide-react';
 import './UserTrustBadges.css';
 
 export default function UserTrustBadges({verified=false,sellerRegistered=false,compact=false,identity=null}) {
  const [open,setOpen]=useState(null),id=useId();
+ useEffect(()=>{
+  if(open===null)return;
+  const timer=window.setTimeout(()=>setOpen(null),3000);
+  return()=>window.clearTimeout(timer);
+ },[open]);
  const badges=[
   {key:'seller',active:sellerRegistered===true,label:sellerRegistered?'Vendedor registrado':'Sin registro de vendedor',description:sellerRegistered?'Completó sus datos de vendedor. Este registro no acredita su identidad ni garantiza sus transacciones.':'No tiene un registro de vendedor vigente.',Icon:Store},
-  {key:'verified',active:verified===true,label:verified?'Cuenta verificada':'Cuenta sin verificar',description:verified?'Solicitud revisada y aprobada manualmente por MiBatute. No es una validación automática de la Registraduría ni una garantía de las transacciones.':'No tiene una verificación manual aprobada por MiBatute.',Icon:verified?ShieldCheck:Shield},
+  {key:'verified',active:verified===true,label:verified?'Cuenta verificada':'Cuenta sin verificar',description:verified?'Solicitud revisada y aprobada manualmente por MiBatute. No garantiza las transacciones.':'No tiene una verificación manual aprobada por MiBatute.',Icon:verified?ShieldCheck:Shield},
  ];
  return <div className={`user-trust-badges${compact?' is-compact':''}${identity?' has-identity':''}`} onClick={event=>event.stopPropagation()} onKeyDown={event=>{if(event.key==='Escape'){setOpen(null);event.stopPropagation();}}}>
   {identity&&<div className="user-trust-identity">{identity}</div>}
