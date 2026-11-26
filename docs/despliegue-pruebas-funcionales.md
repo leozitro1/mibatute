@@ -1,5 +1,11 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Publicación autorizada del 26 de noviembre: etiqueta directa de Google
+
+- El responsable solicita instalar directamente en el head la etiqueta GTM-53MT4CP9 de su captura, destinada a Analytics, y autoriza commit y deploy en main y el proyecto Vercel habitual.
+- Sustituye la integración anterior con consentimiento por el snippet directo, sin cargar ambos. El snippet se carga al abrir la página, también en local, independientemente de la preferencia de métricas propias. No se declara consentimiento aplicado a Google ni aprobación jurídica de este cambio.
+- 507 pruebas aprobadas y compilación correcta por terminal. Sin navegador, migraciones, cambios de Supabase, pagos o SMTP. La recepción en Analytics y las etiquetas publicadas en el contenedor requieren comprobación del responsable; no se han verificado desde la cuenta de Google.
+
 ## Entrega autorizada: favoritos y nombre del vendedor
 
 - Responsable revisó en local y autoriza commit/deploy de limpieza de favoritos confirmados como vencidos/finalizados y presentación del nombre público completo del vendedor en una línea. Ficha de vendedor con acciones debajo para dar espacio al nombre y las insignias; nombres excepcionalmente largos permiten desplazamiento horizontal sin abreviaturas ni elipsis.
@@ -475,11 +481,3 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - El responsable autorizó commit y deploy en main y el proyecto Vercel habitual. Ambas migraciones aplicadas juntas en una transacción al Supabase habitual mediante su editor SQL, tras consultar las cinco funciones instaladas; sin escrituras de prueba ni cambios de estados de usuarios, publicaciones o mensajes.
 - Verificados RLS restrictivo, tres guardias de solicitudes, protección de escritura de mensajes, señal del catálogo y permisos privados de triggers. Las siete funciones de chat y protección coinciden exactamente con las validadas localmente. El catálogo conserva su definición instalada completa salvo el filtro previsto: al retirar únicamente ese fragmento recupera su MD5 anterior 243d9b9d8c0aaf8cb7cff7216cf5fc76; nueva huella a6962d24bb19a68e8348ea4a90570fcb.
 - Se mantienen las 450 pruebas aprobadas, compilación correcta y diff sin errores. Sin navegador local, capturas, push ni cambios de pagos, registro, CAPTCHA o SMTP. Revisión funcional real a cargo del responsable.
-## Integración local de Google Tag Manager — 26 de noviembre de 2026
-
-- Contenedor `GTM-53MT4CP9` preparado para los dominios canónicos y páginas públicas permitidas, solo en compilación de producción. Desarrollo local y dominios de preview no cargan Google.
-- Consentimiento básico: ninguna petición al contenedor antes de aceptar las métricas opcionales. Preferencia `mb_optional_metrics_v2` para solicitar una nueva elección tras incorporar Google; respeta DNT/GPC. Permisos de anuncios denegados. No hay iframe incondicional ni nuevos llamados a Supabase.
-- Retirar la elección actualiza el consentimiento, elimina las cookies de Analytics accesibles y recarga para descargar las etiquetas ejecutadas. Se sincroniza la retirada entre pestañas; las rutas administrativas, solicitudes de datos y URLs con parámetros de autenticación quedan excluidas.
-- Cookies y Privacidad informan sobre Google. Documentos conservados como borrador; esta integración no aprueba los pendientes jurídicos ni cambia el registro o los pagos.
-- La medición GA4 depende de configurar y publicar su etiqueta dentro del contenedor de Google Tag Manager. No se ha inspeccionado ni modificado la cuenta de Google, ni verificado recepción de eventos reales. Revisar también las opciones de medición mejorada y evitar recopilar datos personales desde etiquetas externas.
-- 514 pruebas aprobadas, incluidas siete de consentimiento mediante DOM simulado, sin navegador ni solicitudes a Google. ESLint de archivos modificados y compilación aprobados. Sin migración, commit ni deploy.

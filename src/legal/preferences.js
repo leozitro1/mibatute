@@ -1,4 +1,4 @@
-export const METRICS_KEY='mb_optional_metrics_v2';
+export const METRICS_KEY='mb_optional_metrics_v1';
 export const METRICS_EVENT='mb:metrics-preference';
 export function metricsAllowed(storage,signals={}) {
   if(signals.doNotTrack==='1'||signals.globalPrivacyControl===true)return false;
