@@ -1,0 +1,26 @@
+.seller-catalog-header { display:grid;grid-template-columns:80px minmax(0,1fr) auto;align-items:center;gap:18px;width:100%;padding:22px;background:#fff;border:1px solid #dfe5d9;border-radius:16px;color:#34443a; }
+.seller-catalog-avatar { display:flex;align-items:center;justify-content:center;width:80px;height:80px;overflow:hidden;border-radius:50%;background:#eff4ec;color:#2d5a27;font-size:30px;font-weight:700; }
+.seller-catalog-identity { min-width:0; }
+.seller-catalog-header h1 { margin:0 0 6px;color:#263d2e;font-size:21px;font-weight:700;line-height:1.25;overflow-wrap:anywhere; }
+.seller-catalog-header h1 > span { display:block;margin-bottom:4px;color:#687464;font-size:12px;font-weight:500; }
+.seller-catalog-header .user-trust-badges { justify-content:flex-start;align-items:flex-start;column-gap:12px;row-gap:2px; }
+.seller-catalog-header .user-trust-badge > button { justify-content:flex-start;text-align:left; }
+.seller-catalog-header .user-trust-explanation { left:0;right:auto;max-width:min(260px,calc(100vw - 64px)); }
+.seller-catalog-meta { display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:9px;font-size:12px;line-height:1.5; }
+.seller-catalog-rating,.seller-catalog-rating > span,.seller-catalog-location { display:inline-flex;align-items:center;gap:4px; }
+.seller-catalog-rating > span { color:#c68c13;gap:2px; }
+.seller-catalog-rating small { margin-left:3px;color:#687464;font-size:12px; }
+.seller-catalog-location { color:#2d5a27; }
+.seller-catalog-location svg { flex-shrink:0; }
+.seller-catalog-actions { display:flex;flex-direction:column;align-items:flex-end;gap:9px; }
+.seller-catalog-actions button { display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:9px 14px;border:1px solid #dfe5d9;border-radius:10px;background:#fff;color:#2d5a27;font-size:13px;font-weight:600;cursor:pointer; }
+.seller-catalog-actions button:hover { background:#f2f6ef; }
+.seller-catalog-actions button:focus-visible { outline:2px solid #2d5a27;outline-offset:3px; }
+.seller-catalog-actions > span { color:#687464;font-size:12px; }
+@media(max-width:640px) {
+ .seller-catalog-header { grid-template-columns:60px minmax(0,1fr);gap:12px;padding:16px; }
+ .seller-catalog-avatar { width:60px;height:60px;align-self:start;font-size:24px; }
+ .seller-catalog-header h1 { font-size:19px; }
+ .seller-catalog-actions { grid-column:1 / -1;flex-direction:row-reverse;justify-content:space-between;align-items:center; }
+ .seller-catalog-header .user-trust-badges { gap:0; }
+}

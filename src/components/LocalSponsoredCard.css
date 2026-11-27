@@ -1,0 +1,16 @@
+.home-catalog .product-card.local-sponsored-card { border-color:#b8cfc8;background:#fff;cursor:default;box-shadow:none; }
+.home-catalog .product-card.local-sponsored-card:hover { border-color:#b8cfc8;box-shadow:none; }
+.home-catalog .local-sponsored-card .product-card-photo > img { transform:none; }
+.local-sponsored-label { position:absolute;inset:8px auto auto 8px;max-width:calc(100% - 16px);padding:4px 8px;border:1px solid #d9e7e2;border-radius:6px;background:#fffffff5;color:#28594f;font-size:11px;font-weight:600;line-height:16px;letter-spacing:0; }
+/* Match the condition line and badge row in neighboring product cards. */
+.local-sponsored-brand { display:flex;align-items:center;gap:6px;min-height:20px;margin:20px 0 2px;color:#28594f;overflow-wrap:anywhere; }
+.local-sponsored-brand strong { font-size:14px;line-height:20px; }
+.local-sponsored-seller { display:inline-flex;align-items:center;flex-shrink:0;min-height:20px;padding:1px 3px;color:#9b6a13; }
+.local-sponsored-cta { display:inline-flex;align-items:center;justify-content:center;min-height:44px;white-space:nowrap; }
+.mb-design-preview .local-sponsored-cta { border-color:#e0e9d9;border-radius:999px;background:#f0f5ec;color:#2d5a27;font-weight:600; }
+.local-sponsored-cta:active,
+.mb-design-preview .local-sponsored-cta:active { background:#2d5a27;color:#fff; }
+.local-sponsored-cta:focus-visible { outline:2px solid #2d5a27;outline-offset:3px; }
+@media (max-width:767px), (display-mode:standalone) and (max-width:1023px) {
+  .local-sponsored-cta { width:100%; }
+}

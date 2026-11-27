@@ -2,7 +2,7 @@ import { assertArticleEditable } from './supabase/articleEditing.js';
 import { isCatalogReservationHidden } from './components/catalogVisibility.js';
 import { cleanCatalogFavorites, favoriteLifecycle, isFavoriteFinished } from './components/catalogFavorites.js';
 // src/App.jsx
-import { lazy, Suspense, useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { Fragment, lazy, Suspense, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
 import { Clock, Heart, ImageOff, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown, LayoutGrid, MapPin, SlidersHorizontal, Gift, Tag, Star, BadgeCheck } from "lucide-react";
 import { articleShareUrl, sharedArticleId } from "./components/articleShare.js";
@@ -14,6 +14,8 @@ import { notifyCreditBalance } from './components/creditBalance.js';
 import { publicationDeletionStatus, publicationDeletionMessage } from './supabase/publicationDeletion.js';
 import FilterSection from "./components/FilterSection";
 import ProductCard, { pickImageSrc } from "./components/ProductCard";
+import SellerCatalogHeader from './components/SellerCatalogHeader.jsx';
+import { localSponsoredPreviewMatches, localSponsoredInsertionIndex } from './components/localSponsoredPreview.js';
 import { cardImageUrl } from "./imagekit/imageUrls.js";
 import usePublicationClock from './components/usePublicationClock.js';
 import useDetailScroll from './components/useDetailScroll.js';
@@ -57,6 +59,7 @@ import { recordMarketMetric } from './analytics/publicMetrics.js';
 import { crearPostulacionConLimite } from "./supabase/solicitudesService";
 
 const WompiReturnDialog = lazy(()=>import('./components/WompiTopupDialog.jsx'));
+const LocalSponsoredCard = import.meta.env.DEV ? lazy(() => import('./components/LocalSponsoredCard.jsx')) : null;
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Terms = lazy(() => import("./pages/Terms"));
@@ -273,6 +276,7 @@ export default function MarketplaceApp() {
   }
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedSeller, setSelectedSeller] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("Todo");
   const [selectedSubcategory, setSelectedSubcategory] = useState("");
   const [expandedCategory, setExpandedCategory] = useState(null);
@@ -317,13 +321,17 @@ export default function MarketplaceApp() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  const localSponsoredEligible = import.meta.env.DEV && localSponsoredPreviewMatches({
+    enabled: true, search: debouncedSearch, category: selectedCategory, city: selectedCity,
+  });
   const homeFilters = useMemo(() => ({
+    sellerId: selectedSeller?.id || null,
     search: debouncedSearch, category: selectedCategory, subcategory: selectedSubcategory,
     city: selectedCity, locality: selectedLocality, kind: quickTipo, onlyActive: false, onlyVerified, minCondition,
     hideOwn: !!currentUser?.id && hiddenAdsOwnerId === currentUser.id, sort: sortOrder, featuredSeed,
-    layout: mobileCatalog || mobileApp ? 'mobile' : 'desktop', desktopPageSize: 12, mobilePageRows: mobileApp ? 10 : 4, mobileUniformGrid: true,
+    layout: mobileCatalog || mobileApp ? 'mobile' : 'desktop', desktopPageSize: localSponsoredEligible ? 11 : 12, mobilePageRows: mobileApp ? 10 : 4, mobileUniformGrid: true,
   }), [debouncedSearch, selectedCategory, selectedSubcategory, selectedCity, selectedLocality,
-    quickTipo, onlyVerified, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id, mobileCatalog, mobileApp]);
+    quickTipo, onlyVerified, minCondition, hiddenAdsOwnerId, sortOrder, featuredSeed, currentUser?.id, mobileCatalog, mobileApp, localSponsoredEligible, selectedSeller]);
   const homeFilterKey = JSON.stringify([homeFilters, currentUser?.id]);
   useEffect(() => {
     if (homeBusy || homeError || searchTerm !== debouncedSearch || currentView !== 'home' || document.visibilityState !== 'visible') return;
@@ -1148,6 +1156,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       p_filters: homeFilters, p_page: requestedPage,
     });
     if (pageError) throw pageError;
+    if (homeFilters.sellerId && pageData?.sellerId !== homeFilters.sellerId) throw new Error('Falta activar el filtro de vendedor en el catálogo.');
     const sharedId = sharedArticleRef.current;
     // Resolve a shared link in the existing catalog request, even on another page/city.
     const pageIds = [...new Set([...pageData.ids, ...pageData.featuredIds, ...(sharedId ? [sharedId] : [])])];
@@ -1191,7 +1200,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     if (ownerIds.length) {
       const { data: owners, error: ownersErr } = await supabase
         .from("usuarios_publicos")
-        .select("id,nombre,foto_url,account_verified,seller_registered,is_blocked,bloqueado,ban_until")
+        .select("id,nombre,foto_url,ciudad,localidad,account_verified,seller_registered,is_blocked,bloqueado,ban_until")
         .in("id", ownerIds);
 
       if (ownersErr) console.log("Error cargando usuarios_publicos:", ownersErr);
@@ -1686,6 +1695,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       const tipo = normTipo(item?.mode || item?.tipo || "");
 
       const ownerId = item?.usuario_id || item?.owner_id || null;
+      if (selectedSeller && String(ownerId) !== String(selectedSeller.id)) return false;
       const isOwner = uid && ownerId && String(uid) === String(ownerId);
 
       if (isOwner && hiddenAdsOwnerId === uid) return false;
@@ -1708,7 +1718,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       const matchesSub =
         !selectedSubcategory || normStr(getSubcategoria(item)) === normStr(selectedSubcategory);
 
-      const matchesCity = (item.city || item.ciudad) === selectedCity;
+      const matchesCity = !!selectedSeller || (item.city || item.ciudad) === selectedCity;
       const matchesLocality = selectedLocality === "Todas" || (item.locality || item.localidad_es) === selectedLocality;
 
       return matchesCategory && matchesSub && matchesCity && matchesLocality;
@@ -1730,18 +1740,26 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     homePage.ids,
     publicationNow,
     currentUser,
+    selectedSeller,
   ]);
 
   // ✅ Artículos destacados (filtrados por búsqueda/categoría/ciudad igual que la lista principal)
   const featuredProducts = useMemo(() => {
     return products.filter(p => homePage.featuredIds.includes(p.id) && p.isFeatured
+      && (!selectedSeller || String(p.usuario_id || p.owner_id) === String(selectedSeller.id))
       && !articleOwnerMarketPaused(p, currentUser, publicationNow)
       && !isPublicationExpired(p, publicationNow)
       && ![p.estado, p.status].some(value => normEstado(value || "") === "reservado")
       && normEstado(p.estado || p.status || "") !== "entregado");
-  }, [products, homePage.featuredIds, publicationNow, currentUser]);
+  }, [products, homePage.featuredIds, publicationNow, currentUser, selectedSeller]);
 
-  const totalPages = homePage.pageCount ?? Math.max(1, Math.ceil(homePage.total / 12));
+  const showLocalSponsored = localSponsoredEligible && filteredProducts.length >= 4;
+  const localSponsoredIndex = showLocalSponsored ? localSponsoredInsertionIndex({
+    count: filteredProducts.length, layout: homeFilters.layout,
+    seed: `${homeFilterKey}:${homePage.page}`,
+  }) : null;
+  const displayedCatalogCount = filteredProducts.length + (showLocalSponsored ? 1 : 0);
+  const totalPages = homePage.pageCount ?? Math.max(1, Math.ceil(homePage.total / homeFilters.desktopPageSize));
   const changeHomePage = page => {
     setPageSelection({ key: homeFilterKey, page });
     listingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1774,6 +1792,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
     && !isPublicationExpired(item, publicationNow)
   ) : [];
   function openSavedSearch(search) {
+    setSelectedSeller(null);
     setSearchTerm(search.term);
     setSelectedCity(search.city);
     setSelectedLocality(search.locality);
@@ -2019,6 +2038,18 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       isOpen={!!selectedProduct}
       onClose={() => setSelectedProduct(null)}
       user={currentUser}
+      onOpenSeller={seller => {
+        setSelectedSeller(seller);
+        setSearchTerm('');setDebouncedSearch('');
+        setSelectedCategory('Todo');setSelectedSubcategory('');setExpandedCategory(null);
+        setSelectedLocality('Todas');setQuickTipo('todo');setOnlyVerified(false);
+        setMinCondition(0);setConditionDraft(0);setHiddenAdsOwnerId(null);setSortOrder('newest');
+        setCurrentView('home');setSelectedProduct(null);
+        requestAnimationFrame(()=>{
+          listingRef.current?.scrollIntoView({behavior:'instant',block:'start'});
+          listingRef.current?.focus({preventScroll:true});
+        });
+      }}
       onSolicitar={async (item, message, useCredit = false) => {
         const id = getArticuloId(item);
         if (!id) return alert("Este artículo no tiene id válido.");
@@ -2075,6 +2106,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
               searchTerm={searchTerm}
               currentCity={selectedCity}
               onCityChange={(city) => {
+                setSelectedSeller(null);
                 setSelectedCity(city);
                 setSelectedLocality("Todas");
               }}
@@ -2192,6 +2224,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     value={{category:selectedCategory,subcategory:selectedSubcategory,city:selectedCity,locality:selectedLocality,
                       kind:quickTipo,onlyVerified,minCondition,sort:sortOrder,hideOwn:!!currentUser?.id && hiddenAdsOwnerId === currentUser.id}}
                     onChange={next => {
+                      if(next.city!==selectedCity||next.locality!==selectedLocality)setSelectedSeller(null);
                       setSelectedCategory(next.category);setSelectedSubcategory(next.subcategory);setExpandedCategory(null);
                       setSelectedCity(next.city);setSelectedLocality(next.locality);setQuickTipo(next.kind);
                       setOnlyVerified(next.onlyVerified);setMinCondition(next.minCondition);setConditionDraft(next.minCondition);
@@ -2202,7 +2235,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                   {!catalogProposal && homeBanner}
                   {catalogProposal && (
                     <div className="catalog-proposal-bar">
-                      <h1>Explora en {selectedCity}</h1>
+                      {!selectedSeller&&<h1>Explora en {selectedCity}</h1>}
                       <div className="catalog-proposal-types" role="group" aria-label="Tipo de publicación">
                         {PUBLICATION_TYPES.map(({ key, label, icon }) => (
                           <button key={key} type="button" aria-pressed={quickTipo === key} onClick={() => setQuickTipo(key)}>
@@ -2214,7 +2247,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     </div>
                   )}
 
-                  <div className={`home-catalog flex flex-col lg:flex-row gap-4 lg:gap-8${filteredProducts.length === 12 && !homeBusy && !homeError ? ' home-catalog--full' : ''}${totalPages > 1 && !homeError ? ' home-catalog--paginated' : ''}`}>
+                  <div className={`home-catalog flex flex-col lg:flex-row gap-4 lg:gap-8${displayedCatalogCount === 12 && !homeBusy && !homeError ? ' home-catalog--full' : ''}${totalPages > 1 && !homeError ? ' home-catalog--paginated' : ''}`}>
                     <aside className="contents lg:block lg:w-1/4 shrink-0 min-w-0" aria-label="Filtros del catálogo">
                       <div className="order-1 min-w-0">
                       {catalogProposal && !mobileApp && <div className="catalog-favorites-mobile">{favoritesMenu}</div>}
@@ -2320,7 +2353,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                       </FilterSection>
 
                       {/* Localidades */}
-                      <FilterSection id="locality-filters" title={`Localidades en ${selectedCity}`} icon={<MapPin size={18} className="shrink-0 text-forest-green" aria-hidden="true" />}
+                      {!selectedSeller && <FilterSection id="locality-filters" title={`Localidades en ${selectedCity}`} icon={<MapPin size={18} className="shrink-0 text-forest-green" aria-hidden="true" />}
                         summary={selectedLocality === "Todas" ? "Todas las localidades" : selectedLocality}>
 
                         <div className="flex max-h-64 flex-col gap-2">
@@ -2356,7 +2389,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                           </div>
                         </div>
 
-                      </FilterSection>
+                      </FilterSection>}
 
                       <FilterSection id="publication-filters" title="Tipo de publicación"
                         icon={<SlidersHorizontal size={18} className="shrink-0 text-forest-green" aria-hidden="true" />}
@@ -2424,15 +2457,18 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                     </aside>
 
                     <div className="home-catalog-results order-2 min-w-0 lg:w-3/4">
-                      <FeaturedTicker
+                      {!selectedSeller && <FeaturedTicker
                         key={JSON.stringify([searchTerm.trim().toLowerCase(), selectedCategory, selectedSubcategory, selectedCity, selectedLocality, quickTipo, onlyVerified, hiddenAdsOwnerId, currentUser?.id])}
                         items={featuredProducts}
                         category={selectedCategory}
                         onItemClick={openCatalogArticle}
-                      />
-                      <div ref={listingRef} className="mb-4 flex flex-wrap justify-between items-center gap-3 scroll-mt-24">
+                      />}
+                      <div ref={listingRef} tabIndex={-1} className="mb-4 flex flex-wrap justify-between items-center gap-3 scroll-mt-24">
+                        {selectedSeller?<SellerCatalogHeader seller={selectedSeller} user={currentUser} total={homePage.total} busy={homeBusy} onBack={()=>setSelectedSeller(null)}/>:<>
                         <h2 className="text-lg font-black text-gray-800">
-                          {searchTerm ? `Resultados para "${searchTerm}"` : "Últimos hallazgos"}
+                          {searchTerm.trim() ? `Resultados para "${searchTerm.trim()}"` : 'Publicaciones'}
+                          {selectedCategory !== 'Todo' && ` en ${selectedCategory}${selectedSubcategory ? ` / ${selectedSubcategory}` : ''}`}
+                          {selectedLocality !== 'Todas' && `${selectedCategory !== 'Todo' ? ' · ' : ' en '}${selectedLocality}`}
                         </h2>
                         <div className="flex flex-wrap items-center gap-3">
                           <span className="text-xs font-bold text-gray-400">
@@ -2450,6 +2486,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                             </button>
                           )}
                         </div>
+                        </>}
                       </div>
 
                       {catalogChanged && <div role="status" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-forest-green">
@@ -2466,7 +2503,7 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                         <div role="status" className="py-20 text-center text-sm text-gray-500">Cargando publicaciones...</div>
                       ) : filteredProducts.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" data-testid="home-listings">
-                          {filteredProducts.map((item) => {
+                          {filteredProducts.map((item, index) => {
                             const resolvedImage =
                               item.image_url ||
                               item.imagen_url_principal ||
@@ -2486,7 +2523,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
                             const interestedMax = resolveInterestedMax(item);
 
                             return (
-  <div key={item.id} className={`home-listing ${item.isFeatured ? 'home-listing--featured' : ''} ${isUserBlocked ? "cursor-not-allowed" : "cursor-pointer"}`}>
+  <Fragment key={item.id}>
+  <div className={`home-listing ${item.isFeatured ? 'home-listing--featured' : ''} ${isUserBlocked ? "cursor-not-allowed" : "cursor-pointer"}`}>
     <ProductCard
       photoAccessory={catalogFavoriteButton(item)}
       title={item.title || item.titulo || "Sin título"}
@@ -2517,6 +2555,8 @@ if (!merged.nombre && (m.nombre || m.full_name || m.name)) merged.nombre = m.nom
       }}
     />
   </div>
+  {index === localSponsoredIndex && showLocalSponsored && <Suspense fallback={null}><LocalSponsoredCard /></Suspense>}
+  </Fragment>
 );
 
                           })}

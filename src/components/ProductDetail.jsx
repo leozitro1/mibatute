@@ -123,6 +123,7 @@ export default function ProductDetail({
   staffPreview = false,
   profilePhotoClient,
   onOpenOwner,
+  onOpenSeller,
   recommendations,
   favoriteAction,
   managementContent = null,
@@ -928,7 +929,7 @@ export default function ProductDetail({
 
             <div className="min-w-0 flex-1">
               <AccountVerificationBadge userId={isOpen?ownerId:null} identity={
-                staffPreview&&onOpenOwner&&ownerId?<button type="button" className="product-detail-owner-link" title="Abrir ficha del vendedor" onClick={()=>onOpenOwner({id:ownerId,nombre:ownerNameRaw||ownerName})}>{ownerName}</button>:<p className="product-detail-owner-name text-sm font-black text-gray-800" title={ownerName}>{ownerName}</p>
+                ownerId&&(staffPreview?onOpenOwner:onOpenSeller)?<button type="button" className="product-detail-owner-link product-detail-owner-name" title={staffPreview?'Abrir ficha del vendedor':`Ver publicaciones de ${ownerName}`} onClick={()=>{const seller={id:ownerId,nombre:ownerName};if(staffPreview)onOpenOwner(seller);else onOpenSeller({...seller,photo:ownerPhotoResolved,city:item?.owner_public?.ciudad,locality:item?.owner_public?.localidad,verified:item?.owner_public?.account_verified===true,sellerRegistered:item?.owner_public?.seller_registered===true,reputation:ownerReputacion});}}>{ownerName}</button>:<p className="product-detail-owner-name text-sm font-black text-gray-800" title={ownerName}>{ownerName}</p>
               } />
               {ownerReputacion !== null && (
                 <div className="flex items-center gap-0.5 mt-1">

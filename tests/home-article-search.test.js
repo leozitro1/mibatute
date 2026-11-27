@@ -223,6 +223,44 @@ test('desktop can request twelve articles without gaps, duplicates or changing m
   } finally { await db.close(); }
 });
 
+test('desktop ad slot pages eleven real articles without gaps and keeps mobile and twelve-card pages unchanged', async () => {
+  const { db, page } = await fixture();
+  try {
+    await db.exec('reset role');
+    await db.exec("create function public.market_reuse_impact() returns jsonb language sql stable as 'select ''{}''::jsonb'");
+    await db.exec(await migration('2026-10-30-mobile-app-page-size'));
+    await db.exec(await migration('2026-11-04-mobile-uniform-grid'));
+    await db.exec('set role anon');
+    const desktop = await page({ desktopPageSize: 12 });
+    const mobile = await page({ layout: 'mobile', mobileUniformGrid: true, mobilePageRows: 10 });
+    await db.exec('reset role');
+    const sql = await migration('2026-11-26-catalog-ad-page-size');
+    await db.exec(sql); await db.exec(sql);
+    await db.exec('set role anon');
+    assert.deepEqual(await page({ desktopPageSize: 12 }), desktop);
+    assert.deepEqual(await page({ layout: 'mobile', mobileUniformGrid: true, mobilePageRows: 10, desktopPageSize: 11 }), mobile);
+    for (const sort of ['random', 'newest', 'oldest']) {
+      const filters = { desktopPageSize: 11, sort, featuredSeed: 'ad-preview' };
+      const first = await page(filters), second = await page(filters, 2);
+      assert.equal(first.ids.length, 11);
+      assert.equal(second.ids.length, 5);
+      assert.equal(first.total, 16);
+      assert.equal(first.pageCount, 2);
+      assert.equal(new Set([...first.ids, ...second.ids]).size, 16);
+      const normal = { ...filters, desktopPageSize: 12 };
+      assert.deepEqual([...first.ids, ...second.ids], [...(await page(normal)).ids, ...(await page(normal, 2)).ids]);
+      assert.deepEqual(await page(filters, 999), second);
+      assert.equal((await page({ ...filters, search: 'inexistente' })).total, 0);
+      assert.equal((await page({ ...filters, locality: 'Chapinero' })).total, 6);
+    }
+    assert.equal((await page({ desktopPageSize: 1000 })).ids.length, 9);
+    await db.exec('reset role');
+    await db.query("update articulos set title = 'Private' where id = $1", [id(1)]);
+    await db.exec('set role anon');
+    assert.equal((await page({ desktopPageSize: 11 })).total, 15);
+  } finally { await db.close(); }
+});
+
 test('latest catalog shuffles stably, interleaves filtered features every six normal articles and preserves group order', async () => {
   const { db, page } = await fixture();
   try {

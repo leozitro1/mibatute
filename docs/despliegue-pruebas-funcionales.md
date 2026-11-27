@@ -1,5 +1,11 @@
 # Flujo de desarrollo y despliegue de MiBatute
 
+## Prueba local: publicidad dentro del catálogo
+
+- Anuncio ficticio de Taller Vuelta identificado como Publicidad, con precio, ubicación, marca y enlace externo de prueba a Google. Posición pseudoaleatoria estable por visita, filtros y página: posiciones 3 a 10 en escritorio y desde la tercera hasta la penúltima en móvil/app. Solo en desarrollo; sin registros ni métricas de campaña.
+- Escritorio reserva un espacio: once publicaciones reales y una publicidad, o doce publicaciones sin publicidad relevante. La migración `2026-11-26-catalog-ad-page-size.sql` modifica únicamente los divisores de conteo y paginación, conserva filtros/RLS y permite reaplicación. Aplicar después de la paginación actual del catálogo; no modifica los tamaños de móvil ni los clientes anteriores.
+- No se oculta el duodécimo resultado después de cargar: pasa a la página siguiente. Se mantienen los totales de artículos reales y la misma consulta por página. Sin commit, deploy ni cambios en producción.
+
 ## Publicación autorizada del 26 de noviembre: etiqueta directa de Google
 
 - El responsable solicita instalar directamente en el head la etiqueta GTM-53MT4CP9 de su captura, destinada a Analytics, y autoriza commit y deploy en main y el proyecto Vercel habitual.
@@ -481,3 +487,17 @@ Validación: **271 pruebas** aprobadas, compilación correcta y lint sin errores
 - El responsable autorizó commit y deploy en main y el proyecto Vercel habitual. Ambas migraciones aplicadas juntas en una transacción al Supabase habitual mediante su editor SQL, tras consultar las cinco funciones instaladas; sin escrituras de prueba ni cambios de estados de usuarios, publicaciones o mensajes.
 - Verificados RLS restrictivo, tres guardias de solicitudes, protección de escritura de mensajes, señal del catálogo y permisos privados de triggers. Las siete funciones de chat y protección coinciden exactamente con las validadas localmente. El catálogo conserva su definición instalada completa salvo el filtro previsto: al retirar únicamente ese fragmento recupera su MD5 anterior 243d9b9d8c0aaf8cb7cff7216cf5fc76; nueva huella a6962d24bb19a68e8348ea4a90570fcb.
 - Se mantienen las 450 pruebas aprobadas, compilación correcta y diff sin errores. Sin navegador local, capturas, push ni cambios de pagos, registro, CAPTCHA o SMTP. Revisión funcional real a cargo del responsable.
+## Preparado en local el 26 de noviembre: publicaciones por vendedor
+
+- Pulsar el nombre del vendedor en el detalle público cierra la ficha y abre el catálogo filtrado por ese vendedor. Reinicia búsqueda y filtros anteriores, muestra el nombre en el encabezado y permite volver a todos los vendedores. La ficha administrativa conserva su acción anterior.
+- Migración `2026-11-26-seller-catalog.sql` aplicada únicamente en Supabase local. Amplía la función instalada `home_article_page` sin sustituir sus restricciones: filtro por propietario antes de totales, destacados y paginación, entre ciudades. Conserva RLS y reglas de visibilidad del catálogo. Cambiar ciudad abandona la selección del vendedor.
+- Usa la consulta paginada existente; no añade consultas periódicas ni carga todos los avisos para filtrarlos en el navegador. Si el servidor aún no soporta el filtro, la interfaz falla sin mostrar avisos de otros vendedores.
+- Prueba SQL aislada aprobada: propietarios distintos, ciudad, RLS, avisos pausados, destacados, conteos, paginación, UUID inválido e idempotencia. Consulta de lectura local confirmó identidad de vendedor y exclusividad de sus resultados. Batería completa: 514 pruebas aprobadas y compilación correcta. ESLint conserva los 12 errores previos en MarketplaceApp y las advertencias previas de los archivos grandes.
+- Pendiente revisión visual del responsable y aplicación de la migración en producción cuando autorice commit y deploy. Sin navegador, commit ni despliegue en esta tarea.
+
+## Preparación de publicación autorizada del 27 de noviembre: catálogo y vendedor
+
+- Encabezado de vendedor con foto protegida, nombre, insignias, estrellas y ubicación pública, reutilizando datos cargados. Botón Volver y destacados superiores ocultos al filtrar por vendedor. Nombres clicables sin subrayado y próximos al registro. Título del catálogo Publicaciones con categoría, subcategoría y localidad seleccionadas.
+- Incluye la tarjeta publicitaria ficticia preparada exclusivamente para desarrollo: el componente permanece condicionado a import.meta.env.DEV. La migración de once casillas amplía las opciones sin modificar el catálogo de producción, que conserva doce publicaciones.
+- 514 pruebas y compilación aprobadas. ESLint de componentes/helpers nuevos sin errores; permanecen incidencias anteriores de los archivos grandes. SQL unificado de ambas migraciones comprobado en Supabase local con ocho resultados verdaderos, incluyendo permisos y reglas de visibilidad.
+- Commit y despliegue solicitados por el responsable. La CLI de Supabase carece de sesión; pendiente aplicar el SQL preparado en producción antes de promover la versión al dominio público. No cambia registro, pagos, SMTP ni datos de usuarios.
